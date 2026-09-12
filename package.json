@@ -2,6 +2,7 @@
   "name": "sivoov-run",
   "private": true,
   "version": "0.0.0",
+  "type": "module",
   "workspaces": [
     "shared",
     "api",
@@ -14,5 +15,12 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.70.0",
+    "vitest": "^4.1.11"
   }
 }

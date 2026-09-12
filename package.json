@@ -1,0 +1,18 @@
+{
+  "name": "sivoov-run",
+  "private": true,
+  "version": "0.0.0",
+  "workspaces": [
+    "shared",
+    "api",
+    "app"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  }
+}

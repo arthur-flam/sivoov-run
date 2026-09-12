@@ -1,0 +1,92 @@
+# main → preview channel (app) + preview Worker. Production is a manual promotion.
+# workflow_dispatch also triggers the rare native build.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: What to do
+        type: choice
+        options: [promote-production, build-development, build-preview, build-production]
+        required: true
+
+jobs:
+  api-preview:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Deploy Worker (preview env)
+        working-directory: api
+        run: npx wrangler deploy --env preview
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  app-preview:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+      - name: Publish update to the preview channel
+        working-directory: app
+        run: eas update --channel preview --message "${{ github.event.head_commit.message }}" --non-interactive
+
+  promote-production:
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'promote-production'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+      - name: Deploy Worker (production)
+        working-directory: api
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Publish update to the production channel
+        working-directory: app
+        run: eas update --channel production --message "${{ github.sha }}" --non-interactive
+
+  native-build:
+    if: github.event_name == 'workflow_dispatch' && startsWith(inputs.action, 'build-')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+      - name: EAS Build (cloud, both platforms)
+        working-directory: app
+        run: eas build --profile ${{ inputs.action == 'build-development' && 'development' || inputs.action == 'build-preview' && 'preview' || 'production' }} --platform all --non-interactive --no-wait

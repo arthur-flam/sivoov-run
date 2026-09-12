@@ -1,0 +1,37 @@
+# Every PR gets its own EAS Update branch. Open it from the dev client's launcher on the
+# phone, or scan the QR the action comments on the PR. JS-only changes need no build.
+name: Preview update
+
+on:
+  pull_request:
+    paths:
+      - 'app/**'
+      - 'shared/**'
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+      - name: Publish update to a branch named after the PR, comment QR on the PR
+        uses: expo/expo-github-action/preview@v8
+        with:
+          command: eas update --branch pr-${{ github.event.pull_request.number }} --message "${{ github.event.pull_request.title }}" --non-interactive
+          working-directory: app
+          qr-target: dev-build

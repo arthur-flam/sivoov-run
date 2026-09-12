@@ -1,0 +1,31 @@
+{
+  "name": "@sivoov/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --env local --port 8788",
+    "deploy": "wrangler deploy",
+    "deploy:preview": "wrangler deploy --env preview",
+    "types": "wrangler types",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "db:migrate:local": "wrangler d1 migrations apply sivoov-run --local --env local",
+    "db:migrate:preview": "wrangler d1 migrations apply sivoov-run-preview --remote --env preview",
+    "db:migrate:production": "wrangler d1 migrations apply sivoov-run --remote",
+    "seed": "tsx tools/seed.ts",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@sivoov/shared": "*",
+    "hono": "^4.13.7",
+    "zod": "^4.6.2"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "@playwright/test": "^1.63.0",
+    "tsx": "^4.23.13",
+    "wrangler": "^4.131.1"
+  }
+}

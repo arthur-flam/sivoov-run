@@ -12,3 +12,5 @@ android/
 .DS_Store
 playwright-report/
 test-results/
+.dev.vars
+api/worker-configuration.d.ts

@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["./worker-configuration.d.ts", "@cloudflare/vitest-pool-workers/types"],
+    "allowImportingTsExtensions": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "hono/jsx",
+    "noEmit": true
+  },
+  "include": ["src", "test", "tools", "e2e", "vitest.config.ts", "playwright.config.ts", "worker-configuration.d.ts"]
+}

@@ -1,9 +1,12 @@
-import deauvilleMarathonJson from './deauville-marathon.json';
+import { deauvilleMarathonPairs } from './deauville-marathon';
 import { CourseGeometrySchema } from '../schemas/course';
 import type { Landmark } from '../schemas/course';
 
 /** The real 2024 Deauville marathon trace (GPStraces export), used by tests, seeds and the simulator. */
-export const deauvilleMarathonGeometry = CourseGeometrySchema.parse(deauvilleMarathonJson);
+export const deauvilleMarathonGeometry = CourseGeometrySchema.parse({
+  courseId: 'deauville-2026-marathon',
+  points: deauvilleMarathonPairs.map(([lat, lng]) => ({ lat, lng })),
+});
 
 /** Landmarks by official distance, from the organizer's brief. Placeholder copy until the brief arrives. */
 export const deauvilleMarathonLandmarks: Landmark[] = [

@@ -1,0 +1,3 @@
+# Copy to .dev.vars for local development. Without RESEND_API_KEY, codes are printed to the console.
+RESEND_API_KEY=
+EMAIL_FROM="Sivoov Run <run@sivoov.app>"

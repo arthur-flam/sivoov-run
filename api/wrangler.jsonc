@@ -1,0 +1,34 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sivoov-run",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  // Top level is production. `--env preview` and `--env local` override below.
+  "vars": { "ENVIRONMENT": "production", "BASE_URL": "https://run.sivoov.app" },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "sivoov-run", "database_id": "9bb857cd-16b3-4fa6-bd13-c39793b70da3", "migrations_dir": "migrations" }
+  ],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "sivoov-run-files" }],
+  "routes": [{ "pattern": "run.sivoov.app", "custom_domain": true }],
+  "env": {
+    "preview": {
+      "name": "sivoov-run-preview",
+      "vars": { "ENVIRONMENT": "preview", "BASE_URL": "https://preview.run.sivoov.app" },
+      "d1_databases": [
+        { "binding": "DB", "database_name": "sivoov-run-preview", "database_id": "09328ba9-5588-49dd-a8a1-5144c4f874a8", "migrations_dir": "migrations" }
+      ],
+      "r2_buckets": [{ "binding": "FILES", "bucket_name": "sivoov-run-files-preview" }],
+      "routes": [{ "pattern": "preview.run.sivoov.app", "custom_domain": true }]
+    },
+    "local": {
+      "vars": { "ENVIRONMENT": "local", "BASE_URL": "http://localhost:8788" },
+      "routes": [],
+      "d1_databases": [
+        { "binding": "DB", "database_name": "sivoov-run", "database_id": "9bb857cd-16b3-4fa6-bd13-c39793b70da3", "migrations_dir": "migrations" }
+      ],
+      "r2_buckets": [{ "binding": "FILES", "bucket_name": "sivoov-run-files" }]
+    }
+  }
+}

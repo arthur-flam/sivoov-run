@@ -23,7 +23,8 @@
 | Content | Claude (script writing, one-off), ElevenLabs TTS (French), cached MP3 in R2 | pre-produced per race |
 | Errors | Sentry (app + worker) | crash visibility without a laptop |
 | Builds | EAS Build (cloud), EAS Update (OTA), GitHub Actions | no Mac, no laptop |
-| Tests | Vitest everywhere, Playwright against the web target and the Worker | |
+| Tests | Vitest everywhere (API tests run inside workerd via vitest-pool-workers), Playwright against the web target and the Worker | |
+| Tools | `tsx` to run TypeScript scripts under `api/tools/` (dev dependency) | Node cannot load the shared package unaided |
 
 Not used, on purpose: NativeWind/Tailwind, Clerk, Next.js, TanStack Query (fetch + Zustand
 is enough for this surface), Mapbox in the app (see "Course diagram").
@@ -31,8 +32,8 @@ is enough for this surface), Mapbox in the app (see "Course diagram").
 ## Repo layout
 ```
 shared/          @sivoov/shared: schemas/, domain/ (course projection, splits, pace, audio triggers), i18n/
-api/             @sivoov/api: src/routes/ (api + pages), src/db/, migrations/, wrangler.toml, tests
-app/             @sivoov/app: app/ (expo-router screens), src/{components,stores,services,audio}, tests
+api/             @sivoov/api: src/routes/ (api + pages), src/pages/ (Hono JSX), src/db/, src/lib/, migrations/, tools/ (seed, audio), wrangler.jsonc, test/ (workerd), e2e/ (Playwright)
+app/             @sivoov/app: app/ (expo-router screens), src/{components,stores,services/location,audio}, e2e/ (Playwright, web target)
 docs/
 .github/workflows/  ci.yml (PR checks), preview.yml (EAS Update per PR), deploy.yml (main → prod)
 .claude/         session hook + permissions for cloud sessions
@@ -83,9 +84,13 @@ over. The app name in stores stays "Sivoov".
 ## Environments
 | | API | App |
 |---|---|---|
-| local | `wrangler dev`, local D1/R2, port 8788 | `expo start`, web target in the container |
-| preview | `preview.run.sivoov.app` (Worker env `preview`) | dev client build, EAS Update channel `preview` + one branch per PR |
-| production | `run.sivoov.app` | store build, EAS Update channel `production` |
+| local | `wrangler dev --env local`, local D1/R2, port 8788 | `expo start`, web target in the container, `EXPO_PUBLIC_API_URL=http://localhost:8788` |
+| preview | `preview.run.sivoov.app` (Worker `sivoov-run-preview`, D1 `sivoov-run-preview`, R2 `sivoov-run-files-preview`) | dev client build, EAS Update channel `preview` + one branch per PR |
+| production | `run.sivoov.app` (Worker `sivoov-run`, D1 `sivoov-run`, R2 `sivoov-run-files`) | store build, EAS Update channel `production` |
+
+`wrangler.jsonc`: the top level is production, `env.preview` and `env.local` override. Local
+D1 and R2 live under `api/.wrangler/`. Seed any target with `npm run seed -w api -- <target>`.
+Cloudflare account: arthur.flam@gmail.com's (id 6bd098851f5995454ecdbad6744c567c).
 
 ## Simulation is a first-class mode
 `shared/domain/simulate.ts` produces location updates from a course and a pace profile.

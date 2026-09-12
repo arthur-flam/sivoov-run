@@ -1,0 +1,22 @@
+{
+  "cli": { "version": ">= 16.0.0", "appVersionSource": "remote" },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "channel": "development",
+      "env": { "APP_VARIANT": "development", "EXPO_PUBLIC_API_URL": "https://preview.run.sivoov.app" }
+    },
+    "preview": {
+      "distribution": "internal",
+      "channel": "preview",
+      "env": { "APP_VARIANT": "preview", "EXPO_PUBLIC_API_URL": "https://preview.run.sivoov.app" }
+    },
+    "production": {
+      "autoIncrement": true,
+      "channel": "production",
+      "env": { "APP_VARIANT": "production", "EXPO_PUBLIC_API_URL": "https://run.sivoov.app" }
+    }
+  },
+  "submit": { "production": {} }
+}

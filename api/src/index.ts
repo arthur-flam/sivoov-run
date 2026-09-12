@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import type { AppEnv } from './env';
 import { api } from './routes/api';
@@ -7,6 +8,8 @@ import { pages } from './routes/pages';
 const app = new Hono<AppEnv>();
 
 app.use('*', logger());
+// The app's web target and the organizer's embeds call the JSON API from other origins.
+app.use('/api/*', cors({ origin: '*', allowHeaders: ['Authorization', 'Content-Type'], allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'] }));
 app.route('/api', api);
 app.route('/', pages);
 

@@ -23,12 +23,19 @@ Production has the race and courses, no entrants yet.
 Production caught up on 2026-09-13: migrations, seed and Worker deployed by Arthur. Both
 environments now run the same code.
 
-1. **The acceptance run on the Android phone.** The dev client builds and installs locally
-   now (`npm run device:build`, then `npm run device`; `docs/DEVICE.md`). What is still
-   unproven is the run itself: background location with the screen locked, background audio,
-   and the upload queue. Acceptance: one real run around the block with the pack in the ears,
-   screen locked, trace uploaded, the run visible in `/org/deauville-2026` on preview and
-   pullable with `npm run trace:pull -w api -- preview <run-id>`.
+1. **The acceptance run on the Android phone — one question left: does the tracker record
+   while moving?** Everything around it is now proven on a Galaxy S23 / Android 16 (below).
+   Two indoor runs recorded **0 GPS samples and 0 rejected**, i.e. nothing reached the tracker
+   at all, while the native side logged location batches arriving every few seconds. Two
+   candidate explanations, not yet separated:
+   - the phone was motionless on a desk and Android said so (`FusedLocation: stationary
+     throttling engaged`), so the batches were empty — in which case there is no bug;
+   - or the batches carried fixes and the JS task dropped them. The dev client logs
+     `WARN No task registered for key expo-task-manager` on every start, which would do
+     exactly that.
+   The two are told apart by *moving*: walk 200 m with the app running and read the finish
+   screen's "N GPS · N rejected". Non-zero ⇒ the first explanation, carry on. Zero ⇒ the
+   background task never reaches JS, and that is the next bug to fix.
 2. ~~Trace storage~~ Done 2026-09-13 (session 3): the trace body lives in expo-file-system
    (`traces/<runId>.json`, `app/src/stores/traceFiles.ts`); SecureStore keeps run + file path
    only. Web target uses localStorage. Not yet verified on a device (needs item 1).
@@ -46,6 +53,20 @@ environments now run the same code.
 7. **Web polish**: hero photo and real theme from the organizer, English copy review, OG image,
    English variant of the admin.
 8. **Store build**: production profile, store listing, promote flow (WORKFLOW.md).
+
+## What the first phone session proved (2026-09-13, Galaxy S23, Android 16)
+Working on real hardware: sign-in against preview, the race home with the Mapbox course
+render, the pre-flight (19-20 m GPS lock, background permission, battery warning), the run
+screen and its ceremony, **audio actually playing** (three events, audio focus taken and
+released per clip), the Android **foreground service** (`isForeground=true`, type location)
+with its notification, the finish screen, the **upload** ("Result sent"), the persisted
+upload queue flushing a run left over from a crash, and `npm run trace:pull` pulling that
+trace back out of R2. Distance stayed at 0.00 km while the phone sat still, which is the
+honesty filter behaving.
+
+Two bugs found in the first twenty minutes, both invisible to the web target and to all 111
+tests: the missing `RECEIVE_BOOT_COMPLETED` (every run crashed seconds after the gun) and
+the near-black ghost labels on the night screens.
 
 ## Decisions taken 2026-09-13
 - Android dev builds are compiled on the laptop over USB, not on EAS: the toolchain is already
@@ -88,7 +109,13 @@ environments now run the same code.
 
 ## Known gaps
 - No production entrants: import the organizer's CSV (admin slice) or seed by hand.
-- No run has happened on a real phone yet: background location, background audio and the
-  upload queue are validated on the web target and by tests only. The shell itself now
-  installs on Android (docs/DEVICE.md); what is missing is the run.
+- The tracker has never recorded a moving runner. See the pipe, item 1: indoor runs record
+  zero samples and it is not yet known whether that is Android throttling a motionless phone
+  or the background task failing to reach JS.
+- `WARN No task registered for key expo-task-manager` on every dev-client start. Benign in
+  dev as far as anyone knows; suspicious given the above. Check whether it also appears in a
+  `preview` profile build before trusting it.
+- Metro's file watcher did not pick up edits during the 2026-09-13 session: Fast Refresh
+  never fired and changes only landed after a force-stop and relaunch. Worth a look, because
+  loop 2a's whole value is the 10-second edit cycle.
 - The admin is French-only.

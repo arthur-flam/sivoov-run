@@ -7,6 +7,9 @@ import type { ExpoConfig } from 'expo/config';
 const variant = process.env.APP_VARIANT ?? 'production';
 const suffix = variant === 'development' ? '.dev' : variant === 'preview' ? '.preview' : '';
 const name = variant === 'development' ? 'Sivoov (Dev)' : variant === 'preview' ? 'Sivoov (Preview)' : 'Sivoov';
+// A dev or preview shell must never talk to production, even if Metro was started without
+// EXPO_PUBLIC_API_URL (docs/DEVICE.md).
+const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? (variant === 'production' ? 'https://run.sivoov.app' : 'https://preview.run.sivoov.app');
 
 const config: ExpoConfig = {
   name,
@@ -57,7 +60,7 @@ const config: ExpoConfig = {
   ],
   updates: { url: 'https://u.expo.dev/f63919b9-08f2-49be-81f0-832c74c4884d' },
   runtimeVersion: { policy: 'appVersion' },
-  extra: { router: {}, eas: { projectId: 'f63919b9-08f2-49be-81f0-832c74c4884d' }, apiUrl: process.env.EXPO_PUBLIC_API_URL ?? 'https://run.sivoov.app' },
+  extra: { router: {}, eas: { projectId: 'f63919b9-08f2-49be-81f0-832c74c4884d' }, apiUrl },
 };
 
 export default config;

@@ -1,6 +1,6 @@
 # Status
 
-Updated: 2026-09-13 (session 6: the no-laptop loop; session 5: the screenshot rig; session 4: phone testing on Android over USB; session 3: trace storage;
+Updated: 2026-09-13 (session 7: audio experience brief + organizer studio; session 6: the no-laptop loop; session 5: the screenshot rig; session 4: phone testing on Android over USB; session 3: trace storage;
 session 2: email, access, map, audio, device, admin; production deployed). Race week: 14-15 November 2026.
 See PRD section 8 for milestones.
 
@@ -19,7 +19,7 @@ Production has the race and courses, no entrants yet.
 | 6. Device slice | Done on the web target. Background location (expo-task-manager task, Android foreground service, "always" flow), `/prepare` pre-flight (GPS lock, permission, battery, headphones), finish uploads `PUT /api/runs/:id` + trace to R2, offline queue persisted and retried on foreground. Exercised on a Galaxy S23 on 2026-09-13: foreground service, audio, finish and upload all real; the tracker has still never seen a moving runner. |
 | 7. Organizer admin | Done and on preview: `/org/deauville-2026` (email code sign-in, counts, entrant list with search, CSV import idempotent on bib with a rejection report, entrants/results CSV exports), CLI `npm run import:entrants -w api -- <env> <file.csv>`. 6 workerd tests, Playwright screenshots. |
 | 9. The no-laptop loop | Done, and **proven on the phone** 2026-09-13. `Sivoov (Preview)` is a standalone release shell (`npm run device:preview`) that needs no metro: the bundle is in the APK and `expo-updates` is live on the `preview` channel, so a cloud session ships JS with `gh workflow run deploy.yml -f action=publish-preview`. The app keeps a device logbook (`app/src/diag.ts`) replacing `adb logcat`: read it on the phone (finish screen → Diagnostic, with Share), or from a session — it rides to R2 in the run's trace and `npm run trace:pull` prints it. CI typecheck and a too-tight workerd timeout fixed: CI and Deploy are **green for the first time since the repo began**, and Arthur created the three Actions secrets, so main now deploys the preview Worker and publishes the update by itself. |
-| 10. Organizer studio (courses, GPX, audio script on a map) | Done locally, **not yet migrated or deployed**. `/org/{race}/courses` (cards per course: trace, repères, brouillon, pack; GPX upload) and `/org/{race}/courses/{courseId}` — the studio: Leaflet + Mapbox tiles, one marker per audio event at its projected distance, click the course to add one there, target pace turning `elapsed`/`split` into positions, distance frise, per-event editor with autosave, `Écouter` (MP3 or browser voice), `Générer la voix` (ElevenLabs from the Worker, R2 cache at `tts/<hash>.mp3`), `Publier la version N` (pack + manifest + `audio_packs`, draft bumped). Migration `0005_audio_scripts`. 13 workerd tests, two new screenshots. The CLI (`npm run audio:build`) still works on the same shared schema. |
+| 10. Organizer studio (courses, GPX, audio script on a map) | Done, on preview (migration + seed + secret applied 2026-09-13; the Worker deploys from main). `/org/{race}/courses` (cards per course: trace, repères, brouillon, pack; GPX upload) and `/org/{race}/courses/{courseId}` — the studio: Leaflet + Mapbox tiles, one marker per audio event at its projected distance, click the course to add one there, target pace turning `elapsed`/`split` into positions, distance frise, per-event editor with autosave, `Écouter` (MP3 or browser voice), `Générer la voix` (ElevenLabs from the Worker, R2 cache at `tts/<hash>.mp3`), `Publier la version N` (pack + manifest + `audio_packs`, draft bumped). Migration `0005_audio_scripts`. 13 workerd tests, two new screenshots. The CLI (`npm run audio:build`) still works on the same shared schema. |
 | 8. Screenshot rig | Done. `npm run shots` photographs 9 app screens and 8 web pages headlessly in ~70 s into `docs/shots/` with a contact sheet; `npm run shots:store` writes exact App Store (1290x2796) and Play (1080x1920) files with the dev chrome hidden. Presets include an English pass. Runbook: `docs/SHOTS.md`. |
 
 ## Start here (next session)
@@ -71,9 +71,13 @@ dev client", happened on 2026-09-13 on a real Galaxy S23 (see below), minus the 
 3. **Results and certificate**, then the **GPX upload fallback** (`/{race}/upload`). Both are
    named in M2 and neither exists. The fallback is also the insurance policy if the device run
    keeps disappointing.
-4. **Audio v1**: sequence intro/countdown/gun with the visual countdown; km splits with
-   pre-rendered number fragments; personal name files per entrant at pack build; "less talk"
-   setting. JS + pipeline, no native change.
+4. **Audio v1**, in the order of `docs/AUDIO_EXPERIENCE.md` §4 and Part 2 §2.6: (a) the `cue`
+   trigger so intro → countdown → gun play *before* the clock starts and the digits follow the
+   countdown file (today all three fire at the gun); (b) pack download from the race home and
+   *Préparer* with a visible "pack prêt" state; (c) sequence playback (N files back to back),
+   then number fragments for splits and name files per entrant; (d) `interval` trigger and file
+   upload per line in the studio; (e) "moins de voix". JS + pipeline, no native change. The
+   rewritten Deauville script (double loop, ~38 events) is content work in the studio.
 
 ### M3 (17 Oct): stores — and the real schedule risk
 5. **iOS does not exist yet.** Everything on this page is Android. There is no iOS build, no
@@ -195,9 +199,9 @@ the near-black ghost labels on the night screens.
   never fired and changes only landed after a force-stop and relaunch. Worth a look, because
   loop 2a's whole value is the 10-second edit cycle.
 - The admin is French-only (the studio too).
-- The studio's migration and secret are not on preview or production yet: run
-  `npm run db:migrate:preview -w api` / `:production`, then `wrangler secret put
-  ELEVENLABS_API_TOKEN` for both, or the studio will 503 on "Générer la voix".
+- The studio is live on preview (migration 0005 applied, seeded with the Deauville draft,
+  `ELEVENLABS_API_TOKEN` set). Production has the secret but **not migration 0005 yet**: run
+  `npm run db:migrate:production -w api` before opening `/org/deauville-2026/courses` there.
 - Voice rendering in the studio has only ever run against a stubbed ElevenLabs (the workerd
   test). The first real render from the Worker is untested.
 - The `preview` and `production` profiles have never been built on Android either; only the

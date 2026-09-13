@@ -81,3 +81,15 @@
   Phones are arm64: `ORG_GRADLE_PROJECT_reactNativeArchitectures=arm64-v8a` (set in
   `scripts/device.sh`, `ANDROID_ABIS` overrides) survives `expo prebuild`, which rewrites
   `android/gradle.properties`. Editing that file directly does not survive.
+- 2026-09-13: **Android crashed seconds into every run** until `RECEIVE_BOOT_COMPLETED` was added
+  to `android.permissions`. `expo-task-manager` delivers background location batches through a
+  JobScheduler job created with `.setPersisted(true)` (`TaskManagerUtils.java:205`) and registers
+  a `BOOT_COMPLETED` receiver, but neither expo-task-manager nor expo-location declares the
+  permission — Android then throws `IllegalArgumentException: Requested job cannot be persisted`
+  from inside `TaskBroadcastReceiver`, which is fatal and unreachable from JS, so no try/catch in
+  the app could have saved it. Found in 20 minutes on a real phone; invisible on the web target
+  and to every test. Any Expo app doing background location needs this permission.
+- 2026-09-13: Permissions on a test phone need no tapping: `adb shell pm grant <pkg>
+  android.permission.ACCESS_BACKGROUND_LOCATION` grants the "always" location that Android
+  otherwise only offers from its settings page, and `adb shell dumpsys deviceidle whitelist +<pkg>`
+  buys the battery exemption Samsung needs. Both are `./scripts/device.sh prep`.

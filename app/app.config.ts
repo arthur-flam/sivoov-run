@@ -37,7 +37,10 @@ const config: ExpoConfig = {
       backgroundImage: './assets/android-icon-background.png',
       monochromeImage: './assets/android-icon-monochrome.png',
     },
-    permissions: ['ACCESS_FINE_LOCATION', 'ACCESS_COARSE_LOCATION', 'ACCESS_BACKGROUND_LOCATION', 'FOREGROUND_SERVICE', 'FOREGROUND_SERVICE_LOCATION'],
+    // RECEIVE_BOOT_COMPLETED: expo-task-manager schedules its location job with
+    // setPersisted(true), which Android refuses without it — the app crashed on the first
+    // background batch. Neither expo-task-manager nor expo-location declares it (docs/MEMORY.md).
+    permissions: ['ACCESS_FINE_LOCATION', 'ACCESS_COARSE_LOCATION', 'ACCESS_BACKGROUND_LOCATION', 'FOREGROUND_SERVICE', 'FOREGROUND_SERVICE_LOCATION', 'RECEIVE_BOOT_COMPLETED'],
     predictiveBackGestureEnabled: false,
   },
   web: { bundler: 'metro', output: 'single', favicon: './assets/favicon.png' },

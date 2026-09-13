@@ -3,6 +3,7 @@
 #
 #   ./scripts/device.sh build    first time, or after a native change: compile + install the APK
 #   ./scripts/device.sh run      every other time: metro + launch the app on the phone (JS only)
+#   ./scripts/device.sh prep     grant location (always) + battery exemption over adb
 #   ./scripts/device.sh logs     follow the app's logs from the phone
 #   ./scripts/device.sh doctor   check the phone is visible and set up
 set -euo pipefail
@@ -41,6 +42,7 @@ case "${1:-run}" in
     need_device
     cd "$APP"
     npx expo run:android --device
+    "$0" prep
     ;;
 
   apk)
@@ -65,6 +67,18 @@ case "${1:-run}" in
     adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
     cd "$APP"
     npx expo start --dev-client
+    ;;
+
+  prep)
+    # Everything the runner would otherwise grant by hand, including the "always" location
+    # permission Android only offers from its settings page, and the battery exemption
+    # Samsung needs. Survives a reinstall of the same package; redo after an uninstall.
+    need_device
+    for perm in ACCESS_FINE_LOCATION ACCESS_COARSE_LOCATION ACCESS_BACKGROUND_LOCATION; do
+      adb shell pm grant "$PKG" "android.permission.$perm" || true
+    done
+    adb shell dumpsys deviceidle whitelist "+$PKG"
+    echo "granted location (always) and exempted from battery optimisation"
     ;;
 
   logs)

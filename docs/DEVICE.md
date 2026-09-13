@@ -35,6 +35,10 @@ Only `arm64-v8a` is compiled, because every real Android phone is arm64 — buil
 default ABIs took 46 minutes and made a 260 MB APK for nothing. For an x86 emulator:
 `ANDROID_ABIS=x86_64 npm run device:build`.
 
+Permissions and the battery exemption are granted over adb by `npm run device:prep` (the
+build runs it for you), so nobody has to tap through Android's dialogs — including the
+"always" location that Android otherwise only offers from its own settings page.
+
 ## 2. Every other time (~10 s)
 ```bash
 npm run device

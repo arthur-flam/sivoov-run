@@ -20,7 +20,7 @@ Sivoov without replacing it.
    It should list one device with the state `device`. `unauthorized` means step 3 was not
    accepted; nothing listed usually means a charge-only cable.
 
-## 1. First build (~15-25 min, once)
+## 1. First build (~15 min, once)
 ```bash
 npm run device:build
 ```
@@ -30,6 +30,10 @@ or removed (`app/package.json` → anything `expo-*` with native code, see ARCHI
 
 If you only want the APK without a phone attached: `./scripts/device.sh apk`, then
 `./scripts/device.sh install` once the phone is plugged in.
+
+Only `arm64-v8a` is compiled, because every real Android phone is arm64 — building the four
+default ABIs took 46 minutes and made a 260 MB APK for nothing. For an x86 emulator:
+`ANDROID_ABIS=x86_64 npm run device:build`.
 
 ## 2. Every other time (~10 s)
 ```bash

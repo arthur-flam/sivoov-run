@@ -15,6 +15,10 @@ export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home -v 17 2>/dev/null || true)}"
 export PATH="$ANDROID_HOME/platform-tools:$PATH"
 
+# Real Android phones are arm64. Building the other three ABIs quadrupled the native
+# compilation for nothing (46 min the first time). Override to build all of them.
+export ORG_GRADLE_PROJECT_reactNativeArchitectures="${ANDROID_ABIS:-arm64-v8a}"
+
 # The dev build always talks to preview, never production.
 export APP_VARIANT=development
 export EXPO_PUBLIC_API_URL="${EXPO_PUBLIC_API_URL:-https://preview.run.sivoov.app}"

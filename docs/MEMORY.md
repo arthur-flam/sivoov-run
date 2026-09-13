@@ -77,3 +77,7 @@
   whenever the permission check is a warning.
 - 2026-09-13: The race window (9-15 Nov 2026) is displayed but never enforced: a test run outside
   it starts and uploads normally. Worth remembering before assuming a date gate exists.
+- 2026-09-13: The first Android build took 46 min because RN compiles all four ABIs by default.
+  Phones are arm64: `ORG_GRADLE_PROJECT_reactNativeArchitectures=arm64-v8a` (set in
+  `scripts/device.sh`, `ANDROID_ABIS` overrides) survives `expo prebuild`, which rewrites
+  `android/gradle.properties`. Editing that file directly does not survive.

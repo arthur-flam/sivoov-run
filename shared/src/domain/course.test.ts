@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { deauvilleMarathonGeometry, deauvilleMarathonLandmarks } from '../fixtures';
-import { buildTrack, decimate, nextLandmark, positionAtDistance, positionForRun, toDiagram, trackMetersForRun } from './course';
+import { buildTrack, decimate, nearestOnTrack, nextLandmark, positionAtDistance, positionForRun, runMetersForTrack, toDiagram, trackMetersForRun } from './course';
 import { haversineM } from './geo';
 
 const track = buildTrack(deauvilleMarathonGeometry.points);
@@ -56,5 +56,34 @@ describe('diagram', () => {
     expect(d[0]).toEqual(track.points[0]);
     expect(d[d.length - 1]).toEqual(track.points[track.points.length - 1]);
     expect(d.length).toBeLessThan(track.points.length / 9);
+  });
+});
+
+describe('nearestOnTrack', () => {
+  it('projects a point on the line back to its own distance along the track', () => {
+    const at = positionAtDistance(track, 12_000);
+    const found = nearestOnTrack(track, at.point);
+    expect(found.trackM).toBeCloseTo(12_000, 0);
+    expect(found.offsetM).toBeLessThan(1);
+  });
+  it('projects a point beside the line and reports how far off it was', () => {
+    // A straight 1 km segment: a real course loops back on itself, and a click between two
+    // branches legitimately snaps to whichever is nearer (the studio shows the distance it
+    // found before adding anything).
+    const straight = buildTrack([
+      { lat: 49.36, lng: 0.06 },
+      { lat: 49.36, lng: 0.0737 },
+    ]);
+    const half = positionAtDistance(straight, straight.totalM / 2);
+    const found = nearestOnTrack(straight, { lat: half.point.lat + 0.0009, lng: half.point.lng });
+    expect(Math.abs(found.trackM - straight.totalM / 2)).toBeLessThan(5);
+    expect(found.offsetM).toBeGreaterThan(80);
+    expect(found.offsetM).toBeLessThan(120);
+    expect(found.point.lat).toBeCloseTo(half.point.lat, 6);
+  });
+  it('inverts the run/track proportion, so a click becomes an official distance', () => {
+    const trackM = trackMetersForRun(track, 42_195, 21_097.5);
+    expect(runMetersForTrack(track, 42_195, trackM)).toBeCloseTo(21_097.5, 3);
+    expect(runMetersForTrack(track, 42_195, track.totalM)).toBe(42_195);
   });
 });

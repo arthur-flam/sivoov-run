@@ -7,6 +7,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { renderableLines, ttsCacheInput } from '@sivoov/shared';
 import type { BuiltScript } from './script';
 
 const ROOT_ENV = new URL('../../../.env', import.meta.url).pathname;
@@ -27,7 +28,7 @@ export type Rendered = { key: string; path: string; bytes: number; sha256: strin
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const renderOne = async (apiKey: string, voice: BuiltScript['voice'], text: string, attempt = 0): Promise<string> => {
-  const path = join(CACHE, `${sha256(`${text}|${voice.id}|${voice.model}`)}.mp3`);
+  const path = join(CACHE, `${sha256(ttsCacheInput(text, voice.id, voice.model))}.mp3`);
   if (existsSync(path)) return path;
   const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice.id}?output_format=mp3_44100_128`, {
     method: 'POST',
@@ -61,7 +62,7 @@ export const renderScript = async (script: BuiltScript, log: (s: string) => void
   const apiKey = envVar('ELEVENLABS_API_TOKEN');
   if (!apiKey) throw new Error('ELEVENLABS_API_TOKEN missing (root .env or environment)');
   mkdirSync(CACHE, { recursive: true });
-  const files = script.lines.filter((l) => !l.slots);
+  const files = renderableLines(script);
   return mapLimit(files, Number(envVar('ELEVENLABS_CONCURRENCY') ?? 2) || 2, async (line) => {
     const path = await renderOne(apiKey, script.voice, line.text);
     const buf = readFileSync(path);

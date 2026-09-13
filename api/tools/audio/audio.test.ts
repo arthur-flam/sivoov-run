@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { AudioPackSchema } from '@sivoov/shared';
-import { buildScript, loadScript } from './script';
+import { AudioPackSchema, buildScript } from '@sivoov/shared';
+import { loadScript } from './script';
 import { mapLimit, sha256 } from './tts';
 import { manifestFor, upsertSql } from './upload';
 

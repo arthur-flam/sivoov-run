@@ -4,5 +4,6 @@ export * from './entrant';
 export * from './run';
 export * from './diagnostics';
 export * from './audio';
+export * from './audioScript';
 export * from './auth';
 export * from './organizer';

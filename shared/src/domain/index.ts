@@ -4,6 +4,8 @@ export * from './smoothing';
 export * from './tracker';
 export * from './simulate';
 export * from './audioTriggers';
+export * from './audioScript';
+export * from './audioEstimates';
 export * from './format';
 export * from './gpx';
 export * from './csvEntrants';

@@ -1,5 +1,5 @@
 import { deauvilleMarathonLandmarks } from '@sivoov/shared';
-import type { AudioScript } from '../script';
+import type { AudioScriptInput } from '@sivoov/shared';
 
 /**
  * v0 French script for the Deauville 2026 marathon. Written by hand (the Claude-from-brief
@@ -17,7 +17,7 @@ const landmarkLines: Record<string, string> = {
   sunset: 'Sunset Beach. La Manche est là, sur votre gauche, et elle ne vous quitte plus jusqu’à l’arrivée. Quatre kilomètres. Vous tenez le bon bout.',
 };
 
-export const deauville2026MarathonScript: AudioScript = {
+export const deauville2026MarathonScript: AudioScriptInput = {
   courseId: 'deauville-2026-marathon',
   version: 1,
   locale: 'fr',

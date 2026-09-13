@@ -7,26 +7,16 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { AudioPackSchema } from '@sivoov/shared';
+import { manifestFor, packPrefix } from '@sivoov/shared';
 import type { AudioPack } from '@sivoov/shared';
-import type { BuiltScript } from './script';
 import type { Rendered } from './tts';
+
+export { manifestFor, packPrefix };
 
 export type Target = 'local' | 'preview' | 'production';
 export const isTarget = (s: string | undefined): s is Target => s === 'local' || s === 'preview' || s === 'production';
 
 const API_DIR = new URL('../../', import.meta.url).pathname;
-export const packPrefix = (courseId: string, version: number) => `packs/${courseId}/${version}`;
-
-/** The manifest the API stores: file URLs are relative keys, resolved per environment at serve time. */
-export const manifestFor = (script: BuiltScript, rendered: Rendered[]): AudioPack =>
-  AudioPackSchema.parse({
-    courseId: script.courseId,
-    version: script.version,
-    locale: script.locale,
-    events: script.events,
-    files: Object.fromEntries(rendered.map((r) => [r.key, { url: `${packPrefix(script.courseId, script.version)}/${r.key}`, bytes: r.bytes, sha256: r.sha256 }])),
-  });
 
 const q = (v: string | number) => (typeof v === 'number' ? String(v) : `'${v.replaceAll("'", "''")}'`);
 

@@ -73,6 +73,44 @@ export const positionForRun = (track: CourseTrack, officialM: number, runM: numb
 export const nextLandmark = (landmarks: Landmark[], runM: number): Landmark | undefined =>
   [...landmarks].sort((a, b) => a.meters - b.meters).find((l) => l.meters > runM);
 
+/** The official distance a runner has covered when they stand at `trackM` on the polyline. */
+export const runMetersForTrack = (track: CourseTrack, officialM: number, trackM: number): number =>
+  track.totalM > 0 ? Math.max(0, Math.min(officialM, (trackM / track.totalM) * officialM)) : 0;
+
+export type TrackProjection = { trackM: number; offsetM: number; point: LatLng; segmentIndex: number };
+
+/**
+ * The point of the track closest to `p`, and how far along the track it is. Authoring-time:
+ * the studio turns a click on the map into a distance so the event gets a `distance` trigger.
+ * Flat-earth per segment, which is exact enough over a few hundred meters.
+ */
+export const nearestOnTrack = (track: CourseTrack, p: LatLng): TrackProjection => {
+  const kx = Math.cos((p.lat * Math.PI) / 180);
+  const best = track.points.slice(0, -1).reduce(
+    (acc, a, i) => {
+      const b = track.points[i + 1]!;
+      const ax = (a.lng - p.lng) * kx;
+      const ay = a.lat - p.lat;
+      const bx = (b.lng - p.lng) * kx;
+      const by = b.lat - p.lat;
+      const dx = bx - ax;
+      const dy = by - ay;
+      const len2 = dx * dx + dy * dy;
+      const t = len2 > 0 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / len2)) : 0;
+      const x = ax + dx * t;
+      const y = ay + dy * t;
+      const d2 = x * x + y * y;
+      return d2 < acc.d2 ? { d2, i, t } : acc;
+    },
+    { d2: Infinity, i: 0, t: 0 },
+  );
+  const a = track.points[best.i]!;
+  const b = track.points[best.i + 1]!;
+  const segLen = track.cumulative[best.i + 1]! - track.cumulative[best.i]!;
+  const point = interpolate(a, b, best.t);
+  return { trackM: track.cumulative[best.i]! + segLen * best.t, offsetM: haversineM(p, point), point, segmentIndex: best.i };
+};
+
 export type DiagramPoint = { x: number; y: number };
 
 /**

@@ -14,6 +14,10 @@ export default defineConfig(async () => {
     test: {
       include: ['test/**/*.test.ts'],
       setupFiles: ['./test/apply-migrations.ts'],
+      // Each of these tests drives a real workerd with D1 behind it; the sign-in walk alone is
+      // six round trips and took 5.19 s on a CI runner against vitest's 5 s default, which is
+      // how main stayed red. The suite is not slow because anything is wrong with it.
+      testTimeout: 20_000,
     },
   };
 });

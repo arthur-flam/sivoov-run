@@ -93,3 +93,14 @@
   android.permission.ACCESS_BACKGROUND_LOCATION` grants the "always" location that Android
   otherwise only offers from its settings page, and `adb shell dumpsys deviceidle whitelist +<pkg>`
   buys the battery exemption Samsung needs. Both are `./scripts/device.sh prep`.
+- 2026-09-13: A stationary phone records nothing: Android logs `FusedLocation: stationary
+  throttling engaged` and the location batches arrive empty, so an indoor desk test shows
+  `0 GPS · 0 rejected` on the finish screen even though the whole pipeline is healthy. Confirmed
+  with Arthur that the phone was not moving. Test the tracker by walking, never from a desk.
+- 2026-09-13: Metro's file watcher did not fire all session — Fast Refresh never rebundled an
+  edited file and changes only appeared after `adb shell am force-stop` plus a relaunch. Verify
+  an edit actually landed (change something visible) before concluding it had no effect.
+- 2026-09-13: `expo start` forwards the device's console output to its own stdout only after the
+  app reconnects; a dev-client launched by deep link while the process is still dying crashes
+  with `App react context shouldn't be created before` (DevLauncherAppLoader). Force-stop, wait,
+  then launch with the plain LAUNCHER intent.

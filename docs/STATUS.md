@@ -4,7 +4,7 @@ Updated: 2026-09-13 (session 4: phone testing on Android over USB; session 3: tr
 session 2: email, access, map, audio, device, admin; production deployed). Race week: 14-15 November 2026.
 See PRD section 8 for milestones.
 
-## Where we are: M1 mostly done
+## Where we are: M1 done bar the moving tracker
 Live: https://run.sivoov.app/deauville-2026 (production) and https://preview.run.sivoov.app
 (preview). How to sign in as a test runner or organizer on local/preview: `docs/ACCESS.md`.
 Production has the race and courses, no entrants yet.
@@ -15,44 +15,72 @@ Production has the race and courses, no entrants yet.
 | 2. `api/` Worker, D1, auth, pages | Done and deployed. Sign-in codes go out through Cloudflare Email Sending (`EMAIL` binding, zone sivoov.app); local/preview also accept the fixed test code for @example.com accounts. Landing page shows the real course on a Mapbox static map (`/api/courses/:id/map.png`). |
 | 3. `app/` sign-in, home, run (simulation) | Done on the web target: Playwright signs in and runs a simulated half at ×60. Home shows the course map (Mapbox PNG via the Worker). |
 | 4. Native shell on Android | Built locally, no EAS: the laptop has the Android SDK and JDK 17, so `npm run device:build` prebuilds and installs `Sivoov (Dev)` (`com.arthur.flam.sivoov.dev`, pointed at preview) over a USB cable. Runbook: `docs/DEVICE.md`, wrapper: `scripts/device.sh`. `eas.json` still stands for iOS, shareable links and the store builds. |
-| 5. Audio pack v0 | Done. `api/tools/audio/` (typed French script → ElevenLabs → R2 → `audio_packs`), `npm run audio:build -w api -- <env>`. Pack `deauville-2026-marathon/1/fr` (13 events, 12 MP3, 1.85 MB) is in preview and production R2 + D1. `GET /api/courses/:id/pack` and `/api/packs/...` serve it; the app downloads it (expo-file-system) and plays it with expo-audio (background, ducking, mix/priority queue). Km splits are caption-only. Not yet heard on a device. |
-| 6. Device slice | Done on the web target. Background location (expo-task-manager task, Android foreground service, "always" flow), `/prepare` pre-flight (GPS lock, permission, battery, headphones), finish uploads `PUT /api/runs/:id` + trace to R2, offline queue persisted and retried on foreground. Not tested on a device. |
+| 5. Audio pack v0 | Done, and **heard on a phone** 2026-09-13. `api/tools/audio/` (typed French script → ElevenLabs → R2 → `audio_packs`), `npm run audio:build -w api -- <env>`. Pack `deauville-2026-marathon/1/fr` (13 events, 12 MP3, 1.85 MB) is in preview and production R2 + D1. `GET /api/courses/:id/pack` and `/api/packs/...` serve it; the app downloads it (expo-file-system) and plays it with expo-audio (background, ducking, mix/priority queue). Km splits are caption-only. |
+| 6. Device slice | Done on the web target. Background location (expo-task-manager task, Android foreground service, "always" flow), `/prepare` pre-flight (GPS lock, permission, battery, headphones), finish uploads `PUT /api/runs/:id` + trace to R2, offline queue persisted and retried on foreground. Exercised on a Galaxy S23 on 2026-09-13: foreground service, audio, finish and upload all real; the tracker has still never seen a moving runner. |
 | 7. Organizer admin | Done and on preview: `/org/deauville-2026` (email code sign-in, counts, entrant list with search, CSV import idempotent on bib with a rejection report, entrants/results CSV exports), CLI `npm run import:entrants -w api -- <env> <file.csv>`. 6 workerd tests, Playwright screenshots. |
 
-## Next, in order (the pipe)
-Production caught up on 2026-09-13: migrations, seed and Worker deployed by Arthur. Both
-environments now run the same code.
+## Start here (next session)
+1. Read this file, `docs/DEVICE.md`, `docs/MEMORY.md`.
+2. `npm run device:doctor` — phone visible? If not, it is usually the cable or the lock screen.
+3. `npm run device` — Metro plus the app, ~10 s. The dev client is already installed.
+4. First task: **the walk test** in item 1. It is five minutes and it unblocks M2.
 
-1. **The acceptance run on the Android phone — one question left: does the tracker record
-   while moving?** Everything around it is now proven on a Galaxy S23 / Android 16 (below).
-   Two indoor runs recorded **0 GPS samples and 0 rejected**, i.e. nothing reached the tracker
-   at all, while the native side logged location batches arriving every few seconds. Two
-   candidate explanations, not yet separated:
-   - the phone was motionless on a desk and Android said so (`FusedLocation: stationary
-     throttling engaged`), so the batches were empty — in which case there is no bug;
-   - or the batches carried fixes and the JS task dropped them. The dev client logs
-     `WARN No task registered for key expo-task-manager` on every start, which would do
-     exactly that.
-   The two are told apart by *moving*: walk 200 m with the app running and read the finish
-   screen's "N GPS · N rejected". Non-zero ⇒ the first explanation, carry on. Zero ⇒ the
-   background task never reaches JS, and that is the next bug to fix.
-2. ~~Trace storage~~ Done 2026-09-13 (session 3): the trace body lives in expo-file-system
-   (`traces/<runId>.json`, `app/src/stores/traceFiles.ts`); SecureStore keeps run + file path
-   only. Web target uses localStorage. Not yet verified on a device (needs item 1).
-3. **Audio v1**: sequence intro/countdown/gun with the visual countdown; km splits with
+Note for the next session: Metro's file watcher did not fire during session 4, so edits only
+landed after `adb shell am force-stop com.arthur.flam.sivoov.dev` and a relaunch. Check whether
+that reproduces before assuming an edit had no effect.
+
+## Next, in order (the pipe)
+Anchored to PRD section 8. Today is 2026-09-13: **M1 is due 26 Sep, M2 10 Oct, M3 17 Oct**, and
+PRD says App Store review is the critical path.
+
+M1 is effectively done — the last clause of it, "the app shell runs a race end to end in the
+dev client", happened on 2026-09-13 on a real Galaxy S23 (see below), minus the moving tracker.
+
+### M2 (10 Oct): a real run on a device, results, upload fallback
+1. **The walk test — the one thing blocking everything else.** Two indoor runs recorded
+   **0 GPS · 0 rejected**: nothing reached the tracker, while the native side logged location
+   batches every few seconds. Arthur has confirmed the phone was stationary throughout, and
+   Android logged `FusedLocation: stationary throttling engaged`, so empty batches are the
+   likely and innocent explanation — but it is still *unverified*, and the alternative is that
+   the JS task never receives the fixes (the dev client warns `No task registered for key
+   expo-task-manager` on every start, which would do exactly that).
+   Settle it by moving: start a run, walk 200 m, read the finish screen's "N GPS · N rejected".
+   Non-zero ⇒ innocent, go to item 2. Zero ⇒ the background task never reaches JS, and that is
+   the bug to fix before anything else in this list matters.
+2. **The acceptance run.** Once item 1 is non-zero: 1-2 km around the block, headphones in,
+   **screen locked and phone in a pocket** — that is the part no test can reach. Then
+   `npm run trace:pull -w api -- preview <run-id>` and replay the trace in a `shared/` test, so
+   the tracker is finally tuned against real GPS instead of simulated noise. Watch: drift while
+   stopped at a light, whether audio ducked music or stopped it, gaps while the screen was off,
+   battery drop (PRD section 7 budgets half a phone for a marathon, and nothing has measured it).
+3. **Results and certificate**, then the **GPX upload fallback** (`/{race}/upload`). Both are
+   named in M2 and neither exists. The fallback is also the insurance policy if the device run
+   keeps disappointing.
+4. **Audio v1**: sequence intro/countdown/gun with the visual countdown; km splits with
    pre-rendered number fragments; personal name files per entrant at pack build; "less talk"
    setting. JS + pipeline, no native change.
-4. **Native Mapbox in the app** (wanted, recorded here as the next native decision): replace
-   the static PNG on the race home with `@rnmapbox/maps` (course line, landmarks, the runner's
-   dot live on the run screen as an option next to the diagram). Needs a new EAS build, so
-   bundle it with the build after item 1, and add it to the native module list in
-   ARCHITECTURE.md when it lands. Token: `EXPO_PUBLIC_PUBLIC_MAPBOX_TOKEN` (pk.) in the app,
-   the sk. token only for the SDK download in the build.
-5. **Production entrants**: import the organizer's CSV through `/org/deauville-2026/import`.
-6. **Results**: certificate page and share image, GPX upload fallback (`/{race}/upload`).
-7. **Web polish**: hero photo and real theme from the organizer, English copy review, OG image,
+
+### M3 (17 Oct): stores — and the real schedule risk
+5. **iOS does not exist yet.** Everything on this page is Android. There is no iOS build, no
+   Apple Developer Program step done, no `eas credentials` run, and the PRD calls App Store
+   review the critical path with a submission due mid-October. iOS cannot be built the cheap
+   local way this repo now uses for Android — it needs EAS and an Apple account. Start it early
+   and submit something even if features are missing; features ship over the air afterwards.
+   Treat this as the highest-risk item on the page, ahead of anything cosmetic.
+6. **Production entrants**: import the organizer's CSV through `/org/deauville-2026/import`.
+7. **Native Mapbox in the app** (wanted, recorded as the next native decision): replace the
+   static PNG on the race home with `@rnmapbox/maps` (course line, landmarks, the runner's dot
+   live on the run screen as an option next to the diagram). Needs a new build, so bundle it
+   with the next one, and add it to the native module list in ARCHITECTURE.md when it lands.
+   Token: `EXPO_PUBLIC_PUBLIC_MAPBOX_TOKEN` (pk.) in the app, the sk. token only for the SDK
+   download in the build.
+8. **Web polish**: hero photo and real theme from the organizer, English copy review, OG image,
    English variant of the admin.
-8. **Store build**: production profile, store listing, promote flow (WORKFLOW.md).
+
+Done earlier and kept here for the record: trace storage (session 3) — the trace body lives in
+expo-file-system (`traces/<runId>.json`, `app/src/stores/traceFiles.ts`), SecureStore keeps run
+plus file path only, web uses localStorage. Verified on the phone on 2026-09-13: a run stranded
+by a crash was persisted and uploaded on the next foreground.
 
 ## What the first phone session proved (2026-09-13, Galaxy S23, Android 16)
 Working on real hardware: sign-in against preview, the race home with the Mapbox course
@@ -109,9 +137,13 @@ the near-black ghost labels on the night screens.
 
 ## Known gaps
 - No production entrants: import the organizer's CSV (admin slice) or seed by hand.
-- The tracker has never recorded a moving runner. See the pipe, item 1: indoor runs record
-  zero samples and it is not yet known whether that is Android throttling a motionless phone
-  or the background task failing to reach JS.
+- The tracker has never recorded a moving runner. Indoor runs record zero samples; Arthur has
+  confirmed the phone was stationary, so Android's stationary throttling is the likely cause,
+  but it stays unverified until someone walks with it (pipe, item 1).
+- **No iOS at all**, while PRD section 8 makes App Store review the critical path with a
+  mid-October submission. See pipe item 5. Biggest schedule risk on this page.
+- Battery over a long run is unmeasured, against a PRD budget of half a phone for a marathon.
+  The dev client is a debug build and will flatter nothing — measure on a `preview` build.
 - `WARN No task registered for key expo-task-manager` on every dev-client start. Benign in
   dev as far as anyone knows; suspicious given the above. Check whether it also appears in a
   `preview` profile build before trusting it.
@@ -119,3 +151,6 @@ the near-black ghost labels on the night screens.
   never fired and changes only landed after a force-stop and relaunch. Worth a look, because
   loop 2a's whole value is the 10-second edit cycle.
 - The admin is French-only.
+- The `preview` and `production` profiles have never been built on Android either; only the
+  local debug dev client has run. Anything that behaves differently without the dev launcher
+  (the task-manager warning above, updates, battery) is untested.

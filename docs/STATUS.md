@@ -1,6 +1,6 @@
 # Status
 
-Updated: 2026-09-13 (end of session 2: email, access, map, audio, device, admin; production deployed). Race week: 14-15 November 2026.
+Updated: 2026-09-13 (session 3: trace storage; session 2: email, access, map, audio, device, admin; production deployed). Race week: 14-15 November 2026.
 See PRD section 8 for milestones.
 
 ## Where we are: M1 mostly done
@@ -26,8 +26,9 @@ environments now run the same code.
    expo-battery. Nothing has run on a phone yet: background location, background audio, the
    upload queue. Acceptance: one real run around the block with the pack in the ears, trace
    uploaded, visible in `/org/deauville-2026`.
-2. **Trace storage**: move the pending-upload trace body from SecureStore to expo-file-system
-   (marathon trace ~1 MB). Keep only run + file path in SecureStore. JS-only.
+2. ~~Trace storage~~ Done 2026-09-13 (session 3): the trace body lives in expo-file-system
+   (`traces/<runId>.json`, `app/src/stores/traceFiles.ts`); SecureStore keeps run + file path
+   only. Web target uses localStorage. Not yet verified on a device (needs item 1).
 3. **Audio v1**: sequence intro/countdown/gun with the visual countdown; km splits with
    pre-rendered number fragments; personal name files per entrant at pack build; "less talk"
    setting. JS + pipeline, no native change.

@@ -1,16 +1,20 @@
 import { create } from 'zustand';
 import { z } from 'zod';
 import { RunSchema, RunTraceSchema } from '@sivoov/shared';
-import type { DeviceInfo, LocationSample, RunSource, RunState } from '@sivoov/shared';
+import type { DeviceInfo, LocationSample, RunSource, RunState, RunTrace } from '@sivoov/shared';
 import { api } from '@/api';
 import { storage } from '@/storage';
+import { traceFiles } from '@/stores/traceFiles';
 import type { Fired } from '@/stores/run';
 
 export const UPLOADS_KEY = 'sivoov.uploads';
 
-const PendingUploadSchema = z.object({ run: RunSchema, trace: RunTraceSchema, queuedAt: z.string(), attempts: z.number().int().nonnegative(), lastError: z.string().optional() });
-const PersistedSchema = z.object({ pending: z.array(PendingUploadSchema), sent: z.array(z.string()) });
-export type PendingUpload = z.infer<typeof PendingUploadSchema>;
+/** What lands in storage: the trace body lives in a file (SecureStore caps values at ~2 KB), only its path is kept here. */
+const PersistedUploadSchema = z.object({ run: RunSchema, tracePath: z.string(), queuedAt: z.string(), attempts: z.number().int().nonnegative(), lastError: z.string().optional() });
+const PersistedSchema = z.object({ pending: z.array(PersistedUploadSchema), sent: z.array(z.string()) });
+/** In memory the trace travels with the run; `tracePath` is set once `enqueue` has written the file. */
+type PersistedUpload = z.infer<typeof PersistedUploadSchema>;
+export type PendingUpload = Omit<PersistedUpload, 'tracePath'> & { trace: RunTrace; tracePath?: string };
 export type UploadStatus = 'sent' | 'pending' | 'unknown';
 
 /** A run id without a native crypto module: time plus entropy is enough for one runner. */
@@ -60,7 +64,16 @@ type UploadsState = {
   statusOf: (runId: string) => UploadStatus;
 };
 
-const persist = (state: Pick<UploadsState, 'pending' | 'sent'>) => storage.set(UPLOADS_KEY, JSON.stringify({ pending: state.pending, sent: state.sent.slice(-20) }));
+const toPersisted = ({ trace: _trace, tracePath, ...rest }: PendingUpload): PersistedUpload[] => (tracePath === undefined ? [] : [{ ...rest, tracePath }]);
+
+const persist = (state: Pick<UploadsState, 'pending' | 'sent'>) =>
+  storage.set(UPLOADS_KEY, JSON.stringify({ pending: state.pending.flatMap(toPersisted), sent: state.sent.slice(-20) }));
+
+/** Reads the trace of each persisted entry back; an entry whose file is missing or corrupt is dropped. */
+const rehydrate = async (persisted: PersistedUpload[]): Promise<PendingUpload[]> => {
+  const entries = await Promise.all(persisted.map(async (p) => ({ ...p, trace: await traceFiles.read(p.tracePath) })));
+  return entries.flatMap(({ trace, ...rest }) => (trace === null ? [] : [{ ...rest, trace }]));
+};
 
 const parseJson = (raw: string): unknown => {
   try {
@@ -82,12 +95,14 @@ export const useUploads = create<UploadsState>((set, get) => ({
     const raw = await storage.get(UPLOADS_KEY).catch(() => null);
     const parsed = raw ? PersistedSchema.safeParse(parseJson(raw)) : null;
     // A corrupt queue is dropped rather than blocking every later run.
-    set({ hydrated: true, ...(parsed?.success ? parsed.data : {}) });
+    const pending = parsed?.success ? await rehydrate(parsed.data.pending) : [];
+    set({ hydrated: true, pending, ...(parsed?.success ? { sent: parsed.data.sent } : {}) });
   },
 
   async enqueue(upload, token) {
     if (!get().hydrated) await get().hydrate();
-    const pending = [...get().pending.filter((p) => p.run.id !== upload.run.id), upload];
+    const queued = { ...upload, tracePath: await traceFiles.write(upload.run.id, upload.trace) };
+    const pending = [...get().pending.filter((p) => p.run.id !== upload.run.id), queued];
     set({ pending });
     await persist({ pending, sent: get().sent });
     if (token) await get().flush(token);
@@ -104,6 +119,7 @@ export const useUploads = create<UploadsState>((set, get) => ({
         try {
           await api.uploadRun(token, upload.run, upload.trace);
           set({ pending: get().pending.filter((p) => p.run.id !== upload.run.id), sent: [...get().sent, upload.run.id] });
+          if (upload.tracePath !== undefined) await traceFiles.remove(upload.tracePath);
         } catch (e) {
           set({ pending: get().pending.map((p) => (p.run.id === upload.run.id ? { ...p, attempts: p.attempts + 1, lastError: message(e) } : p)) });
         }

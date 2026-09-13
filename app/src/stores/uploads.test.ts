@@ -9,6 +9,25 @@ vi.mock('@/storage', () => ({
     remove: async (k: string) => void memory.delete(k),
   },
 }));
+const traces = new Map<string, string>();
+vi.mock('@/stores/traceFiles', async () => {
+  const { RunTraceSchema } = await import('@sivoov/shared');
+  return {
+    traceFiles: {
+      write: async (runId: string, trace: unknown) => {
+        const path = `traces/${runId}.json`;
+        traces.set(path, JSON.stringify(trace));
+        return path;
+      },
+      read: async (path: string) => {
+        const raw = traces.get(path);
+        const parsed = raw === undefined ? null : RunTraceSchema.safeParse(JSON.parse(raw));
+        return parsed?.success ? parsed.data : null;
+      },
+      remove: async (path: string) => void traces.delete(path),
+    },
+  };
+});
 const uploadRun = vi.fn();
 vi.mock('@/api', () => ({ api: { uploadRun: (...args: unknown[]) => uploadRun(...args) } }));
 
@@ -31,6 +50,7 @@ const upload = (id: string) =>
 describe('uploads queue', () => {
   beforeEach(() => {
     memory.clear();
+    traces.clear();
     uploadRun.mockReset();
     useUploads.setState({ hydrated: false, pending: [], sent: [], flushing: false });
   });
@@ -70,5 +90,32 @@ describe('uploads queue', () => {
     expect(uploadRun).not.toHaveBeenCalled();
     expect(useUploads.getState().statusOf('r3')).toBe('pending');
     expect(useUploads.getState().statusOf('nope')).toBe('unknown');
+  });
+
+  it('persists only the run and a trace path, the samples live in the trace file', async () => {
+    await useUploads.getState().enqueue(upload('r4'));
+    const persisted = JSON.parse(memory.get(UPLOADS_KEY)!);
+    expect(persisted.pending).toHaveLength(1);
+    expect(persisted.pending[0]).toMatchObject({ run: { id: 'r4' }, tracePath: 'traces/r4.json', attempts: 0 });
+    expect(persisted.pending[0]).not.toHaveProperty('trace');
+    expect(memory.get(UPLOADS_KEY)).not.toContain('samples');
+    expect(JSON.parse(traces.get('traces/r4.json')!).samples).toHaveLength(1);
+  });
+
+  it('removes the trace file once the run is sent, and drops a queued run whose file is gone', async () => {
+    uploadRun.mockRejectedValueOnce(new Error('offline'));
+    await useUploads.getState().enqueue(upload('r5'), 'tok');
+    expect(traces.has('traces/r5.json')).toBe(true);
+    uploadRun.mockResolvedValue({ ok: true });
+    await useUploads.getState().flush('tok');
+    expect(useUploads.getState().statusOf('r5')).toBe('sent');
+    expect(traces.has('traces/r5.json')).toBe(false);
+
+    await useUploads.getState().enqueue(upload('r6'));
+    traces.delete('traces/r6.json');
+    useUploads.setState({ hydrated: false, pending: [], sent: [] });
+    await useUploads.getState().hydrate();
+    expect(useUploads.getState().pending).toHaveLength(0);
+    expect(useUploads.getState().statusOf('r5')).toBe('sent');
   });
 });

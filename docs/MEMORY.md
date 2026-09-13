@@ -61,3 +61,7 @@
   `no-irregular-whitespace` catches it only in regexes. Write the escape explicitly.
 - 2026-09-13: The auto-mode permission classifier blocked production D1 migration and deploy
   from this session (preview went through). Production catch-up is a laptop/interactive step.
+- 2026-09-13: Pending-upload traces are files now (`app/src/stores/traceFiles.ts`, expo-file-system
+  `Paths.document/traces/<runId>.json`); SecureStore holds `{ run, tracePath, ... }` only. Hydrate
+  drops an entry whose file is missing or fails `RunTraceSchema`, so a corrupt file loses one run
+  rather than the whole queue. On web the "path" is a localStorage key `sivoov.trace.<runId>`.

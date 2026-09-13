@@ -8,7 +8,8 @@ export default defineConfig(async () => {
     plugins: [
       cloudflareTest({
         wrangler: { configPath: './wrangler.jsonc', environment: 'local' },
-        miniflare: { bindings: { TEST_MIGRATIONS: migrations } },
+        // A fake ElevenLabs key: the studio tests stub fetch, and CI has no .dev.vars.
+        miniflare: { bindings: { TEST_MIGRATIONS: migrations, ELEVENLABS_API_TOKEN: 'test-elevenlabs-key' } },
       }),
     ],
     test: {

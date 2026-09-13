@@ -104,3 +104,19 @@
   app reconnects; a dev-client launched by deep link while the process is still dying crashes
   with `App react context shouldn't be created before` (DevLauncherAppLoader). Force-stop, wait,
   then launch with the plain LAUNCHER intent.
+- 2026-09-13: Playwright's `fullPage: true` is a no-op on the app's web target. A React Native
+  `ScrollView` renders as an inner scrolling div, so the document never grows and the capture is
+  just the viewport — silently, with no error. `scrollToEnd()` in `app/e2e/shots/scenes.ts`
+  scrolls the ScrollView instead, and only the candidates whose `overflowY` is auto/scroll *and*
+  whose `scrollTop` actually moves: several RN wrappers overflow by a few pixels without being
+  scrollable, and scrolling those writes a second frame identical to the first. `fullPage` works
+  normally on the server-rendered pages, which are ordinary documents.
+- 2026-09-13: Sign-in codes are capped at 5 per hour per entrant (`MAX_CODES_PER_HOUR`), which
+  any tool that signs in repeatedly will hit within two runs. `scripts/shots.sh` wipes
+  `auth_codes` and `organizer_codes` from the local D1 before every pass and spreads its
+  sign-ins over the three seeded entrants.
+- 2026-09-13: The Expo web target reports `__DEV__` true, so the dev-only simulation link on the
+  race home and the "Simulation" badges on the run screen appear in every screenshot. They carry
+  testIDs (`dev-sim-link`, `sim-badge`, `sim-badge-live`) purely so the store presets can hide
+  them; anything else dev-only that lands on a screen needs a testID and a line in `DEV_CHROME`
+  in `app/e2e/shots/shots.spec.ts`, or it ships to Apple.

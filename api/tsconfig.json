@@ -8,5 +8,5 @@
     "jsxImportSource": "hono/jsx",
     "noEmit": true
   },
-  "include": ["src", "test", "tools", "e2e", "vitest.config.ts", "playwright.config.ts", "worker-configuration.d.ts"]
+  "include": ["src", "test", "tools", "e2e", "vitest.config.ts", "playwright.config.ts", "playwright.shots.config.ts", "worker-configuration.d.ts"]
 }

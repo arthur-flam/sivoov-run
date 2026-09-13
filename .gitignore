@@ -20,3 +20,6 @@ api/worker-configuration.d.ts
 
 # pulled GPS traces
 .traces/
+
+# generated screenshots (npm run shots)
+docs/shots/

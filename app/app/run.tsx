@@ -151,7 +151,7 @@ export default function Run() {
       </View>
       <View style={styles.row}>
         <Eyebrow dark>{race.theme.displayName}</Eyebrow>
-        {source.kind === 'simulation' ? <Body dark muted style={{ fontSize: 12 }}>{t('run.sim.badge')}</Body> : null}
+        {source.kind === 'simulation' ? <Body dark muted style={{ fontSize: 12 }} testID="sim-badge-live">{t('run.sim.badge')}</Body> : null}
       </View>
       <View style={{ paddingTop: space.md }}>
         <Body dark muted>{t('common.distance')}</Body>

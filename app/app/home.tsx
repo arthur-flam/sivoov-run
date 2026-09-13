@@ -66,7 +66,7 @@ export default function Home() {
         ) : null}
         {course ? <Button testID="go-run" label={t('home.run')} color={accent} onColor={race.theme.onPrimary} onPress={() => router.push('/prepare')} /> : null}
         {__DEV__ ? (
-          <Link href={{ pathname: '/run', params: { sim: '1', pace: '5:00', speed: '30' } }} style={styles.devLink}>
+          <Link testID="dev-sim-link" href={{ pathname: '/run', params: { sim: '1', pace: '5:00', speed: '30' } }} style={styles.devLink}>
             {t('run.sim.badge')} · 5:00/km · ×30
           </Link>
         ) : null}

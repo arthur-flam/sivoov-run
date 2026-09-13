@@ -16,6 +16,9 @@ Deauville, 14-15 November 2026.
 Depending on the task:
 - `docs/PRD.md` - product requirements, scope, non-goals, timeline.
 - `docs/DESIGN.md` - identity, theming contract, screen conventions. Read for any UI work.
+- `docs/SHOTS.md` - `npm run shots`: headless screenshots of every screen and page, and
+  the App Store / Play sizes. Read for any UI work, and use it instead of hand-rolling
+  a Playwright screenshot.
 - `docs/AUDIO.md` - audio event model and content pipeline. Read for any audio work.
 - `docs/DEVICE.md` - testing on a real Android phone over USB. Read for anything native,
   background location, background audio or the upload queue.
@@ -31,8 +34,8 @@ docs/     the documents above
 Until `shared/`, `api/` and `app/` exist, the first task is bootstrapping them (see STATUS.md).
 
 ## Working rules
-- Ship vertical slices: schema + tests, then API, then UI, then a Playwright screenshot
-  or a device note. One slice per PR.
+- Ship vertical slices: schema + tests, then API, then UI, then a screenshot
+  (`npm run shots`, docs/SHOTS.md) or a device note. One slice per PR.
 - Validate in the container before pushing: `npm run typecheck`, `npm test`, `npm run lint`
   at the root. For UI, drive the web target with Playwright and send screenshots.
 - Never add a native module (anything needing a new EAS build) without recording the
@@ -61,4 +64,6 @@ npm run lint                 # all workspaces
 npm run dev -w api           # wrangler dev, local D1/R2, http://localhost:8788
 npm run dev -w app           # expo start (web target usable in the container)
 npm run db:migrate:local -w api
+npm run shots                # headless screenshots of every screen + docs/shots/index.html
+npm run shots:store          # the same, at App Store and Play Store pixel sizes
 ```

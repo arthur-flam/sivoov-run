@@ -1,6 +1,6 @@
 # Status
 
-Updated: 2026-09-13 (session 4: phone testing on Android over USB; session 3: trace storage;
+Updated: 2026-09-13 (session 5: the screenshot rig; session 4: phone testing on Android over USB; session 3: trace storage;
 session 2: email, access, map, audio, device, admin; production deployed). Race week: 14-15 November 2026.
 See PRD section 8 for milestones.
 
@@ -18,6 +18,7 @@ Production has the race and courses, no entrants yet.
 | 5. Audio pack v0 | Done, and **heard on a phone** 2026-09-13. `api/tools/audio/` (typed French script → ElevenLabs → R2 → `audio_packs`), `npm run audio:build -w api -- <env>`. Pack `deauville-2026-marathon/1/fr` (13 events, 12 MP3, 1.85 MB) is in preview and production R2 + D1. `GET /api/courses/:id/pack` and `/api/packs/...` serve it; the app downloads it (expo-file-system) and plays it with expo-audio (background, ducking, mix/priority queue). Km splits are caption-only. |
 | 6. Device slice | Done on the web target. Background location (expo-task-manager task, Android foreground service, "always" flow), `/prepare` pre-flight (GPS lock, permission, battery, headphones), finish uploads `PUT /api/runs/:id` + trace to R2, offline queue persisted and retried on foreground. Exercised on a Galaxy S23 on 2026-09-13: foreground service, audio, finish and upload all real; the tracker has still never seen a moving runner. |
 | 7. Organizer admin | Done and on preview: `/org/deauville-2026` (email code sign-in, counts, entrant list with search, CSV import idempotent on bib with a rejection report, entrants/results CSV exports), CLI `npm run import:entrants -w api -- <env> <file.csv>`. 6 workerd tests, Playwright screenshots. |
+| 8. Screenshot rig | Done. `npm run shots` photographs 9 app screens and 8 web pages headlessly in ~70 s into `docs/shots/` with a contact sheet; `npm run shots:store` writes exact App Store (1290x2796) and Play (1080x1920) files with the dev chrome hidden. Presets include an English pass. Runbook: `docs/SHOTS.md`. |
 
 ## Start here (next session)
 1. Read this file, `docs/DEVICE.md`, `docs/MEMORY.md`.
@@ -75,7 +76,8 @@ dev client", happened on 2026-09-13 on a real Galaxy S23 (see below), minus the 
    Token: `EXPO_PUBLIC_PUBLIC_MAPBOX_TOKEN` (pk.) in the app, the sk. token only for the SDK
    download in the build.
 8. **Web polish**: hero photo and real theme from the organizer, English copy review, OG image,
-   English variant of the admin.
+   English variant of the admin. `npm run shots -- --presets phone-en` already renders the English
+   app screens, and the first pass found `/prepare` announcing "Three checks" above four checks.
 
 Done earlier and kept here for the record: trace storage (session 3) — the trace body lives in
 expo-file-system (`traces/<runId>.json`, `app/src/stores/traceFiles.ts`), SecureStore keeps run

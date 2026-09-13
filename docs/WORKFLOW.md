@@ -11,6 +11,10 @@ simulator, laptop access only occasionally. The workflow is built around three l
   drives it, with geolocation mocked and the simulation location service selected via
   `?sim=marathon-deauville&pace=5:30`. Screenshots are sent back into the session.
 - A recorded GPS trace can be replayed the same way for regressions.
+- `npm run shots` photographs every key screen and page headlessly in about seventy seconds
+  and lays them out on a contact sheet (`docs/shots/index.html`). It is the fastest way to
+  see a design change whole, and `npm run shots:store` produces the store-sized files.
+  See `docs/SHOTS.md`.
 
 ## Loop 2a: the phone on a cable (minutes, laptop)
 The Android SDK and JDK 17 are installed on the laptop, so the dev shell is compiled locally

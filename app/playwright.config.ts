@@ -6,6 +6,8 @@ import { defineConfig } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './e2e',
+  // The screenshot rig lives under e2e/shots and runs from playwright.shots.config.ts.
+  testIgnore: '**/shots/**',
   timeout: 120_000,
   use: { baseURL: 'http://localhost:8081', viewport: { width: 390, height: 844 }, locale: 'fr-FR' },
   webServer: [

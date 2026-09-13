@@ -18,7 +18,7 @@ Production has the race and courses, no entrants yet.
 | 5. Audio pack v0 | Done, and **heard on a phone** 2026-09-13. `api/tools/audio/` (typed French script → ElevenLabs → R2 → `audio_packs`), `npm run audio:build -w api -- <env>`. Pack `deauville-2026-marathon/1/fr` (13 events, 12 MP3, 1.85 MB) is in preview and production R2 + D1. `GET /api/courses/:id/pack` and `/api/packs/...` serve it; the app downloads it (expo-file-system) and plays it with expo-audio (background, ducking, mix/priority queue). Km splits are caption-only. |
 | 6. Device slice | Done on the web target. Background location (expo-task-manager task, Android foreground service, "always" flow), `/prepare` pre-flight (GPS lock, permission, battery, headphones), finish uploads `PUT /api/runs/:id` + trace to R2, offline queue persisted and retried on foreground. Exercised on a Galaxy S23 on 2026-09-13: foreground service, audio, finish and upload all real; the tracker has still never seen a moving runner. |
 | 7. Organizer admin | Done and on preview: `/org/deauville-2026` (email code sign-in, counts, entrant list with search, CSV import idempotent on bib with a rejection report, entrants/results CSV exports), CLI `npm run import:entrants -w api -- <env> <file.csv>`. 6 workerd tests, Playwright screenshots. |
-| 9. The no-laptop loop | Done. `Sivoov (Preview)` is a standalone release shell (`npm run device:preview`) that needs no metro: the bundle is in the APK and `expo-updates` is live on the `preview` channel, so a cloud session ships JS with `gh workflow run deploy.yml -f action=publish-preview`. The app keeps a device logbook (`app/src/diag.ts`) replacing `adb logcat`: read it on the phone (finish screen → Diagnostic, with Share), or from a session — it rides to R2 in the run's trace and `npm run trace:pull` prints it. CI typecheck fixed; both workflows now skip, with a warning, when a secret is missing. |
+| 9. The no-laptop loop | Done, and **proven on the phone** 2026-09-13. `Sivoov (Preview)` is a standalone release shell (`npm run device:preview`) that needs no metro: the bundle is in the APK and `expo-updates` is live on the `preview` channel, so a cloud session ships JS with `gh workflow run deploy.yml -f action=publish-preview`. The app keeps a device logbook (`app/src/diag.ts`) replacing `adb logcat`: read it on the phone (finish screen → Diagnostic, with Share), or from a session — it rides to R2 in the run's trace and `npm run trace:pull` prints it. CI typecheck and a too-tight workerd timeout fixed: CI and Deploy are **green for the first time since the repo began**, and Arthur created the three Actions secrets, so main now deploys the preview Worker and publishes the update by itself. |
 | 8. Screenshot rig | Done. `npm run shots` photographs 9 app screens and 8 web pages headlessly in ~70 s into `docs/shots/` with a contact sheet; `npm run shots:store` writes exact App Store (1290x2796) and Play (1080x1920) files with the dev chrome hidden. Presets include an English pass. Runbook: `docs/SHOTS.md`. |
 
 ## Start here (next session)
@@ -27,7 +27,9 @@ Production has the race and courses, no entrants yet.
    ship JS with `gh workflow run deploy.yml -f action=publish-preview` and pull it on the phone
    with Diagnostic → *Chercher une mise à jour*. Read what happened with
    `npm run trace:pull -w api -- preview <run-id>`, which prints the device logbook.
-   This needs `EXPO_TOKEN` in GitHub — see "Blocked on Arthur" below.
+   Verified end to end on 2026-09-13: a push to main published update `01a09c31` to the
+   `preview` channel, and the Galaxy S23 downloaded it over 4G (`NEW_UPDATE_LOADED`) and ran
+   it on the next launch, with the cable used for nothing.
 3. **Laptop at hand?** `npm run device:doctor`, then `npm run device` is still the fastest loop,
    but `android/` now holds the preview package: the dev client costs one `npm run device:build`.
 4. First task, either way: **the walk test** in item 1. Five minutes, and it unblocks M2.
@@ -35,14 +37,6 @@ Production has the race and courses, no entrants yet.
 Note for the next session: Metro's file watcher did not fire during session 4, so edits only
 landed after `adb shell am force-stop com.arthur.flam.sivoov.dev` and a relaunch. Check whether
 that reproduces before assuming an edit had no effect.
-
-## Blocked on Arthur (five minutes, from a phone browser)
-Every Actions run since the first commit failed, and half of it needs a human: the repo has no
-secrets. Create them from any browser (WORKFLOW.md, "Secrets and where they live"):
-- **`EXPO_TOKEN`** (expo.dev → Access tokens) — without it nothing can ship JS to the phone and
-  loop 2b is read-only.
-- **`CLOUDFLARE_API_TOKEN`** + **`CLOUDFLARE_ACCOUNT_ID`** — without them main never deploys the
-  preview Worker; it has only ever been deployed by hand from the laptop's `.env`.
 
 ## Next, in order (the pipe)
 Anchored to PRD section 8. Today is 2026-09-13: **M1 is due 26 Sep, M2 10 Oct, M3 17 Oct**, and
@@ -152,8 +146,6 @@ the near-black ghost labels on the night screens.
   development profile (it was in the previous app too).
 
 ## Decisions pending
-- Whether preview keeps `preview.run.sivoov.app` (two-level subdomain, certificate took a
-  few minutes) or moves to a one-level name.
 - See PRD section 10 and DESIGN.md open decisions.
 
 ## Known gaps

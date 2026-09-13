@@ -165,3 +165,6 @@
   `TEST_CODE` (`page.request.post` shares the browser context's cookies) instead of walking the
   email-code form: `MAX_CODES_PER_HOUR` is 5 per organizer and there is only one `@example.com`
   organizer, so four scenes across two presets is already over the cap.
+- 2026-09-13: A workerd test that passes locally and fails in CI with a 503 is usually a binding
+  read from `api/.dev.vars` (gitignored). The vitest pool gets its own values in
+  `api/vitest.config.ts` (`miniflare.bindings`); never rely on `.dev.vars` in a test.

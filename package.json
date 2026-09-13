@@ -14,7 +14,11 @@
   "scripts": {
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm test --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present"
+    "lint": "npm run lint --workspaces --if-present",
+    "device": "./scripts/device.sh run",
+    "device:build": "./scripts/device.sh build",
+    "device:logs": "./scripts/device.sh logs",
+    "device:doctor": "./scripts/device.sh doctor"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

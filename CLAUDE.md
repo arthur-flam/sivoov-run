@@ -17,6 +17,8 @@ Depending on the task:
 - `docs/PRD.md` - product requirements, scope, non-goals, timeline.
 - `docs/DESIGN.md` - identity, theming contract, screen conventions. Read for any UI work.
 - `docs/AUDIO.md` - audio event model and content pipeline. Read for any audio work.
+- `docs/DEVICE.md` - testing on a real Android phone over USB. Read for anything native,
+  background location, background audio or the upload queue.
 - `docs/HARVEST.md` - modules to port from the previous repo (`arthur-flam/sivoov`).
 
 ## Repo layout

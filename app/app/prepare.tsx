@@ -3,6 +3,7 @@ import { Platform, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Battery from 'expo-battery';
+import * as Linking from 'expo-linking';
 import * as Location from 'expo-location';
 import { Preflight } from '@/components/Preflight';
 import { Body, Button, Display, Eyebrow, Screen } from '@/components/ui';
@@ -79,6 +80,9 @@ export default function Prepare() {
       <Display>{t('prepare.title')}</Display>
       <Body muted>{t('prepare.intro')}</Body>
       <Preflight checks={checks} />
+      {checks.permission.status === 'warn' && Platform.OS !== 'web' ? (
+        <Button testID="open-settings" label={t('prepare.settings')} ghost onPress={() => void Linking.openSettings()} />
+      ) : null}
       <View style={{ flex: 1 }} />
       <Button testID="go-start" label={t('prepare.go')} color={race?.theme.primary} onColor={race?.theme.onPrimary} disabled={!ready} onPress={() => router.push('/run')} />
       <Button label={t('prepare.retry')} ghost onPress={retry} />

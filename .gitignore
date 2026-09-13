@@ -17,3 +17,6 @@ api/worker-configuration.d.ts
 
 # audio pipeline TTS cache
 .cache/
+
+# pulled GPS traces
+.traces/

@@ -65,3 +65,15 @@
   `Paths.document/traces/<runId>.json`); SecureStore holds `{ run, tracePath, ... }` only. Hydrate
   drops an entry whose file is missing or fails `RunTraceSchema`, so a corrupt file loses one run
   rather than the whole queue. On web the "path" is a localStorage key `sivoov.trace.<runId>`.
+- 2026-09-13: The dev shell does not need EAS. The laptop has the Android SDK (`~/Library/Android/sdk`,
+  platform 35/36, NDK 27) and JDK 17, so `expo prebuild` + `gradlew assembleDebug` builds and
+  installs `com.arthur.flam.sivoov.dev` over a USB cable. `scripts/device.sh` wraps it and
+  `docs/DEVICE.md` is the runbook. EAS Build stays the path for iOS, shareable links and stores.
+- 2026-09-13: `wrangler d1 execute --command` fails when the SQL string contains newlines; pass
+  it on one line (`api/tools/trace-pull.ts`). `--file` takes multi-line SQL fine (`seed.ts`).
+- 2026-09-13: `/prepare` disables the start button until the permission is `always`, and Android
+  only offers "always" from the system settings page. Without a way out of the screen that is a
+  dead end on a real phone, so the screen now shows "Ouvrir les réglages" (`Linking.openSettings`)
+  whenever the permission check is a warning.
+- 2026-09-13: The race window (9-15 Nov 2026) is displayed but never enforced: a test run outside
+  it starts and uploads normally. Worth remembering before assuming a date gate exists.

@@ -17,7 +17,8 @@
     "seed": "tsx tools/seed.ts",
     "import:entrants": "tsx tools/import-entrants.ts",
     "audio:build": "tsx tools/audio/build.ts",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "trace:pull": "tsx tools/trace-pull.ts"
   },
   "dependencies": {
     "@sivoov/shared": "*",

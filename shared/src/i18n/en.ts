@@ -100,6 +100,7 @@ export const en: Record<keyof typeof fr, string> = {
   'prepare.check.battery.low': 'Battery at {level}%: charge before a long effort',
   'prepare.check.battery.unknown': 'Battery level unknown',
   'prepare.check.headphones': 'Put your headphones on: the race lives in your ears',
+  'prepare.settings': 'Open the phone settings',
   'prepare.retry': 'Run the checks again',
   'prepare.go': 'Go to the start',
 

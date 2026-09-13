@@ -104,6 +104,7 @@ export const fr = {
   'prepare.check.battery.low': 'Batterie à {level} % : rechargez avant un long effort',
   'prepare.check.battery.unknown': 'Niveau de batterie inconnu',
   'prepare.check.headphones': 'Mettez vos écouteurs : la course se vit dans les oreilles',
+  'prepare.settings': 'Ouvrir les réglages du téléphone',
   'prepare.retry': 'Relancer les vérifications',
   'prepare.go': 'Aller au départ',
 

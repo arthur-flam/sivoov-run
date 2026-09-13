@@ -12,6 +12,13 @@ simulator, laptop access only occasionally. The workflow is built around three l
   `?sim=marathon-deauville&pace=5:30`. Screenshots are sent back into the session.
 - A recorded GPS trace can be replayed the same way for regressions.
 
+## Loop 2a: the phone on a cable (minutes, laptop)
+The Android SDK and JDK 17 are installed on the laptop, so the dev shell is compiled locally
+and pushed over USB: `npm run device:build` once, `npm run device` every time after. No EAS
+queue, no `EXPO_TOKEN`. This is the fastest loop when the laptop is at hand — see
+`docs/DEVICE.md`. Everything below still applies to iOS, to shareable installs and when the
+laptop is not around.
+
 ## Loop 2: ship to the phone (minutes, no laptop)
 - The native shell is built rarely with EAS Build (`workflow_dispatch` on `deploy.yml`,
   or `eas build --profile preview` from a session with `EXPO_TOKEN`).
@@ -26,8 +33,8 @@ simulator, laptop access only occasionally. The workflow is built around three l
 - After each run the app uploads the raw GPS trace, the audio events fired, timing, and
   device info to R2, attached to the run. Crashes go to Sentry.
 - Notes from the road are typed into the session from the Claude mobile app.
-- A session pulls the trace (`npm run trace:pull -w api -- <run_id>`), replays it in a
-  test, and fixes against it.
+- A session pulls the trace (`npm run trace:pull -w api -- preview <run_id>`, list the runs by
+  leaving the id out), replays it in a test, and fixes against it.
 
 ## Session shape
 - One vertical slice per session or PR. State the acceptance in the first message: which

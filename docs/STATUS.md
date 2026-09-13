@@ -1,6 +1,7 @@
 # Status
 
-Updated: 2026-09-13 (session 3: trace storage; session 2: email, access, map, audio, device, admin; production deployed). Race week: 14-15 November 2026.
+Updated: 2026-09-13 (session 4: phone testing on Android over USB; session 3: trace storage;
+session 2: email, access, map, audio, device, admin; production deployed). Race week: 14-15 November 2026.
 See PRD section 8 for milestones.
 
 ## Where we are: M1 mostly done
@@ -13,7 +14,7 @@ Production has the race and courses, no entrants yet.
 | 1. `shared/` schemas + domain | Done. 51 tests. Tracker holds ~1% distance error at 8 m simulated noise. |
 | 2. `api/` Worker, D1, auth, pages | Done and deployed. Sign-in codes go out through Cloudflare Email Sending (`EMAIL` binding, zone sivoov.app); local/preview also accept the fixed test code for @example.com accounts. Landing page shows the real course on a Mapbox static map (`/api/courses/:id/map.png`). |
 | 3. `app/` sign-in, home, run (simulation) | Done on the web target: Playwright signs in and runs a simulated half at ×60. Home shows the course map (Mapbox PNG via the Worker). |
-| 4. EAS | `eas.json` written (development / preview / production, channels, `EXPO_PUBLIC_API_URL`). No build yet: needs the laptop session (WORKFLOW.md). Native modules added this session (all need that first build): expo-file-system, expo-battery. |
+| 4. Native shell on Android | Built locally, no EAS: the laptop has the Android SDK and JDK 17, so `npm run device:build` prebuilds and installs `Sivoov (Dev)` (`com.arthur.flam.sivoov.dev`, pointed at preview) over a USB cable. Runbook: `docs/DEVICE.md`, wrapper: `scripts/device.sh`. `eas.json` still stands for iOS, shareable links and the store builds. |
 | 5. Audio pack v0 | Done. `api/tools/audio/` (typed French script → ElevenLabs → R2 → `audio_packs`), `npm run audio:build -w api -- <env>`. Pack `deauville-2026-marathon/1/fr` (13 events, 12 MP3, 1.85 MB) is in preview and production R2 + D1. `GET /api/courses/:id/pack` and `/api/packs/...` serve it; the app downloads it (expo-file-system) and plays it with expo-audio (background, ducking, mix/priority queue). Km splits are caption-only. Not yet heard on a device. |
 | 6. Device slice | Done on the web target. Background location (expo-task-manager task, Android foreground service, "always" flow), `/prepare` pre-flight (GPS lock, permission, battery, headphones), finish uploads `PUT /api/runs/:id` + trace to R2, offline queue persisted and retried on foreground. Not tested on a device. |
 | 7. Organizer admin | Done and on preview: `/org/deauville-2026` (email code sign-in, counts, entrant list with search, CSV import idempotent on bib with a rejection report, entrants/results CSV exports), CLI `npm run import:entrants -w api -- <env> <file.csv>`. 6 workerd tests, Playwright screenshots. |
@@ -22,10 +23,12 @@ Production has the race and courses, no entrants yet.
 Production caught up on 2026-09-13: migrations, seed and Worker deployed by Arthur. Both
 environments now run the same code.
 
-1. **EAS development build** (laptop session, WORKFLOW.md). Native list grew: expo-file-system,
-   expo-battery. Nothing has run on a phone yet: background location, background audio, the
-   upload queue. Acceptance: one real run around the block with the pack in the ears, trace
-   uploaded, visible in `/org/deauville-2026`.
+1. **The acceptance run on the Android phone.** The dev client builds and installs locally
+   now (`npm run device:build`, then `npm run device`; `docs/DEVICE.md`). What is still
+   unproven is the run itself: background location with the screen locked, background audio,
+   and the upload queue. Acceptance: one real run around the block with the pack in the ears,
+   screen locked, trace uploaded, the run visible in `/org/deauville-2026` on preview and
+   pullable with `npm run trace:pull -w api -- preview <run-id>`.
 2. ~~Trace storage~~ Done 2026-09-13 (session 3): the trace body lives in expo-file-system
    (`traces/<runId>.json`, `app/src/stores/traceFiles.ts`); SecureStore keeps run + file path
    only. Web target uses localStorage. Not yet verified on a device (needs item 1).
@@ -45,6 +48,11 @@ environments now run the same code.
 8. **Store build**: production profile, store listing, promote flow (WORKFLOW.md).
 
 ## Decisions taken 2026-09-13
+- Android dev builds are compiled on the laptop over USB, not on EAS: the toolchain is already
+  installed, the loop is minutes instead of a queue, and no `EXPO_TOKEN` is needed. EAS Build
+  remains for iOS, shareable installs and the stores.
+- `/prepare` shows "Ouvrir les réglages" when the location permission is not "always", because
+  Android only grants it from the system settings page.
 - Email: Cloudflare Email Sending (`EMAIL` binding), Resend dropped. No provider key to manage.
 - Test sign-in: `TEST_CODE=000000` on local and preview, accepted only for `@example.com`
   accounts (docs/ACCESS.md). Never on production.
@@ -80,8 +88,7 @@ environments now run the same code.
 
 ## Known gaps
 - No production entrants: import the organizer's CSV (admin slice) or seed by hand.
-- The app's `Link` to the simulation on the home screen is a dev affordance; hide it behind
-  `__DEV__` before the store build.
-- Nothing has run on a real phone yet: background location, background audio and the upload
-  queue are validated on the web target and by tests only.
+- No run has happened on a real phone yet: background location, background audio and the
+  upload queue are validated on the web target and by tests only. The shell itself now
+  installs on Android (docs/DEVICE.md); what is missing is the run.
 - The admin is French-only.

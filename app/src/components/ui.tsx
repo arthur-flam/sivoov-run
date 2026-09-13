@@ -24,9 +24,12 @@ export const Num = ({ children, size = 64, dark = false, style, testID }: { chil
   <Text testID={testID} style={[styles.num, { fontSize: size, lineHeight: size * 1.02 }, dark && { color: colors.snow }, style]}>{children}</Text>
 );
 
-type ButtonProps = { label: string; onPress: () => void; color?: string; onColor?: string; ghost?: boolean; disabled?: boolean; loading?: boolean; testID?: string; onLongPress?: () => void; delayLongPress?: number };
+type ButtonProps = { label: string; onPress: () => void; color?: string; onColor?: string; ghost?: boolean; dark?: boolean; disabled?: boolean; loading?: boolean; testID?: string; onLongPress?: () => void; delayLongPress?: number };
 
-export const Button = ({ label, onPress, color = colors.ink, onColor = colors.snow, ghost, disabled, loading, testID, onLongPress, delayLongPress }: ButtonProps) => (
+/** `dark` is for the night screens: a ghost label is near-black by default and vanishes there. */
+export const Button = ({ label, onPress, color = colors.ink, onColor = colors.snow, ghost, dark, disabled, loading, testID, onLongPress, delayLongPress }: ButtonProps) => {
+  const ghostLabel = dark ? colors.snow : colors.ink;
+  return (
   <Pressable
     testID={testID}
     accessibilityRole="button"
@@ -36,9 +39,10 @@ export const Button = ({ label, onPress, color = colors.ink, onColor = colors.sn
     disabled={disabled || loading}
     style={({ pressed }) => [styles.button, ghost ? styles.buttonGhost : { backgroundColor: color }, (pressed || disabled) && { opacity: 0.7 }]}
   >
-    {loading ? <ActivityIndicator color={ghost ? colors.ink : onColor} /> : <Text style={[styles.buttonLabel, { color: ghost ? colors.ink : onColor }]}>{label}</Text>}
+    {loading ? <ActivityIndicator color={ghost ? ghostLabel : onColor} /> : <Text style={[styles.buttonLabel, { color: ghost ? ghostLabel : onColor }]}>{label}</Text>}
   </Pressable>
-);
+  );
+};
 
 export const Card = ({ children, dark = false, style }: { children: ReactNode; dark?: boolean; style?: StyleProp<ViewStyle> }) => (
   <View style={[styles.card, dark && styles.cardDark, style]}>{children}</View>

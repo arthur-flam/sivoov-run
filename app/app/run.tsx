@@ -101,7 +101,7 @@ export default function Run() {
         </View>
         <View style={{ flex: 1 }} />
         <Button testID="start" label={t('run.start')} color={accent} onColor={race.theme.onPrimary} onPress={() => void run.start(source)} />
-        <Button label={t('common.back')} ghost onPress={() => router.back()} />
+        <Button label={t('common.back')} ghost dark onPress={() => router.back()} />
       </Screen>
     );
   }
@@ -176,7 +176,7 @@ export default function Run() {
         {run.nowPlaying ? <Body dark muted testID="now-playing">🔊 {run.nowPlaying.title ?? run.nowPlaying.id}</Body> : null}
       </Card>
       <View style={{ flex: 1 }} />
-      <Button testID="stop" label={t('run.stopHold')} ghost onPress={() => undefined} onLongPress={() => void run.stop()} delayLongPress={1200} />
+      <Button testID="stop" label={t('run.stopHold')} ghost dark onPress={() => undefined} onLongPress={() => void run.stop()} delayLongPress={1200} />
     </Screen>
   );
 }

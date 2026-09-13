@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import type { LocationSample } from '@sivoov/shared';
+import { diag, diagCount } from '@/diag';
 import type { LocationSource } from './types';
 
 /**
@@ -28,10 +29,29 @@ export const toSample = (loc: Location.LocationObject): LocationSample => ({
 // Must be defined at module top level, before any screen starts updates (expo-task-manager).
 if (Platform.OS !== 'web') {
   TaskManager.defineTask(LOCATION_TASK, async ({ data, error }) => {
-    if (error || !activeListener) return;
     const { locations = [] } = (data ?? {}) as { locations?: Location.LocationObject[] };
+    diagCount('task.batches');
+    if (error) {
+      diagCount('task.errors');
+      diag('location', `task error: ${error.message}`);
+      return;
+    }
+    // The three ways a batch produces nothing, told apart. Getting this wrong cost two
+    // blank runs (docs/MEMORY.md): an empty batch is Android throttling a stationary
+    // phone, a null listener is the run not being wired to the task at all.
+    if (locations.length === 0) {
+      diagCount('task.empty');
+      return;
+    }
+    if (!activeListener) {
+      diagCount('task.dropped', locations.length);
+      diag('location', `dropped ${locations.length} fixes: no run is listening`);
+      return;
+    }
+    diagCount('task.fixes', locations.length);
     locations.map(toSample).forEach((sample) => activeListener?.(sample));
   });
+  diag('location', `background task ${LOCATION_TASK} defined`);
 }
 
 const FOREGROUND_OPTIONS: Location.LocationOptions = { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 0 };
@@ -90,14 +110,26 @@ export const deviceSource = (): DeviceLocationSource => {
     permission: () => permission,
     async start(onSample) {
       permission = await requestLocationPermission();
+      diag('location', `permission: ${permission}`);
       if (permission === 'denied') throw new Error('location_denied');
-      if (permission !== 'always') return watchForeground(onSample);
+      if (permission !== 'always') {
+        diag('location', 'foreground watch only: fixes stop when the screen locks');
+        return watchForeground(onSample);
+      }
       // Background updates: the task defined above delivers the fixes, in and out of the app.
       activeListener = onSample;
       const alreadyRunning = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK).catch(() => false);
       if (alreadyRunning) await Location.stopLocationUpdatesAsync(LOCATION_TASK).catch(() => undefined);
-      await Location.startLocationUpdatesAsync(LOCATION_TASK, BACKGROUND_OPTIONS);
+      const registered = await TaskManager.isTaskDefined(LOCATION_TASK);
+      diag('location', `starting background updates (task defined: ${registered}, was running: ${alreadyRunning})`);
+      try {
+        await Location.startLocationUpdatesAsync(LOCATION_TASK, BACKGROUND_OPTIONS);
+      } catch (e) {
+        diag('location', `startLocationUpdatesAsync failed: ${e instanceof Error ? e.message : String(e)}`);
+        throw e;
+      }
       background = true;
+      diag('location', 'background updates started');
     },
     async stop() {
       subscription?.remove();
@@ -106,6 +138,7 @@ export const deviceSource = (): DeviceLocationSource => {
         activeListener = null;
         background = false;
         await Location.stopLocationUpdatesAsync(LOCATION_TASK).catch(() => undefined);
+        diag('location', 'background updates stopped');
       }
     },
   };

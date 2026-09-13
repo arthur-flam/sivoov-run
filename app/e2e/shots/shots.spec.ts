@@ -8,7 +8,9 @@ const OUT = '../docs/shots';
  * Simulation badges and the dev-only run link belong in the design loop but never in a
  * store screenshot. Hidden rather than removed, so the layout stays exactly the store size.
  */
-const DEV_CHROME = ['sim-badge', 'sim-badge-live', 'dev-sim-link']
+// 'open-debug' is the way into the device logbook: wanted on a phone under test, never in a
+// store screenshot (docs/MEMORY.md).
+const DEV_CHROME = ['sim-badge', 'sim-badge-live', 'dev-sim-link', 'open-debug']
   .map((id) => `[data-testid="${id}"]`)
   .join(', ')
   .concat(' { visibility: hidden !important; }');

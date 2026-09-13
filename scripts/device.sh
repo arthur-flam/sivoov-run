@@ -3,6 +3,8 @@
 #
 #   ./scripts/device.sh build    first time, or after a native change: compile + install the APK
 #   ./scripts/device.sh run      every other time: metro + launch the app on the phone (JS only)
+#   ./scripts/device.sh preview  compile + install the standalone preview shell: no metro, no
+#                                cable afterwards, JS arrives over the air (docs/WORKFLOW.md)
 #   ./scripts/device.sh prep     grant location (always) + battery exemption over adb
 #   ./scripts/device.sh logs     follow the app's logs from the phone
 #   ./scripts/device.sh doctor   check the phone is visible and set up
@@ -10,7 +12,10 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP="$ROOT/app"
-PKG="com.arthur.flam.sivoov.dev"
+# Every command but `preview` drives the dev shell; VARIANT=preview points prep/logs/doctor at
+# the standalone one, which is a different package and can sit on the phone alongside it.
+VARIANT="${VARIANT:-development}"
+PKG="com.arthur.flam.sivoov$([ "$VARIANT" = preview ] && echo .preview || echo .dev)"
 
 export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home -v 17 2>/dev/null || true)}"
@@ -59,6 +64,31 @@ case "${1:-run}" in
     adb install -r "${APKS[0]}"
     ;;
 
+  preview)
+    # The shell that survives without the laptop: release build type, so the JS bundle is
+    # inside the APK (no metro) and expo-updates is live, so `eas update --channel preview`
+    # from a cloud session reaches this phone on the next launch. Rebuild only for native
+    # changes; everything else now ships over the air.
+    need_device
+    VARIANT=preview
+    PKG="com.arthur.flam.sivoov.preview"
+    cd "$APP"
+    export APP_VARIANT=preview
+    # android/ is generated and carries the dev package name: regenerate it for this variant.
+    npx expo prebuild --platform android --clean
+    # lintVital is a release-only gate that ran the daemon out of Metaspace here and blocks a
+    # build that is only ever sideloaded. More headroom, and the gate skipped (docs/MEMORY.md).
+    (cd android && GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx4g\ -XX:MaxMetaspaceSize=2g" \
+      ./gradlew assembleRelease -x lintVitalRelease -x lintVitalAnalyzeRelease -x lintVitalReportRelease --console=plain)
+    APKS=("$APP"/android/app/build/outputs/apk/release/*.apk)
+    adb install -r "${APKS[0]}"
+    VARIANT=preview "$0" prep
+    adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
+    echo
+    echo "Sivoov (Preview) installed. It needs neither metro nor this laptop from now on."
+    echo "Ship JS to it with: gh workflow run deploy.yml -f action=publish-preview"
+    ;;
+
   run)
     need_device
     # Let the phone reach metro and the local Worker over USB.
@@ -87,6 +117,7 @@ case "${1:-run}" in
     ;;
 
   doctor)
+    echo "VARIANT=$VARIANT  PKG=$PKG"
     echo "ANDROID_HOME=$ANDROID_HOME"
     echo "JAVA_HOME=$JAVA_HOME"
     echo "API=$EXPO_PUBLIC_API_URL"

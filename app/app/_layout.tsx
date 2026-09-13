@@ -41,6 +41,7 @@ export default function RootLayout() {
       <StatusBar style="dark" />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.paper } }}>
         <Stack.Screen name="run" options={{ contentStyle: { backgroundColor: colors.night }, gestureEnabled: false }} />
+        <Stack.Screen name="debug" options={{ contentStyle: { backgroundColor: colors.night } }} />
       </Stack>
     </SafeAreaProvider>
   );

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { RunDiagnosticsSchema } from './diagnostics';
 
 /** One GPS fix as delivered by the device, the simulation or a replayed trace. */
 export const LocationSampleSchema = z.object({
@@ -61,5 +62,7 @@ export const RunTraceSchema = z.object({
   audioFired: z.array(
     z.object({ eventId: z.string(), distanceM: z.number().nonnegative(), elapsedMs: z.number().int().nonnegative() }),
   ),
+  /** What the device logged while the run happened. Absent on traces recorded before it existed. */
+  diagnostics: RunDiagnosticsSchema.optional(),
 });
 export type RunTrace = z.infer<typeof RunTraceSchema>;

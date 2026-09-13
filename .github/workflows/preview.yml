@@ -13,7 +13,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  secrets-check:
+    runs-on: ubuntu-latest
+    outputs:
+      expo: ${{ steps.check.outputs.expo }}
+    steps:
+      - id: check
+        run: |
+          expo=${{ secrets.EXPO_TOKEN != '' }}
+          echo "expo=$expo" >> "$GITHUB_OUTPUT"
+          [ "$expo" = true ] || echo "::warning::EXPO_TOKEN is not set: this PR gets no update branch. See docs/WORKFLOW.md."
+
   update:
+    needs: secrets-check
+    if: needs.secrets-check.outputs.expo == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read

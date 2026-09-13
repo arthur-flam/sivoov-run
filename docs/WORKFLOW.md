@@ -1,7 +1,8 @@
 # Workflow: building this from cloud sessions
 
 The constraint: development happens in Claude Code on the web and on a phone. No Mac, no
-simulator, laptop access only occasionally. The workflow is built around three loops.
+simulator, laptop access only occasionally. The workflow is built around four loops. Loop 2b
+is the one that matters outdoors: phone plus browser, no cable, nothing to plug in.
 
 ## Loop 1: validate in the container (minutes, no phone)
 - `npm run typecheck && npm test && npm run lint` at the root before any push.
@@ -23,7 +24,40 @@ queue, no `EXPO_TOKEN`. This is the fastest loop when the laptop is at hand — 
 `docs/DEVICE.md`. Everything below still applies to iOS, to shareable installs and when the
 laptop is not around.
 
-## Loop 2: ship to the phone (minutes, no laptop)
+## Loop 2b: no laptop at all (this is the outdoor loop)
+The phone carries **`Sivoov (Preview)`**, a standalone shell: the JS bundle is inside the APK,
+so it needs no metro and no cable, and `expo-updates` is live on the `preview` channel. Built
+once over USB with `npm run device:preview`; after that the chain is phone plus browser.
+
+1. **Ship JS from a cloud session.** Validate in loop 1, push to main — `deploy.yml` publishes
+   to the `preview` channel. Without a push, ask for it by hand, from a session or from
+   GitHub's mobile web UI: `gh workflow run deploy.yml -f action=publish-preview`.
+2. **Pull it onto the phone.** Open the app, finish screen → **Diagnostic** → *Chercher une
+   mise à jour*: it fetches and reloads on the spot. (Left alone, expo-updates downloads in
+   the background and swaps at the *next* launch, so it takes two starts. Outdoors, use the
+   button.)
+3. **Read what the phone saw.** There is no `adb logcat` out there, so the app keeps its own
+   logbook: the background task's batches, the fixes it received, the fixes it dropped for
+   want of a listener, permissions, uploads. Two ways back:
+   - on the spot, the **Diagnostic** screen, with *Partager* to paste the whole thing into a
+     Claude session from the phone;
+   - afterwards, it rides to R2 inside the run's trace —
+     `npm run trace:pull -w api -- preview <run-id>` prints the counters and every line.
+4. **The counters that settle the walk test.** `task.batches` is how often Android called the
+   JS task at all; `task.fixes` the fixes it handed over; `task.empty` batches with nothing in
+   them (a stationary phone being throttled — innocent); `task.dropped` fixes that arrived
+   while no run was listening (the bug). All zero, `task.batches` included, means the task
+   never reached JS.
+
+What still needs the laptop, and nothing else does:
+- a **native** change (a new module, a permission, an icon) — rebuild with
+  `npm run device:preview` over USB, or order it in the cloud with
+  `gh workflow run deploy.yml -f action=build-preview` (EAS, needs `EXPO_TOKEN`);
+- the **dev client** loop 2a, which is metro over a cable and strictly faster when the laptop
+  is at hand. Note `device:preview` regenerates `android/` for the preview package, so going
+  back to loop 2a costs one `npm run device:build`.
+
+## Loop 2: ship to the phone by CI (minutes, no laptop)
 - The native shell is built rarely with EAS Build (`workflow_dispatch` on `deploy.yml`,
   or `eas build --profile preview` from a session with `EXPO_TOKEN`).
 - Every PR gets its own EAS Update branch (`preview.yml`). The dev client's launcher lists
@@ -36,7 +70,8 @@ laptop is not around.
 ## Loop 3: the run feeds back (hours)
 - After each run the app uploads the raw GPS trace, the audio events fired, timing, and
   device info to R2, attached to the run. Crashes go to Sentry.
-- Notes from the road are typed into the session from the Claude mobile app.
+- Notes from the road are typed into the session from the Claude mobile app, and the device
+  logbook is shared straight out of the Diagnostic screen.
 - A session pulls the trace (`npm run trace:pull -w api -- preview <run_id>`, list the runs by
   leaving the id out), replays it in a test, and fixes against it.
 

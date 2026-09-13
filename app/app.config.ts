@@ -10,6 +10,11 @@ const name = variant === 'development' ? 'Sivoov (Dev)' : variant === 'preview' 
 // A dev or preview shell must never talk to production, even if Metro was started without
 // EXPO_PUBLIC_API_URL (docs/DEVICE.md).
 const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? (variant === 'production' ? 'https://run.sivoov.app' : 'https://preview.run.sivoov.app');
+// EAS Build stamps the channel from eas.json into the binary; a shell compiled on the laptop
+// (`npm run device:preview`) is not built by EAS and would ask for no channel at all, so it is
+// named here too. Same mapping either way — this is what lets a cloud session ship JS to a
+// phone with no cable (docs/WORKFLOW.md, loop 2b).
+const channel = variant === 'development' ? 'development' : variant === 'preview' ? 'preview' : 'production';
 
 const config: ExpoConfig = {
   name,
@@ -61,9 +66,15 @@ const config: ExpoConfig = {
     'expo-secure-store',
     ['expo-splash-screen', { image: './assets/splash-icon.png', imageWidth: 160, resizeMode: 'contain', backgroundColor: '#faf9f7' }],
   ],
-  updates: { url: 'https://u.expo.dev/f63919b9-08f2-49be-81f0-832c74c4884d' },
+  updates: {
+    url: 'https://u.expo.dev/f63919b9-08f2-49be-81f0-832c74c4884d',
+    requestHeaders: { 'expo-channel-name': channel },
+    // The runner opens the app at the start line: never block the screen on a network check.
+    checkAutomatically: 'ON_LOAD',
+    fallbackToCacheTimeout: 0,
+  },
   runtimeVersion: { policy: 'appVersion' },
-  extra: { router: {}, eas: { projectId: 'f63919b9-08f2-49be-81f0-832c74c4884d' }, apiUrl },
+  extra: { router: {}, eas: { projectId: 'f63919b9-08f2-49be-81f0-832c74c4884d' }, apiUrl, channel },
 };
 
 export default config;

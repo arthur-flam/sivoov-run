@@ -113,4 +113,13 @@ export const fr = {
   'upload.pending': 'Résultat en attente d’envoi',
   'upload.pendingCount': '{count} résultat(s) en attente d’envoi',
   'upload.retry': 'Renvoyer',
+  'debug.open': 'Diagnostic',
+  'debug.title': 'Journal',
+  'debug.share': 'Partager le journal',
+  'debug.shared': 'Partagé',
+  'debug.back': 'Retour',
+  'debug.update': 'Chercher une mise à jour',
+  'debug.updateChecking': 'Recherche…',
+  'debug.updateNone': 'Déjà à jour',
+  'debug.updateUnavailable': 'Mises à jour désactivées dans ce build',
 } as const;

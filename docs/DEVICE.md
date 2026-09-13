@@ -87,6 +87,28 @@ against real data instead of simulated noise (WORKFLOW.md, loop 3).
 The run also shows up in the organizer admin: https://preview.run.sivoov.app/org/deauville-2026
 (sign in with `orga@example.com`, code `000000`).
 
+## 4b. The standalone shell, for a run with no laptop anywhere near
+`Sivoov (Dev)` is a debug dev client: it has **no JS bundle of its own** and shows a red screen
+without metro, so it cannot leave the house. `Sivoov (Preview)` can.
+
+```bash
+npm run device:preview      # ~15 min: prebuild for the preview package, release build, install
+```
+It installs `com.arthur.flam.sivoov.preview` alongside the dev one — different package, both
+can sit on the phone — grants the location permissions and the battery exemption over adb, and
+launches it. From then on:
+- the bundle is inside the APK, so no metro, no cable, no laptop;
+- `expo-updates` is live on the `preview` channel, so JS from a cloud session reaches it
+  (`gh workflow run deploy.yml -f action=publish-preview`, then **Diagnostic → Chercher une
+  mise à jour** on the phone);
+- it is a release build, so it is the only honest place to measure battery.
+
+It signs in from scratch like a new phone: `coureur@example.com`, code `000000` on preview.
+
+Two costs, both known: `device:preview` regenerates `android/` for the preview package, so the
+next loop-2a session starts with one `npm run device:build`; and a native change means running
+`device:preview` again over the cable. See WORKFLOW.md, loop 2b.
+
 ## 5. Gotchas
 - **Battery optimisation.** Android kills background location for "optimised" apps after a
   while. Settings → Apps → Sivoov (Dev) → Battery → **Unrestricted**. `npm run device:doctor`
@@ -102,8 +124,13 @@ The run also shows up in the organizer admin: https://preview.run.sivoov.app/org
   waiting behind the lock screen.
 - The dev client is a debug build: it is slower and uses more battery than the real thing.
   Do not judge battery life from it — judge it from a `preview` profile build.
+- **No `adb logcat` outdoors.** The app keeps its own logbook instead: finish screen →
+  **Diagnostic**, with *Partager* to send it into a Claude session, and the same lines ride to
+  R2 with the trace (`npm run trace:pull` prints them). Anything you would have wanted in
+  logcat has to be `diag('tag', '…')` in `app/src/diag.ts` *before* you walk out.
 
 ## 6. Where this fits
-`docs/WORKFLOW.md` describes the same three loops for cloud sessions. This file is loop 2
-done locally over a cable, which is faster and needs no `EXPO_TOKEN`. EAS Build is still
-the path for an iPhone, for a shareable install link, and for the store builds.
+`docs/WORKFLOW.md` describes the same loops for cloud sessions. Sections 1-4 are loop 2a, done
+locally over a cable: faster, and needing no `EXPO_TOKEN`. Section 4b is loop 2b, the one that
+works with no laptop in the room. EAS Build is still the path for an iPhone, for a shareable
+install link, and for the store builds.

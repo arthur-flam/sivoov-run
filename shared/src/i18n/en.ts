@@ -109,4 +109,13 @@ export const en: Record<keyof typeof fr, string> = {
   'upload.pending': 'Result waiting to be sent',
   'upload.pendingCount': '{count} result(s) waiting to be sent',
   'upload.retry': 'Send again',
+  'debug.open': 'Diagnostics',
+  'debug.title': 'Log',
+  'debug.share': 'Share the log',
+  'debug.shared': 'Shared',
+  'debug.back': 'Back',
+  'debug.update': 'Check for an update',
+  'debug.updateChecking': 'Checking…',
+  'debug.updateNone': 'Already up to date',
+  'debug.updateUnavailable': 'Updates are off in this build',
 };

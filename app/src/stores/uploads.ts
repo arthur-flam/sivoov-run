@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { z } from 'zod';
 import { RunSchema, RunTraceSchema } from '@sivoov/shared';
-import type { DeviceInfo, LocationSample, RunSource, RunState, RunTrace } from '@sivoov/shared';
+import type { DeviceInfo, LocationSample, RunDiagnostics, RunSource, RunState, RunTrace } from '@sivoov/shared';
 import { api } from '@/api';
+import { diag, diagCount } from '@/diag';
 import { storage } from '@/storage';
 import { traceFiles } from '@/stores/traceFiles';
 import type { Fired } from '@/stores/run';
@@ -31,6 +32,8 @@ export const toUpload = (input: {
   source: RunSource;
   device: DeviceInfo;
   finishedAtMs: number;
+  /** The device logbook, so a run that recorded nothing still explains itself. */
+  diagnostics?: RunDiagnostics;
 }): PendingUpload => {
   const { state } = input;
   const run = RunSchema.parse({
@@ -46,7 +49,12 @@ export const toUpload = (input: {
     source: input.source,
     device: input.device,
   });
-  const trace = RunTraceSchema.parse({ runId: input.id, samples: input.samples, audioFired: input.fired.map(({ eventId, distanceM, elapsedMs }) => ({ eventId, distanceM, elapsedMs: Math.round(elapsedMs) })) });
+  const trace = RunTraceSchema.parse({
+    runId: input.id,
+    samples: input.samples,
+    audioFired: input.fired.map(({ eventId, distanceM, elapsedMs }) => ({ eventId, distanceM, elapsedMs: Math.round(elapsedMs) })),
+    ...(input.diagnostics ? { diagnostics: input.diagnostics } : {}),
+  });
   return { run, trace, queuedAt: new Date(input.finishedAtMs).toISOString(), attempts: 0 };
 };
 
@@ -120,7 +128,10 @@ export const useUploads = create<UploadsState>((set, get) => ({
           await api.uploadRun(token, upload.run, upload.trace);
           set({ pending: get().pending.filter((p) => p.run.id !== upload.run.id), sent: [...get().sent, upload.run.id] });
           if (upload.tracePath !== undefined) await traceFiles.remove(upload.tracePath);
+          diag('upload', `sent ${upload.run.id} (${upload.trace.samples.length} samples)`);
         } catch (e) {
+          diagCount('upload.failed');
+          diag('upload', `failed ${upload.run.id}: ${message(e)}`);
           set({ pending: get().pending.map((p) => (p.run.id === upload.run.id ? { ...p, attempts: p.attempts + 1, lastError: message(e) } : p)) });
         }
       }, Promise.resolve());

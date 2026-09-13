@@ -169,4 +169,12 @@ export const scenes: Scene[] = [
       if (await scrollToEnd(page)) await shoot('splits');
     },
   },
+  {
+    id: 'diagnostics',
+    title: 'Diagnostic — the device logbook, read without a cable',
+    go: async (page, shoot) => {
+      await page.goto('/debug');
+      await shoot();
+    },
+  },
 ];

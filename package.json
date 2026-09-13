@@ -21,7 +21,8 @@
     "device:build": "./scripts/device.sh build",
     "device:logs": "./scripts/device.sh logs",
     "device:doctor": "./scripts/device.sh doctor",
-    "device:prep": "./scripts/device.sh prep"
+    "device:prep": "./scripts/device.sh prep",
+    "device:preview": "./scripts/device.sh preview"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

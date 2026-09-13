@@ -1,5 +1,8 @@
 # main → preview channel (app) + preview Worker. Production is a manual promotion.
-# workflow_dispatch also triggers the rare native build.
+# workflow_dispatch is the no-laptop control panel: it is how a phone or a cloud session
+# ships JS, promotes production and orders the rare native build (docs/WORKFLOW.md, loop 2b).
+#
+#   gh workflow run deploy.yml -f action=publish-preview
 name: Deploy
 
 on:
@@ -10,12 +13,31 @@ on:
       action:
         description: What to do
         type: choice
-        options: [promote-production, build-development, build-preview, build-production]
+        options: [publish-preview, promote-production, build-development, build-preview, build-production]
         required: true
 
 jobs:
+  # `secrets` cannot be read in a job-level `if`, so it is turned into an output here. Without
+  # this a repo with no secrets fails every push to main, and a red main from the phone is
+  # indistinguishable from a real breakage.
+  secrets-check:
+    runs-on: ubuntu-latest
+    outputs:
+      expo: ${{ steps.check.outputs.expo }}
+      cloudflare: ${{ steps.check.outputs.cloudflare }}
+    steps:
+      - id: check
+        run: |
+          expo=${{ secrets.EXPO_TOKEN != '' }}
+          cloudflare=${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
+          echo "expo=$expo" >> "$GITHUB_OUTPUT"
+          echo "cloudflare=$cloudflare" >> "$GITHUB_OUTPUT"
+          [ "$expo" = true ] || echo "::warning::EXPO_TOKEN is not set: no update will reach the phone. See docs/WORKFLOW.md."
+          [ "$cloudflare" = true ] || echo "::warning::CLOUDFLARE_API_TOKEN/ACCOUNT_ID not set: the Worker will not deploy. See docs/WORKFLOW.md."
+
   api-preview:
-    if: github.event_name == 'push'
+    needs: secrets-check
+    if: github.event_name == 'push' && needs.secrets-check.outputs.cloudflare == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,8 +53,11 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
+  # Push to main, or ask for it by hand from a phone. Either way the standalone preview shell
+  # picks the update up the next time it is opened.
   app-preview:
-    if: github.event_name == 'push'
+    needs: secrets-check
+    if: (github.event_name == 'push' || inputs.action == 'publish-preview') && needs.secrets-check.outputs.expo == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -47,9 +72,10 @@ jobs:
       - run: npm ci
       - name: Publish update to the preview channel
         working-directory: app
-        run: eas update --channel preview --message "${{ github.event.head_commit.message }}" --non-interactive
+        run: eas update --channel preview --message "${{ github.event.head_commit.message || format('manual from {0}', github.sha) }}" --non-interactive
 
   promote-production:
+    needs: secrets-check
     if: github.event_name == 'workflow_dispatch' && inputs.action == 'promote-production'
     runs-on: ubuntu-latest
     steps:
@@ -74,6 +100,7 @@ jobs:
         run: eas update --channel production --message "${{ github.sha }}" --non-interactive
 
   native-build:
+    needs: secrets-check
     if: github.event_name == 'workflow_dispatch' && startsWith(inputs.action, 'build-')
     runs-on: ubuntu-latest
     steps:

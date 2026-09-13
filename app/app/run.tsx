@@ -10,6 +10,7 @@ import { api } from '@/api';
 import { useAudioPack, useAudioPlayback } from '@/audio/usePlayback';
 import { CourseDiagram } from '@/components/CourseDiagram';
 import { Body, Button, Card, Display, Eyebrow, Num, Screen } from '@/components/ui';
+import { diag, useDiag } from '@/diag';
 import { locale, t } from '@/i18n';
 import { deviceSource, simulationSource } from '@/services/location';
 import { useRun } from '@/stores/run';
@@ -61,7 +62,8 @@ export default function Run() {
     if (run.phase !== 'finished' || !course || !me) return;
     const { state, samples, fired, source: used } = useRun.getState();
     const device = { platform: Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'web', osVersion: String(Platform.Version ?? ''), appVersion: Constants.expoConfig?.version } as const;
-    const upload = toUpload({ id: runId.current, entrantId: me.entrant.id, courseId: course.id, state, samples, fired, source: used?.kind === 'simulation' ? 'simulation' : 'app', device, finishedAtMs: used?.now() ?? Date.now() });
+    diag('run', `finished: ${state.accepted} accepted, ${state.rejected} rejected, ${samples.length} samples, ${Math.round(state.distanceM)} m`);
+    const upload = toUpload({ id: runId.current, entrantId: me.entrant.id, courseId: course.id, state, samples, fired, source: used?.kind === 'simulation' ? 'simulation' : 'app', device, finishedAtMs: used?.now() ?? Date.now(), diagnostics: useDiag.getState().snapshot() });
     void useUploads.getState().enqueue(upload, token).catch(() => undefined);
   }, [run.phase]);
 
@@ -139,6 +141,8 @@ export default function Run() {
           </Body>
           <Body dark muted testID="upload-status">{uploadStatus === 'sent' ? t('upload.sent') : t('upload.pending')}</Body>
           <Button label={t('home.results')} color={accent} onColor={race.theme.onPrimary} onPress={() => router.replace('/home')} />
+          {/* The walk test is read here, outdoors, with no cable (docs/WORKFLOW.md, loop 2b). */}
+          <Button label={t('debug.open')} ghost dark testID="open-debug" onPress={() => router.push('/debug')} />
         </ScrollView>
       </Screen>
     );

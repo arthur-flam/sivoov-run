@@ -120,3 +120,24 @@
   testIDs (`dev-sim-link`, `sim-badge`, `sim-badge-live`) purely so the store presets can hide
   them; anything else dev-only that lands on a screen needs a testID and a line in `DEV_CHROME`
   in `app/e2e/shots/shots.spec.ts`, or it ships to Apple.
+- 2026-09-13: Every GitHub Actions run since the first commit had failed, unnoticed. Two
+  independent causes: `api`'s typecheck needs `worker-configuration.d.ts`, which `wrangler types`
+  generates and `.gitignore` excludes, so CI never had it (`typecheck` now generates it first);
+  and the repo has **no Actions secrets at all**, so every `eas update` and every `wrangler deploy`
+  died on a missing token. Both workflows now warn and skip instead of failing when a secret is
+  absent — a red run means a real breakage again.
+- 2026-09-13: A debug dev client carries no JS bundle: with metro off it is a red screen, so
+  `Sivoov (Dev)` can never leave the house. The shell that can is a release build
+  (`npm run device:preview`), where the bundle is inside the APK and expo-updates is live.
+- 2026-09-13: `eas.json`'s `channel` is stamped into the binary by EAS Build and by nothing else.
+  A shell compiled on the laptop asks for no channel and would never see an update, so
+  `app.config.ts` sets `updates.requestHeaders['expo-channel-name']` from `APP_VARIANT` itself.
+- 2026-09-13: expo-updates with `fallbackToCacheTimeout: 0` launches from cache and downloads in
+  the background, so a new update runs only at the *next* launch — two starts. The Diagnostic
+  screen's "Chercher une mise à jour" does check + fetch + reload in one tap, which is what you
+  want when the fix is being tested on a street corner.
+- 2026-09-13: `./gradlew assembleRelease` dies at `lintVitalAnalyzeRelease` with `Metaspace` on
+  this laptop — a release-only lint gate, nine minutes in, after everything useful is compiled.
+  `scripts/device.sh preview` skips it (`-x lintVitalAnalyzeRelease -x lintVitalReportRelease`)
+  and raises the daemon's heap. Also note gradle failing does not by itself make the wrapper
+  loud: check for `BUILD SUCCESSFUL` and for the `adb install` line, not just an exit code.

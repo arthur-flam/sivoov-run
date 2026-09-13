@@ -1,7 +1,7 @@
 import type { Child } from 'hono/jsx';
 import type { Organizer, Race } from '@sivoov/shared';
 
-type Props = { race: Race; organizer: Organizer; current: 'home' | 'import'; children: Child };
+type Props = { race: Race; organizer: Organizer; current: 'home' | 'courses' | 'import'; children: Child };
 
 /** Admin chrome inside the shared Layout: race name, the nav, who is signed in. */
 export const OrgShell = ({ race, organizer, current, children }: Props) => {
@@ -12,6 +12,7 @@ export const OrgShell = ({ race, organizer, current, children }: Props) => {
       <h2>{race.theme.displayName}</h2>
       <nav class="org-nav" aria-label="Administration">
         <a href={base} class={current === 'home' ? 'current' : ''}>Inscrits</a>
+        <a href={`${base}/courses`} class={current === 'courses' ? 'current' : ''}>Parcours et audio</a>
         <a href={`${base}/import`} class={current === 'import' ? 'current' : ''}>Importer un CSV</a>
         <a href={`${base}/export/entrants.csv`}>Export inscrits</a>
         <a href={`${base}/export/results.csv`}>Export résultats</a>

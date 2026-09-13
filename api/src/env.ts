@@ -5,6 +5,12 @@ export type Bindings = Env & {
   TEST_CODE?: string;
   /** Mapbox public token (pk.) for the Static Images API, `wrangler secret put MAPBOX_TOKEN`. */
   MAPBOX_TOKEN?: string;
+  /**
+   * ElevenLabs key used by the organizer studio to render script lines to MP3
+   * (`wrangler secret put ELEVENLABS_API_TOKEN`, and `.dev.vars` locally). Optional: without
+   * it the studio still writes, plays back with the browser voice and refuses to render.
+   */
+  ELEVENLABS_API_TOKEN?: string;
 };
 
 export type AppEnv = { Bindings: Bindings };

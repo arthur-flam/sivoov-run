@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AudioEventSchema } from '../schemas/audio';
-import { estimateFirings, firstFirings } from './audioEstimates';
+import { describeTrigger, estimateFirings, firstFirings } from './audioEstimates';
 
 const event = (id: string, trigger: unknown) =>
   AudioEventSchema.parse({ id, trigger, source: { kind: 'file', key: `${id}.mp3` }, category: 'course' });
@@ -57,5 +57,17 @@ describe('estimateFirings', () => {
   it('labels in English when asked', () => {
     const [f] = estimateFirings([event('km5', { kind: 'distance', meters: 5000 })], MARATHON, PACE, 'en');
     expect(f?.label).toBe('5.0 km');
+  });
+});
+
+describe('describeTrigger', () => {
+  it('says in one French line when an event fires', () => {
+    expect(describeTrigger({ kind: 'start' })).toBe('au départ');
+    expect(describeTrigger({ kind: 'finish' })).toBe('à l’arrivée');
+    expect(describeTrigger({ kind: 'distance', meters: 3000.4 })).toBe('à 3000 m');
+    expect(describeTrigger({ kind: 'elapsed', seconds: 90 })).toBe('après 90 s');
+    expect(describeTrigger({ kind: 'split', everyMeters: 1000 })).toBe('tous les 1000 m');
+    expect(describeTrigger({ kind: 'pace', slowerThan: 400, afterMeters: 2000 })).toBe('allure > 400 s/km après 2000 m');
+    expect(describeTrigger({ kind: 'distance', meters: 3000 }, 'en')).toBe('at 3000 m');
   });
 });

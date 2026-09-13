@@ -1,10 +1,28 @@
 import type { CourseTrack, Landmark } from '@sivoov/shared';
 import { positionForRun, toDiagram } from '@sivoov/shared';
 
-type Props = { track: CourseTrack; officialM: number; landmarks: Landmark[]; width?: number; height?: number };
+/** An extra dot on the diagram: the organizer studio puts one audio event per marker. */
+export type DiagramMarker = { id: string; lat: number; lng: number; category?: string; occurrence?: number; faint?: boolean };
+
+const CATEGORY_FILL: Record<string, string> = {
+  ceremony: '#b8443b',
+  course: '#0f3d6e',
+  coaching: '#1f6b34',
+  personal: '#8a5cf5',
+  safety: '#d98324',
+};
+
+type Props = {
+  track: CourseTrack;
+  officialM: number;
+  landmarks: Landmark[];
+  width?: number;
+  height?: number;
+  markers?: DiagramMarker[];
+};
 
 /** The course as a stylized polyline with landmark dots. Same projection as in the app. */
-export const CourseDiagram = ({ track, officialM, landmarks, width = 480, height = 360 }: Props) => {
+export const CourseDiagram = ({ track, officialM, landmarks, width = 480, height = 360, markers = [] }: Props) => {
   const { points, project } = toDiagram(track, width, height, 24);
   const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
   const start = points[0]!;
@@ -21,6 +39,23 @@ export const CourseDiagram = ({ track, officialM, landmarks, width = 480, height
           <circle cx={p.x} cy={p.y} r="5" fill="var(--card)" stroke="var(--race-primary)" stroke-width="2" />
         </g>
       ))}
+      {markers.map((m) => {
+        const p = project({ lat: m.lat, lng: m.lng });
+        return (
+          <circle
+            data-event={m.id}
+            data-occurrence={String(m.occurrence ?? 0)}
+            class="ev-dot"
+            cx={p.x}
+            cy={p.y}
+            r={m.faint ? '3' : '6'}
+            fill={CATEGORY_FILL[m.category ?? ''] ?? 'var(--accent-name)'}
+            opacity={m.faint ? '0.45' : '1'}
+            stroke="var(--card)"
+            stroke-width={m.faint ? '0.5' : '1.5'}
+          />
+        );
+      })}
       <circle cx={start.x} cy={start.y} r="7" fill="var(--race-primary)" />
       <rect x={end.x - 7} y={end.y - 7} width="14" height="14" fill="var(--ink)" transform={`rotate(45 ${end.x} ${end.y})`} />
     </svg>

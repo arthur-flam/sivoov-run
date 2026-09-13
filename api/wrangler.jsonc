@@ -5,6 +5,9 @@
   "compatibility_date": "2026-08-20",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
+  // The organizer studio's browser script is real JavaScript, bundled as text and inlined
+  // in the page (api/src/pages/org/studioClient.ts).
+  "rules": [{ "type": "Text", "globs": ["**/*.client.js"] }],
   // Top level is production. `--env preview` and `--env local` override below.
   "vars": { "ENVIRONMENT": "production", "BASE_URL": "https://run.sivoov.app" },
   "d1_databases": [

@@ -1,6 +1,6 @@
 import { createMiddleware } from 'hono/factory';
 import { getCookie } from 'hono/cookie';
-import type { Organizer, Race } from '@sivoov/shared';
+import type { Course, Organizer, Race } from '@sivoov/shared';
 import type { AppEnv, Bindings } from '../env';
 import { db } from '../db/queries';
 import { orgDb } from '../db/orgQueries';
@@ -14,6 +14,7 @@ export const ORG_COOKIE = 'org_session';
 export const ORG_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 export type OrgVars = { race: Race; organizer: Organizer; orgTokenHash: string };
+export type CourseVars = OrgVars & { course: Course };
 export type OrgCodeResult = { ok: true; devCode?: string } | { ok: false; error: 'unknown_organizer' | 'too_many_requests' };
 export type OrgVerifyResult = { ok: true; token: string; expiresAt: string; organizer: Organizer } | { ok: false; error: 'unknown_organizer' | 'bad_code' };
 
@@ -66,5 +67,13 @@ export const requireOrganizer = createMiddleware<AppEnv & { Variables: OrgVars }
   c.set('race', race);
   c.set('organizer', organizer);
   c.set('orgTokenHash', tokenHash);
+  await next();
+});
+
+/** A course of this organizer's race, or a 404. Always used after `requireOrganizer`. */
+export const requireCourse = createMiddleware<AppEnv & { Variables: CourseVars }>(async (c, next) => {
+  const course = await db(c.env.DB).courseById(c.req.param('courseId') ?? '');
+  if (!course || course.raceId !== c.get('race').id) return c.notFound();
+  c.set('course', course);
   await next();
 });

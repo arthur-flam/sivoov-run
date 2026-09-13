@@ -51,6 +51,11 @@ export const db = (d1: D1Database) => ({
       .run();
   },
 
+  /** After a GPX upload: the geometry object is written first, then the course points at it. */
+  async setGeometryKey(courseId: string, geometryKey: string): Promise<void> {
+    await d1.prepare('UPDATE courses SET geometry_key = ? WHERE id = ?').bind(geometryKey, courseId).run();
+  },
+
   async entrantByBibEmail(raceId: string, bib: string, email: string): Promise<Entrant | null> {
     const row = await d1.prepare('SELECT * FROM entrants WHERE race_id = ? AND bib = ? AND email = ?').bind(raceId, bib, email).first();
     return row ? entrantFromRow(row) : null;

@@ -9,14 +9,19 @@ export type Scene = { id: string; title: string; go: (page: Page, shoot: Shoot) 
 
 const RACE = '/deauville-2026';
 
-/** Organizer pages need a session; the local Worker pre-fills the code. */
+/**
+ * Organizer pages need a session. It is taken with TEST_CODE in one form post (the request
+ * context shares the page's cookies), which asks for no emailed code: with four organizer
+ * scenes across two presets, the five-codes-per-hour cap would otherwise trip.
+ */
 const orgSignIn = async (page: Page): Promise<void> => {
-  await page.goto('/org/deauville-2026/signin');
-  await page.getByLabel('Email').fill('orga@example.com');
-  await page.getByRole('button', { name: 'Recevoir mon code' }).click();
-  await expect(page.getByLabel('Code à 6 chiffres')).toHaveValue(/\d{6}/);
-  await page.getByRole('button', { name: 'Valider' }).click();
-  await expect(page).toHaveURL(/\/org\/deauville-2026$/);
+  const res = await page.request.post('/org/deauville-2026/signin', {
+    form: { step: 'code', email: 'orga@example.com', code: '000000' },
+    maxRedirects: 0,
+  });
+  expect(res.status()).toBe(302);
+  await page.goto('/org/deauville-2026');
+  await expect(page.getByText('Espace organisateur')).toBeVisible();
 };
 
 export const scenes: Scene[] = [
@@ -89,6 +94,31 @@ export const scenes: Scene[] = [
     go: async (page, shoot) => {
       await orgSignIn(page);
       await shoot();
+    },
+  },
+  {
+    id: 'org-courses',
+    title: 'Organizer — courses, their trace and their audio',
+    go: async (page, shoot) => {
+      await orgSignIn(page);
+      await page.getByRole('link', { name: 'Parcours et audio' }).click();
+      await expect(page.getByRole('heading', { name: 'Ajouter un parcours' })).toBeVisible();
+      await shoot();
+    },
+  },
+  {
+    id: 'org-studio',
+    title: 'Organizer — the audio studio, schematic course (no tiles)',
+    go: async (page, shoot) => {
+      await orgSignIn(page);
+      // `?map=svg` is the offline path: the SVG diagram carries the same event markers as the map.
+      await page.goto('/org/deauville-2026/courses/deauville-2026-marathon?map=svg');
+      await expect(page.getByRole('heading', { name: /Studio/ })).toBeVisible();
+      await expect(page.locator('.ev').first()).toBeVisible();
+      await shoot();
+      await page.locator('.ev-name').filter({ hasText: /^Les Planches$/ }).click();
+      await expect(page.locator('.ev.open textarea')).toBeVisible();
+      await shoot('event');
     },
   },
   {

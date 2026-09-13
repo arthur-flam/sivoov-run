@@ -14,9 +14,15 @@ import type { OrgSigninState } from '../pages/org/signin';
 import { OrgHomePage } from '../pages/org/home';
 import { OrgImportPage } from '../pages/org/import';
 import type { ImportOutcome } from '../pages/org/import';
+import { orgCourses } from './orgCourses';
+import { orgScript } from './orgScript';
 
 /** Organizer admin, server-rendered, French. Mounted at /org. */
 export const org = new Hono<AppEnv & { Variables: OrgVars }>();
+
+// Courses, the audio studio and its JSON endpoints, on the same organizer cookie.
+org.route('/', orgCourses);
+org.route('/', orgScript);
 
 const EmailSchema = z.string().trim().toLowerCase().pipe(z.email());
 const CodeSchema = z.string().trim().regex(/^\d{6}$/);

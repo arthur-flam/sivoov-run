@@ -66,6 +66,37 @@ export const estimateFirings = (
   return [...firings].sort((a, b) => (a.meters ?? Infinity) - (b.meters ?? Infinity) || a.occurrence - b.occurrence);
 };
 
+const TRIGGER_TEXT = {
+  fr: { start: 'au départ', finish: 'à l’arrivée', distance: 'à', elapsed: 'après', split: 'tous les', pace: 'allure', after: 'après' },
+  en: { start: 'at the start', finish: 'at the finish', distance: 'at', elapsed: 'after', split: 'every', pace: 'pace', after: 'past' },
+} as const;
+
+/** One line describing a trigger, for the studio's event list. */
+export const describeTrigger = (trigger: AudioTrigger, locale: Locale = 'fr'): string => {
+  const w = TRIGGER_TEXT[locale];
+  switch (trigger.kind) {
+    case 'start':
+      return w.start;
+    case 'finish':
+      return w.finish;
+    case 'distance':
+      return `${w.distance} ${Math.round(trigger.meters)} m`;
+    case 'elapsed':
+      return `${w.elapsed} ${Math.round(trigger.seconds)} s`;
+    case 'split':
+      return `${w.split} ${Math.round(trigger.everyMeters)} m`;
+    case 'pace': {
+      const band = [
+        trigger.slowerThan === undefined ? '' : `> ${Math.round(trigger.slowerThan)} s/km`,
+        trigger.fasterThan === undefined ? '' : `< ${Math.round(trigger.fasterThan)} s/km`,
+      ]
+        .filter((s) => s.length > 0)
+        .join(' ');
+      return `${w.pace} ${band} ${w.after} ${Math.round(trigger.afterMeters)} m`.replace(/\s+/g, ' ').trim();
+    }
+  }
+};
+
 /** The first firing of each event: what the event list is ordered by. */
 export const firstFirings = (firings: EstimatedFiring[]): Map<string, EstimatedFiring> =>
   firings.reduce((acc, f) => (acc.has(f.eventId) ? acc : acc.set(f.eventId, f)), new Map<string, EstimatedFiring>());

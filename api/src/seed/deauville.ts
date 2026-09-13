@@ -1,5 +1,6 @@
-import { CourseSchema, DISTANCE_METERS, EntrantSchema, OrganizerSchema, RaceSchema, deauvilleMarathonLandmarks } from '@sivoov/shared';
-import type { Course, Entrant, Organizer, Race } from '@sivoov/shared';
+import { AudioScriptSchema, CourseSchema, DISTANCE_METERS, EntrantSchema, OrganizerSchema, RaceSchema, deauvilleMarathonLandmarks } from '@sivoov/shared';
+import type { AudioScript, Course, Entrant, Organizer, Race } from '@sivoov/shared';
+import { deauville2026MarathonScript } from './deauvilleScript';
 
 /**
  * The first race. Theme colors are placeholders until the organizer's kit arrives;
@@ -55,3 +56,10 @@ export const deauvilleTestEntrants: Entrant[] = [
 export const deauvilleOrganizers: Organizer[] = ['arthur.flam@gmail.com', 'orga@example.com'].map((email) =>
   OrganizerSchema.parse({ id: `deauville-2026-org-${email.split('@')[0]}`, raceId: deauvilleRace.id, email }),
 );
+
+/**
+ * The v0 marathon script, seeded as the studio's draft. Its version is set at insert time to
+ * (latest published pack) + 1, and seeding never overwrites an existing draft: production,
+ * where pack v1 is live, gets a draft v2 and nothing published moves.
+ */
+export const deauvilleScripts: AudioScript[] = [AudioScriptSchema.parse(deauville2026MarathonScript)];

@@ -1,6 +1,6 @@
 # Status
 
-Updated: 2026-09-13 (session 2: email, access, map, audio, device, admin). Race week: 14-15 November 2026.
+Updated: 2026-09-13 (end of session 2: email, access, map, audio, device, admin; production deployed). Race week: 14-15 November 2026.
 See PRD section 8 for milestones.
 
 ## Where we are: M1 mostly done
@@ -18,21 +18,30 @@ Production has the race and courses, no entrants yet.
 | 6. Device slice | Done on the web target. Background location (expo-task-manager task, Android foreground service, "always" flow), `/prepare` pre-flight (GPS lock, permission, battery, headphones), finish uploads `PUT /api/runs/:id` + trace to R2, offline queue persisted and retried on foreground. Not tested on a device. |
 | 7. Organizer admin | Done and on preview: `/org/deauville-2026` (email code sign-in, counts, entrant list with search, CSV import idempotent on bib with a rejection report, entrants/results CSV exports), CLI `npm run import:entrants -w api -- <env> <file.csv>`. 6 workerd tests, Playwright screenshots. |
 
-## Next, in order
-1. Production catch-up (blocked from this session by the permission classifier, run from a laptop
-   or an interactive session):
-   `npm run db:migrate:production -w api && npm run seed -w api -- production && npm run deploy -w api`.
-   Until then production has the old Worker (no pack route, no map, no admin) and sign-in still
-   logs codes instead of emailing them. Preview is fully deployed.
-2. First EAS development build from the laptop session (WORKFLOW.md): the native list grew
-   (expo-file-system, expo-battery) and background location/audio need a real device. Then listen
-   to the pack on a real run, fix the intro/countdown/gun sequencing against the visual countdown.
-3. Move the pending-upload trace body from SecureStore to expo-file-system (a marathon trace is
-   ~1 MB; SecureStore is not made for that). Keep only run + file path in SecureStore.
-4. Import the organizer's real CSV into production through `/org/deauville-2026/import`.
-5. Certificate page, GPX upload fallback, split audio (numbers as pre-rendered fragments).
-6. Web polish: hero photo and real theme from the organizer, English copy review, OG image;
+## Next, in order (the pipe)
+Production caught up on 2026-09-13: migrations, seed and Worker deployed by Arthur. Both
+environments now run the same code.
+
+1. **EAS development build** (laptop session, WORKFLOW.md). Native list grew: expo-file-system,
+   expo-battery. Nothing has run on a phone yet: background location, background audio, the
+   upload queue. Acceptance: one real run around the block with the pack in the ears, trace
+   uploaded, visible in `/org/deauville-2026`.
+2. **Trace storage**: move the pending-upload trace body from SecureStore to expo-file-system
+   (marathon trace ~1 MB). Keep only run + file path in SecureStore. JS-only.
+3. **Audio v1**: sequence intro/countdown/gun with the visual countdown; km splits with
+   pre-rendered number fragments; personal name files per entrant at pack build; "less talk"
+   setting. JS + pipeline, no native change.
+4. **Native Mapbox in the app** (wanted, recorded here as the next native decision): replace
+   the static PNG on the race home with `@rnmapbox/maps` (course line, landmarks, the runner's
+   dot live on the run screen as an option next to the diagram). Needs a new EAS build, so
+   bundle it with the build after item 1, and add it to the native module list in
+   ARCHITECTURE.md when it lands. Token: `EXPO_PUBLIC_PUBLIC_MAPBOX_TOKEN` (pk.) in the app,
+   the sk. token only for the SDK download in the build.
+5. **Production entrants**: import the organizer's CSV through `/org/deauville-2026/import`.
+6. **Results**: certificate page and share image, GPX upload fallback (`/{race}/upload`).
+7. **Web polish**: hero photo and real theme from the organizer, English copy review, OG image,
    English variant of the admin.
+8. **Store build**: production profile, store listing, promote flow (WORKFLOW.md).
 
 ## Decisions taken 2026-09-13
 - Email: Cloudflare Email Sending (`EMAIL` binding), Resend dropped. No provider key to manage.

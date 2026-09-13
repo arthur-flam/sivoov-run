@@ -141,3 +141,27 @@
   `scripts/device.sh preview` skips it (`-x lintVitalAnalyzeRelease -x lintVitalReportRelease`)
   and raises the daemon's heap. Also note gradle failing does not by itself make the wrapper
   loud: check for `BUILD SUCCESSFUL` and for the `adb install` line, not just an exit code.
+- 2026-09-13: `fetchMock` from `cloudflare:test` does **not** exist in
+  `@cloudflare/vitest-pool-workers@0.22`: the undici mock types are shipped but nothing exports
+  the agent. The worker under test shares the test isolate (the pool's own docs say global mocks
+  apply to it), so stubbing `globalThis.fetch` in `beforeAll` and restoring it in `afterAll` is
+  the way to fake a provider — and counting the calls is how you prove an R2 cache actually hit.
+- 2026-09-13: a wrangler `rules` entry (`{"type":"Text","globs":["**/*.client.js"]}`) is enough
+  to import a real browser `.js` file as a string, in `wrangler dev` and in the workerd tests
+  alike; `wrangler types` then declares `*.js` as text for the whole project. Lint it by adding
+  a `files: ['**/*.client.js']` block with browser globals — and note the repo's `no-var` rule
+  applies there too, so old-school IIFE style has to use const/let.
+- 2026-09-13: Leaflet markers and polylines swallow map clicks. A course drawn with 42 faint
+  split markers and an interactive polyline never fires `map.on('click')` — every click lands on
+  a layer. `interactive: false` on the line, the km ticks and the repeated occurrences (which
+  have nothing to select) gives the map its clicks back. Tooltips need interactivity, so a
+  non-interactive tick cannot carry one.
+- 2026-09-13: nearest-point-on-course is ambiguous on a real course: 100 m north of Deauville's
+  km 5 is nearer to km 26, because the course loops back. Any "click the map to place an event"
+  UI has to show the distance it found (the studio puts it in the popup) rather than silently
+  trusting the projection. A test asserting a metre-accurate projection needs a straight
+  synthetic track, not the race GPX.
+- 2026-09-13: organizer screenshot scenes should take their session with one form post of
+  `TEST_CODE` (`page.request.post` shares the browser context's cookies) instead of walking the
+  email-code form: `MAX_CODES_PER_HOUR` is 5 per organizer and there is only one `@example.com`
+  organizer, so four scenes across two presets is already over the cap.

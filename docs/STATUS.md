@@ -19,6 +19,7 @@ Production has the race and courses, no entrants yet.
 | 6. Device slice | Done on the web target. Background location (expo-task-manager task, Android foreground service, "always" flow), `/prepare` pre-flight (GPS lock, permission, battery, headphones), finish uploads `PUT /api/runs/:id` + trace to R2, offline queue persisted and retried on foreground. Exercised on a Galaxy S23 on 2026-09-13: foreground service, audio, finish and upload all real; the tracker has still never seen a moving runner. |
 | 7. Organizer admin | Done and on preview: `/org/deauville-2026` (email code sign-in, counts, entrant list with search, CSV import idempotent on bib with a rejection report, entrants/results CSV exports), CLI `npm run import:entrants -w api -- <env> <file.csv>`. 6 workerd tests, Playwright screenshots. |
 | 9. The no-laptop loop | Done, and **proven on the phone** 2026-09-13. `Sivoov (Preview)` is a standalone release shell (`npm run device:preview`) that needs no metro: the bundle is in the APK and `expo-updates` is live on the `preview` channel, so a cloud session ships JS with `gh workflow run deploy.yml -f action=publish-preview`. The app keeps a device logbook (`app/src/diag.ts`) replacing `adb logcat`: read it on the phone (finish screen → Diagnostic, with Share), or from a session — it rides to R2 in the run's trace and `npm run trace:pull` prints it. CI typecheck and a too-tight workerd timeout fixed: CI and Deploy are **green for the first time since the repo began**, and Arthur created the three Actions secrets, so main now deploys the preview Worker and publishes the update by itself. |
+| 10. Organizer studio (courses, GPX, audio script on a map) | Done locally, **not yet migrated or deployed**. `/org/{race}/courses` (cards per course: trace, repères, brouillon, pack; GPX upload) and `/org/{race}/courses/{courseId}` — the studio: Leaflet + Mapbox tiles, one marker per audio event at its projected distance, click the course to add one there, target pace turning `elapsed`/`split` into positions, distance frise, per-event editor with autosave, `Écouter` (MP3 or browser voice), `Générer la voix` (ElevenLabs from the Worker, R2 cache at `tts/<hash>.mp3`), `Publier la version N` (pack + manifest + `audio_packs`, draft bumped). Migration `0005_audio_scripts`. 13 workerd tests, two new screenshots. The CLI (`npm run audio:build`) still works on the same shared schema. |
 | 8. Screenshot rig | Done. `npm run shots` photographs 9 app screens and 8 web pages headlessly in ~70 s into `docs/shots/` with a contact sheet; `npm run shots:store` writes exact App Store (1290x2796) and Play (1080x1920) files with the dev chrome hidden. Presets include an English pass. Runbook: `docs/SHOTS.md`. |
 
 ## Start here (next session)
@@ -111,6 +112,36 @@ Two bugs found in the first twenty minutes, both invisible to the web target and
 tests: the missing `RECEIVE_BOOT_COMPLETED` (every run crashed seconds after the gun) and
 the near-black ghost labels on the night screens.
 
+## Decisions taken 2026-09-13 (studio slice)
+- The **script is a shared schema** (`shared/schemas/audioScript.ts` + `domain/audioScript.ts`).
+  The studio and the CLI derive events, manifests and the TTS cache key from the same code; the
+  Deauville fixture moved to `api/src/seed/deauvilleScript.ts` so the Worker can seed it.
+- **Storage**: one draft row per `(course, locale)` in `audio_scripts`, whose `version` is what
+  the next publish produces. Publishing writes the immutable pack at that version and bumps the
+  draft. Seeding uses `ON CONFLICT DO NOTHING`: a re-seed never overwrites an organizer's work.
+- **Projection is authoring-time.** A click on the map is turned into meters along the course by
+  the Worker (`nearestOnTrack` in shared) and stored as `{kind:'distance', meters}`. No new
+  trigger kind, nothing for the app to learn. On a course that loops back on itself a click
+  between two branches snaps to the nearer one, so the popup states the distance it found.
+- **The browser does no domain arithmetic.** Every position drawn comes from the server, which
+  runs the shared `estimateFirings`; changing the pace or saving refetches the estimates. That
+  is why saving returns `{script, estimates}`.
+- **Autosave**, debounced 800 ms, with a localStorage copy written before the request and
+  cleared after it: a refresh mid-save offers to restore. No explicit save button.
+- **The client script is one real `.js` file** bundled as a wrangler `Text` rule
+  (`api/src/pages/org/studio.client.js`, inlined by `studioClient.ts`): no framework, no build
+  step, no second request, and it is linted with browser globals.
+- **The studio degrades to the SVG course diagram** (`courseDiagram.tsx`, now taking markers)
+  with the same event dots when there is no Mapbox token, no network, or `?map=svg` — which is
+  the knob `npm run shots` uses, so the screenshot is deterministic and offline.
+- **ElevenLabs runs in the Worker** behind the optional `ELEVENLABS_API_TOKEN`, one line per
+  request, cached in R2 by `sha256(text|voice|model)` exactly like the CLI. Absent token = 503
+  with a French message; the studio stays usable with the browser voice.
+- Rendered audio is served to the organizer only, from `/org/.../audio/<hash>` with
+  `Cache-Control: private`. The public pack still carries no script text.
+- The screenshot rig's organizer sign-in now posts `TEST_CODE` directly instead of asking for a
+  code: four organizer scenes across two presets would have tripped the five-codes-per-hour cap.
+
 ## Decisions taken 2026-09-13
 - Android dev builds are compiled on the laptop over USB, not on EAS: the toolchain is already
   installed, the loop is minutes instead of a queue, and no `EXPO_TOKEN` is needed. EAS Build
@@ -163,7 +194,12 @@ the near-black ghost labels on the night screens.
 - Metro's file watcher did not pick up edits during the 2026-09-13 session: Fast Refresh
   never fired and changes only landed after a force-stop and relaunch. Worth a look, because
   loop 2a's whole value is the 10-second edit cycle.
-- The admin is French-only.
+- The admin is French-only (the studio too).
+- The studio's migration and secret are not on preview or production yet: run
+  `npm run db:migrate:preview -w api` / `:production`, then `wrangler secret put
+  ELEVENLABS_API_TOKEN` for both, or the studio will 503 on "Générer la voix".
+- Voice rendering in the studio has only ever run against a stubbed ElevenLabs (the workerd
+  test). The first real render from the Worker is untested.
 - The `preview` and `production` profiles have never been built on Android either; only the
   local debug dev client has run. Anything that behaves differently without the dev launcher
   (the task-manager warning above, updates, battery) is untested.

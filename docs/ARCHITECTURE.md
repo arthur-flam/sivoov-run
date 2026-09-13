@@ -50,6 +50,8 @@ run           entrant_id, course_id, started_at, finished_at, status(planned|run
               elapsed_ms, distance_m, splits(json), source(app|upload), device(json)
 run_trace     run_id → R2 object (raw GPS + audio events fired), for debugging and audit
 audio_pack    course_id, version, manifest(json) → R2 objects (mp3), downloaded before the run
+audio_script  course_id, locale, version, script(json: lines with their French text + voice),
+              updated_at                 (the organizer studio's draft; version = next publish)
 organizer     race_id, email                                (admin magic link)
 ```
 Rows are validated by zod schemas in `shared/schemas/` on the way in and out of D1.
@@ -59,6 +61,9 @@ Rows are validated by zod schemas in `shared/schemas/` on the way in and out of 
 - `/{race}/prepare`: course, trailer, instructions. `/{race}/results`, `/{race}/results/{bib}`
   (certificate, share image). `/{race}/upload`: GPX fallback.
 - `/org/{race}`: organizer admin (entrants, runs, exports, imports).
+  `/org/{race}/courses`: courses, GPX upload, and per course the audio **studio**
+  (`/org/{race}/courses/{courseId}`): the course on a Leaflet/Mapbox map with every audio
+  event placed on it, the script editor, voice rendering and publishing. See AUDIO.md.
 - `/api/...`: JSON for the app. Auth by bearer session token.
 
 ## App surfaces (Expo)

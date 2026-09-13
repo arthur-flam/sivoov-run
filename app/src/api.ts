@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 import { z } from 'zod';
-import { CourseGeometrySchema, CourseSchema, EntrantPublicSchema, RaceSchema, RunSchema, RunTraceSchema } from '@sivoov/shared';
+import { AudioPackSchema, CourseGeometrySchema, CourseSchema, EntrantPublicSchema, RaceSchema, RunSchema, RunTraceSchema } from '@sivoov/shared';
 import type { Run, RunTrace } from '@sivoov/shared';
 
 export const API_URL: string = (Constants.expoConfig?.extra as { apiUrl?: string } | undefined)?.apiUrl ?? 'https://run.sivoov.app';
@@ -36,6 +36,7 @@ export const api = {
   me: (token: string) => request('/me', MeSchema, {}, token),
   signOut: (token: string) => request('/me/signout', z.object({ ok: z.boolean() }), { method: 'POST' }, token),
   geometry: (courseId: string) => request(`/courses/${courseId}/geometry`, CourseGeometrySchema),
+  pack: (courseId: string) => request(`/courses/${courseId}/pack`, AudioPackSchema),
   uploadRun: (token: string, run: Run, trace?: RunTrace) =>
     request(`/runs/${run.id}`, z.object({ ok: z.boolean() }), { method: 'PUT', body: JSON.stringify({ run, trace: trace ? RunTraceSchema.parse(trace) : undefined }) }, token),
 };

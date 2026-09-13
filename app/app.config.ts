@@ -40,7 +40,17 @@ const config: ExpoConfig = {
   web: { bundler: 'metro', output: 'single', favicon: './assets/favicon.png' },
   plugins: [
     'expo-router',
-    ['expo-location', { isIosBackgroundLocationEnabled: true, isAndroidBackgroundLocationEnabled: true }],
+    [
+      'expo-location',
+      {
+        isIosBackgroundLocationEnabled: true,
+        isAndroidBackgroundLocationEnabled: true,
+        isAndroidForegroundServiceEnabled: true,
+        locationWhenInUsePermission: 'Sivoov mesure la distance de votre course.',
+        locationAlwaysAndWhenInUsePermission: 'Sivoov mesure votre course même écran verrouillé.',
+        locationAlwaysPermission: 'Sivoov mesure votre course même écran verrouillé.',
+      },
+    ],
     'expo-audio',
     'expo-secure-store',
     ['expo-splash-screen', { image: './assets/splash-icon.png', imageWidth: 160, resizeMode: 'contain', backgroundColor: '#faf9f7' }],

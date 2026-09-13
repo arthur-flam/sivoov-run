@@ -1,5 +1,5 @@
-import { CourseSchema, DISTANCE_METERS, EntrantSchema, RaceSchema, deauvilleMarathonLandmarks } from '@sivoov/shared';
-import type { Course, Entrant, Race } from '@sivoov/shared';
+import { CourseSchema, DISTANCE_METERS, EntrantSchema, OrganizerSchema, RaceSchema, deauvilleMarathonLandmarks } from '@sivoov/shared';
+import type { Course, Entrant, Organizer, Race } from '@sivoov/shared';
 
 /**
  * The first race. Theme colors are placeholders until the organizer's kit arrives;
@@ -50,3 +50,8 @@ export const deauvilleTestEntrants: Entrant[] = [
   { bib: '1002', email: 'lea@example.com', firstName: 'Léa', lastName: 'Martin', distanceKey: 'marathon' },
   { bib: '1003', email: 'arthur.flam@gmail.com', firstName: 'Arthur', lastName: 'Flam', distanceKey: 'half' },
 ].map((e) => EntrantSchema.parse({ ...e, id: `deauville-2026-${e.bib}`, raceId: deauvilleRace.id, source: 'manual' }));
+
+/** Who may open /org/deauville-2026. The @example.com one signs in with TEST_CODE on local and preview. */
+export const deauvilleOrganizers: Organizer[] = ['arthur.flam@gmail.com', 'orga@example.com'].map((email) =>
+  OrganizerSchema.parse({ id: `deauville-2026-org-${email.split('@')[0]}`, raceId: deauvilleRace.id, email }),
+);

@@ -1,18 +1,20 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Platform, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useKeepAwake } from 'expo-keep-awake';
+import Constants from 'expo-constants';
 import { buildTrack, constantPace, deauvilleMarathonGeometry, formatClock, formatKm, formatPace, nextLandmark, parsePace, progress } from '@sivoov/shared';
 import type { Course, CourseTrack } from '@sivoov/shared';
 import { api } from '@/api';
-import { packV0 } from '@/audio/pack';
+import { useAudioPack, useAudioPlayback } from '@/audio/usePlayback';
 import { CourseDiagram } from '@/components/CourseDiagram';
 import { Body, Button, Card, Display, Eyebrow, Num, Screen } from '@/components/ui';
 import { locale, t } from '@/i18n';
 import { deviceSource, simulationSource } from '@/services/location';
 import { useRun } from '@/stores/run';
 import { useSession } from '@/stores/session';
+import { newRunId, toUpload, useUploads } from '@/stores/uploads';
 import { colors, fonts, space } from '@/theme';
 
 /** Loads the course geometry once; falls back to the bundled Deauville trace offline. */
@@ -42,12 +44,26 @@ export default function Run() {
   const course = me?.course ?? null;
   const race = me?.race ?? null;
   const track = useTrack(course);
+  const pack = useAudioPack(course);
+  useAudioPlayback();
   const run = useRun();
+  const token = useSession((s) => s.token);
+  const runId = useRef(newRunId());
+  const uploadStatus = useUploads((s) => s.statusOf(runId.current));
 
   useEffect(() => {
-    if (course && track) run.prepare(course, track, packV0(course));
+    if (course && track && pack) run.prepare(course, track, pack);
     return () => useRun.getState().reset();
-  }, [course, track]);
+  }, [course, track, pack]);
+
+  // The finish path: queue the run and its trace; the store sends it now or when back online.
+  useEffect(() => {
+    if (run.phase !== 'finished' || !course || !me) return;
+    const { state, samples, fired, source: used } = useRun.getState();
+    const device = { platform: Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'web', osVersion: String(Platform.Version ?? ''), appVersion: Constants.expoConfig?.version } as const;
+    const upload = toUpload({ id: runId.current, entrantId: me.entrant.id, courseId: course.id, state, samples, fired, source: used?.kind === 'simulation' ? 'simulation' : 'app', device, finishedAtMs: used?.now() ?? Date.now() });
+    void useUploads.getState().enqueue(upload, token).catch(() => undefined);
+  }, [run.phase]);
 
   const source = useMemo(() => {
     if (!track || !course) return null;
@@ -121,6 +137,7 @@ export default function Run() {
           <Body dark muted>
             {run.fired.length} {locale === 'fr' ? 'événements audio' : 'audio events'} · {state.accepted} GPS · {state.rejected} {locale === 'fr' ? 'rejetés' : 'rejected'}
           </Body>
+          <Body dark muted testID="upload-status">{uploadStatus === 'sent' ? t('upload.sent') : t('upload.pending')}</Body>
           <Button label={t('home.results')} color={accent} onColor={race.theme.onPrimary} onPress={() => router.replace('/home')} />
         </ScrollView>
       </Screen>

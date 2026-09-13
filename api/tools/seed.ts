@@ -8,7 +8,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { deauvilleMarathonGeometry } from '@sivoov/shared';
-import { deauvilleCourses, deauvilleRace, deauvilleTestEntrants } from '../src/seed/deauville';
+import { deauvilleCourses, deauvilleOrganizers, deauvilleRace, deauvilleTestEntrants } from '../src/seed/deauville';
 
 const target = process.argv[2] ?? 'local';
 if (!['local', 'preview', 'production'].includes(target)) throw new Error('usage: seed.ts local|preview|production');
@@ -29,6 +29,9 @@ const sql = [
     (e) => `INSERT INTO entrants (id, race_id, bib, email, first_name, last_name, distance_key, source)
    VALUES (${[e.id, e.raceId, e.bib, e.email, e.firstName, e.lastName, e.distanceKey, e.source].map(q).join(', ')})
    ON CONFLICT(race_id, bib) DO UPDATE SET email=excluded.email, first_name=excluded.first_name, last_name=excluded.last_name, distance_key=excluded.distance_key;`,
+  ),
+  ...deauvilleOrganizers.map(
+    (o) => `INSERT INTO organizers (id, race_id, email) VALUES (${[o.id, o.raceId, o.email].map(q).join(', ')}) ON CONFLICT(race_id, email) DO NOTHING;`,
   ),
 ].join('\n');
 

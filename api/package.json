@@ -9,12 +9,14 @@
     "deploy:preview": "wrangler deploy --env preview",
     "types": "wrangler types",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run && vitest run -c vitest.tools.config.ts",
     "lint": "eslint .",
     "db:migrate:local": "wrangler d1 migrations apply sivoov-run --local --env local",
     "db:migrate:preview": "wrangler d1 migrations apply sivoov-run-preview --remote --env preview",
     "db:migrate:production": "wrangler d1 migrations apply sivoov-run --remote",
     "seed": "tsx tools/seed.ts",
+    "import:entrants": "tsx tools/import-entrants.ts",
+    "audio:build": "tsx tools/audio/build.ts",
     "e2e": "playwright test"
   },
   "dependencies": {

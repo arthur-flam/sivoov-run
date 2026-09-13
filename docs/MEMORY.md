@@ -29,3 +29,35 @@
 - 2026-09-12: A simulation LocationSource must expose one clock for its whole life:
   the countdown, the gun (`startRun(now)`) and the fixes all read it. Resetting the clock in
   `start()` shifted every elapsed time by the countdown length.
+- 2026-09-13: Cloudflare Email Sending replaced Resend: the `send_email` binding needs no key,
+  the zone `sivoov.app` is onboarded (`wrangler email sending list`). `from.email` must be on
+  that zone. The binding is absent in workerd tests, so `mailerFor` falls back to the console.
+- 2026-09-13: A fixed test code (`TEST_CODE` var, local and preview) is accepted only for
+  `@example.com` accounts. Tests that need a "wrong" code must not use `000000`.
+- 2026-09-13: Mapbox in the app without a native module: the Worker renders a Static Images
+  PNG (`/api/courses/:id/map.png`, token as a Worker secret, cached in `caches.default`) and
+  the app shows it with `Image`. Encoded polyline, thinned to 300 points, keeps the URL short.
+- 2026-09-13: `TaskManager.defineTask` executors must be `async` (SDK 57 typings) and the task
+  must be defined at module top level before any screen starts updates; `_layout.tsx` imports
+  `services/location/device.ts` for that.
+- 2026-09-13: The pending-upload queue persists through `storage.ts` (SecureStore on device).
+  A full-marathon trace (~1 MB) is too big for SecureStore: before Deauville, move the trace body
+  to expo-file-system and keep only the run plus a file path in SecureStore.
+- 2026-09-13: Android 11+ cannot show the "always" location prompt inline;
+  `requestBackgroundPermissionsAsync` sends the runner to settings. The pre-flight keeps the
+  start button disabled until they come back with "Toujours".
+- 2026-09-13: The `ELEVENLABS_API_TOKEN` in `.env` is TTS-only (`/v1/voices` and `/v1/user`
+  return 401 `missing_permissions`); the plan allows 2 concurrent requests (429 above).
+  `api/tools/audio/tts.ts` defaults to 2 with retry, `ELEVENLABS_CONCURRENCY` overrides.
+- 2026-09-13: `api/vitest.config.ts` only runs `test/**` in the workerd pool; node-side tools
+  (`api/tools/**/*.test.ts`) run under `api/vitest.tools.config.ts`. `npm test -w api` runs both.
+- 2026-09-13: `audio_packs` was already in `0001_init.sql` (unique on course, version, locale);
+  pack row id is `<courseId>/<version>/<locale>`. `wrangler d1 migrations apply` picks up every
+  unapplied file, so a half-finished migration from a parallel agent lands too.
+- 2026-09-13: Hono: `/org` must be mounted before the pages router, or `/:slug` swallows it. A
+  helper taking the context is typed `Context<AppEnv & { Variables: OrgVars }>`; deriving it from
+  `Parameters<typeof app.get>` collapses to `never`.
+- 2026-09-13: Shell heredocs turn `﻿` into a literal BOM in source files; eslint's
+  `no-irregular-whitespace` catches it only in regexes. Write the escape explicitly.
+- 2026-09-13: The auto-mode permission classifier blocked production D1 migration and deploy
+  from this session (preview went through). Production catch-up is a laptop/interactive step.

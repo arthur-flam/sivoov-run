@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   AddressSchema,
+  AudioPackSchema,
   CourseSchema,
   DeviceInfoSchema,
   EntrantSchema,
@@ -10,7 +11,7 @@ import {
   RunSchema,
   SplitSchema,
 } from '@sivoov/shared';
-import type { Course, Entrant, Race, Run } from '@sivoov/shared';
+import type { AudioPack, Course, Entrant, Race, Run } from '@sivoov/shared';
 
 /**
  * D1 rows are snake_case with JSON columns as text. Each row schema parses what D1 returns
@@ -110,4 +111,19 @@ export const runFromRow = (row: unknown): Run => {
     startedAt: r.started_at ?? undefined, finishedAt: r.finished_at ?? undefined,
     elapsedMs: r.elapsed_ms, distanceM: r.distance_m, splits: r.splits, source: r.source, device: r.device ?? undefined,
   });
+};
+
+export const AudioPackRowSchema = z.object({
+  id: z.string(),
+  course_id: z.string(),
+  version: z.number(),
+  locale: z.string(),
+  manifest: json(AudioPackSchema),
+  created_at: z.string(),
+});
+
+/** The manifest column is the AudioPack itself; the other columns index it. */
+export const audioPackFromRow = (row: unknown): AudioPack => {
+  const r = AudioPackRowSchema.parse(row);
+  return AudioPackSchema.parse({ ...r.manifest, courseId: r.course_id, version: r.version, locale: r.locale });
 };

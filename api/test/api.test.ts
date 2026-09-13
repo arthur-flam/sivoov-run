@@ -84,14 +84,22 @@ describe('magic code sign-in', () => {
   it('rejects a wrong code and a consumed code', async () => {
     const sent = await SELF.fetch('http://run.test/api/auth/code', json({ raceSlug: 'deauville-2026', bib: '1002', email: 'lea@example.com' }));
     expect(sent.status).toBe(200);
-    const wrong = await SELF.fetch('http://run.test/api/auth/verify', json({ raceSlug: 'deauville-2026', bib: '1002', email: 'lea@example.com', code: '000000' }));
+    const { devCode } = (await sent.json()) as { devCode?: string };
+    // 000000 is TEST_CODE on local and would sign the test account in; use another wrong code.
+    const wrong = await SELF.fetch('http://run.test/api/auth/verify', json({ raceSlug: 'deauville-2026', bib: '1002', email: 'lea@example.com', code: '999999' }));
     expect([401, 200]).toContain(wrong.status);
-    const code = await codeFor('deauville-2026-1002');
-    if (wrong.status === 200) return; // one in a million: the random code was 000000
+    const code = devCode ?? (await codeFor('deauville-2026-1002'));
+    if (wrong.status === 200) return; // one in a million: the random code was 999999
     const right = await SELF.fetch('http://run.test/api/auth/verify', json({ raceSlug: 'deauville-2026', bib: '1002', email: 'lea@example.com', code }));
     expect(right.status).toBe(200);
     const again = await SELF.fetch('http://run.test/api/auth/verify', json({ raceSlug: 'deauville-2026', bib: '1002', email: 'lea@example.com', code }));
     expect(again.status).toBe(401);
+  });
+  it('signs a test account in with TEST_CODE and never a real person', async () => {
+    const test = await SELF.fetch('http://run.test/api/auth/verify', json({ raceSlug: 'deauville-2026', bib: '1001', email: 'marc@example.com', code: '000000' }));
+    expect(test.status).toBe(200);
+    const real = await SELF.fetch('http://run.test/api/auth/verify', json({ raceSlug: 'deauville-2026', bib: '1003', email: 'arthur.flam@gmail.com', code: '000000' }));
+    expect(real.status).toBe(401);
   });
   it('requires a bearer token on /me and /runs', async () => {
     expect((await SELF.fetch('http://run.test/api/me')).status).toBe(401);
@@ -120,6 +128,29 @@ describe('runs', () => {
     const html = await page.text();
     expect(html).toContain('FLAM');
     expect(html).toContain('1:43:20');
+  });
+  it('keeps the device info and the trace of a finished run, and re-sends without a trace do not lose it', async () => {
+    const { token } = await signIn('1003', 'arthur.flam@gmail.com');
+    const headers = { Authorization: `Bearer ${token}` };
+    const run = {
+      id: 'run-2', entrantId: 'deauville-2026-1003', courseId: 'deauville-2026-half', status: 'finished', source: 'app',
+      startedAt: '2026-11-11T09:00:00+01:00', finishedAt: '2026-11-11T11:00:00+01:00', elapsedMs: 7_200_000, distanceM: 21097.5,
+      splits: [], device: { platform: 'ios', osVersion: '19.1', model: 'iPhone', appVersion: '2.0.0' },
+    };
+    const trace = { runId: 'run-2', samples: [{ lat: 49.36, lng: 0.07, accuracy: 8, timestamp: 1 }], audioFired: [] };
+    const put = (body: unknown) => SELF.fetch('http://run.test/api/runs/run-2', { ...json(body, headers), method: 'PUT' });
+    expect((await put({ run, trace })).status).toBe(200);
+    // The offline queue retries with the same payload; a later retry may drop the trace once it is stored.
+    expect((await put({ run })).status).toBe(200);
+    const listed = (await (await SELF.fetch('http://run.test/api/runs', { headers })).json()) as { runs: Array<{ id: string; status: string; device?: { platform: string; osVersion?: string } }> };
+    const stored = listed.runs.find((r) => r.id === 'run-2')!;
+    expect(stored.status).toBe('finished');
+    expect(stored.device).toEqual(run.device);
+    const object = await env.FILES.get('traces/deauville-2026/run-2.json');
+    expect(object).not.toBeNull();
+    expect(((await object!.json()) as { samples: unknown[] }).samples).toHaveLength(1);
+    const bad = await put({ run: { ...run, status: 'teleported' } });
+    expect(bad.status).toBe(400);
   });
   it('refuses a run for someone else', async () => {
     const { token } = await signIn('1001', 'marc@example.com');

@@ -8,6 +8,7 @@ import {
   RunSchema,
   RunTraceSchema,
   deauvilleMarathonGeometry,
+  staticMapUrl,
 } from '@sivoov/shared';
 import type { AppEnv } from '../env';
 import { db } from '../db/queries';
@@ -41,6 +42,33 @@ api.get('/courses/:id/geometry', async (c) => {
   const object = course.geometryKey ? await c.env.FILES.get(course.geometryKey) : null;
   if (object) return new Response(object.body, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' } });
   return c.json(CourseGeometrySchema.parse({ ...deauvilleMarathonGeometry, courseId: course.id }));
+});
+
+/**
+ * Course map as a PNG: Mapbox Static Images rendered server-side so the token stays on the
+ * Worker and the app and the web pages share one cached image. 404s when no token is set.
+ */
+api.get('/courses/:id/map.png', async (c) => {
+  const token = c.env.MAPBOX_TOKEN;
+  if (!token) return c.json({ error: 'not_found' }, 404);
+  const q = db(c.env.DB);
+  const course = await q.courseById(c.req.param('id'));
+  if (!course) return c.json({ error: 'not_found' }, 404);
+  const size = z.object({ w: z.coerce.number().int().min(100).max(1280).default(720), h: z.coerce.number().int().min(100).max(1280).default(400) }).safeParse(c.req.query());
+  if (!size.success) return c.json({ error: 'invalid' }, 400);
+  const cache = caches.default;
+  const cacheKey = new Request(new URL(c.req.url).toString());
+  const cached = await cache.match(cacheKey);
+  if (cached) return cached;
+  const object = course.geometryKey ? await c.env.FILES.get(course.geometryKey) : null;
+  const geometry = object ? CourseGeometrySchema.parse(await object.json()) : deauvilleMarathonGeometry;
+  const race = await q.raceById(course.raceId);
+  const color = (race?.theme.primary ?? '#e63946').replace('#', '');
+  const upstream = await fetch(staticMapUrl({ points: geometry.points, token, width: size.data.w, height: size.data.h, color }));
+  if (!upstream.ok) return c.json({ error: 'upstream', status: upstream.status }, 502);
+  const res = new Response(upstream.body, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' } });
+  c.executionCtx.waitUntil(cache.put(cacheKey, res.clone()));
+  return res;
 });
 
 /** Step 1: bib + email -> a code by email. */

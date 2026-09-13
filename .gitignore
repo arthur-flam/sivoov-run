@@ -14,3 +14,6 @@ playwright-report/
 test-results/
 .dev.vars
 api/worker-configuration.d.ts
+
+# audio pipeline TTS cache
+.cache/

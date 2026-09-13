@@ -11,19 +11,23 @@
     { "binding": "DB", "database_name": "sivoov-run", "database_id": "9bb857cd-16b3-4fa6-bd13-c39793b70da3", "migrations_dir": "migrations" }
   ],
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "sivoov-run-files" }],
+  // Cloudflare Email Sending: the zone sivoov.app is onboarded (`wrangler email sending list`).
+  "send_email": [{ "name": "EMAIL" }],
   "routes": [{ "pattern": "run.sivoov.app", "custom_domain": true }],
   "env": {
     "preview": {
       "name": "sivoov-run-preview",
-      "vars": { "ENVIRONMENT": "preview", "BASE_URL": "https://preview.run.sivoov.app" },
+      // TEST_CODE signs in the seeded @example.com test entrants without an email (docs/ACCESS.md).
+      "vars": { "ENVIRONMENT": "preview", "BASE_URL": "https://preview.run.sivoov.app", "TEST_CODE": "000000" },
       "d1_databases": [
         { "binding": "DB", "database_name": "sivoov-run-preview", "database_id": "09328ba9-5588-49dd-a8a1-5144c4f874a8", "migrations_dir": "migrations" }
       ],
       "r2_buckets": [{ "binding": "FILES", "bucket_name": "sivoov-run-files-preview" }],
+      "send_email": [{ "name": "EMAIL" }],
       "routes": [{ "pattern": "preview.run.sivoov.app", "custom_domain": true }]
     },
     "local": {
-      "vars": { "ENVIRONMENT": "local", "BASE_URL": "http://localhost:8788" },
+      "vars": { "ENVIRONMENT": "local", "BASE_URL": "http://localhost:8788", "TEST_CODE": "000000" },
       "routes": [],
       "d1_databases": [
         { "binding": "DB", "database_name": "sivoov-run", "database_id": "9bb857cd-16b3-4fa6-bd13-c39793b70da3", "migrations_dir": "migrations" }

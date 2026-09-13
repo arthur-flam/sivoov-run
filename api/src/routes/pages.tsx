@@ -54,9 +54,10 @@ pages.get('/:slug', async (c) => {
   if (!race) return c.notFound();
   const courses = await q.coursesForRace(race.id);
   const track = await trackFor(c.env, courses[0]);
+  const mapUrl = c.env.MAPBOX_TOKEN && courses[0] ? `/api/courses/${courses[0].id}/map.png` : null;
   return c.html(
     <Layout title={`${race.theme.displayName} · Sivoov Run`} description={race.name} locale={locale} race={race} path={`/${race.slug}`}>
-      <LandingPage race={race} courses={courses} track={track} locale={locale} />
+      <LandingPage race={race} courses={courses} track={track} mapUrl={mapUrl} locale={locale} />
     </Layout>,
   );
 });

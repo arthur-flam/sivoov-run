@@ -4,9 +4,9 @@ import type { Locale } from '@sivoov/shared';
 import { CourseDiagram } from './courseDiagram';
 import { fmtDate } from './dates';
 
-type Props = { race: Race; courses: Course[]; track: CourseTrack | null; locale: Locale };
+type Props = { race: Race; courses: Course[]; track: CourseTrack | null; mapUrl: string | null; locale: Locale };
 
-export const LandingPage = ({ race, courses, track, locale }: Props) => {
+export const LandingPage = ({ race, courses, track, mapUrl, locale }: Props) => {
   const t = translator(locale);
   const main = courses[0];
   const windowDays = Math.round((new Date(race.windowEnd).getTime() - new Date(race.windowStart).getTime()) / 86_400_000);
@@ -69,6 +69,7 @@ export const LandingPage = ({ race, courses, track, locale }: Props) => {
         <section class="section">
           <h2>{locale === 'fr' ? 'Le parcours' : 'The course'}</h2>
           <div class="course">
+            {mapUrl ? <img class="course-map" src={mapUrl} alt={locale === 'fr' ? 'Carte du parcours' : 'Course map'} width={720} height={400} loading="lazy" /> : null}
             <div class="diagram">
               <CourseDiagram track={track} officialM={main.distanceM} landmarks={main.landmarks} />
             </div>

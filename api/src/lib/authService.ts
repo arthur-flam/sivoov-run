@@ -3,6 +3,7 @@ import type { Bindings } from '../env';
 import { db } from '../db/queries';
 import { newId, randomCode, randomHex, sha256Hex } from './crypto';
 import { mailerFor } from './mailer';
+import { acceptsTestCode } from './testCode';
 import { codeEmail } from '../pages/emails';
 
 export const CODE_TTL_MS = 15 * 60 * 1000;
@@ -34,14 +35,17 @@ export const verifyCode = async (env: Bindings, req: CodeVerify): Promise<Verify
   const entrant = race ? await q.entrantByBibEmail(race.id, req.bib, req.email) : null;
   if (!entrant) return { ok: false, error: 'unknown_entrant' };
   const active = await q.activeCode(entrant.id);
-  if (!active || active.expires_at < new Date().toISOString() || active.attempts >= MAX_CODE_ATTEMPTS) return { ok: false, error: 'bad_code' };
-  if (active.code_hash !== (await sha256Hex(req.code))) {
-    await q.bumpAttempts(active.id);
-    return { ok: false, error: 'bad_code' };
+  const testCode = acceptsTestCode(env, entrant.email, req.code);
+  if (!testCode) {
+    if (!active || active.expires_at < new Date().toISOString() || active.attempts >= MAX_CODE_ATTEMPTS) return { ok: false, error: 'bad_code' };
+    if (active.code_hash !== (await sha256Hex(req.code))) {
+      await q.bumpAttempts(active.id);
+      return { ok: false, error: 'bad_code' };
+    }
   }
   const token = randomHex(32);
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
-  await q.consumeCode(active.id);
+  if (active) await q.consumeCode(active.id);
   await q.createSession(newId(), entrant.id, await sha256Hex(token), expiresAt);
   return { ok: true, token, expiresAt, entrant };
 };

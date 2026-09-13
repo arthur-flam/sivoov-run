@@ -20,6 +20,7 @@ img, svg { max-width: 100%; display: block; }
 .lang { font-size: 13px; color: var(--ink-2); text-decoration: none; }
 
 .hero { padding: 40px 0 36px; border-bottom: 1px solid var(--border); }
+.course-map { width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 16px; }
 .eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent-name); margin-bottom: 14px; }
 .hero h1 { font-family: var(--font-display); font-weight: 500; font-size: clamp(34px, 6vw, 60px); line-height: 1.04; letter-spacing: -0.02em; max-width: 14ch; }
 .hero h1 em { font-style: italic; color: var(--race-primary); }
@@ -82,4 +83,20 @@ table.results { width: 100%; border-collapse: collapse; font-size: 15px; }
 .results .num { font-family: var(--font-num); font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .results .tag { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
 .empty { color: var(--ink-2); padding: 30px 0; }
+
+.org-nav { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; font-size: 14px; margin: 6px 0 22px; }
+.org-nav a { color: var(--ink-2); }
+.org-nav .current { color: var(--ink); font-weight: 600; text-decoration: none; }
+.org-search { display: flex; gap: 8px; margin: 18px 0; max-width: 480px; }
+.org-search input { flex: 1; font: inherit; font-size: 16px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); color: var(--ink); min-width: 0; }
+.org-search .btn { min-height: 44px; padding: 0 18px; }
+.results td.email { color: var(--ink-2); font-size: 14px; word-break: break-all; }
+.results .bib { font-size: 20px; }
+.table-scroll { overflow-x: auto; }
+.field textarea { font: inherit; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); color: var(--ink); width: 100%; min-height: 180px; }
+.field input[type=file] { font-size: 15px; padding: 10px; }
+.report { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin: 18px 0; }
+.rejects { list-style: none; display: grid; gap: 6px; font-size: 14px; color: var(--ink-2); margin-bottom: 22px; }
+.rejects li b { font-family: var(--font-num); font-size: 16px; color: var(--ink); margin-right: 8px; }
+.ok { background: #eef8f0; border: 1px solid #cfe9d5; color: #1f6b34; padding: 12px 14px; border-radius: 12px; margin-bottom: 16px; font-size: 15px; }
 `;

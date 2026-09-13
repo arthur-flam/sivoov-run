@@ -1,5 +1,5 @@
-import type { Course, Entrant, Race, Run } from '@sivoov/shared';
-import { courseFromRow, entrantFromRow, raceFromRow, runFromRow } from './rows';
+import type { AudioPack, Course, Entrant, Race, Run } from '@sivoov/shared';
+import { audioPackFromRow, courseFromRow, entrantFromRow, raceFromRow, runFromRow } from './rows';
 
 /** Typed D1 access. Every read goes through a row schema; every write takes a domain object. */
 export const db = (d1: D1Database) => ({
@@ -158,6 +158,21 @@ export const db = (d1: D1Database) => ({
         distance_key: row.e_distance_key, address: row.e_address, source: row.e_source, slot_at: row.e_slot_at,
       }),
     }));
+  },
+  /** The newest pack version for a course and locale; what the app downloads before a run. */
+  async latestAudioPack(courseId: string, locale = 'fr'): Promise<AudioPack | null> {
+    const row = await d1.prepare('SELECT * FROM audio_packs WHERE course_id = ? AND locale = ? ORDER BY version DESC LIMIT 1').bind(courseId, locale).first();
+    return row ? audioPackFromRow(row) : null;
+  },
+  /** Idempotent on (course, version, locale): rebuilding a pack replaces its manifest. */
+  async upsertAudioPack(pack: AudioPack): Promise<void> {
+    await d1
+      .prepare(
+        `INSERT INTO audio_packs (id, course_id, version, locale, manifest) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(course_id, version, locale) DO UPDATE SET manifest=excluded.manifest`,
+      )
+      .bind(`${pack.courseId}/${pack.version}/${pack.locale}`, pack.courseId, pack.version, pack.locale, JSON.stringify(pack))
+      .run();
   },
 });
 

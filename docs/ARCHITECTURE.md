@@ -16,18 +16,19 @@
 | API + web | Cloudflare Worker, Hono, Hono JSX for server-rendered pages | cheap, fast, no build step for pages, local dev with wrangler |
 | DB | Cloudflare D1 (SQLite), plain SQL with typed row schemas | small data, one region is fine |
 | Files | Cloudflare R2: audio packs, GPS traces, certificates | |
-| Email | Resend (magic codes, receipts) | one API call |
+| Email | Cloudflare Email Sending (`send_email` binding, zone sivoov.app) | no key, no provider account |
 | App | Expo SDK 57, expo-router, React Native StyleSheet, Zustand, zod | current SDK, over-the-air updates via EAS Update |
 | Location | expo-location + expo-task-manager (background) | |
 | Audio | expo-audio with background mode | |
 | Content | Claude (script writing, one-off), ElevenLabs TTS (French), cached MP3 in R2 | pre-produced per race |
+| Maps | Mapbox Static Images, rendered by the Worker at `/api/courses/:id/map.png` (token stays server-side) | one PNG for the web pages and the app, no native map module |
 | Errors | Sentry (app + worker) | crash visibility without a laptop |
 | Builds | EAS Build (cloud), EAS Update (OTA), GitHub Actions | no Mac, no laptop |
 | Tests | Vitest everywhere (API tests run inside workerd via vitest-pool-workers), Playwright against the web target and the Worker | |
 | Tools | `tsx` to run TypeScript scripts under `api/tools/` (dev dependency) | Node cannot load the shared package unaided |
 
 Not used, on purpose: NativeWind/Tailwind, Clerk, Next.js, TanStack Query (fetch + Zustand
-is enough for this surface), Mapbox in the app (see "Course diagram").
+is enough for this surface), the Mapbox native SDK in the app (see "Course diagram": the app shows a static Mapbox PNG on the race home screen, the run screen keeps the diagram).
 
 ## Repo layout
 ```
@@ -67,14 +68,16 @@ Sign-in (email code) → Race home (your entry, your slot, download pack) → Pr
 ## Course diagram, not a map
 The run screen shows the course as a stylized SVG polyline with landmarks, and the runner's
 dot moving along it. No map tiles, no Mapbox native module, works on web, looks designed,
-and reads better in the sun. Real maps appear only on web pages (static or MapLibre). If a
+and reads better in the sun. Real maps are static Mapbox PNGs served by the Worker (landing page and the app's race home screen). If a
 real map in the app turns out to matter, it is a recorded native-module decision.
 
 ## Native module list (changing this needs a new EAS build and a note here)
 expo-location, expo-task-manager, expo-audio, expo-secure-store, expo-haptics,
 expo-keep-awake, expo-updates, @sentry/react-native, react-native-svg,
 react-native-reanimated, react-native-gesture-handler, react-native-screens,
-react-native-safe-area-context. Nothing else without a recorded decision.
+react-native-safe-area-context, expo-battery (pre-flight battery level check before a
+multi-hour run; added 2026-09-13), expo-file-system (downloads the audio pack to the cache
+dir so a run never needs the network; added 2026-09-13). Nothing else without a recorded decision.
 
 ## Identity and stores
 Reuse the existing Expo project (slug `sivoov`, owner `arthur.flam`) and bundle ids

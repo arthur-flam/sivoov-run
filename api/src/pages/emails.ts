@@ -8,3 +8,11 @@ export const codeEmail = ({ to, firstName, race, code }: { to: string; firstName
   html: `<p>Bonjour ${firstName},</p><p>Votre code pour <strong>${race.theme.displayName}</strong> :</p>
 <p style="font-size:34px;letter-spacing:0.3em;font-weight:700">${code}</p><p>Il est valable 15 minutes.</p><p>Sivoov Run</p>`,
 });
+
+export const organizerCodeEmail = ({ to, race, code }: { to: string; race: Race; code: string }): Mail => ({
+  to,
+  subject: `${code} · accès organisateur Sivoov Run`,
+  text: `Bonjour,\n\nVotre code d’accès à l’administration de ${race.theme.displayName} : ${code}\n\nIl est valable 15 minutes.\n\nSivoov Run`,
+  html: `<p>Bonjour,</p><p>Votre code d’accès à l’administration de <strong>${race.theme.displayName}</strong> :</p>
+<p style="font-size:34px;letter-spacing:0.3em;font-weight:700">${code}</p><p>Il est valable 15 minutes.</p><p>Sivoov Run</p>`,
+});

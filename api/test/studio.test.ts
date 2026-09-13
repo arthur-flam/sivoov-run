@@ -239,7 +239,14 @@ describe('publishing', () => {
     expect(html).toContain('Publier la version 2');
     expect(html).toContain('Déjà publié : v1');
     expect(html).toContain('La digue');
-    // No Mapbox token in the test env: the SVG fallback carries the markers.
-    expect(html).toContain('map-fallback');
+  });
+
+  it('falls back to the SVG diagram with ?map=svg, whatever the Mapbox token', async () => {
+    const html = await (await get(`/courses/${COURSE}?map=svg`)).text();
+    expect(html).not.toContain('id="studio-map"');
+    expect(html).toContain('class="map-fallback"');
+    expect(html).toContain('Tracé schématique');
+    // The same events, as dots on the diagram.
+    expect(html).toContain('data-event="course.digue"');
   });
 });

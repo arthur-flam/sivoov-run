@@ -6,7 +6,8 @@ import type { FilterConfig, KalmanConfig, KalmanState } from './smoothing';
  * The run reducer. Real distance run, from GPS, drives everything: virtual position,
  * splits, audio. Pure: (state, sample) -> state. The run screen only renders this.
  */
-export type RunPhase = 'idle' | 'running' | 'finished';
+/** 'finished' means the official distance was covered; 'abandoned' that the runner stopped first. */
+export type RunPhase = 'idle' | 'running' | 'finished' | 'abandoned';
 
 export type RunState = {
   phase: RunPhase;
@@ -109,6 +110,9 @@ const paceOver = (window: RunState['window']): number | null => {
 /** Feed one GPS fix. Ignored unless the run is in progress. */
 export const applySample = (state: RunState, sample: LocationSample, config: TrackerConfig = DEFAULT_TRACKER): RunState => {
   if (state.phase !== 'running' || state.startedAt === null) return state;
+  // A fix taken before the gun (a cached last-known position handed over when updates start)
+  // would anchor the distance where the runner was, not where they started.
+  if (sample.timestamp < state.startedAt) return { ...state, rejected: state.rejected + 1 };
   const verdict = judgeSample(state.lastSample ?? undefined, sample, config.filter);
   if (!verdict.ok) return { ...state, rejected: state.rejected + 1 };
 
@@ -147,6 +151,7 @@ export const applySample = (state: RunState, sample: LocationSample, config: Tra
 export const tick = (state: RunState, now: number): RunState =>
   state.phase === 'running' && state.startedAt !== null ? { ...state, elapsedMs: Math.max(state.elapsedMs, now - state.startedAt) } : state;
 
-export const abandon = (state: RunState): RunState => ({ ...state, phase: 'finished' });
+/** The runner stops before the official distance: the run keeps its numbers but is not a finish. */
+export const abandon = (state: RunState): RunState => (state.phase === 'running' ? { ...state, phase: 'abandoned' } : state);
 
 export const progress = (state: RunState): number => (state.targetM > 0 ? Math.min(1, state.distanceM / state.targetM) : 0);

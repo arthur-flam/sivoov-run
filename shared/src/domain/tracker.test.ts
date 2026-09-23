@@ -57,7 +57,19 @@ describe('run tracker', () => {
     expect(tick(done, 1e9).elapsedMs).toBe(done.elapsedMs);
   });
 
-  it('abandon ends the run', () => {
-    expect(abandon(startRun(idleRun(1000), 0)).phase).toBe('finished');
+  it('abandon ends the run without making it a finish', () => {
+    expect(abandon(startRun(idleRun(1000), 0)).phase).toBe('abandoned');
+    expect(abandon(idleRun(1000)).phase).toBe('idle');
+  });
+
+  it('does not count distance from a fix taken before the gun', () => {
+    // A cached fix at home, five minutes before the start, then the real start 400 m away.
+    const gun = 300_000;
+    const home = { lat: 49.3600, lng: 0.0700, accuracy: 15, timestamp: 0 };
+    const start = { lat: 49.3636, lng: 0.0700, accuracy: 5, timestamp: gun + 1000 };
+    const onward = { lat: 49.3637, lng: 0.0700, accuracy: 5, timestamp: gun + 4000 };
+    const s = [home, start, onward].reduce((acc, sample) => applySample(acc, sample), startRun(idleRun(10000), gun));
+    expect(s.rejected).toBe(1);
+    expect(s.distanceM).toBeLessThan(20);
   });
 });

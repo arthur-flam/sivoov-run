@@ -129,7 +129,8 @@ export const db = (d1: D1Database) => ({
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET status=excluded.status, started_at=excluded.started_at, finished_at=excluded.finished_at,
            elapsed_ms=excluded.elapsed_ms, distance_m=excluded.distance_m, splits=excluded.splits, device=excluded.device,
-           trace_key=COALESCE(excluded.trace_key, runs.trace_key)`,
+           trace_key=COALESCE(excluded.trace_key, runs.trace_key)
+         WHERE runs.entrant_id = excluded.entrant_id`,
       )
       .bind(run.id, run.entrantId, run.courseId, run.status, run.startedAt ?? null, run.finishedAt ?? null, run.elapsedMs, run.distanceM,
         JSON.stringify(run.splits), run.source, run.device ? JSON.stringify(run.device) : null, traceKey)

@@ -2,7 +2,7 @@ import type { AudioEvent, AudioPack } from '../schemas/audio';
 
 /** What the trigger function needs to know about the run. A projection of RunState. */
 export type TriggerState = {
-  phase: 'idle' | 'running' | 'finished';
+  phase: 'idle' | 'running' | 'finished' | 'abandoned';
   distanceM: number;
   elapsedMs: number;
   paceSecPerKm: number | null;

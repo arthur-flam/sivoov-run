@@ -1,7 +1,7 @@
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { distanceLabel } from '@sivoov/shared';
+import { distanceLabel, formatKm } from '@sivoov/shared';
 import { CourseMap } from '@/components/CourseMap';
 import { Body, Button, Card, Display, Eyebrow, Num, Screen } from '@/components/ui';
 import { locale, t } from '@/i18n';
@@ -25,8 +25,8 @@ export default function Home() {
   if (!me) {
     return (
       <Screen style={{ paddingTop: insets.top + space.xl, gap: space.md }}>
-        <Display>{error === 'offline' ? 'Hors ligne' : t('common.loading')}</Display>
-        {error ? <Button label={t('common.retry')} onPress={() => void refresh()} /> : null}
+        <Display>{error === 'offline' ? t('home.offline') : t('common.loading')}</Display>
+        {error ? <Button label={t('common.retry')} onPress={() => void refresh().catch(() => undefined)} /> : null}
         <Button label={t('home.signout')} ghost onPress={() => void signOut().then(() => router.replace('/signin'))} />
       </Screen>
     );
@@ -38,6 +38,12 @@ export default function Home() {
     <Screen style={{ paddingTop: insets.top + space.lg }}>
       <ScrollView contentContainerStyle={{ gap: space.md, paddingBottom: insets.bottom + space.xl }}>
         <Eyebrow>{race.theme.displayName}</Eyebrow>
+        {error === 'offline' ? (
+          <Card>
+            <Body testID="offline-banner">{t('home.offlineCached')}</Body>
+            <Button label={t('common.retry')} ghost onPress={() => void refresh().catch(() => undefined)} />
+          </Card>
+        ) : null}
         <Display>{t('signin.welcome', { firstName: entrant.firstName })}</Display>
         <Card style={styles.bibCard}>
           <View style={{ flex: 1 }}>
@@ -49,7 +55,7 @@ export default function Home() {
         <Card>
           <Body muted>{t('home.yourDistance')}</Body>
           <Body style={styles.big}>{distanceLabel(locale, entrant.distanceKey)}</Body>
-          <Body muted>{course ? `${(course.distanceM / 1000).toFixed(course.distanceKey === 'marathon' ? 3 : 1).replace('.', locale === 'fr' ? ',' : '.')} km · ${course.landmarks.length} ${locale === 'fr' ? 'lieux racontés' : 'landmarks'}` : ''}</Body>
+          <Body muted>{course ? `${formatKm(course.distanceM, locale, course.distanceKey === 'marathon' ? 3 : 1)} · ${t('home.landmarks', { count: course.landmarks.length })}` : ''}</Body>
         </Card>
         {course ? <CourseMap courseId={course.id} caption={t('home.mapCaption')} /> : null}
         <Card>

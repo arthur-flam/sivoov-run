@@ -118,4 +118,25 @@ describe('uploads queue', () => {
     expect(useUploads.getState().pending).toHaveLength(0);
     expect(useUploads.getState().statusOf('r5')).toBe('sent');
   });
+
+  it('marks a run stopped before the distance as abandoned', () => {
+    const stopped = toUpload({
+      id: 'r7', entrantId: 'e1', courseId: 'c1', state: { ...finishedState, phase: 'abandoned', distanceM: 400, elapsedMs: 120_000, splits: [] },
+      samples: [], fired: [], source: 'app', device: { platform: 'android' }, finishedAtMs: 1_700_000_120_000,
+    });
+    expect(stopped.run.status).toBe('abandoned');
+  });
+
+  it('sends a run queued while another upload is still going', async () => {
+    let release: () => void = () => undefined;
+    uploadRun.mockImplementationOnce(() => new Promise((resolve) => (release = () => resolve({ ok: true }))));
+    uploadRun.mockResolvedValue({ ok: true });
+    const first = useUploads.getState().enqueue(upload('r8'), 'tok');
+    await vi.waitFor(() => expect(uploadRun).toHaveBeenCalledTimes(1));
+    await useUploads.getState().enqueue(upload('r9'), 'tok');
+    release();
+    await first;
+    expect(useUploads.getState().statusOf('r8')).toBe('sent');
+    expect(useUploads.getState().statusOf('r9')).toBe('sent');
+  });
 });

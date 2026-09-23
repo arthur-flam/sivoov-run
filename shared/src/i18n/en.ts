@@ -61,6 +61,9 @@ export const en: Record<keyof typeof fr, string> = {
   'home.prepare': 'Prepare',
   'home.run': 'Run',
   'home.results': 'Results',
+  'home.offline': 'Offline',
+  'home.offlineCached': 'Offline: you can run, the result is sent once you are back online.',
+  'home.landmarks': '{count} landmarks',
   'home.pack.download': 'Download the audio pack',
   'home.pack.ready': 'Audio pack ready',
   'home.signout': 'Sign out',
@@ -81,6 +84,11 @@ export const en: Record<keyof typeof fr, string> = {
   'run.sim.badge': 'Simulation',
   'run.elapsed': 'Time',
   'run.gpsWeak': 'Weak GPS signal',
+  'run.audioEvents': '{count} audio events',
+  'run.gpsCounts': '{accepted} GPS · {rejected} rejected',
+  'run.startFailed': 'The GPS did not start. Try again.',
+  'location.notification.title': 'Sivoov is measuring your run',
+  'location.notification.body': 'Distance keeps being measured with the screen locked.',
 
   // Prepare (pre-flight)
   'prepare.title': 'Before you go',

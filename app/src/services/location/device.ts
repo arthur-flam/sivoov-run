@@ -3,6 +3,7 @@ import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import type { LocationSample } from '@sivoov/shared';
 import { diag, diagCount } from '@/diag';
+import { t } from '@/i18n';
 import type { LocationSource } from './types';
 
 /**
@@ -23,7 +24,8 @@ export const toSample = (loc: Location.LocationObject): LocationSample => ({
   accuracy: loc.coords.accuracy ?? undefined,
   altitude: loc.coords.altitude ?? undefined,
   speed: loc.coords.speed !== null && loc.coords.speed >= 0 ? loc.coords.speed : undefined,
-  timestamp: loc.timestamp,
+  // iOS reports fractional milliseconds; the trace schema wants whole ones.
+  timestamp: Math.round(loc.timestamp),
 });
 
 // Must be defined at module top level, before any screen starts updates (expo-task-manager).
@@ -64,8 +66,8 @@ const BACKGROUND_OPTIONS: Location.LocationTaskOptions = {
   deferredUpdatesInterval: 1000,
   deferredUpdatesDistance: 0,
   foregroundService: {
-    notificationTitle: 'Sivoov mesure votre course',
-    notificationBody: 'La distance continue d’être mesurée, écran verrouillé.',
+    notificationTitle: t('location.notification.title'),
+    notificationBody: t('location.notification.body'),
     notificationColor: '#1d1c1a',
     killServiceOnDestroy: true,
   },

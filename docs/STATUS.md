@@ -1,6 +1,6 @@
 # Status
 
-Updated: 2026-09-13 (session 7: audio experience brief + organizer studio; session 6: the no-laptop loop; session 5: the screenshot rig; session 4: phone testing on Android over USB; session 3: trace storage;
+Updated: 2026-09-23 (session 8: pre-field-test review fixes, see below; session 7: audio experience brief + organizer studio; session 6: the no-laptop loop; session 5: the screenshot rig; session 4: phone testing on Android over USB; session 3: trace storage;
 session 2: email, access, map, audio, device, admin; production deployed). Race week: 14-15 November 2026.
 See PRD section 8 for milestones.
 
@@ -21,6 +21,22 @@ Production has the race and courses, no entrants yet.
 | 9. The no-laptop loop | Done, and **proven on the phone** 2026-09-13. `Sivoov (Preview)` is a standalone release shell (`npm run device:preview`) that needs no metro: the bundle is in the APK and `expo-updates` is live on the `preview` channel, so a cloud session ships JS with `gh workflow run deploy.yml -f action=publish-preview`. The app keeps a device logbook (`app/src/diag.ts`) replacing `adb logcat`: read it on the phone (finish screen → Diagnostic, with Share), or from a session — it rides to R2 in the run's trace and `npm run trace:pull` prints it. CI typecheck and a too-tight workerd timeout fixed: CI and Deploy are **green for the first time since the repo began**, and Arthur created the three Actions secrets, so main now deploys the preview Worker and publishes the update by itself. |
 | 10. Organizer studio (courses, GPX, audio script on a map) | Done, on preview (migration + seed + secret applied 2026-09-13; the Worker deploys from main). `/org/{race}/courses` (cards per course: trace, repères, brouillon, pack; GPX upload) and `/org/{race}/courses/{courseId}` — the studio: Leaflet + Mapbox tiles, one marker per audio event at its projected distance, click the course to add one there, target pace turning `elapsed`/`split` into positions, distance frise, per-event editor with autosave, `Écouter` (MP3 or browser voice), `Générer la voix` (ElevenLabs from the Worker, R2 cache at `tts/<hash>.mp3`), `Publier la version N` (pack + manifest + `audio_packs`, draft bumped). Migration `0005_audio_scripts`. 13 workerd tests, two new screenshots. The CLI (`npm run audio:build`) still works on the same shared schema. |
 | 8. Screenshot rig | Done. `npm run shots` photographs 9 app screens and 8 web pages headlessly in ~70 s into `docs/shots/` with a contact sheet; `npm run shots:store` writes exact App Store (1290x2796) and Play (1080x1920) files with the dev chrome hidden. Presets include an English pass. Runbook: `docs/SHOTS.md`. |
+
+## Session 8: review fixes before the field test
+A code review of everything so far found ways a real run could be lost or corrupted. Fixed, each
+with a test that fails on the old code:
+- a run stopped early was uploaded as `finished`; the server now also refuses to rank simulated
+  runs or finishes short of the distance, and a run id owned by another runner cannot be overwritten;
+- the published audio pack landing after Start reset the run; Android's back button dropped it;
+  leaving during the countdown left background GPS on; a refused permission left the store stuck;
+- a cached pre-gun fix counted as distance; iOS fractional timestamps broke the upload schema;
+- one unloadable audio file silenced the rest of the race;
+- no network at a cold start meant no run (the last `/me` is now cached on disk); a hung
+  request blocked the upload queue until restart (timeouts), and a run queued mid-flush waited
+  for the next foreground;
+- hard-coded French strings moved into the i18n dictionaries.
+Not done: `tick()` still mixes the wall clock into `elapsedMs` between fixes (small split skew),
+and the persisted upload entry still carries the splits in SecureStore.
 
 ## Start here (next session)
 1. Read this file, `docs/WORKFLOW.md` (loop 2b), `docs/MEMORY.md`.

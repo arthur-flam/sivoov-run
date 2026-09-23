@@ -168,3 +168,26 @@
 - 2026-09-13: A workerd test that passes locally and fails in CI with a 503 is usually a binding
   read from `api/.dev.vars` (gitignored). The vitest pool gets its own values in
   `api/vitest.config.ts` (`miniflare.bindings`); never rely on `.dev.vars` in a test.
+- 2026-09-23: pre-field-test review fixes. Things worth knowing next time:
+  - The tracker drops any fix timestamped before the gun. Android's fused provider hands over
+    a cached last-known fix when updates start; anchoring on it added the walk to the start
+    line as race distance. It relies on the phone clock and the GPS clock agreeing to within a
+    second or so; a phone clock far ahead would drop the first fixes (a few meters lost).
+  - `abandon()` now yields phase `'abandoned'`, and the server re-derives the status anyway
+    (`officialStatus` in `shared/`): 'finished' only for a non-simulation run that covered the
+    course distance. Simulated runs are stored, never ranked.
+  - A zustand store method that `await`s a countdown outlives the screen that called it. The
+    run store bumps a generation counter in `reset()` so a start still counting down gives up
+    instead of switching background GPS on after the screen is gone.
+  - Effects keyed on objects from async stores (the audio pack) re-run when the object is
+    replaced; never put a destructive cleanup (`reset()`) on such an effect.
+  - expo-audio reports no load error: a player whose URI cannot load just never sends
+    `didJustFinish`. The event player has a watchdog (8 s to load, duration + 3 s to finish).
+  - `fetch` in React Native has no read timeout. Every API call now aborts (20 s, 120 s for a
+    run upload).
+  - `BackHandler` on the web target shows a LogBox "not supported" toast: register it on
+    Android only.
+  - `npm run shots` in a cloud container fails: the pinned Playwright wants a newer headless
+    shell than `/opt/pw-browsers` holds. A throwaway config spreading the real one with
+    `use.launchOptions.executablePath = '/opt/pw-browsers/chromium'` runs it. The home scene
+    still fails there because the Mapbox map PNG cannot be fetched from the container.

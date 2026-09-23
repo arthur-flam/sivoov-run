@@ -17,6 +17,9 @@ type RunStore = {
   /** The last event fired, for the on-screen caption until real audio plays. */
   nowPlaying: AudioEvent | null;
   countdown: number;
+  /** Why the last start did not get going ('location_denied', ...); cleared by the next start. */
+  startError: string | null;
+  /** Sets the run up. A no-op once the countdown has begun: a late pack never wipes a run. */
   prepare: (course: Course, track: CourseTrack, pack: AudioPack) => void;
   /** Countdown, then the gun. */
   start: (source: LocationSource, countdownSeconds?: number) => Promise<void>;
@@ -28,6 +31,8 @@ const SIM_COUNTDOWN_MS = 1000;
 
 export const useRun = create<RunStore>((set, get) => {
   let timer: ReturnType<typeof setInterval> | null = null;
+  /** Bumped by reset(): a start() still in its countdown sees it and gives up. */
+  let generation = 0;
 
   const fire = (firings: Firing[], state: RunState) => {
     if (firings.length === 0) return;
@@ -54,18 +59,27 @@ export const useRun = create<RunStore>((set, get) => {
     fired: [],
     nowPlaying: null,
     countdown: 0,
+    startError: null,
 
     prepare(course, track, pack) {
+      if (get().phase !== 'idle') return;
       set({ course, track, pack, state: idleRun(course.distanceM), phase: 'idle', samples: [], fired: [], nowPlaying: null });
     },
 
     async start(source, countdownSeconds = 5) {
       const { course } = get();
       if (!course) throw new Error('prepare() first');
-      set({ source, phase: 'countdown', countdown: countdownSeconds });
+      const mine = ++generation;
+      const current = () => generation === mine;
+      set({ source, phase: 'countdown', countdown: countdownSeconds, startError: null });
       const stepMs = source.kind === 'simulation' ? SIM_COUNTDOWN_MS / countdownSeconds : 1000;
       await new Promise<void>((resolve) => {
         const id = setInterval(() => {
+          if (!current()) {
+            clearInterval(id);
+            resolve();
+            return;
+          }
           const c = get().countdown - 1;
           set({ countdown: c });
           if (c <= 0) {
@@ -74,13 +88,26 @@ export const useRun = create<RunStore>((set, get) => {
           }
         }, stepMs);
       });
+      if (!current()) return;
       onState(startRun(idleRun(course.distanceM), source.now()));
-      await source.start((sample) => {
-        const { state } = get();
-        if (state.phase !== 'running') return;
-        set({ samples: [...get().samples, sample] });
-        onState(applySample(state, sample));
-      });
+      try {
+        await source.start((sample) => {
+          const { state } = get();
+          if (!current() || state.phase !== 'running') return;
+          set({ samples: [...get().samples, sample] });
+          onState(applySample(state, sample));
+        });
+      } catch (e) {
+        await source.stop().catch(() => undefined);
+        if (!current()) return;
+        set({ state: idleRun(course.distanceM), phase: 'idle', samples: [], fired: [], nowPlaying: null, source: null, startError: e instanceof Error ? e.message : String(e) });
+        return;
+      }
+      // The screen left while the GPS was starting: nothing may keep it on.
+      if (!current()) {
+        await source.stop();
+        return;
+      }
       timer = setInterval(() => {
         const { state, phase } = get();
         if (phase === 'running') set({ state: tick(state, source.now()) });
@@ -96,6 +123,7 @@ export const useRun = create<RunStore>((set, get) => {
     },
 
     reset() {
+      generation += 1;
       void get().stop();
       const { course } = get();
       set({ state: idleRun(course?.distanceM ?? 0), phase: 'idle', samples: [], fired: [], nowPlaying: null, source: null });

@@ -14,14 +14,31 @@ export class ApiError extends Error {
   }
 }
 
-const request = async <T extends z.ZodType>(path: string, schema: T, init: RequestInit = {}, token?: string): Promise<z.infer<T>> => {
-  const res = await fetch(`${API_URL}/api${path}`, {
-    ...init,
-    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(init.headers ?? {}) },
-  });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(res.status, (body as { error?: string }).error ?? 'unknown');
-  return schema.parse(body);
+/** Default for small calls; a phone on a weak signal must fail fast rather than hang. */
+const TIMEOUT_MS = 20_000;
+/** A marathon trace is about 1 MB: give it longer, but never forever. */
+const UPLOAD_TIMEOUT_MS = 120_000;
+
+const request = async <T extends z.ZodType>(path: string, schema: T, init: RequestInit = {}, token?: string, timeoutMs = TIMEOUT_MS): Promise<z.infer<T>> => {
+  // fetch has no timeout of its own and React Native's has no read timeout: a stalled
+  // request would otherwise hold the upload queue until the app restarts.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${API_URL}/api${path}`, {
+      ...init,
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(init.headers ?? {}) },
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new ApiError(res.status, (body as { error?: string }).error ?? 'unknown');
+    return schema.parse(body);
+  } catch (e) {
+    if (controller.signal.aborted) throw new Error('timeout');
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
 };
 
 const VerifySchema = z.object({ token: z.string(), expiresAt: z.string(), entrant: EntrantPublicSchema });
@@ -38,5 +55,5 @@ export const api = {
   geometry: (courseId: string) => request(`/courses/${courseId}/geometry`, CourseGeometrySchema),
   pack: (courseId: string) => request(`/courses/${courseId}/pack`, AudioPackSchema),
   uploadRun: (token: string, run: Run, trace?: RunTrace) =>
-    request(`/runs/${run.id}`, z.object({ ok: z.boolean() }), { method: 'PUT', body: JSON.stringify({ run, trace: trace ? RunTraceSchema.parse(trace) : undefined }) }, token),
+    request(`/runs/${run.id}`, z.object({ ok: z.boolean() }), { method: 'PUT', body: JSON.stringify({ run, trace: trace ? RunTraceSchema.parse(trace) : undefined }) }, token, UPLOAD_TIMEOUT_MS),
 };

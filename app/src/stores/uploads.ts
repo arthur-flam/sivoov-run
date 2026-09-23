@@ -93,6 +93,9 @@ const parseJson = (raw: string): unknown => {
 
 const message = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
+/** A flush asked for while one is running: the running one goes round again when done. */
+let flushAgain = false;
+
 export const useUploads = create<UploadsState>((set, get) => ({
   hydrated: false,
   pending: [],
@@ -117,7 +120,11 @@ export const useUploads = create<UploadsState>((set, get) => ({
   },
 
   async flush(token) {
-    if (get().flushing) return;
+    if (get().flushing) {
+      flushAgain = true;
+      return;
+    }
+    flushAgain = false;
     if (!get().hydrated) await get().hydrate();
     set({ flushing: true });
     try {
@@ -139,6 +146,8 @@ export const useUploads = create<UploadsState>((set, get) => ({
     } finally {
       set({ flushing: false });
     }
+    // A run queued while this pass was sending must not wait for the next app foreground.
+    if (flushAgain) await get().flush(token);
   },
 
   statusOf(runId) {

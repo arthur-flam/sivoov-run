@@ -64,6 +64,9 @@ export const fr = {
   'home.prepare': 'Se préparer',
   'home.run': 'Courir',
   'home.results': 'Résultats',
+  'home.offline': 'Hors ligne',
+  'home.offlineCached': 'Hors ligne : vous pouvez courir, le résultat partira au retour du réseau.',
+  'home.landmarks': '{count} lieux racontés',
   'home.pack.download': 'Télécharger le pack audio',
   'home.pack.ready': 'Pack audio prêt',
   'home.signout': 'Se déconnecter',
@@ -85,6 +88,11 @@ export const fr = {
   'run.sim.badge': 'Simulation',
   'run.elapsed': 'Temps',
   'run.gpsWeak': 'Signal GPS faible',
+  'run.audioEvents': '{count} événements audio',
+  'run.gpsCounts': '{accepted} GPS · {rejected} rejetés',
+  'run.startFailed': 'Le GPS n’a pas démarré. Réessayez.',
+  'location.notification.title': 'Sivoov mesure votre course',
+  'location.notification.body': 'La distance continue d’être mesurée, écran verrouillé.',
 
   // Prepare (pre-flight)
   'prepare.title': 'Avant de partir',

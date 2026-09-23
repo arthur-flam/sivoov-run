@@ -111,7 +111,7 @@ describe('runs', () => {
   it('stores a finished run with its trace, idempotently, and lists it in results', async () => {
     const { token } = await signIn('1003', 'arthur.flam@gmail.com');
     const run = {
-      id: 'run-1', entrantId: 'deauville-2026-1003', courseId: 'deauville-2026-half', status: 'finished', source: 'simulation',
+      id: 'run-1', entrantId: 'deauville-2026-1003', courseId: 'deauville-2026-half', status: 'finished', source: 'app',
       startedAt: '2026-11-10T09:00:00+01:00', finishedAt: '2026-11-10T10:45:00+01:00', elapsedMs: 6_300_000, distanceM: 21097.5,
       splits: [{ km: 1, elapsedMs: 300000, splitMs: 300000 }], device: { platform: 'web' },
     };
@@ -151,6 +151,37 @@ describe('runs', () => {
     expect(((await object!.json()) as { samples: unknown[] }).samples).toHaveLength(1);
     const bad = await put({ run: { ...run, status: 'teleported' } });
     expect(bad.status).toBe(400);
+  });
+  it('keeps simulated runs and finishes short of the distance out of the results', async () => {
+    const { token } = await signIn('1002', 'lea@example.com');
+    const headers = { Authorization: `Bearer ${token}` };
+    const base = {
+      entrantId: 'deauville-2026-1002', courseId: 'deauville-2026-marathon', status: 'finished',
+      startedAt: '2026-11-12T09:00:00+01:00', finishedAt: '2026-11-12T09:30:00+01:00', splits: [], device: { platform: 'android' },
+    };
+    const put = (run: Record<string, unknown>) => SELF.fetch(`http://run.test/api/runs/${run.id}`, { ...json({ run }, headers), method: 'PUT' });
+    expect((await put({ ...base, id: 'sim-1', source: 'simulation', elapsedMs: 1_800_000, distanceM: 42195 })).status).toBe(200);
+    expect((await put({ ...base, id: 'short-1', source: 'app', elapsedMs: 120_000, distanceM: 400 })).status).toBe(200);
+    const listed = (await (await SELF.fetch('http://run.test/api/runs', { headers })).json()) as { runs: Array<{ id: string; status: string }> };
+    expect(listed.runs.filter((r) => r.id === 'sim-1' || r.id === 'short-1').map((r) => r.status)).toEqual(['abandoned', 'abandoned']);
+    const html = await (await SELF.fetch('http://run.test/deauville-2026/results?distance=marathon')).text();
+    expect(html).not.toContain('MARTIN');
+    expect(html).not.toContain('0:30:00');
+    expect(html).not.toContain('0:02:00');
+  });
+  it('refuses to overwrite a run id that belongs to another runner', async () => {
+    const owner = await signIn('1003', 'arthur.flam@gmail.com');
+    const run = {
+      id: 'run-owned', entrantId: 'deauville-2026-1003', courseId: 'deauville-2026-half', status: 'finished', source: 'app',
+      elapsedMs: 7_000_000, distanceM: 21097.5, splits: [],
+    };
+    const put = (token: string, body: unknown) => SELF.fetch('http://run.test/api/runs/run-owned', { ...json(body, { Authorization: `Bearer ${token}` }), method: 'PUT' });
+    expect((await put(owner.token, { run })).status).toBe(200);
+    const other = await signIn('1001', 'marc@example.com');
+    const res = await put(other.token, { run: { ...run, entrantId: 'deauville-2026-1001', elapsedMs: 60_000 } });
+    expect(res.status).toBe(403);
+    const listed = (await (await SELF.fetch('http://run.test/api/runs', { headers: { Authorization: `Bearer ${owner.token}` } })).json()) as { runs: Array<{ id: string; elapsedMs: number }> };
+    expect(listed.runs.find((r) => r.id === 'run-owned')?.elapsedMs).toBe(7_000_000);
   });
   it('refuses a run for someone else', async () => {
     const { token } = await signIn('1001', 'marc@example.com');

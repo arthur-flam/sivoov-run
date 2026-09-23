@@ -3,7 +3,25 @@ import { buildTrack, constantPace, deauvilleMarathonGeometry } from '@sivoov/sha
 import { CourseSchema, deauvilleMarathonLandmarks } from '@sivoov/shared';
 import { packV0 } from '@/audio/pack';
 import { simulationSource } from '@/services/location/simulation';
+import type { LocationSource } from '@/services/location';
 import { useRun } from './run';
+
+/** A device-like source whose start can be made to fail, counting what the store asked of it. */
+const fakeSource = (startImpl: () => Promise<void> = async () => undefined) => {
+  const calls = { start: 0, stop: 0 };
+  const source: LocationSource = {
+    kind: 'device',
+    now: () => Date.now(),
+    start: async () => {
+      calls.start += 1;
+      await startImpl();
+    },
+    stop: async () => {
+      calls.stop += 1;
+    },
+  };
+  return { source, calls };
+};
 
 const track = buildTrack(deauvilleMarathonGeometry.points);
 const course = CourseSchema.parse({ id: 'c', raceId: 'r', distanceKey: '5k', distanceM: 5000, landmarks: deauvilleMarathonLandmarks });
@@ -45,5 +63,51 @@ describe('run store with the simulation source', () => {
     const t0 = source.now();
     vi.advanceTimersByTime(1000);
     expect(source.now() - t0).toBeCloseTo(10_000, -2);
+  });
+
+  it('a pack arriving mid-run does not wipe the run', async () => {
+    const store = useRun.getState();
+    store.prepare(course, track, packV0(course));
+    const source = simulationSource({ track, targetM: 5500, pace: constantPace(300), speedFactor: 100, noiseM: 0 });
+    await Promise.all([store.start(source, 1), vi.advanceTimersByTimeAsync(1100)]);
+    await vi.advanceTimersByTimeAsync(3000);
+    const before = useRun.getState().state.distanceM;
+    expect(before).toBeGreaterThan(0);
+    useRun.getState().prepare(course, track, { ...packV0(course), version: 2 });
+    expect(useRun.getState().phase).toBe('running');
+    expect(useRun.getState().state.distanceM).toBe(before);
+  });
+
+  it('stopping before the distance is an abandon, not a finish', async () => {
+    const store = useRun.getState();
+    store.prepare(course, track, packV0(course));
+    const source = simulationSource({ track, targetM: 5500, pace: constantPace(300), speedFactor: 100, noiseM: 0 });
+    await Promise.all([store.start(source, 1), vi.advanceTimersByTimeAsync(1100)]);
+    await vi.advanceTimersByTimeAsync(3000);
+    await useRun.getState().stop();
+    expect(useRun.getState().phase).toBe('finished');
+    expect(useRun.getState().state.phase).toBe('abandoned');
+  });
+
+  it('leaving during the countdown never starts the GPS', async () => {
+    useRun.getState().prepare(course, track, packV0(course));
+    const { source, calls } = fakeSource();
+    const started = useRun.getState().start(source, 5);
+    await vi.advanceTimersByTimeAsync(2000);
+    useRun.getState().reset();
+    await vi.advanceTimersByTimeAsync(5000);
+    await started;
+    expect(calls.start).toBe(0);
+    expect(useRun.getState().phase).toBe('idle');
+  });
+
+  it('a refused location permission puts the runner back on the start screen', async () => {
+    useRun.getState().prepare(course, track, packV0(course));
+    const { source } = fakeSource(async () => {
+      throw new Error('location_denied');
+    });
+    await Promise.all([useRun.getState().start(source, 1), vi.advanceTimersByTimeAsync(1100)]);
+    expect(useRun.getState().phase).toBe('idle');
+    expect(useRun.getState().startError).toBe('location_denied');
   });
 });

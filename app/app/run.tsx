@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { BackHandler, Platform, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useKeepAwake } from 'expo-keep-awake';
@@ -52,10 +52,19 @@ export default function Run() {
   const runId = useRef(newRunId());
   const uploadStatus = useUploads((s) => s.statusOf(runId.current));
 
+  // Prepare whenever the inputs settle; the store ignores it once the countdown has begun, so
+  // the published pack landing after Start (it replaces the bundled one) never wipes the run.
   useEffect(() => {
     if (course && track && pack) run.prepare(course, track, pack);
-    return () => useRun.getState().reset();
   }, [course, track, pack]);
+  useEffect(() => () => useRun.getState().reset(), []);
+
+  // Android's back button would unmount the screen and drop the run: only the long press stops it.
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => ['countdown', 'running'].includes(useRun.getState().phase));
+    return () => sub.remove();
+  }, []);
 
   // The finish path: queue the run and its trace; the store sends it now or when back online.
   useEffect(() => {
@@ -97,6 +106,7 @@ export default function Run() {
         <Body dark muted>
           {me?.entrant.firstName} · {formatKm(course.distanceM, locale, course.distanceKey === 'marathon' ? 3 : 1)}
         </Body>
+        {run.startError ? <Body dark testID="start-error">{run.startError === 'location_denied' ? t('prepare.check.permission.denied') : t('run.startFailed')}</Body> : null}
         {source.kind === 'simulation' ? <Body dark muted testID="sim-badge">{t('run.sim.badge')} · {params.pace ?? '5:30'} /km · ×{params.speed ?? 1}</Body> : null}
         <View style={{ alignItems: 'center', paddingVertical: space.md }}>
           <CourseDiagram track={track} officialM={course.distanceM} runM={0} landmarks={course.landmarks} accent={accent} width={diagramW} height={diagramW * 0.8} />
@@ -137,7 +147,7 @@ export default function Run() {
             ))}
           </Card>
           <Body dark muted>
-            {run.fired.length} {locale === 'fr' ? 'événements audio' : 'audio events'} · {state.accepted} GPS · {state.rejected} {locale === 'fr' ? 'rejetés' : 'rejected'}
+            {t('run.audioEvents', { count: run.fired.length })} · {t('run.gpsCounts', { accepted: state.accepted, rejected: state.rejected })}
           </Body>
           <Body dark muted testID="upload-status">{uploadStatus === 'sent' ? t('upload.sent') : t('upload.pending')}</Body>
           <Button label={t('home.results')} color={accent} onColor={race.theme.onPrimary} onPress={() => router.replace('/home')} />

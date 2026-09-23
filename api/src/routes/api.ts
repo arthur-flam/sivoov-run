@@ -8,6 +8,7 @@ import {
   RunSchema,
   RunTraceSchema,
   deauvilleMarathonGeometry,
+  officialStatus,
   staticMapUrl,
 } from '@sivoov/shared';
 import type { AppEnv } from '../env';
@@ -126,9 +127,12 @@ api.put('/runs/:id', async (c) => {
   const q = db(c.env.DB);
   const course = await q.courseById(run.courseId);
   if (!course || course.raceId !== entrant.raceId) return c.json({ error: 'invalid_course' }, 400);
+  // Run ids come from the client: one that already belongs to someone else is not theirs to overwrite.
+  const existing = await q.runById(run.id);
+  if (existing && existing.entrantId !== entrant.id) return c.json({ error: 'forbidden' }, 403);
   const traceKey = trace ? `traces/${entrant.raceId}/${run.id}.json` : null;
   if (trace && traceKey) await c.env.FILES.put(traceKey, JSON.stringify(trace), { httpMetadata: { contentType: 'application/json' } });
-  await q.upsertRun(run, traceKey);
+  await q.upsertRun({ ...run, status: officialStatus(run, course.distanceM) }, traceKey);
   return c.json({ ok: true, run: await q.runById(run.id) });
 });
 

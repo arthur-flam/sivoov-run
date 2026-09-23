@@ -191,3 +191,6 @@
     shell than `/opt/pw-browsers` holds. A throwaway config spreading the real one with
     `use.launchOptions.executablePath = '/opt/pw-browsers/chromium'` runs it. The home scene
     still fails there because the Mapbox map PNG cannot be fetched from the container.
+- 2026-09-23: `expo/expo-github-action/preview@v8` rejects `qr-target: dev-build` ("Invalid QR code
+  target: dev-build, expected expo-go or dev-build"): its input check only lists `dev-client`,
+  which it maps to dev-build. Use `dev-client`. The preview workflow had never run before PR #1.

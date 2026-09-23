@@ -47,4 +47,5 @@ jobs:
         with:
           command: eas update --branch pr-${{ github.event.pull_request.number }} --message "${{ github.event.pull_request.title }}" --non-interactive
           working-directory: app
-          qr-target: dev-build
+          # v8 validates against "dev-client" only, despite documenting "dev-build"; both mean a dev build.
+          qr-target: dev-client

@@ -266,7 +266,7 @@ describe('the import', () => {
     const preview = await (await postForm(`${base}/runners/import`, fd, cookie)).text();
     expect(preview).toContain('2 nouveaux coureurs, 1 mis à jour, 1 ligne refusée.');
     expect(preview).toContain('Ligne 4, dossard 103');
-    expect(preview).toContain('Email « max@ » incorrect.');
+    expect(preview).toContain('Email \u00ab\u00a0max@\u00a0\u00bb incorrect.');
     expect(await stored('101')).toBeNull();
     expect((await stored('2'))?.email).toBe('bruno@example.com');
 

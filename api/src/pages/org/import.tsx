@@ -23,6 +23,9 @@ const names = (detail = ''): string =>
     .map((c) => COLUMN_NAMES[c as CsvColumn] ?? c)
     .join(', ');
 
+/** « value » with non-breaking spaces, as French typography wants, so the quote never wraps alone. */
+const quoted = (value: string): string => `\u00ab\u00a0${value}\u00a0\u00bb`;
+
 /** "Marathon, Semi ou 10 km": the words that work in the distance column for this race. */
 const distanceWords = (distances: DistanceKey[]): string => {
   const words = (distances.length > 0 ? distances : (['marathon', 'half', '10k', '5k'] as DistanceKey[])).map((d) => (d === 'half' ? 'Semi' : distanceName(d)));
@@ -39,11 +42,11 @@ export const describeRejection = (r: CsvRejection, distances: DistanceKey[]): { 
     case 'missing_field':
       return { what: `Case vide : ${names(r.detail)}.`, fix: 'Remplissez-la dans votre fichier, ou retirez la ligne.' };
     case 'bad_distance':
-      return { what: `Distance « ${r.detail ?? ''} » non reconnue.`, fix: `Écrivez ${distanceWords(distances)}.` };
+      return { what: `Distance ${quoted(r.detail ?? '')} non reconnue.`, fix: `Écrivez ${distanceWords(distances)}.` };
     case 'distance_not_offered':
-      return { what: `Distance « ${r.detail ?? ''} » : votre course ne la propose pas.`, fix: `Écrivez ${distanceWords(distances)}.` };
+      return { what: `Distance ${quoted(r.detail ?? '')} : votre course ne la propose pas.`, fix: `Écrivez ${distanceWords(distances)}.` };
     case 'bad_email':
-      return { what: `Email « ${r.detail ?? ''} » incorrect.`, fix: 'Corrigez-le : il ressemble à nom@exemple.fr.' };
+      return { what: `Email ${quoted(r.detail ?? '')} incorrect.`, fix: 'Corrigez-le : il ressemble à nom@exemple.fr.' };
     case 'duplicate_bib':
       return { what: `Le dossard ${r.bib ?? ''} est déjà utilisé ligne ${r.detail ?? ''}.`, fix: 'Chaque coureur a son propre dossard. Corrigez l’une des deux lignes.' };
   }
@@ -52,7 +55,7 @@ export const describeRejection = (r: CsvRejection, distances: DistanceKey[]): { 
 export const describeWarning = (w: CsvWarning): { what: string; fix: string } =>
   w.reason === 'incomplete_address'
     ? { what: `Adresse incomplète, il manque : ${names(w.detail)}.`, fix: 'Le coureur sera importé sans adresse. Complétez-la dans le fichier, ou plus tard sur sa fiche.' }
-    : { what: `Pays « ${w.detail} » non reconnu.`, fix: 'Le coureur sera importé sans adresse. Écrivez le pays en toutes lettres, par exemple France ou Belgique.' };
+    : { what: `Pays ${quoted(w.detail)} non reconnu.`, fix: 'Le coureur sera importé sans adresse. Écrivez le pays en toutes lettres, par exemple France ou Belgique.' };
 
 const CHANGE: Record<PlannedEntrant['change'], { label: string; tone: Tone }> = {
   new: { label: 'Nouveau', tone: 'info' },

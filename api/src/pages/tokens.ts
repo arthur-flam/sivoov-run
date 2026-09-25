@@ -29,6 +29,8 @@ export const tokens = `
   --race-primary: #1a1a1a; --race-on-primary: #ffffff;
   /* Older names, kept so existing rules keep working */
   --card: var(--surface); --accent-name: var(--accent-ink);
+  /* Audio announcement types, on the studio's map, frise and list */
+  --cat-ceremony: var(--accent-ink); --cat-course: var(--info); --cat-coaching: var(--good); --cat-personal: #6d4fc4; --cat-safety: var(--warn);
 }
 `;
 

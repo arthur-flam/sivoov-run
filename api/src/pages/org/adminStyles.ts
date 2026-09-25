@@ -214,4 +214,19 @@ table.a-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .error { padding: 12px 14px; border-radius: var(--radius); margin-bottom: 16px; background: var(--bad-bg); border: 1px solid var(--bad-border); color: var(--bad); }
 .empty { color: var(--ink-2); padding: 24px 0; }
 .pill { display: inline-block; padding: 1px 8px; border-radius: var(--radius-pill); background: var(--surface-2); font-size: 12px; }
+
+/* audio */
+/* A section that opens on demand: the studio's advanced settings, the GPX import. */
+details.disclose { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+details.disclose > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; color: var(--ink-2); padding: 4px 0; }
+details.disclose > summary::-webkit-details-marker { display: none; }
+details.disclose > summary::before { content: ''; width: 7px; height: 7px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); transition: transform 0.15s; }
+details.disclose[open] > summary::before { transform: rotate(45deg); }
+details.disclose > summary:hover { color: var(--ink); }
+details.disclose > summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-sm); }
+details.disclose > :not(summary) { margin-top: 12px; }
+/* A form on one line: a field and its button. */
+.inline-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.inline-form .field { flex: 1 1 220px; margin-bottom: 0; }
+.field input[type=file] { font-size: 14px; padding: 8px; background: var(--bg); }
 `;

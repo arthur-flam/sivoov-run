@@ -1,30 +1,45 @@
-import type { Course, CourseTrack, Race } from '@sivoov/shared';
-import { distanceLabel, translator } from '@sivoov/shared';
+import type { Course, CourseTrack, DistanceKey, Race } from '@sivoov/shared';
+import { distanceLabel, formatKm, translator } from '@sivoov/shared';
 import type { Locale } from '@sivoov/shared';
 import { CourseDiagram } from './courseDiagram';
-import { fmtDate } from './dates';
+import { fmtSpan } from './dates';
 
 type Props = { race: Race; courses: Course[]; track: CourseTrack | null; mapUrl: string | null; locale: Locale };
+
+/** Official distances are written the way runners know them: 42,195 km, 21,1 km, 10 km. */
+const DIGITS: Record<DistanceKey, number> = { marathon: 3, half: 1, '10k': 0, '5k': 0 };
+
+/** "3,9 km", "30 km": a landmark's place on the course. */
+const landmarkKm = (meters: number, locale: Locale) => formatKm(meters, locale, 1).replace(/[.,]0 km$/, ' km');
 
 export const LandingPage = ({ race, courses, track, mapUrl, locale }: Props) => {
   const t = translator(locale);
   const main = courses[0];
-  const windowDays = Math.round((new Date(race.windowEnd).getTime() - new Date(race.windowStart).getTime()) / 86_400_000);
+  const [before, after] = t('landing.tagline').split('{race}');
+  const cta = (
+    <a class="btn btn-race" href={`/${race.slug}/signin`}>
+      {t('landing.cta')}
+    </a>
+  );
   return (
     <>
       <section class="hero">
         <div class="eyebrow">{t('landing.eyebrow')}</div>
         <h1>
-          {locale === 'fr' ? 'Courez ' : 'Run '}
+          {before}
           <em>{race.theme.displayName}</em>
-          {locale === 'fr' ? ' où que vous soyez.' : ' wherever you are.'}
+          {after}
         </h1>
         <p class="lede">{t('landing.lede')}</p>
+        <ul class="what" aria-label={t('landing.what.title')}>
+          <li>{t('landing.what.ceremony')}</li>
+          <li>{t('landing.what.course')}</li>
+          <li>{t('landing.what.results')}</li>
+          <li>{t('landing.what.medal')}</li>
+        </ul>
         <div class="cta-row">
-          <a class="btn btn-race" href={`/${race.slug}/signin`}>
-            {t('landing.cta')}
-          </a>
-          <span class="window">{t('landing.window', { start: fmtDate(race.windowStart, locale, race.timezone), end: fmtDate(race.windowEnd, locale, race.timezone) })}</span>
+          {cta}
+          <span class="window">{t('landing.window', fmtSpan(race.windowStart, race.windowEnd, locale, race.timezone))}</span>
         </div>
       </section>
 
@@ -32,21 +47,16 @@ export const LandingPage = ({ race, courses, track, mapUrl, locale }: Props) => 
         {courses.map((c) => (
           <div class="fact">
             <div class="k">{distanceLabel(locale, c.distanceKey)}</div>
-            <div class="v">{(c.distanceM / 1000).toFixed(c.distanceKey === 'half' ? 1 : c.distanceKey === 'marathon' ? 3 : 0).replace('.', locale === 'fr' ? ',' : '.')} km</div>
-            <div class="s">{c.landmarks.length} {locale === 'fr' ? 'lieux racontés' : 'narrated landmarks'}</div>
+            <div class="v">{formatKm(c.distanceM, locale, DIGITS[c.distanceKey])}</div>
+            <div class="s">{t('landing.landmarks', { count: c.landmarks.length })}</div>
           </div>
         ))}
-        <div class="fact">
-          <div class="k">{locale === 'fr' ? 'Fenêtre' : 'Window'}</div>
-          <div class="v">{windowDays}</div>
-          <div class="s">{locale === 'fr' ? 'jours pour courir votre vague' : 'days to run your wave'}</div>
-        </div>
       </section>
 
       <section class="section">
         <h2>{t('landing.how.title')}</h2>
         <div class="steps">
-          {([1, 2, 3, 4] as const).map((n) => (
+          {([1, 2, 3] as const).map((n) => (
             <div class="step">
               <h3>{t(`landing.how.${n}.title`)}</h3>
               <p>{t(`landing.how.${n}.body`)}</p>
@@ -55,28 +65,21 @@ export const LandingPage = ({ race, courses, track, mapUrl, locale }: Props) => 
         </div>
       </section>
 
-      <section class="section">
-        <h2>{t('landing.what.title')}</h2>
-        <ul class="what">
-          <li>{t('landing.what.ceremony')}</li>
-          <li>{t('landing.what.course')}</li>
-          <li>{t('landing.what.results')}</li>
-          <li>{t('landing.what.medal')}</li>
-        </ul>
-      </section>
-
-      {main && track ? (
+      {main && (mapUrl || track) ? (
         <section class="section">
-          <h2>{locale === 'fr' ? 'Le parcours' : 'The course'}</h2>
+          <h2>{t('landing.course.title')}</h2>
           <div class="course">
-            {mapUrl ? <img class="course-map" src={mapUrl} alt={locale === 'fr' ? 'Carte du parcours' : 'Course map'} width={720} height={400} loading="lazy" /> : null}
-            <div class="diagram">
-              <CourseDiagram track={track} officialM={main.distanceM} landmarks={main.landmarks} />
-            </div>
+            {mapUrl ? (
+              <img class="course-map" src={mapUrl} alt={t('landing.course.map')} width={720} height={400} loading="lazy" />
+            ) : track ? (
+              <div class="diagram">
+                <CourseDiagram track={track} officialM={main.distanceM} landmarks={main.landmarks} />
+              </div>
+            ) : null}
             <ul class="landmarks">
               {main.landmarks.map((l) => (
                 <li>
-                  <span class="km">{l.meters === 0 ? (locale === 'fr' ? 'Départ' : 'Start') : `km ${(l.meters / 1000).toFixed(1).replace('.0', '')}`}</span>
+                  <span class="km">{l.meters === 0 ? t('landing.course.start') : landmarkKm(l.meters, locale)}</span>
                   <span>
                     <strong>{l.name}</strong>
                     {l.description ? <span class="d"> · {l.description}</span> : null}
@@ -88,17 +91,20 @@ export const LandingPage = ({ race, courses, track, mapUrl, locale }: Props) => 
         </section>
       ) : null}
 
-      <section class="section" style="border-bottom:0">
+      <section class="section landing-end">
         <div class="cta-row">
-          <a class="btn btn-race" href={`/${race.slug}/signin`}>
-            {t('landing.cta')}
-          </a>
+          {cta}
           {race.organizerUrl ? (
             <a class="window" href={race.organizerUrl}>
               {t('landing.organizer', { organizer: race.name })}
             </a>
           ) : null}
         </div>
+        {race.supportEmail ? (
+          <p class="support">
+            {t('landing.question')} <a href={`mailto:${race.supportEmail}`}>{race.supportEmail}</a>
+          </p>
+        ) : null}
       </section>
     </>
   );

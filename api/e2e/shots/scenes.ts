@@ -26,6 +26,31 @@ const orgSignIn = async (page: Page): Promise<void> => {
 
 export const scenes: Scene[] = [
   {
+    id: 'home',
+    title: 'Home: the open races, and the way in for organizers',
+    go: async (page, shoot) => {
+      await page.goto('/');
+      await expect(page.locator('.race-card').first()).toBeVisible();
+      await shoot();
+    },
+  },
+  {
+    id: 'organizers',
+    title: 'Organizers: the page for race directors, then its form sent',
+    go: async (page, shoot) => {
+      await page.goto('/organisateurs');
+      await expect(page.getByRole('heading', { level: 1 })).toContainText('complète');
+      await shoot();
+      // A fresh address each pass: leads are capped at five a day per email.
+      await page.getByLabel('Votre nom').fill('Claire Dubois');
+      await page.getByLabel('Votre email').fill(`claire+${Date.now()}@example.com`);
+      await page.getByLabel('Nom de la course').fill('Trail des Falaises');
+      await page.getByRole('button', { name: 'Envoyer' }).click();
+      await expect(page.getByText('Merci, Claire Dubois.')).toBeVisible();
+      await shoot('sent');
+    },
+  },
+  {
     id: 'landing',
     title: 'Landing — the race, the course, the pitch',
     go: async (page, shoot) => {

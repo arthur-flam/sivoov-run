@@ -162,7 +162,7 @@ export const db = (d1: D1Database) => ({
          WHERE r.course_id = ? AND ${rankedRun('r', 'e.race_id')}
            AND r.id = (SELECT r2.id FROM runs r2 WHERE r2.entrant_id = r.entrant_id AND r2.course_id = r.course_id AND ${rankedRun('r2', 'e.race_id')}
                        ORDER BY r2.elapsed_ms ASC, r2.id ASC LIMIT 1)
-         ORDER BY r.elapsed_ms ASC`,
+         ORDER BY r.elapsed_ms ASC, r.id ASC`,
       )
       .bind(courseId)
       .all<Record<string, unknown>>();

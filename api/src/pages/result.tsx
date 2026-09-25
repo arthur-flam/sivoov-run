@@ -1,7 +1,7 @@
 import type { CourseTrack, Locale, Race } from '@sivoov/shared';
 import { averagePace, distanceLabel, formatClock, formatOfficialTime, formatPace, formatRank, translator, windowPhase } from '@sivoov/shared';
 import type { RunnerResult } from '../lib/results';
-import { fullName, runDate } from '../lib/results';
+import { runDate, shortName } from '../lib/results';
 import { CourseDiagram } from './courseDiagram';
 import { fmtDate } from './dates';
 import { resultClient } from './resultClient';
@@ -123,7 +123,7 @@ export const ResultPage = ({ race, result, track, locale, now, shareUrl, storyCa
           <h1>{t('result.none.title', { firstName: entrant.firstName })}</h1>
           <p>{t('result.none.body', dates)}</p>
           <p class="hint">
-            {fullName(entrant)} · {distance} · {t('result.bib')} {entrant.bib}
+            {shortName(entrant)} · {distance} · {t('result.bib')} {entrant.bib}
           </p>
         </section>
       )}

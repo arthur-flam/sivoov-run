@@ -2,11 +2,13 @@ import type { Course, Entrant, Race, Run } from '@sivoov/shared';
 import { distanceLabel, formatOfficialTime, translator } from '@sivoov/shared';
 import type { Locale } from '@sivoov/shared';
 import { fmtDate } from './dates';
+import { ranks } from '../lib/results';
 
 type Props = { race: Race; course: Course; courses: Course[]; rows: Array<{ run: Run; entrant: Entrant }>; locale: Locale };
 
 export const ResultsPage = ({ race, course, courses, rows, locale }: Props) => {
   const t = translator(locale);
+  const rank = ranks(rows);
   return (
     <section class="section" style="border-bottom:0">
       <div class="eyebrow">{race.theme.displayName}</div>
@@ -33,7 +35,7 @@ export const ResultsPage = ({ race, course, courses, rows, locale }: Props) => {
           <tbody>
             {rows.map(({ run, entrant }, i) => (
               <tr>
-                <td class="num">{i + 1}</td>
+                <td class="num">{rank[i]}</td>
                 <td class="num">{entrant.bib}</td>
                 <td>
                   <a class="runner" href={`/${race.slug}/results/${entrant.bib}`}>

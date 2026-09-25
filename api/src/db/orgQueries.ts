@@ -96,14 +96,14 @@ export const orgDb = (d1: D1Database) => ({
 
   /**
    * One line per entrant: the best ranked run when there is one, else the latest run, else
-   * nothing. A finish outside the race window (a rehearsal, a late run) is reported as
-   * `outside_window`, never as `finished`: this file decides who gets a medal.
+   * nothing. A finish that does not rank (a rehearsal, a late run, another distance) is
+   * reported as `not_ranked`, never as `finished`: this file decides who gets a medal.
    */
   async resultRows(raceId: string): Promise<ResultRow[]> {
     const { results } = await d1
       .prepare(
         `SELECT e.bib, e.first_name, e.last_name, e.distance_key, r.elapsed_ms, r.distance_m, r.finished_at,
-                CASE WHEN r.status IN ('finished', 'uploaded') AND NOT ${rankedRun('r', '?1')} THEN 'outside_window' ELSE r.status END AS status
+                CASE WHEN ${rankedRun('r', '?1')} THEN r.status WHEN r.status IN ('finished', 'uploaded') THEN 'not_ranked' ELSE r.status END AS status
          FROM entrants e LEFT JOIN runs r ON r.id = (
            SELECT r2.id FROM runs r2 WHERE r2.entrant_id = e.id
            ORDER BY CASE WHEN ${rankedRun('r2', '?1')} THEN 0 ELSE 1 END, r2.elapsed_ms ASC, r2.created_at DESC LIMIT 1)

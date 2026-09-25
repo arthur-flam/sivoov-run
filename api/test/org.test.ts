@@ -126,7 +126,7 @@ describe('import and export', () => {
       null,
     );
     const results = await (await SELF.fetch(`${base}/export/results.csv`, { headers: { Cookie: cookie } })).text();
-    expect(results).toContain('2001;Anna DURAND;half;1:40:00;6000000;21098;outside_window;');
+    expect(results).toContain('2001;Anna DURAND;half;1:40:00;6000000;21098;not_ranked;');
     const entrants = await (await SELF.fetch(`${base}/export/entrants.csv`, { headers: { Cookie: cookie } })).text();
     expect(entrants).toMatch(/^2001;[^;]*;Anna;Durand;half;$/m);
   });

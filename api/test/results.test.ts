@@ -2,7 +2,8 @@ import { SELF, env } from 'cloudflare:test';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { CourseSchema, EntrantSchema, RaceSchema, RunSchema } from '@sivoov/shared';
 import { db } from '../src/db/queries';
-import { cardKey, cardPng } from '../src/lib/cards';
+import { RETRY_AFTER_MS, cardKey, cardPng } from '../src/lib/cards';
+import { rankOf, ranks } from '../src/lib/results';
 import { deauvilleCourses, deauvilleRace } from '../src/seed/deauville';
 
 // A race of its own, so the runs other suites upload never change a rank here. Its window is
@@ -11,6 +12,7 @@ import { deauvilleCourses, deauvilleRace } from '../src/seed/deauville';
 const race = RaceSchema.parse({ ...deauvilleRace, id: 'podium-2026', slug: 'podium-2026', windowStart: '2099-11-09T00:00:00+01:00', windowEnd: '2099-11-15T23:59:59+01:00' });
 const closed = RaceSchema.parse({ ...deauvilleRace, id: 'closed-2020', slug: 'closed-2020', windowStart: '2020-11-09T00:00:00+01:00', windowEnd: '2020-11-15T23:59:59+01:00' });
 const half = CourseSchema.parse({ ...deauvilleCourses[1], id: 'podium-2026-half', raceId: race.id });
+const marathon = CourseSchema.parse({ ...deauvilleCourses[0], id: 'podium-2026-marathon', raceId: race.id });
 const entrant = (bib: string, firstName: string, lastName: string) =>
   EntrantSchema.parse({ id: `podium-${bib}`, raceId: race.id, bib, email: `runner${bib}@example.com`, firstName, lastName, distanceKey: 'half', source: 'manual' });
 const marc = entrant('2001', 'Marc', 'Dupont');
@@ -26,6 +28,7 @@ beforeAll(async () => {
   const q = db(env.DB);
   await q.upsertRace(race);
   await q.upsertCourse(half);
+  await q.upsertCourse(marathon);
   await Promise.all([marc, lea, paul].map((e) => q.upsertEntrant(e)));
   await q.upsertRace(closed);
   await q.upsertCourse(CourseSchema.parse({ ...half, id: 'closed-2020-half', raceId: closed.id }));
@@ -36,6 +39,9 @@ beforeAll(async () => {
   // Léa: a slower finish during the week, and one started the minute the window closed.
   await q.upsertRun(run('lea-race', lea.id, '2099-11-09T00:00:00+01:00', 6_600_000), null);
   await q.upsertRun(run('lea-late', lea.id, '2099-11-16T00:00:00+01:00', 6_000_000), null);
+  // Marc, entered in the half, also has a run on the marathon course (a re-import moved him, or
+  // a tampered client): it must rank nowhere.
+  await q.upsertRun({ ...run('marc-marathon', marc.id, '2099-11-13T07:30:00.000Z', 9_000_000), courseId: marathon.id, distanceM: marathon.distanceM }, null);
   // Paul stopped: nothing to rank.
   await q.upsertRun(run('paul-stop', paul.id, '2099-11-13T08:00:00.000Z', 1_200_000, 'abandoned'), null);
 });
@@ -47,6 +53,14 @@ describe('the results table', () => {
       ['2001', 'marc-race'],
       ['2002', 'lea-race'],
     ]);
+  });
+  it('never ranks a run on another distance than the entrant’s own', async () => {
+    expect(await db(env.DB).resultsForCourse(marathon.id)).toEqual([]);
+  });
+  it('gives equal times the same rank', () => {
+    const rows = [1, 2, 2, 3].map((m) => ({ run: { elapsedMs: m * 60_000 } }));
+    expect(ranks(rows)).toEqual([1, 2, 2, 4]);
+    expect(rankOf(rows, 2 * 60_000)).toBe(2);
   });
   it('links every runner to their certificate', async () => {
     const html = await (await SELF.fetch(`${base}/results?distance=half`)).text();
@@ -88,7 +102,9 @@ describe('a finisher’s certificate', () => {
     expect(html).toContain('Paul court Marathon International de Deauville.');
     expect(html).toContain('data-testid="bib-plate"');
     expect(html).toContain('Courez avec Paul');
-    expect(html).toContain('<meta property="og:title" content="Paul BERNARD court Marathon International de Deauville."/>');
+    // Before a finish the page never spells out the whole name.
+    expect(html).toContain('<meta property="og:title" content="Paul B. court Marathon International de Deauville."/>');
+    expect(html).not.toContain('BERNARD');
   });
   it('says there is no time once the window has closed', async () => {
     const html = await (await SELF.fetch(`http://run.test/${closed.slug}/results/3003`)).text();
@@ -117,8 +133,16 @@ describe('share cards', () => {
   it('has no card once the window has closed without a finish', async () => {
     expect((await SELF.fetch(`http://run.test/${closed.slug}/results/3003/card`)).status).toBe(404);
   });
-  it('answers 404 for the PNG when this deployment renders no cards', async () => {
-    expect((await SELF.fetch(`${base}/results/2001/card.png`)).status).toBe(404);
+  it('names the card in its PNG URL, so an old picture is never served under a new result', async () => {
+    const unversioned = await SELF.fetch(`${base}/results/2001/card.png?format=og`, { redirect: 'manual' });
+    expect(unversioned.status).toBe(302);
+    expect(unversioned.headers.get('location')).toBe(`${base}/results/2001/card.png?format=og&lang=fr&v=marc-race-fr`);
+    // The bib card's URL, kept by a link shared before the finish, moves on to the finisher card.
+    const stale = await SELF.fetch(`${base}/results/2001/card.png?format=og&v=bib-podium-2001-fr`, { redirect: 'manual' });
+    expect(stale.headers.get('location')).toContain('v=marc-race-fr');
+  });
+  it('answers 404 for the PNG when this deployment renders no cards and has no map', async () => {
+    expect((await SELF.fetch(`${base}/results/2001/card.png?format=og&v=marc-race-fr`)).status).toBe(404);
   });
 
   const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
@@ -141,6 +165,20 @@ describe('share cards', () => {
     const fetchImpl = (async () => Response.json({ success: false }, { status: 401 })) as unknown as typeof fetch;
     expect(await cardPng({ files: env.FILES, accountId: 'acc', token: 'bad', fetchImpl }, 'lea-race-fr', 'story', 'https://run.test/card')).toBeNull();
     expect(await env.FILES.head(cardKey('lea-race-fr', 'story'))).toBeNull();
+  });
+  it('does not hammer a failing renderer: one try per ten minutes', async () => {
+    let calls = 0;
+    const fetchImpl = (async () => {
+      calls += 1;
+      return new Response('rate limited', { status: 429 });
+    }) as unknown as typeof fetch;
+    const deps = { files: env.FILES, accountId: 'acc', token: 'tok', fetchImpl };
+    const now = Date.now();
+    await cardPng(deps, 'busy-fr', 'og', 'https://run.test/card', now);
+    await cardPng(deps, 'busy-fr', 'og', 'https://run.test/card', now + 60_000);
+    expect(calls).toBe(1);
+    await cardPng(deps, 'busy-fr', 'og', 'https://run.test/card', now + RETRY_AFTER_MS + 60_000);
+    expect(calls).toBe(2);
   });
   it('never calls the renderer without a token', async () => {
     const fetchImpl = (async () => {

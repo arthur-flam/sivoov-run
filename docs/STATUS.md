@@ -55,7 +55,9 @@ existed. Now, end to end (screens: `npm run shots`, scenes `run-finished`, `home
   course map falls back to the diagram when the Mapbox PNG cannot load.
 - **Race window enforced** (`shared/domain/raceWindow.ts`, SQL twin `api/src/db/ranked.ts`): a run
   started outside 9-15 Nov is stored, never ranked — in the public results, the organizer's
-  counts and the results CSV (reported `outside_window`: that file decides who gets a medal).
+  counts and the results CSV (reported `not_ranked`: that file decides who gets a medal). A run
+  on another distance than the entrant's own (after a re-import) never ranks either, and the API
+  refuses one. Equal times share a rank.
 - **Web**: `/{race}/results/{bib}` is the certificate (name, official time, rank, pace, bib, date,
   "mesuré par l'app" or "importé"), prints to one A4 landscape page, **Partager** (Web Share
   with the card image when the browser can share files, else the link, else copy), and a
@@ -294,6 +296,12 @@ the near-black ghost labels on the night screens.
   local screenshots of cards and pages show fallback fonts; the real ones use Fraunces and
   Barlow Condensed.
 - Nobody has pasted a result link into WhatsApp, iMessage or LinkedIn yet to see the preview.
+- Uploads are trust-based: a GPX's timestamps are believed (a file dated in the future, or
+  edited, is judged like any other). The results mark them "import" and the organizer sees them;
+  a stricter check needs a product decision, not code.
+- Share cards: a runner's PNG URL carries the card's id (`v=`), so a new result never hides behind
+  a cached picture; a failed render is not retried for ten minutes; a failed link-preview card
+  falls back to the course map. Bib cards are taken only when their URL is asked for.
 - No production entrants: import the organizer's CSV (admin slice) or seed by hand.
 - The tracker has never recorded a moving runner. Indoor runs record zero samples; Arthur has
   confirmed the phone was stationary, so Android's stationary throttling is the likely cause,

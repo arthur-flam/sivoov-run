@@ -61,7 +61,9 @@ export default function Run() {
 
   const source = useMemo(() => {
     if (!track || !course) return null;
-    if (params.sim) {
+    // Simulation is a development tool (web target, dev client): a release build ignores ?sim,
+    // so no deep link can put a made-up finish, with its Share button, on a runner's phone.
+    if (params.sim && __DEV__) {
       const pace = parsePace(params.pace ?? '') ?? 330;
       return simulationSource({ track, targetM: course.distanceM, pace: constantPace(pace), speedFactor: Number(params.speed ?? 1) || 1, noiseM: Number(params.noise ?? 4) });
     }

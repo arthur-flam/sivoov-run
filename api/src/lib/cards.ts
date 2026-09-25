@@ -35,12 +35,17 @@ export const previewImage = (env: Bindings, cardUrl: string, courseId: string | 
   return undefined;
 };
 
+/** After a failed render, how long before anyone may try again: a failing renderer is not hammered. */
+export const RETRY_AFTER_MS = 10 * 60_000;
+
 /** The PNG for a card, from R2 when it was already taken; null when it cannot be had. */
-export const cardPng = async (deps: CardDeps, id: string, format: CardFormat, pageUrl: string): Promise<ArrayBuffer | null> => {
+export const cardPng = async (deps: CardDeps, id: string, format: CardFormat, pageUrl: string, nowMs = Date.now()): Promise<ArrayBuffer | null> => {
   const key = cardKey(id, format);
   const cached = await deps.files.get(key);
   if (cached) return cached.arrayBuffer();
   if (!cardsEnabled(deps)) return null;
+  const failed = await deps.files.head(`${key}.failed`);
+  if (failed && nowMs - failed.uploaded.getTime() < RETRY_AFTER_MS) return null;
   const call = deps.fetchImpl ?? fetch;
   const res = await call(`https://api.cloudflare.com/client/v4/accounts/${deps.accountId}/browser-rendering/screenshot`, {
     method: 'POST',
@@ -56,6 +61,7 @@ export const cardPng = async (deps: CardDeps, id: string, format: CardFormat, pa
   const type = res?.headers.get('Content-Type') ?? '';
   if (!res?.ok || !type.startsWith('image/')) {
     console.error('card render failed', res?.status, res ? (await res.text().catch(() => '')).slice(0, 200) : 'network');
+    await deps.files.put(`${key}.failed`, String(res?.status ?? 'network'));
     return null;
   }
   const png = await res.arrayBuffer();

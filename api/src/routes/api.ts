@@ -128,7 +128,8 @@ api.put('/runs/:id', async (c) => {
   if (run.id !== c.req.param('id') || run.entrantId !== entrant.id) return c.json({ error: 'forbidden' }, 403);
   const q = db(c.env.DB);
   const course = await q.courseById(run.courseId);
-  if (!course || course.raceId !== entrant.raceId) return c.json({ error: 'invalid_course' }, 400);
+  // A run belongs on the entrant's own distance: another course would rank them in the wrong table.
+  if (!course || course.raceId !== entrant.raceId || course.distanceKey !== entrant.distanceKey) return c.json({ error: 'invalid_course' }, 400);
   // Run ids come from the client: one that already belongs to someone else is not theirs to overwrite.
   const existing = await q.runById(run.id);
   if (existing && existing.entrantId !== entrant.id) return c.json({ error: 'forbidden' }, 403);

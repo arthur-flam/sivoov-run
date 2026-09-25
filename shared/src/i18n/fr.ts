@@ -41,6 +41,7 @@ export const fr = {
   'landing.what.medal': 'La médaille de la course, envoyée chez vous.',
   'landing.organizer': 'Organisé par {organizer}',
   'landing.poweredBy': 'Une expérience Sivoov',
+  'landing.noBib': 'Pas encore de dossard ? Inscrivez-vous auprès de l’organisateur',
 
   // Sign-in
   'signin.title': 'Identifiez-vous',

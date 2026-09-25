@@ -60,6 +60,10 @@ export const db = (d1: D1Database) => ({
     const row = await d1.prepare('SELECT * FROM entrants WHERE race_id = ? AND bib = ? AND email = ?').bind(raceId, bib, email).first();
     return row ? entrantFromRow(row) : null;
   },
+  async entrantByBib(raceId: string, bib: string): Promise<Entrant | null> {
+    const row = await d1.prepare('SELECT * FROM entrants WHERE race_id = ? AND bib = ?').bind(raceId, bib).first();
+    return row ? entrantFromRow(row) : null;
+  },
   async entrantById(id: string): Promise<Entrant | null> {
     const row = await d1.prepare('SELECT * FROM entrants WHERE id = ?').bind(id).first();
     return row ? entrantFromRow(row) : null;
@@ -144,18 +148,25 @@ export const db = (d1: D1Database) => ({
     const row = await d1.prepare('SELECT * FROM runs WHERE id = ?').bind(id).first();
     return row ? runFromRow(row) : null;
   },
-  /** Official results: best finished run per entrant, by time. */
-  async resultsForCourse(courseId: string): Promise<Array<{ run: Run; entrant: Entrant }>> {
+  /**
+   * Official results: best finished run per entrant, by time, among the runs started inside
+   * the race window (`isRanked` in shared says the same thing to the app). A faster rehearsal
+   * the week before never hides the real run. SQLite compares the instants through julianday,
+   * which reads both the app's `Z` timestamps and offsets like `+01:00`.
+   */
+  async resultsForCourse(courseId: string, window: Pick<Race, 'windowStart' | 'windowEnd'>): Promise<Array<{ run: Run; entrant: Entrant }>> {
+    const ranked = (r: string) => `${r}.status IN ('finished', 'uploaded') AND julianday(${r}.started_at) BETWEEN julianday(?2) AND julianday(?3)`;
     const { results } = await d1
       .prepare(
         `SELECT r.*, e.id AS e_id, e.race_id AS e_race_id, e.bib AS e_bib, e.email AS e_email, e.first_name AS e_first_name,
                 e.last_name AS e_last_name, e.distance_key AS e_distance_key, e.address AS e_address, e.source AS e_source, e.slot_at AS e_slot_at
          FROM runs r JOIN entrants e ON e.id = r.entrant_id
-         WHERE r.course_id = ? AND r.status IN ('finished', 'uploaded')
-           AND r.elapsed_ms = (SELECT MIN(elapsed_ms) FROM runs r2 WHERE r2.entrant_id = r.entrant_id AND r2.course_id = r.course_id AND r2.status IN ('finished', 'uploaded'))
+         WHERE r.course_id = ?1 AND ${ranked('r')}
+           AND r.id = (SELECT r2.id FROM runs r2 WHERE r2.entrant_id = r.entrant_id AND r2.course_id = r.course_id AND ${ranked('r2')}
+                       ORDER BY r2.elapsed_ms ASC, r2.id ASC LIMIT 1)
          ORDER BY r.elapsed_ms ASC`,
       )
-      .bind(courseId)
+      .bind(courseId, window.windowStart, window.windowEnd)
       .all<Record<string, unknown>>();
     return results.map((row) => ({
       run: runFromRow(row),

@@ -40,6 +40,7 @@ export const en: Record<keyof typeof fr, string> = {
   'landing.what.medal': 'The race medal, shipped to you.',
   'landing.organizer': 'Organized by {organizer}',
   'landing.poweredBy': 'A Sivoov experience',
+  'landing.noBib': 'No bib yet? Sign up with the organizer',
 
   'signin.title': 'Sign in',
   'signin.lede': 'The bib number and email from your registration.',

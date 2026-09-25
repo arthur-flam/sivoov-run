@@ -36,7 +36,9 @@ export const ResultsPage = ({ race, course, courses, rows, locale }: Props) => {
                 <td class="num">{i + 1}</td>
                 <td class="num">{entrant.bib}</td>
                 <td>
-                  {entrant.firstName} {entrant.lastName.toUpperCase()}
+                  <a class="runner" href={`/${race.slug}/results/${entrant.bib}`}>
+                    {entrant.firstName} {entrant.lastName.toUpperCase()}
+                  </a>
                   {run.status === 'uploaded' ? <span class="tag"> · {locale === 'fr' ? 'import' : 'upload'}</span> : null}
                 </td>
                 <td class="num">{formatOfficialTime(run.elapsedMs)}</td>

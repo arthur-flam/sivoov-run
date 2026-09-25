@@ -11,6 +11,12 @@ export type Bindings = Env & {
    * it the studio still writes, plays back with the browser voice and refuses to render.
    */
   ELEVENLABS_API_TOKEN?: string;
+  /**
+   * Cloudflare Browser Rendering, which photographs the share cards into PNGs (lib/cards.ts).
+   * A token with the "Browser Rendering - Edit" permission, `wrangler secret put
+   * BROWSER_RENDERING_TOKEN`. Optional: without it link previews use the course map.
+   */
+  BROWSER_RENDERING_TOKEN?: string;
 };
 
 export type AppEnv = { Bindings: Bindings };

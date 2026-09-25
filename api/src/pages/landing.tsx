@@ -1,12 +1,12 @@
 import type { Course, CourseTrack, Race } from '@sivoov/shared';
-import { distanceLabel, translator } from '@sivoov/shared';
+import { distanceLabel, translator, windowPhase } from '@sivoov/shared';
 import type { Locale } from '@sivoov/shared';
 import { CourseDiagram } from './courseDiagram';
 import { fmtDate } from './dates';
 
-type Props = { race: Race; courses: Course[]; track: CourseTrack | null; mapUrl: string | null; locale: Locale };
+type Props = { race: Race; courses: Course[]; track: CourseTrack | null; mapUrl: string | null; locale: Locale; now: number };
 
-export const LandingPage = ({ race, courses, track, mapUrl, locale }: Props) => {
+export const LandingPage = ({ race, courses, track, mapUrl, locale, now }: Props) => {
   const t = translator(locale);
   const main = courses[0];
   const windowDays = Math.round((new Date(race.windowEnd).getTime() - new Date(race.windowStart).getTime()) / 86_400_000);
@@ -26,6 +26,10 @@ export const LandingPage = ({ race, courses, track, mapUrl, locale }: Props) => 
           </a>
           <span class="window">{t('landing.window', { start: fmtDate(race.windowStart, locale, race.timezone), end: fmtDate(race.windowEnd, locale, race.timezone) })}</span>
         </div>
+        <p class="hero-links">
+          {race.organizerUrl ? <a href={race.organizerUrl}>{t('landing.noBib')}</a> : null}
+          {windowPhase(race, now) !== 'before' ? <a href={`/${race.slug}/results`}>{t('home.results')}</a> : null}
+        </p>
       </section>
 
       <section class="facts" aria-label={t('landing.distances')}>

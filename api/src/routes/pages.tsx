@@ -1,16 +1,17 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
-import { CodeRequestSchema, CodeVerifySchema, buildTrack, deauvilleMarathonGeometry, localeFromHeader, resolveLocale } from '@sivoov/shared';
+import { CodeRequestSchema, CodeVerifySchema, buildTrack, deauvilleMarathonGeometry, localeFromHeader, resolveLocale, translator } from '@sivoov/shared';
 import type { Course, CourseTrack, Locale } from '@sivoov/shared';
 import type { AppEnv } from '../env';
 import { db } from '../db/queries';
 import { Layout } from '../pages/layout';
+import type { OpenGraph } from '../pages/layout';
+import { previewImage } from '../lib/cards';
 import { HomePage } from '../pages/home';
 import { LandingPage } from '../pages/landing';
 import { SigninPage } from '../pages/signin';
 import { InstallPage } from '../pages/install';
-import { ResultsPage } from '../pages/results';
 import { CourseGeometrySchema } from '@sivoov/shared';
 import { entrantForToken, requestCode, signOut, verifyCode } from '../lib/authService';
 
@@ -19,7 +20,7 @@ export const pages = new Hono<AppEnv>();
 const SESSION_COOKIE = 'sivoov_session';
 
 /** ?lang= wins and is remembered; then the cookie; then Accept-Language; French by default. */
-const localeOf = (c: Context<AppEnv>): Locale => {
+export const localeOf = (c: Context<AppEnv>): Locale => {
   const fromQuery = c.req.query('lang');
   if (fromQuery) {
     const l = resolveLocale(fromQuery);
@@ -30,7 +31,7 @@ const localeOf = (c: Context<AppEnv>): Locale => {
   return fromCookie ? resolveLocale(fromCookie) : localeFromHeader(c.req.header('Accept-Language'));
 };
 
-const trackFor = async (env: AppEnv['Bindings'], course: Course | undefined): Promise<CourseTrack | null> => {
+export const trackFor = async (env: AppEnv['Bindings'], course: Course | undefined): Promise<CourseTrack | null> => {
   if (!course) return null;
   const object = course.geometryKey ? await env.FILES.get(course.geometryKey) : null;
   const geometry = object ? CourseGeometrySchema.parse(await object.json()) : deauvilleMarathonGeometry;
@@ -55,9 +56,16 @@ pages.get('/:slug', async (c) => {
   const courses = await q.coursesForRace(race.id);
   const track = await trackFor(c.env, courses[0]);
   const mapUrl = c.env.MAPBOX_TOKEN && courses[0] ? `/api/courses/${courses[0].id}/map.png` : null;
+  const base = new URL(c.req.url).origin;
+  const og: OpenGraph = {
+    title: translator(locale)('landing.tagline', { race: race.theme.displayName }),
+    description: translator(locale)('landing.lede'),
+    url: `${base}/${race.slug}`,
+    image: previewImage(c.env, `${base}/${race.slug}/og.png?lang=${locale}`, courses[0]?.id, base),
+  };
   return c.html(
-    <Layout title={`${race.theme.displayName} · Sivoov Run`} description={race.name} locale={locale} race={race} path={`/${race.slug}`}>
-      <LandingPage race={race} courses={courses} track={track} mapUrl={mapUrl} locale={locale} />
+    <Layout title={`${race.theme.displayName} · Sivoov Run`} description={race.name} locale={locale} race={race} path={`/${race.slug}`} og={og}>
+      <LandingPage race={race} courses={courses} track={track} mapUrl={mapUrl} locale={locale} now={Date.now()} />
     </Layout>,
   );
 });
@@ -126,20 +134,4 @@ pages.get('/:slug/signout', async (c) => {
   if (token) await signOut(c.env, token);
   deleteCookie(c, SESSION_COOKIE, { path: '/' });
   return c.redirect(`/${c.req.param('slug')}`);
-});
-
-pages.get('/:slug/results', async (c) => {
-  const locale = localeOf(c);
-  const q = db(c.env.DB);
-  const race = await q.raceBySlug(c.req.param('slug'));
-  if (!race) return c.notFound();
-  const courses = await q.coursesForRace(race.id);
-  const course = courses.find((x) => x.distanceKey === c.req.query('distance')) ?? courses[0];
-  if (!course) return c.notFound();
-  const rows = await q.resultsForCourse(course.id);
-  return c.html(
-    <Layout title={`${locale === 'fr' ? 'Résultats' : 'Results'} · ${race.theme.displayName}`} locale={locale} race={race} path={`/${race.slug}/results`}>
-      <ResultsPage race={race} course={course} courses={courses} rows={rows} locale={locale} />
-    </Layout>,
-  );
 });

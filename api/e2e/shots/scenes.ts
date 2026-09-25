@@ -72,10 +72,55 @@ export const scenes: Scene[] = [
   },
   {
     id: 'results',
-    title: 'Results — empty before the window opens',
+    title: 'Results — the half marathon table (demo results, scripts/shots-demo.sql)',
     go: async (page, shoot) => {
-      await page.goto(`${RACE}/results`);
+      await page.goto(`${RACE}/results?distance=half`);
       await expect(page.getByRole('heading', { level: 2 })).toContainText('Résultats');
+      await shoot();
+    },
+  },
+  {
+    id: 'result',
+    title: 'Result — a finisher’s certificate, and the way into the race for everyone else',
+    go: async (page, shoot) => {
+      await page.goto(`${RACE}/results/1003`);
+      await expect(page.getByTestId('result-time')).toBeVisible();
+      await shoot();
+    },
+  },
+  {
+    id: 'result-pending',
+    title: 'Result — a bib that has not crossed the line yet',
+    go: async (page, shoot) => {
+      await page.goto(`${RACE}/results/1002`);
+      await expect(page.getByRole('heading', { level: 1 })).toContainText('pas encore');
+      await shoot();
+    },
+  },
+  {
+    id: 'card-og',
+    title: 'Share card — 1200×630, the picture under a shared link',
+    go: async (page, shoot) => {
+      await page.setViewportSize({ width: 1200, height: 630 });
+      await page.goto(`${RACE}/results/1003/card?format=og`);
+      await shoot();
+    },
+  },
+  {
+    id: 'card-story',
+    title: 'Share card — 1080×1350, the image a finisher posts',
+    go: async (page, shoot) => {
+      await page.setViewportSize({ width: 1080, height: 1350 });
+      await page.goto(`${RACE}/results/1003/card?format=story`);
+      await shoot();
+    },
+  },
+  {
+    id: 'card-race',
+    title: 'Share card — the race’s own, under a shared landing page',
+    go: async (page, shoot) => {
+      await page.setViewportSize({ width: 1200, height: 630 });
+      await page.goto(`${RACE}/card?format=og`);
       await shoot();
     },
   },

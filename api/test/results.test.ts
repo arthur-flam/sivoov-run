@@ -36,7 +36,7 @@ beforeAll(async () => {
 
 describe('the results table', () => {
   it('ranks only runs started during race week, best one per runner', async () => {
-    const rows = await db(env.DB).resultsForCourse(half.id, race);
+    const rows = await db(env.DB).resultsForCourse(half.id);
     expect(rows.map((r) => [r.entrant.bib, r.run.id])).toEqual([
       ['2001', 'marc-race'],
       ['2002', 'lea-race'],

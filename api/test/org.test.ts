@@ -119,4 +119,15 @@ describe('import and export', () => {
     expect(results).toContain('2001;Anna DURAND;half;;;;not_started;');
     expect((await SELF.fetch(`${base}/export/results.csv`, { redirect: 'manual' })).status).toBe(302);
   });
+  it('never exports a rehearsal as a finish, since the results file decides who gets a medal', async () => {
+    const cookie = await signIn('orga@example.com', env.TEST_CODE);
+    await db(env.DB).upsertRun(
+      { id: 'run-org-rehearsal', entrantId: `${SLUG}-2001`, courseId: `${SLUG}-half`, status: 'finished', source: 'app', startedAt: '2026-10-18T09:00:00+02:00', finishedAt: '2026-10-18T10:40:00+02:00', elapsedMs: 6_000_000, distanceM: 21097.5, splits: [] },
+      null,
+    );
+    const results = await (await SELF.fetch(`${base}/export/results.csv`, { headers: { Cookie: cookie } })).text();
+    expect(results).toContain('2001;Anna DURAND;half;1:40:00;6000000;21098;outside_window;');
+    const entrants = await (await SELF.fetch(`${base}/export/entrants.csv`, { headers: { Cookie: cookie } })).text();
+    expect(entrants).toMatch(/^2001;[^;]*;Anna;Durand;half;$/m);
+  });
 });

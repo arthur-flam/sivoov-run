@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { EntrantSchema, OrganizerSchema } from '@sivoov/shared';
 import type { CsvEntrant, Entrant, Organizer } from '@sivoov/shared';
 import { entrantFromRow } from './rows';
+import { rankedRun } from './ranked';
 
 const OrganizerRowSchema = z.object({ id: z.string(), race_id: z.string(), email: z.string() });
 export const organizerFromRow = (row: unknown): Organizer => {
@@ -16,8 +17,6 @@ export type ResultRow = {
   elapsedMs: number | null; distanceM: number | null; status: string | null; finishedAt: string | null;
 };
 export type ImportReport = { inserted: number; updated: number };
-
-const FINISHED = "('finished', 'uploaded')";
 
 /** Organizer admin reads and writes. Kept apart from `db()` so the entrant-facing queries stay small. */
 export const orgDb = (d1: D1Database) => ({
@@ -72,7 +71,7 @@ export const orgDb = (d1: D1Database) => ({
         `SELECT c.distance_key AS distance_key,
                 (SELECT COUNT(*) FROM entrants e WHERE e.race_id = c.race_id AND e.distance_key = c.distance_key) AS entrants,
                 (SELECT COUNT(DISTINCT r.entrant_id) FROM runs r JOIN entrants e ON e.id = r.entrant_id
-                  WHERE e.race_id = c.race_id AND e.distance_key = c.distance_key AND r.status IN ${FINISHED}) AS finishers
+                  WHERE e.race_id = c.race_id AND e.distance_key = c.distance_key AND ${rankedRun('r', 'e.race_id')}) AS finishers
          FROM courses c WHERE c.race_id = ? ORDER BY c.distance_m DESC`,
       )
       .bind(raceId)
@@ -85,7 +84,7 @@ export const orgDb = (d1: D1Database) => ({
     const needle = `%${search.trim().toLowerCase()}%`;
     const { results } = await d1
       .prepare(
-        `SELECT e.*, (SELECT MIN(r.elapsed_ms) FROM runs r WHERE r.entrant_id = e.id AND r.status IN ${FINISHED}) AS best_ms
+        `SELECT e.*, (SELECT MIN(r.elapsed_ms) FROM runs r WHERE r.entrant_id = e.id AND ${rankedRun('r', 'e.race_id')}) AS best_ms
          FROM entrants e
          WHERE e.race_id = ? AND (? = '%%' OR e.bib LIKE ? OR LOWER(e.first_name || ' ' || e.last_name) LIKE ? OR LOWER(e.last_name || ' ' || e.first_name) LIKE ?)
          ORDER BY CAST(e.bib AS INTEGER), e.bib`,
@@ -95,15 +94,20 @@ export const orgDb = (d1: D1Database) => ({
     return results.map((row) => ({ entrant: entrantFromRow(row), bestMs: row.best_ms }));
   },
 
-  /** One line per entrant: the best finished run when there is one, else the latest run, else nothing. */
+  /**
+   * One line per entrant: the best ranked run when there is one, else the latest run, else
+   * nothing. A finish outside the race window (a rehearsal, a late run) is reported as
+   * `outside_window`, never as `finished`: this file decides who gets a medal.
+   */
   async resultRows(raceId: string): Promise<ResultRow[]> {
     const { results } = await d1
       .prepare(
-        `SELECT e.bib, e.first_name, e.last_name, e.distance_key, r.elapsed_ms, r.distance_m, r.status, r.finished_at
+        `SELECT e.bib, e.first_name, e.last_name, e.distance_key, r.elapsed_ms, r.distance_m, r.finished_at,
+                CASE WHEN r.status IN ('finished', 'uploaded') AND NOT ${rankedRun('r', '?1')} THEN 'outside_window' ELSE r.status END AS status
          FROM entrants e LEFT JOIN runs r ON r.id = (
            SELECT r2.id FROM runs r2 WHERE r2.entrant_id = e.id
-           ORDER BY CASE WHEN r2.status IN ${FINISHED} THEN 0 ELSE 1 END, r2.elapsed_ms ASC, r2.created_at DESC LIMIT 1)
-         WHERE e.race_id = ? ORDER BY CAST(e.bib AS INTEGER), e.bib`,
+           ORDER BY CASE WHEN ${rankedRun('r2', '?1')} THEN 0 ELSE 1 END, r2.elapsed_ms ASC, r2.created_at DESC LIMIT 1)
+         WHERE e.race_id = ?1 ORDER BY CAST(e.bib AS INTEGER), e.bib`,
       )
       .bind(raceId)
       .all<{ bib: string; first_name: string; last_name: string; distance_key: string; elapsed_ms: number | null; distance_m: number | null; status: string | null; finished_at: string | null }>();

@@ -1,24 +1,33 @@
 import {
   AudioScriptSchema,
   CourseGeometrySchema,
+  MOMENTS,
   buildTrack,
   decimate,
-  describeTrigger,
   estimateFirings,
+  momentOf,
   nearestOnTrack,
   positionForRun,
-  renderableLines,
+  publishedContent,
   runMetersForTrack,
+  whenInWords,
 } from '@sivoov/shared';
-import type { AudioScript, Course, CourseGeometry, CourseTrack, EstimatedFiring, LatLng, ScriptLine } from '@sivoov/shared';
+import type { AudioScript, Course, CourseGeometry, CourseTrack, EstimatedFiring, LatLng, Moment, ScriptLine } from '@sivoov/shared';
 import type { Bindings } from '../env';
 import { scriptDb } from '../db/scriptQueries';
 import type { PackSummary } from '../db/scriptQueries';
+import { lineStatusView, publishView, summaryText } from '../pages/org/studioCopy';
+import type { AudioSummary, LineSource } from '../pages/org/studioCopy';
+import type { Tone } from '../pages/org/ui';
+import { sha256Hex } from './crypto';
 import { ttsHash, ttsKey } from './tts';
+import { uploadKey } from './uploads';
 
 export const DEFAULT_PACE_SEC_PER_KM = 330; // 5:30 /km, the reference runner of the PRD
 /** Enough points for a faithful line on a phone without shipping the whole GPX to the page. */
 const MAP_POINTS = 900;
+/** A trace more than 3% off the official distance is probably the wrong file (or the wrong course). */
+export const TRACE_TOLERANCE = 0.03;
 
 export const geometryKeyFor = (courseId: string): string => `courses/${courseId}/geometry.json`;
 
@@ -30,6 +39,9 @@ export const loadGeometry = async (files: R2Bucket, course: Course): Promise<Cou
   const parsed = CourseGeometrySchema.safeParse(await object.json());
   return parsed.success ? parsed.data : null;
 };
+
+/** Whether the measured trace matches the official distance, within TRACE_TOLERANCE. */
+export const traceMatches = (measuredM: number, officialM: number): boolean => Math.abs(measuredM - officialM) <= officialM * TRACE_TOLERANCE;
 
 /** A firing placed on the map: `null` coordinates for pace triggers and for a course with no trace. */
 export type PlacedFiring = EstimatedFiring & { lat: number | null; lng: number | null };
@@ -49,41 +61,110 @@ export const kmTicks = (track: CourseTrack, officialM: number): Tick[] =>
     return { km: i + 1, lat: point.lat, lng: point.lng };
   });
 
-/** Per line: is its current text already rendered, under which hash, and when it fires. */
-export type LineStatus = { id: string; hash: string; template: boolean; rendered: boolean; bytes: number; summary: string };
+/**
+ * Per line: where its sound comes from, whether that sound is ready for the current text, when
+ * it plays in plain words and under which moment the studio lists it. `audioPath` is where
+ * "Écouter" fetches it, relative to the course's studio URL; null means the browser reads the text.
+ */
+export type LineStatus = {
+  id: string;
+  source: LineSource;
+  /** Voice: the TTS cache hash of the current text. Upload: the file's sha256. */
+  hash: string;
+  template: boolean;
+  /** The sound is ready: the voice rendered for this exact text, or the uploaded file stored. */
+  rendered: boolean;
+  bytes: number;
+  when: string;
+  moment: Moment;
+  audioPath: string | null;
+  label: string;
+  tone: Tone;
+};
 
-export const lineStatuses = async (files: R2Bucket, script: AudioScript): Promise<LineStatus[]> => {
-  const renderable = new Set(renderableLines(script).map((l) => l.id));
-  return Promise.all(
+const sourceOf = (line: ScriptLine): LineSource => (line.audio ? 'upload' : line.slots ? 'template' : 'voice');
+
+export const lineStatuses = async (files: R2Bucket, script: AudioScript, officialM: number): Promise<LineStatus[]> =>
+  Promise.all(
     script.lines.map(async (line: ScriptLine): Promise<LineStatus> => {
-      const template = !renderable.has(line.id);
+      const source = sourceOf(line);
+      const common = { id: line.id, source, template: source === 'template', when: whenInWords(line.trigger), moment: momentOf(line.trigger, officialM) };
+      if (line.audio) {
+        const head = await files.head(uploadKey(line.audio));
+        const view = lineStatusView(source, head !== null);
+        return { ...common, ...view, hash: line.audio.hash, rendered: head !== null, bytes: line.audio.bytes, audioPath: head ? `/uploads/${line.audio.hash}.${line.audio.format}` : null };
+      }
       const hash = await ttsHash(script.voice, line.text);
-      const summary = describeTrigger(line.trigger, script.locale);
-      if (template) return { id: line.id, hash, template, rendered: false, bytes: 0, summary };
+      if (source === 'template') return { ...common, ...lineStatusView(source, false), hash, rendered: false, bytes: 0, audioPath: null };
       const head = await files.head(ttsKey(hash));
-      return { id: line.id, hash, template, rendered: head !== null, bytes: head?.size ?? 0, summary };
+      return { ...common, ...lineStatusView(source, head !== null), hash, rendered: head !== null, bytes: head?.size ?? 0, audioPath: head ? `/audio/${hash}` : null };
     }),
   );
+
+/** The studio's order: by moment, then by where each line first plays (pace ones last, as written). */
+export const inRunningOrder = (lines: LineStatus[], firings: EstimatedFiring[]): LineStatus[] => {
+  const rank = (s: LineStatus) => MOMENTS.indexOf(s.moment);
+  const first = (s: LineStatus) => {
+    const i = firings.findIndex((f) => f.eventId === s.id);
+    return i < 0 ? Number.MAX_SAFE_INTEGER : i;
+  };
+  return [...lines].sort((a, b) => rank(a) - rank(b) || first(a) - first(b));
+};
+
+export const scriptFingerprint = (script: Pick<AudioScript, 'voice' | 'lines'>): Promise<string> => sha256Hex(publishedContent(script));
+
+/** Where the draft stands against what runners have: what is left to record, whether it changed, whether it can go out. */
+export const audioSummary = async (
+  script: AudioScript,
+  lines: LineStatus[],
+  lastPack: PackSummary | null,
+  updatedAt: string | null,
+): Promise<AudioSummary> => {
+  const toRecord = lines.filter((l) => l.source !== 'template' && !l.rendered).length;
+  const fingerprint = await scriptFingerprint(script);
+  const changed =
+    script.lines.length > 0 &&
+    (script.published ? script.published.fingerprint !== fingerprint : lastPack ? updatedAt === null || updatedAt > lastPack.createdAt : true);
+  return {
+    lines: lines.length,
+    toRecord,
+    uploads: lines.filter((l) => l.source === 'upload').length,
+    onScreen: lines.filter((l) => l.source === 'template').length,
+    lastPublished: lastPack ? { version: lastPack.version, at: lastPack.createdAt } : null,
+    changed,
+    publish: script.lines.length === 0 ? 'empty' : toRecord > 0 ? 'missing' : changed ? 'ready' : 'current',
+  };
 };
 
 export type StudioEstimates = {
   paceSecPerKm: number;
   firings: PlacedFiring[];
+  /** In the studio's order (see inRunningOrder). */
   lines: LineStatus[];
+  /** The header line and the publish button, worded by the Worker. */
+  summary: AudioSummary & { text: string; button: ReturnType<typeof publishView> };
 };
 
-/** Everything the page and the JSON endpoints both need: positions, plus render state. */
+export type EstimateDeps = { files: R2Bucket; lastPack: PackSummary | null; updatedAt: string | null; timezone: string };
+
+/** Everything the page and the JSON endpoints both need: positions, sound status, the summary line. */
 export const studioEstimates = async (
-  files: R2Bucket,
+  deps: EstimateDeps,
   script: AudioScript,
   officialM: number,
   track: CourseTrack | null,
   paceSecPerKm: number,
-): Promise<StudioEstimates> => ({
-  paceSecPerKm,
-  firings: placeFirings(estimateFirings(script.lines, officialM, paceSecPerKm), track, officialM),
-  lines: await lineStatuses(files, script),
-});
+): Promise<StudioEstimates> => {
+  const firings = placeFirings(estimateFirings(script.lines, officialM, paceSecPerKm), track, officialM);
+  const lines = inRunningOrder(await lineStatuses(deps.files, script, officialM), firings);
+  const summary = await audioSummary(script, lines, deps.lastPack, deps.updatedAt);
+  return {
+    paceSecPerKm,
+    firings,
+    lines,
+    summary: { ...summary, text: summaryText(summary, deps.timezone), button: publishView(summary, deps.timezone) },
+  };
+};
 
 export type StudioPageData = StudioEstimates & {
   courseId: string;
@@ -98,6 +179,8 @@ export type StudioPageData = StudioEstimates & {
   packs: PackSummary[];
   mapboxToken: string | null;
   ttsReady: boolean;
+  /** Viewers get the studio read-only: they listen, they do not edit. */
+  canEdit: boolean;
   script: AudioScript;
 };
 
@@ -124,26 +207,35 @@ export type StudioContext = {
   updatedAt: string | null;
   geometry: CourseGeometry | null;
   track: CourseTrack | null;
+  packs: PackSummary[];
 };
 
 /**
- * The draft (an empty one when the course has none yet) plus the geometry it is drawn on.
- * A course with no draft gets version = latest published + 1, so publishing never
- * overwrites a live pack.
+ * The draft (an empty one when the course has none yet) plus the geometry it is drawn on and
+ * the packs already published. A course with no draft gets version = latest published + 1, so
+ * publishing never overwrites a live pack.
  */
 export const loadStudioContext = async (env: Bindings, course: Course, locale: 'fr' | 'en' = 'fr'): Promise<StudioContext> => {
   const scripts = scriptDb(env.DB);
-  const draft = await scripts.draft(course.id, locale);
-  const version = draft?.version ?? (await scripts.latestPackVersion(course.id, locale)) + 1;
-  const geometry = await loadGeometry(env.FILES, course);
+  const [draft, packs, geometry] = await Promise.all([scripts.draft(course.id, locale), scripts.packs(course.id), loadGeometry(env.FILES, course)]);
+  const latest = packs.filter((p) => p.locale === locale).reduce((max, p) => Math.max(max, p.version), 0);
+  const version = draft?.version ?? latest + 1;
   return {
     script: draft?.script ?? emptyScript(course.id, locale, version),
     version,
     updatedAt: draft?.updatedAt ?? null,
     geometry,
     track: trackFor(geometry),
+    packs,
   };
 };
+
+/** The newest published pack of the context's locale, or null. */
+export const lastPackOf = (ctx: Pick<StudioContext, 'packs' | 'script'>): PackSummary | null => ctx.packs.find((p) => p.locale === ctx.script.locale) ?? null;
+
+/** The estimates for a script in its context: what every studio JSON answer carries. */
+export const estimatesFor = (env: Bindings, course: Course, ctx: StudioContext, script: AudioScript, paceSecPerKm: number, timezone: string, updatedAt = ctx.updatedAt) =>
+  studioEstimates({ files: env.FILES, lastPack: lastPackOf(ctx), updatedAt, timezone }, script, course.distanceM, ctx.track, paceSecPerKm);
 
 export const paceFromQuery = (raw: string | undefined): number => {
   const seconds = Number(raw);
@@ -151,8 +243,14 @@ export const paceFromQuery = (raw: string | undefined): number => {
 };
 
 /** Everything the studio page renders, in one object; the same shape rides to the browser. */
-export const studioPageData = async (env: Bindings, course: Course, ctx: StudioContext, paceSecPerKm: number): Promise<StudioPageData> => {
-  const estimates = await studioEstimates(env.FILES, ctx.script, course.distanceM, ctx.track, paceSecPerKm);
+export const studioPageData = async (
+  env: Bindings,
+  course: Course,
+  ctx: StudioContext,
+  paceSecPerKm: number,
+  view: { timezone: string; canEdit: boolean },
+): Promise<StudioPageData> => {
+  const estimates = await estimatesFor(env, course, ctx, ctx.script, paceSecPerKm, view.timezone);
   return {
     ...estimates,
     courseId: course.id,
@@ -167,9 +265,27 @@ export const studioPageData = async (env: Bindings, course: Course, ctx: StudioC
       const point = ctx.track ? positionForRun(ctx.track, course.distanceM, l.meters).point : null;
       return { id: l.id, name: l.name, meters: l.meters, lat: point?.lat ?? null, lng: point?.lng ?? null };
     }),
-    packs: await scriptDb(env.DB).packs(course.id),
+    packs: ctx.packs,
     mapboxToken: env.MAPBOX_TOKEN ?? null,
     ttsReady: Boolean(env.ELEVENLABS_API_TOKEN),
+    canEdit: view.canEdit,
     script: ctx.script,
+  };
+};
+
+/** One course card on the courses page: the trace, the announcements, the publication. */
+export type CourseAudioCard = {
+  course: Course;
+  measuredM: number | null;
+  summary: AudioSummary;
+};
+
+export const courseAudioCard = async (env: Bindings, course: Course): Promise<CourseAudioCard> => {
+  const ctx = await loadStudioContext(env, course);
+  const lines = await lineStatuses(env.FILES, ctx.script, course.distanceM);
+  return {
+    course,
+    measuredM: ctx.track ? Math.round(ctx.track.totalM) : null,
+    summary: await audioSummary(ctx.script, lines, lastPackOf(ctx), ctx.updatedAt),
   };
 };

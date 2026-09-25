@@ -374,4 +374,29 @@ details.paste { margin: 14px 0 16px; }
 details.paste > summary { cursor: pointer; font-size: 14px; color: var(--ink-2); }
 details.paste > .field { margin: 10px 0 0; }
 .drop + .form-actions { margin-top: 16px; }
+/* audio */
+/* A section that opens on demand: the studio's advanced settings, the GPX import. */
+details.disclose { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+details.disclose > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; color: var(--ink-2); padding: 4px 0; }
+details.disclose > summary::-webkit-details-marker { display: none; }
+details.disclose > summary::before { content: ''; width: 7px; height: 7px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); transition: transform 0.15s; }
+details.disclose[open] > summary::before { transform: rotate(45deg); }
+details.disclose > summary:hover { color: var(--ink); }
+details.disclose > summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-sm); }
+details.disclose > :not(summary) { margin-top: 12px; }
+/* A form on one line: a field and its button. */
+.inline-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.inline-form .field { flex: 1 1 220px; margin-bottom: 0; }
+.field input[type=file] { font-size: 14px; padding: 8px; background: var(--bg); }
+/* A short list edited in place, one row per item (the places of a course). */
+.list-edit { display: grid; gap: 8px; }
+.list-edit-head, .list-edit-row { display: grid; grid-template-columns: minmax(0, 1fr) 84px; gap: 6px 8px; }
+.list-edit-head { font-size: 12px; font-weight: 600; color: var(--muted); }
+.list-edit-row { padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.list-edit-row input { font: inherit; font-size: 15px; padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); width: 100%; min-width: 0; }
+.list-edit-row input:focus { outline: 3px solid var(--accent-bg); border-color: var(--accent); }
+.list-edit-row .wide, .list-edit-row .err { grid-column: 1 / -1; }
+.list-edit-row input.wide { font-size: 14px; color: var(--ink-2); }
+.list-edit-row .err { font-size: 13px; color: var(--bad); }
+.list-edit-row.bad input { border-color: var(--bad); }
 `;

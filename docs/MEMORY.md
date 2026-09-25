@@ -254,3 +254,23 @@
   - deploy.yml now runs `wrangler d1 migrations apply` before `wrangler deploy` (preview and
     production). The Cloudflare token must be allowed to edit D1; if it is not, the deploy stops
     before the Worker, and the old Worker keeps serving the old schema.
+- 2026-09-25: studio rework (plain-language audio admin, uploaded files). Worth knowing:
+  - Event delegation with `closest('[data-role]')` stops at the first ancestor with any role,
+    including display-only ones (`data-role="name"` inside a clickable row): the click lands on
+    the label, not the button. Match only the action roles.
+  - Moving a DOM node (appendChild into a new group) drops focus and the caret. The studio
+    reorders cards after each save, so it moves only the cards whose place changed, then gives
+    the focus and the selection range back.
+  - Headless Chromium in the cloud container does not use the agent proxy, so cdnjs (Leaflet)
+    fails while `curl` works. For a map-mode check, download the file with curl and serve it
+    with `page.route(...).fulfill({ path })`; never turn TLS checks off.
+  - `wrangler dev` does not pick up a changed `.dev.vars`: restart it.
+  - A Playwright `fullPage` screenshot taken after a click (which scrolls the element into
+    view) stitches the page around a sticky header. Scroll back to the top first (the
+    `org-studio-edit` scene uses `page.mouse.wheel`, since the Worker tsconfig has no DOM lib).
+  - A viewer page test that asserts a word is absent (`not.toContain('Réglages')`) also sees
+    the inlined stylesheet and scripts: a French word in a CSS comment broke the dashboard test.
+    Assert on elements (`/<button[^>]*data-role="publish"/`) rather than bare strings.
+  - The seed (`api/tools/seed.ts`) upserts `courses.landmarks` and `courses.geometry_key`: now
+    that organizers edit "Les lieux du parcours" and import their own GPX, a re-seed would
+    overwrite both. Change the seed before running it on a race an organizer has worked on.

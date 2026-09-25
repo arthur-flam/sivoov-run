@@ -23,3 +23,6 @@ api/worker-configuration.d.ts
 
 # generated screenshots (npm run shots)
 docs/shots/
+
+# agent worktrees (Claude Code)
+.claude/worktrees/

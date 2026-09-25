@@ -38,9 +38,12 @@ const sql = [
      ${q(JSON.stringify(script))}, ${q(new Date().toISOString())})
    ON CONFLICT(course_id, locale) DO NOTHING;`,
   ),
-  ...deauvilleOrganizers.map(
-    (o) => `INSERT INTO organizers (id, race_id, email) VALUES (${[o.id, o.raceId, o.email].map(q).join(', ')}) ON CONFLICT(race_id, email) DO NOTHING;`,
-  ),
+  ...deauvilleOrganizers
+    .filter((o) => target !== 'production' || !o.email.endsWith('@example.com'))
+    .map(
+      (o) =>
+        `INSERT INTO organizers (id, race_id, email, role, created_at) VALUES (${[o.id, o.raceId, o.email, o.role, new Date().toISOString()].map(q).join(', ')}) ON CONFLICT(race_id, email) DO NOTHING;`,
+    ),
 ].join('\n');
 
 const dir = mkdtempSync(join(tmpdir(), 'sivoov-seed-'));

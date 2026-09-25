@@ -108,8 +108,11 @@ export const db = (d1: D1Database) => ({
     await d1.prepare('UPDATE auth_codes SET consumed_at = ? WHERE id = ?').bind(new Date().toISOString(), codeId).run();
   },
 
-  async createSession(id: string, entrantId: string, tokenHash: string, expiresAt: string): Promise<void> {
-    await d1.prepare('INSERT INTO sessions (id, entrant_id, token_hash, expires_at) VALUES (?, ?, ?, ?)').bind(id, entrantId, tokenHash, expiresAt).run();
+  async createSession(id: string, entrantId: string, tokenHash: string, expiresAt: string, client: 'web' | 'app' = 'web'): Promise<void> {
+    await d1
+      .prepare('INSERT INTO sessions (id, entrant_id, token_hash, expires_at, client, last_seen_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(id, entrantId, tokenHash, expiresAt, client, new Date().toISOString())
+      .run();
   },
   async entrantForToken(tokenHash: string): Promise<Entrant | null> {
     const row = await d1

@@ -1,8 +1,7 @@
 import { buildTrack, distanceLabel, formatKm, formatPace } from '@sivoov/shared';
-import type { Course, Organizer, Race, ScriptLine } from '@sivoov/shared';
+import type { Access, Course, Race, ScriptLine } from '@sivoov/shared';
 import type { LineStatus, PlacedFiring, StudioPageData } from '../../lib/studio';
 import { CourseDiagram } from '../courseDiagram';
-import { OrgShell } from './shell';
 import { StudioLine } from './studioLine';
 import { studioStyles } from './studioStyles';
 import { studioClient } from './studioClient';
@@ -10,7 +9,7 @@ import { studioClient } from './studioClient';
 const LEAFLET_CSS = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
 const LEAFLET_JS = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
 
-type Props = { race: Race; organizer: Organizer; course: Course; data: StudioPageData };
+type Props = { race: Race; access: Access; course: Course; data: StudioPageData };
 
 /** The blank line the "Ajouter un événement" button clones. */
 export const blankLine = (courseId: string): ScriptLine => ({
@@ -39,7 +38,7 @@ const timelineDots = (firings: PlacedFiring[], distanceM: number) =>
  * below, and the publish button. Without a Mapbox token or without network (the screenshot
  * rig), the map card falls back to the SVG course diagram carrying the same markers.
  */
-export const OrgStudioPage = ({ race, organizer, course, data }: Props) => {
+export const OrgStudioPage = ({ race, course, data }: Props) => {
   const { script, firings, lines, points, distanceM, mapboxToken } = data;
   const track = points.length >= 2 ? buildTrack(points) : null;
   const withMap = Boolean(mapboxToken && track);
@@ -53,7 +52,7 @@ export const OrgStudioPage = ({ race, organizer, course, data }: Props) => {
     return (fa < 0 ? Infinity : fa) - (fb < 0 ? Infinity : fb);
   });
   return (
-    <OrgShell race={race} organizer={organizer} current="courses">
+    <>
       <style dangerouslySetInnerHTML={{ __html: studioStyles }} />
       {withMap ? <link rel="stylesheet" href={LEAFLET_CSS} /> : null}
       <div class="studio-head">
@@ -176,6 +175,6 @@ export const OrgStudioPage = ({ race, organizer, course, data }: Props) => {
       />
       {withMap ? <script src={LEAFLET_JS} defer></script> : null}
       <script defer dangerouslySetInnerHTML={{ __html: studioClient }} />
-    </OrgShell>
+    </>
   );
 };

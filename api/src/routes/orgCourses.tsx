@@ -5,13 +5,13 @@ import { CourseGeometrySchema, CourseSchema, DistanceKeySchema, buildTrack, pars
 import type { AppEnv } from '../env';
 import { db } from '../db/queries';
 import { scriptDb } from '../db/scriptQueries';
-import { requireCourse, requireOrganizer } from '../lib/orgAuth';
+import { requireCan, requireCourse, requireOrganizer } from '../lib/orgAuth';
 import type { CourseVars } from '../lib/orgAuth';
 import { DEFAULT_PACE_SEC_PER_KM, geometryKeyFor, loadGeometry, loadStudioContext, paceFromQuery, studioPageData, trackFor } from '../lib/studio';
-import { Layout } from '../pages/layout';
 import { OrgCoursesPage } from '../pages/org/courses';
 import type { CourseCard } from '../pages/org/courses';
 import { OrgStudioPage } from '../pages/org/studio';
+import { orgPage } from './orgPage';
 
 /** Courses and the audio studio, inside the organizer session. Mounted under /org. */
 export const orgCourses = new Hono<AppEnv & { Variables: CourseVars }>();
@@ -42,17 +42,13 @@ type CoursesContext = Context<AppEnv & { Variables: CourseVars }>;
 
 const coursesPage = async (c: CoursesContext, state: { error?: string; notice?: string } = {}) => {
   const race = c.get('race');
-  return c.html(
-    <Layout title={`Parcours · ${race.theme.displayName}`} locale="fr" race={race} path={`/org/${race.slug}/courses`}>
-      <OrgCoursesPage race={race} organizer={c.get('organizer')} cards={await cardsFor(c.env, race.id)} {...state} />
-    </Layout>,
-  );
+  return orgPage(c, 'courses', 'Parcours et annonces', <OrgCoursesPage race={race} access={c.get('access')} cards={await cardsFor(c.env, race.id)} {...state} />);
 };
 
 orgCourses.get('/:slug/courses', requireOrganizer, (c) => coursesPage(c));
 
 /** A new course of the race: id is `<race>-<distanceKey>`, so it is stable and readable. */
-orgCourses.post('/:slug/courses', requireOrganizer, async (c) => {
+orgCourses.post('/:slug/courses', requireOrganizer, requireCan('edit_audio'), async (c) => {
   const race = c.get('race');
   const form = await c.req.parseBody();
   const parsed = NewCourseSchema.safeParse({ distanceKey: form.distanceKey, distanceM: form.distanceM });
@@ -75,7 +71,7 @@ orgCourses.post('/:slug/courses', requireOrganizer, async (c) => {
  * `courses/<courseId>/geometry.json`, and the course row points at it. Replacing it is the
  * normal case (the app only falls back to the bundled trace when the API has none).
  */
-orgCourses.post('/:slug/courses/:courseId/gpx', requireOrganizer, requireCourse, async (c) => {
+orgCourses.post('/:slug/courses/:courseId/gpx', requireOrganizer, requireCan('edit_audio'), requireCourse, async (c) => {
   const race = c.get('race');
   const course = c.get('course');
   const form = await c.req.parseBody();
@@ -100,9 +96,5 @@ orgCourses.get('/:slug/courses/:courseId', requireOrganizer, requireCourse, asyn
   const full = await studioPageData(c.env, course, ctx, pace);
   // `?map=svg` forces the schematic fallback: no tiles, no network — the screenshot rig uses it.
   const data = c.req.query('map') === 'svg' ? { ...full, mapboxToken: null } : full;
-  return c.html(
-    <Layout title={`Studio · ${race.theme.displayName}`} locale="fr" race={race} path={`/org/${race.slug}/courses/${course.id}`}>
-      <OrgStudioPage race={race} organizer={c.get('organizer')} course={course} data={data} />
-    </Layout>,
-  );
+  return orgPage(c, 'courses', 'Annonces', <OrgStudioPage race={race} access={c.get('access')} course={course} data={data} />);
 });

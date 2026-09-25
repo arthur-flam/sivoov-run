@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AudioPackSchema, buildTrack, deauvilleMarathonGeometry } from '@sivoov/shared';
 import type { AudioScriptInput } from '@sivoov/shared';
 import { db } from '../src/db/queries';
-import { orgDb } from '../src/db/orgQueries';
+import { adminDb } from '../src/db/adminQueries';
 import { scriptDb } from '../src/db/scriptQueries';
 import { deauvilleCourses, deauvilleOrganizers, deauvilleRace } from '../src/seed/deauville';
 
@@ -44,12 +44,12 @@ beforeAll(async () => {
   const q = db(env.DB);
   await q.upsertRace(deauvilleRace);
   await Promise.all(deauvilleCourses.map((c) => q.upsertCourse(c)));
-  await Promise.all(deauvilleOrganizers.map((o) => orgDb(env.DB).upsertOrganizer(o)));
+  await Promise.all(deauvilleOrganizers.map((o) => adminDb(env.DB).upsertOrganizer(o)));
   // The seeded marathon's trace, as `npm run seed` puts it in R2.
   await env.FILES.put('courses/deauville-2026-marathon.json', JSON.stringify(deauvilleMarathonGeometry), {
     httpMetadata: { contentType: 'application/json' },
   });
-  const res = await SELF.fetch(`${base}/signin`, {
+  const res = await SELF.fetch('http://run.test/org/signin', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ step: 'code', email: 'orga@example.com', code: env.TEST_CODE! }).toString(),
@@ -79,7 +79,7 @@ describe('courses page', () => {
   it('needs a session, then lists the race courses with their status', async () => {
     expect((await SELF.fetch(`${base}/courses`, { redirect: 'manual' })).status).toBe(302);
     const html = await (await get('/courses')).text();
-    expect(html).toContain('Parcours et audio');
+    expect(html).toContain('Parcours et annonces');
     expect(html).toContain('Marathon');
     expect(html).toContain('Ouvrir le studio');
     // The seeded marathon has a trace in R2 (42,4 km measured) and nine landmarks.

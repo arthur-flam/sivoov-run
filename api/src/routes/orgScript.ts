@@ -4,7 +4,7 @@ import { AudioScriptSchema } from '@sivoov/shared';
 import type { AppEnv } from '../env';
 import { db } from '../db/queries';
 import { scriptDb } from '../db/scriptQueries';
-import { requireCourse, requireOrganizer } from '../lib/orgAuth';
+import { requireCan, requireCourse, requireOrganizer } from '../lib/orgAuth';
 import type { CourseVars } from '../lib/orgAuth';
 import { publishScript } from '../lib/publish';
 import { distanceForClick, loadStudioContext, paceFromQuery, studioEstimates } from '../lib/studio';
@@ -19,6 +19,8 @@ import { renderLine, ttsKey } from '../lib/tts';
 export const orgScript = new Hono<AppEnv & { Variables: CourseVars }>();
 
 const guard = [requireOrganizer, requireCourse] as const;
+/** Writing the script, rendering the voice and publishing need the audio right; reading does not. */
+const edit = [requireOrganizer, requireCan('edit_audio'), requireCourse] as const;
 const PATH = '/:slug/courses/:courseId';
 
 const LatLngBody = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) });
@@ -39,7 +41,7 @@ orgScript.get(`${PATH}/script`, ...guard, async (c) => {
  * `courseId`, `locale` and `version` come from the server — the browser cannot move a
  * version, only publishing does.
  */
-orgScript.put(`${PATH}/script`, ...guard, async (c) => {
+orgScript.put(`${PATH}/script`, ...edit, async (c) => {
   const course = c.get('course');
   const ctx = await loadStudioContext(c.env, course);
   const body = await c.req.json().catch(() => null);
@@ -60,7 +62,7 @@ orgScript.put(`${PATH}/script`, ...guard, async (c) => {
 });
 
 /** One line to MP3. Cached in R2 by the text hash, so a second call is free. */
-orgScript.post(`${PATH}/script/render`, ...guard, async (c) => {
+orgScript.post(`${PATH}/script/render`, ...edit, async (c) => {
   const course = c.get('course');
   if (!c.env.ELEVENLABS_API_TOKEN) {
     return c.json({ error: 'tts_unavailable', detail: 'La génération de voix n’est pas configurée sur cet environnement (ELEVENLABS_API_TOKEN).' }, 503);
@@ -108,7 +110,7 @@ orgScript.post(`${PATH}/script/project`, ...guard, async (c) => {
 });
 
 /** Builds the pack at the draft's version, makes it live, and moves the draft on. */
-orgScript.post(`${PATH}/script/publish`, ...guard, async (c) => {
+orgScript.post(`${PATH}/script/publish`, ...edit, async (c) => {
   const course = c.get('course');
   const ctx = await loadStudioContext(c.env, course);
   if (ctx.script.lines.length === 0) return c.json({ error: 'empty', detail: 'le script est vide' }, 400);

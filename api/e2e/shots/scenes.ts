@@ -15,13 +15,13 @@ const RACE = '/deauville-2026';
  * scenes across two presets, the five-codes-per-hour cap would otherwise trip.
  */
 const orgSignIn = async (page: Page): Promise<void> => {
-  const res = await page.request.post('/org/deauville-2026/signin', {
+  const res = await page.request.post('/org/signin', {
     form: { step: 'code', email: 'orga@example.com', code: '000000' },
     maxRedirects: 0,
   });
   expect(res.status()).toBe(302);
   await page.goto('/org/deauville-2026');
-  await expect(page.getByText('Espace organisateur')).toBeVisible();
+  await expect(page.getByText('Pour être prêt')).toBeVisible();
 };
 
 export const scenes: Scene[] = [
@@ -83,14 +83,14 @@ export const scenes: Scene[] = [
     id: 'org-signin',
     title: 'Organizer — sign-in',
     go: async (page, shoot) => {
-      await page.goto('/org/deauville-2026/signin');
-      await expect(page.getByLabel('Email')).toBeVisible();
+      await page.goto('/org/signin');
+      await expect(page.getByLabel('Adresse email')).toBeVisible();
       await shoot();
     },
   },
   {
     id: 'org-home',
-    title: 'Organizer — counts and the entrant list',
+    title: 'Organizer — race home: numbers, latest activities, what is left to do',
     go: async (page, shoot) => {
       await orgSignIn(page);
       await shoot();
@@ -101,7 +101,7 @@ export const scenes: Scene[] = [
     title: 'Organizer — courses, their trace and their audio',
     go: async (page, shoot) => {
       await orgSignIn(page);
-      await page.getByRole('link', { name: 'Parcours et audio' }).click();
+      await page.getByRole('link', { name: 'Parcours et annonces' }).first().click();
       await expect(page.getByRole('heading', { name: 'Ajouter un parcours' })).toBeVisible();
       await shoot();
     },
@@ -126,8 +126,8 @@ export const scenes: Scene[] = [
     title: 'Organizer — CSV import',
     go: async (page, shoot) => {
       await orgSignIn(page);
-      await page.getByRole('link', { name: 'Importer un CSV' }).click();
-      await expect(page).toHaveURL(/import$/);
+      await page.goto('/org/deauville-2026/runners/import');
+      await expect(page.getByRole('heading', { name: 'Importer des coureurs' })).toBeVisible();
       await shoot();
     },
   },

@@ -81,11 +81,11 @@ api.post('/auth/code', async (c) => {
   return c.json({ sent: true, ...(result.devCode ? { devCode: result.devCode } : {}) });
 });
 
-/** Step 2: the code -> a long-lived session token for the app or the web. */
+/** Step 2: the code -> a long-lived session token. The JSON API is the app's; the web signs in with forms. */
 api.post('/auth/verify', async (c) => {
   const parsed = await parseBody(c, CodeVerifySchema);
   if (!parsed.success) return c.json({ error: 'invalid', issues: parsed.error.issues }, 400);
-  const result = await verifyCode(c.env, parsed.data);
+  const result = await verifyCode(c.env, parsed.data, 'app');
   if (!result.ok) return c.json({ error: result.error }, result.error === 'unknown_entrant' ? 404 : 401);
   return c.json({ token: result.token, expiresAt: result.expiresAt, entrant: EntrantPublicSchema.parse(result.entrant) });
 });

@@ -1,7 +1,7 @@
 import { DISTANCE_METERS, distanceLabel, formatKm } from '@sivoov/shared';
-import type { Course, DistanceKey, Organizer, Race } from '@sivoov/shared';
+import type { Access, Course, DistanceKey, Race } from '@sivoov/shared';
 import type { PackSummary } from '../../db/scriptQueries';
-import { OrgShell } from './shell';
+import { PageHead } from './ui';
 import { studioStyles } from './studioStyles';
 
 export type CourseCard = {
@@ -12,7 +12,7 @@ export type CourseCard = {
   pack: PackSummary | null;
 };
 
-type Props = { race: Race; organizer: Organizer; cards: CourseCard[]; error?: string; notice?: string };
+type Props = { race: Race; access: Access; cards: CourseCard[]; error?: string; notice?: string };
 
 const KEYS: DistanceKey[] = ['marathon', 'half', '10k', '5k'];
 const label = (key: DistanceKey) => distanceLabel('fr', key);
@@ -21,8 +21,9 @@ const day = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)} à ${iso.sl
 const kb = (bytes: number) => `${Math.round(bytes / 1024)} ko`;
 
 /** One card per course: the trace, the landmarks, the draft, the published pack, the studio. */
-export const OrgCoursesPage = ({ race, organizer, cards, error, notice }: Props) => (
-  <OrgShell race={race} organizer={organizer} current="courses">
+export const OrgCoursesPage = ({ race, cards, error, notice }: Props) => (
+  <>
+    <PageHead title="Parcours et annonces" />
     <style dangerouslySetInnerHTML={{ __html: studioStyles }} />
     {error ? <div class="error" role="alert">{error}</div> : null}
     {notice ? <div class="ok" role="status">{notice}</div> : null}
@@ -78,5 +79,5 @@ export const OrgCoursesPage = ({ race, organizer, cards, error, notice }: Props)
         Ajouter un parcours
       </button>
     </form>
-  </OrgShell>
+  </>
 );

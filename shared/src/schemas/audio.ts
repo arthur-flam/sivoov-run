@@ -1,6 +1,24 @@
 import { z } from 'zod';
 
+/**
+ * The moments of the start ceremony, in the order they are played: `armed` as soon as the
+ * runner presses Start (the intro, the call to the line), then the `countdown`, whose file the
+ * on-screen digits follow, then the `gun`, whose first second is the start of the race.
+ */
+export const CueMomentSchema = z.enum(['armed', 'countdown', 'gun']);
+export type CueMoment = z.infer<typeof CueMomentSchema>;
+
+export const CueTriggerSchema = z.object({
+  kind: z.literal('cue'),
+  at: CueMomentSchema,
+  /** Play order among the lines of the same moment. */
+  order: z.number().int().nonnegative(),
+});
+export type CueTrigger = z.infer<typeof CueTriggerSchema>;
+
 export const AudioTriggerSchema = z.discriminatedUnion('kind', [
+  /** Before the clock starts: played in sequence by the start ceremony, never by the run. */
+  CueTriggerSchema,
   z.object({ kind: z.literal('start') }),
   z.object({ kind: z.literal('finish') }),
   /** Fires once the runner has covered `meters` along the course. */

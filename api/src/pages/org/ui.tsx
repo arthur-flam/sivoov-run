@@ -156,3 +156,48 @@ export const ConfirmButton = ({ message, class: cls = 'btn btn-danger', children
     {children}
   </button>
 );
+
+/** "Page 2 sur 13" with the two neighbours. Renders nothing for a single page. */
+export const Pager = ({ page, pages, href }: { page: number; pages: number; href: (page: number) => string }) =>
+  pages <= 1 ? null : (
+    <nav class="pager" aria-label="Pages">
+      {page > 1 ? (
+        <a class="btn btn-sm" href={href(page - 1)} rel="prev">
+          ← Précédente
+        </a>
+      ) : (
+        <span></span>
+      )}
+      <span class="muted small">
+        Page {page} sur {pages}
+      </span>
+      {page < pages ? (
+        <a class="btn btn-sm" href={href(page + 1)} rel="next">
+          Suivante →
+        </a>
+      ) : (
+        <span></span>
+      )}
+    </nav>
+  );
+
+const FILE_DROP_SCRIPT = `(function(){var z=document.currentScript.parentNode,i=z.querySelector('input'),n=z.querySelector('.drop-name');
+['dragenter','dragover'].forEach(function(t){z.addEventListener(t,function(){z.classList.add('over')})});
+['dragleave','drop'].forEach(function(t){z.addEventListener(t,function(){z.classList.remove('over')})});
+i.addEventListener('change',function(){var f=i.files&&i.files[0];n.textContent=f?f.name:'';z.classList.toggle('has',!!f);if(f&&z.dataset.drop==='submit'){z.classList.add('busy');i.form.submit()}})})();`;
+
+/**
+ * A file input shown as a large drop area. The input covers the whole area, so clicking and
+ * dropping work without JavaScript; the script only shows the chosen name and, with `autoSubmit`,
+ * sends the form as soon as a file is chosen.
+ */
+export const FileDrop = ({ name, accept, title, hint, autoSubmit }: { name: string; accept: string; title: Child; hint?: Child; autoSubmit?: boolean }) => (
+  <div class="drop" data-drop={autoSubmit ? 'submit' : ''}>
+    <input type="file" name={name} accept={accept} aria-label="Choisir un fichier" />
+    <Icon name="upload" />
+    <b>{title}</b>
+    {hint ? <span>{hint}</span> : null}
+    <span class="drop-name" aria-live="polite"></span>
+    <script dangerouslySetInnerHTML={{ __html: FILE_DROP_SCRIPT }} />
+  </div>
+);

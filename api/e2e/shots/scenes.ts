@@ -131,4 +131,75 @@ export const scenes: Scene[] = [
       await shoot();
     },
   },
+  {
+    id: 'org-runners',
+    title: 'Organizer: runners, who reached the app, who ran',
+    go: async (page, shoot) => {
+      await orgSignIn(page);
+      await seedRunners(page);
+      await page.goto('/org/deauville-2026/runners');
+      await expect(page.getByRole('heading', { name: 'Coureurs', level: 1 })).toBeVisible();
+      await shoot();
+    },
+  },
+  {
+    id: 'org-runner',
+    title: 'Organizer: one runner, their phone and their runs',
+    go: async (page, shoot) => {
+      await orgSignIn(page);
+      await seedRunners(page);
+      await page.goto('/org/deauville-2026/runners/1004');
+      await expect(page.getByText('Connecté dans l’application')).toBeVisible();
+      await shoot();
+    },
+  },
+  {
+    id: 'org-import-preview',
+    title: 'Organizer: the import preview, one line refused',
+    go: async (page, shoot) => {
+      await orgSignIn(page);
+      await page.goto('/org/deauville-2026/runners/import');
+      await page.getByText('Ou collez les lignes copiées depuis votre tableur').click();
+      await page.locator('#csv').fill(
+        ['Dossard;Prénom;Nom;Email;Distance;Code postal;Ville', '2101;Emma;Garcia;emma.garcia@example.com;Semi;14000;Caen', '2102;Jules;Fournier;jules.fournier@example.com;42,195 km;;', '2103;Alice;Girard;alice.girard@;Semi;;', '1002;Léa;Martin;lea@example.com;Marathon;;'].join('\n'),
+      );
+      await page.getByRole('button', { name: 'Vérifier le fichier' }).click();
+      await expect(page.getByRole('heading', { name: 'Vérifiez avant d’importer' })).toBeVisible();
+      await shoot();
+    },
+  },
 ];
+
+/**
+ * A few more runners for the runner scenes, through the real endpoints: an import, two app
+ * sign-ins (TEST_CODE, so no code is issued) with the app's header, and a finished marathon.
+ * Idempotent, so every preset can call it.
+ */
+async function seedRunners(page: Page): Promise<void> {
+  const csv = [
+    'Dossard;Prénom;Nom;Email;Distance;Adresse;Code postal;Ville',
+    '1004;Camille;Bernard;camille.bernard@example.com;Marathon;4 rue Eugène Colas;14800;Deauville',
+    '1005;Hugo;Petit;hugo.petit@example.com;Semi;;;',
+    '1006;Chloé;Moreau;chloe.moreau@example.com;Semi;;;',
+    '1007;Lucas;Laurent;lucas.laurent@example.com;Marathon;;;',
+    '1008;Manon;Simon;manon.simon@example.com;Semi;;;',
+  ].join('\n');
+  await page.request.post('/org/deauville-2026/runners/import', { form: { step: 'confirm', csv }, maxRedirects: 0 });
+  const appUser = async (bib: string, email: string, header: string): Promise<string> => {
+    const res = await page.request.post('/api/auth/verify', { data: { raceSlug: 'deauville-2026', bib, email, code: '000000' } });
+    const { token } = (await res.json()) as { token: string };
+    await page.request.get('/api/me', { headers: { Authorization: `Bearer ${token}`, 'X-Sivoov-Client': header } });
+    return token;
+  };
+  const camille = await appUser('1004', 'camille.bernard@example.com', 'app/2.0.0 (ios 18.2; iPhone)');
+  await appUser('1006', 'chloe.moreau@example.com', 'app/2.0.0 (android 16; samsung SM-S911B)');
+  await page.request.put('/api/runs/shots-run-1004', {
+    headers: { Authorization: `Bearer ${camille}` },
+    data: {
+      run: {
+        id: 'shots-run-1004', entrantId: 'deauville-2026-1004', courseId: 'deauville-2026-marathon', status: 'finished', source: 'app',
+        startedAt: '2026-09-24T07:00:00+02:00', finishedAt: '2026-09-24T10:31:12+02:00', elapsedMs: 12_672_000, distanceM: 42_310, splits: [],
+      },
+    },
+  });
+}

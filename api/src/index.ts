@@ -11,7 +11,7 @@ const app = new Hono<AppEnv>();
 
 app.use('*', logger());
 // The app's web target and the organizer's embeds call the JSON API from other origins.
-app.use('/api/*', cors({ origin: '*', allowHeaders: ['Authorization', 'Content-Type'], allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'] }));
+app.use('/api/*', cors({ origin: '*', allowHeaders: ['Authorization', 'Content-Type', 'X-Sivoov-Client'], allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'] }));
 app.route('/api', api);
 app.route('/api', audio);
 // Organizer admin is mounted before the pages so that /org/:slug is not taken for a race slug.

@@ -5,13 +5,18 @@ import { CountryField, TextField, firstError } from './settingsFields';
 import { Card, Checklist, Choices, Field, Flash, PageHead } from './ui';
 import type { ChoiceOption } from './ui';
 
-const km = (m: number) => `${(m / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 3 })} km`;
-const DISTANCES: ChoiceOption[] = DistanceKeySchema.options.map((key) => ({ value: key, label: distanceName(key), hint: km(DISTANCE_METERS[key]) }));
+const km = (m: number) => `${(m / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 4 })} km`;
+/** "Marathon, 42,195 km"; "10 km" says it already. */
+const DISTANCES: ChoiceOption[] = DistanceKeySchema.options.map((key) => {
+  const label = distanceName(key);
+  return { value: key, label, hint: label.includes('km') ? undefined : km(DISTANCE_METERS[key]) };
+});
 
 /**
  * Two conveniences while typing, both also done by the server when JavaScript is off: the page
  * address follows the name until someone edits it (the same rule as `slugify` in shared), and
- * the window follows the first day (Monday 00:00 to Sunday 23:59 of that week).
+ * the window follows the first day (Monday 00:00 to Sunday 23:59 of that week), and so does an
+ * empty last day.
  */
 const FORM_JS = `(() => {
   const form = document.getElementById('new-race');
@@ -25,6 +30,7 @@ const FORM_JS = `(() => {
     const n = e.target.name;
     if (n === 'slug' || n === 'windowStart' || n === 'windowEnd') touched.add(n);
     if ((n === 'name' || n === 'displayName') && !touched.has('slug')) f('slug').value = slugify(f('displayName').value || f('name').value);
+    if (n === 'dateStart' && f('dateStart').value && !f('dateEnd').value) f('dateEnd').value = f('dateStart').value;
     if (n === 'dateStart' && f('dateStart').value && !touched.has('windowStart') && !touched.has('windowEnd')) {
       const start = new Date(f('dateStart').value + 'T00:00:00Z');
       const monday = new Date(start.getTime() - ((start.getUTCDay() + 6) % 7) * 86400000);
@@ -56,7 +62,7 @@ export const OrgNewRacePage = ({ form = { values: {}, distances: ['marathon'], e
             <TextField
               name="name"
               label="Nom officiel"
-              placeholder="Marathon International de Deauville"
+              placeholder="Semi-marathon de Caen 2027"
               values={values}
               errors={errors}
               focus={focus === 'name'}

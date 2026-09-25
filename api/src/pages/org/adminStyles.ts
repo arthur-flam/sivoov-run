@@ -219,7 +219,6 @@ table.a-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 /* A card reached by #anchor after a save lands below the sticky top bar. */
 .card[id] { scroll-margin-top: 72px; }
 .card > .flash { margin-bottom: 14px; }
-.card form + form, .card form + .sep, .sep + form { margin-top: 0; }
 .sep { border: 0; border-top: 1px solid var(--border); margin: 18px 0; }
 .lede { color: var(--ink-2); font-size: 14px; margin-bottom: 14px; max-width: 62ch; }
 
@@ -247,21 +246,25 @@ table.a-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .theme-preview .btn { pointer-events: none; }
 
 /* A picture slot: what is there now, or an empty frame. */
-.img-frame { display: flex; align-items: center; justify-content: center; height: 104px; padding: 10px; border: 1px dashed var(--border-strong); border-radius: var(--radius); background: var(--bg); color: var(--muted); font-size: 13px; overflow: hidden; margin-bottom: 12px; }
+.img-frame { display: flex; align-items: center; justify-content: center; height: 140px; padding: 10px; border: 1px dashed var(--border-strong); border-radius: var(--radius); background: var(--bg); color: var(--muted); font-size: 13px; overflow: hidden; margin-bottom: 12px; }
 .img-frame.filled { border-style: solid; border-color: var(--border); }
 .img-frame img { max-width: 100%; max-height: 100%; object-fit: contain; }
-.img-frame.wide { height: 168px; padding: 0; }
+.img-frame.wide { padding: 0; }
 .img-frame.wide img { width: 100%; height: 100%; object-fit: cover; }
 .form-grid > * { min-width: 0; }
+/* An error under one field of a row must not stretch its neighbour's input. */
+.form-grid > .field { align-content: start; }
 .img-slot { margin-bottom: 20px; }
 .img-slot .field { margin-bottom: 0; }
-.file-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.file-row input[type=file] { flex: 1 1 200px; min-width: 0; font: inherit; font-size: 14px; }
+.file-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+.file-btn { position: relative; }
+.file-btn:has(input:focus-visible) { outline: 3px solid var(--accent); outline-offset: 2px; }
 
 /* An input with fixed text before it: run.sivoov.app/ + the page address. */
 .affix { display: flex; align-items: stretch; min-width: 0; }
 .affix > span { display: flex; align-items: center; padding: 0 10px 0 12px; border: 1px solid var(--border-strong); border-right: 0; border-radius: var(--radius) 0 0 var(--radius); background: var(--surface-2); color: var(--ink-2); font-size: 15px; white-space: nowrap; }
 .field .affix > input { border-radius: 0 var(--radius) var(--radius) 0; }
+@media (max-width: 559px) { .affix > span { padding: 0 6px 0 10px; font-size: 14px; } }
 
 /* Rows: people and requests, each with a short line under the name and room for actions. */
 .rows { list-style: none; }
@@ -278,10 +281,17 @@ table.a-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .row-body p { font-size: 14px; color: var(--ink-2); white-space: pre-line; overflow-wrap: anywhere; }
 .row-body .form-actions { margin-top: 10px; }
 .rows > li.dim .row-main b { color: var(--ink-2); font-weight: 500; }
-@media (max-width: 559px) { .row-body { margin-left: 0; } }
+@media (max-width: 559px) {
+  .row-top { flex-wrap: wrap; }
+  .row-main { flex-basis: calc(100% - 48px); }
+  .row-aside { flex-basis: 100%; justify-content: flex-start; }
+  .row-top > .avatar ~ .row-aside { padding-left: 48px; }
+  .row-body { margin-left: 0; }
+}
 
 /* A disclosure that opens a small form in place ("Modifier"). */
 .disclose > summary { list-style: none; }
+.disclose > summary.btn-quiet { margin-left: -10px; }
 .disclose > summary::-webkit-details-marker { display: none; }
 .disclose[open] > summary { background: var(--surface-2); }
 .disclose-body { margin-top: 10px; padding: 14px; border-radius: var(--radius); background: var(--bg); border: 1px solid var(--border); }

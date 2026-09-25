@@ -1,7 +1,7 @@
 import { IMAGE_MAX_BYTES, isReadable } from '@sivoov/shared';
 import type { ImageSlot, Race } from '@sivoov/shared';
 import type { SettingsCardProps } from './settingsRace';
-import { Card, ColorInput, Field, Flash, ImageFrame } from './ui';
+import { Card, ColorInput, Field, Flash, Icon, ImageFrame } from './ui';
 
 export type ImageError = { slot: ImageSlot; message: string };
 
@@ -34,10 +34,10 @@ const PREVIEW_JS = `(() => {
 const mb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} Mo`;
 
 const SLOTS: Record<ImageSlot, { title: string; hint: string; empty: string; alt: string; wide: boolean }> = {
-  logo: { title: 'Logo', hint: 'Sur fond clair, de préférence en PNG transparent.', empty: 'Pas encore de logo', alt: 'Logo de la course', wide: false },
+  logo: { title: 'Logo', hint: 'Idéalement sans fond, lisible sur du blanc.', empty: 'Pas encore de logo', alt: 'Logo de la course', wide: false },
   hero: {
     title: 'Photo d’en-tête',
-    hint: 'Une photo large de la course, en paysage.',
+    hint: 'Une photo large, en paysage.',
     empty: 'Pas encore de photo',
     alt: 'Photo d’en-tête de la course',
     wide: true,
@@ -50,24 +50,32 @@ const ImageBlock = ({ race, slot, error }: { race: Race; slot: ImageSlot; error?
   const base = `/org/${race.slug}/settings/${slot}`;
   return (
     <div class="img-slot">
-      <Field label={s.title} hint={`PNG, JPEG ou WebP, ${mb(IMAGE_MAX_BYTES[slot])} au plus.`} error={error} for={`f-${slot}`}>
+      <Field label={s.title} error={error} for={`f-${slot}`}>
         <ImageFrame src={src} alt={s.alt} empty={s.empty} wide={s.wide} />
       </Field>
-      <form method="post" action={`${base}#look`} enctype="multipart/form-data" class="file-row">
-        <input id={`f-${slot}`} name="file" type="file" accept="image/png,image/jpeg,image/webp" required aria-label={`Choisir le fichier : ${s.title}`} />
-        <button class="btn btn-sm" type="submit">
-          {src ? 'Remplacer' : 'Envoyer'}
-        </button>
-      </form>
-      {src ? (
-        <form method="post" action={`${base}/remove#look`} style="margin-top:8px">
-          <button class="btn btn-quiet btn-sm" type="submit">
-            Retirer
-          </button>
+      <div class="file-row">
+        <form method="post" action={`${base}#look`} enctype="multipart/form-data">
+          {/* Choosing the file sends it; without JavaScript, the button under <noscript> does. */}
+          <label class="btn btn-sm file-btn">
+            <input id={`f-${slot}`} name="file" type="file" accept="image/png,image/jpeg,image/webp" required class="sr" onchange="this.form.submit()" />
+            <Icon name="upload" /> {src ? 'Remplacer' : 'Choisir une image'}
+          </label>
+          <noscript>
+            <button class="btn btn-sm" type="submit">
+              Envoyer
+            </button>
+          </noscript>
         </form>
-      ) : null}
-      <p class="small muted" style="margin-top:6px">
-        {s.hint}
+        {src ? (
+          <form method="post" action={`${base}/remove#look`}>
+            <button class="btn btn-quiet btn-sm" type="submit">
+              Retirer
+            </button>
+          </form>
+        ) : null}
+      </div>
+      <p class="small muted" style="margin-top:8px">
+        {s.hint} PNG, JPEG ou WebP, {mb(IMAGE_MAX_BYTES[slot])} au plus.
       </p>
     </div>
   );

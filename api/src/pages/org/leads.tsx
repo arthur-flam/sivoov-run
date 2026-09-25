@@ -26,16 +26,12 @@ const initials = (name: string) =>
 
 const mailto = (lead: Lead) => `mailto:${lead.email}?subject=${encodeURIComponent(`Sivoov Run${lead.race ? ` pour ${lead.race}` : ''}`)}`;
 
-const LeadRow = ({ lead, now }: { lead: Lead; now: Date }) => {
+const LeadRow = ({ lead, now, badge }: { lead: Lead; now: Date; badge: boolean }) => {
+  // Only the "Toutes" list mixes both kinds; the others say it in their name.
+  const state = lead.handledAt ? <Badge tone="good">Traitée</Badge> : <Badge tone="info">À traiter</Badge>;
   const sub = [lead.email, lead.race, ago(lead.createdAt, now), lead.locale === 'en' ? 'en anglais' : undefined].filter(Boolean).join(' · ');
   return (
-    <Row
-      lead={<span class="avatar">{initials(lead.name)}</span>}
-      title={lead.name}
-      sub={sub}
-      dim={Boolean(lead.handledAt)}
-      aside={lead.handledAt ? <Badge tone="good">Traitée</Badge> : <Badge tone="info">À traiter</Badge>}
-    >
+    <Row lead={<span class="avatar">{initials(lead.name)}</span>} title={lead.name} sub={sub} dim={Boolean(lead.handledAt)} aside={badge ? state : undefined}>
       {lead.message ? <p>{lead.message}</p> : null}
       <div class="form-actions">
         <a class="btn btn-sm" href={mailto(lead)}>
@@ -83,7 +79,7 @@ export const OrgLeadsPage = ({ leads, filter, done, now = new Date() }: Props) =
         ) : (
           <Rows>
             {shown.map((l) => (
-              <LeadRow lead={l} now={now} />
+              <LeadRow lead={l} now={now} badge={filter === 'all'} />
             ))}
           </Rows>
         )}

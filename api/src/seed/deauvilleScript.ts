@@ -4,7 +4,8 @@ import type { AudioScriptInput } from '@sivoov/shared';
 /**
  * v0 French script for the Deauville 2026 marathon. Written by hand (the Claude-from-brief
  * pass is a one-off later); reviewed copy replaces it here, the pipeline stays the same.
- * Landmark positions come from the course fixture; each landmark gets one line.
+ * The start ceremony is three cue lines played before the clock starts (intro, countdown,
+ * gun); landmark positions come from the course fixture, one line per landmark.
  */
 const landmarkLines: Record<string, string> = {
   planches: 'Vous êtes sur les Planches. Deux cents mètres de bois sous vos pieds, la mer à votre gauche, quarante-deux kilomètres devant vous. Profitez de la vue, la course commence maintenant.',
@@ -25,17 +26,19 @@ export const deauville2026MarathonScript: AudioScriptInput = {
   lines: [
     {
       id: 'ceremony.intro', title: 'Présentation', category: 'ceremony', mix: 'interrupt', priority: 10,
-      trigger: { kind: 'start' }, key: 'ceremony-intro',
-      text: 'Bienvenue au Marathon International de Deauville. Vous êtes sur la ligne de départ, face à la mer, avec des milliers de coureurs. Le parcours fait le tour de la côte fleurie, par Touques, Saint-Arnoult et Tourgéville, avant de revenir vers les Planches. Nous serons dans vos oreilles tout le long.',
+      trigger: { kind: 'cue', at: 'armed', order: 1 }, key: 'ceremony-intro',
+      text: 'Bienvenue au Marathon International de Deauville. Vous êtes sur la ligne de départ, face à la mer, avec des milliers de coureurs. Le parcours fait le tour de la côte fleurie, par Touques, Saint-Arnoult et Tourgéville, avant de revenir vers les Planches. Nous serons dans vos oreilles tout le long. Coureurs, à vos marques.',
     },
     {
       id: 'ceremony.countdown', title: 'Compte à rebours', category: 'ceremony', mix: 'wait', priority: 10,
-      trigger: { kind: 'elapsed', seconds: 0 }, key: 'ceremony-countdown',
-      text: 'Coureurs, à vos marques. Dix, neuf, huit, sept, six, cinq, quatre, trois, deux, un.',
+      // The on-screen digits follow this file second by second: numbers only, one a second.
+      trigger: { kind: 'cue', at: 'countdown', order: 1 }, key: 'ceremony-countdown',
+      text: 'Dix. Neuf. Huit. Sept. Six. Cinq. Quatre. Trois. Deux. Un.',
     },
     {
       id: 'ceremony.gun', title: 'Le départ', category: 'ceremony', mix: 'wait', priority: 10,
-      trigger: { kind: 'elapsed', seconds: 0 }, key: 'ceremony-gun',
+      // The clock starts when this file starts playing.
+      trigger: { kind: 'cue', at: 'gun', order: 1 }, key: 'ceremony-gun',
       text: 'Partez ! Bonne course à toutes et à tous !',
     },
     ...deauvilleMarathonLandmarks

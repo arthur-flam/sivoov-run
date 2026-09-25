@@ -46,6 +46,7 @@
 
   function triggerFrom(card) {
     const kind = value(card, 'trigger.kind');
+    if (kind === 'cue') return { kind: 'cue', at: value(card, 'trigger.at') || 'armed', order: numberOr(card, 'trigger.order', 1) };
     if (kind === 'distance') return { kind: 'distance', meters: numberOr(card, 'trigger.meters', 0) };
     if (kind === 'elapsed') return { kind: 'elapsed', seconds: numberOr(card, 'trigger.seconds', 0) };
     if (kind === 'split') return { kind: 'split', everyMeters: numberOr(card, 'trigger.everyMeters', 1000) };
@@ -353,6 +354,10 @@
     set('mix', line.mix);
     set('slots', (line.slots || []).join(', '));
     set('trigger.kind', line.trigger.kind);
+    if (line.trigger.kind === 'cue') {
+      set('trigger.at', line.trigger.at);
+      set('trigger.order', String(line.trigger.order));
+    }
     if (line.trigger.kind === 'distance') set('trigger.meters', String(line.trigger.meters));
     if (line.trigger.kind === 'elapsed') set('trigger.seconds', String(line.trigger.seconds));
     if (line.trigger.kind === 'split') set('trigger.everyMeters', String(line.trigger.everyMeters));

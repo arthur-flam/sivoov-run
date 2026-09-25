@@ -1,5 +1,5 @@
 import { describeTrigger } from '@sivoov/shared';
-import type { AudioCategory, MixMode, ScriptLine } from '@sivoov/shared';
+import type { AudioCategory, CueMoment, MixMode, ScriptLine } from '@sivoov/shared';
 import type { LineStatus } from '../../lib/studio';
 
 export const CATEGORIES: { key: AudioCategory; label: string }[] = [
@@ -17,12 +17,20 @@ export const MIXES: { key: MixMode; label: string }[] = [
 ];
 
 export const TRIGGERS: { key: string; label: string }[] = [
+  { key: 'cue', label: 'Avant le départ' },
   { key: 'start', label: 'Au départ' },
   { key: 'distance', label: 'À une distance' },
   { key: 'elapsed', label: 'Après un temps' },
   { key: 'split', label: 'À chaque intervalle' },
   { key: 'pace', label: 'Selon l’allure' },
   { key: 'finish', label: 'À l’arrivée' },
+];
+
+/** The start ceremony plays these in this order, before the clock; the gun starts it. */
+export const CUE_MOMENTS: { key: CueMoment; label: string }[] = [
+  { key: 'armed', label: 'Sur la ligne' },
+  { key: 'countdown', label: 'Compte à rebours' },
+  { key: 'gun', label: 'Coup de pistolet' },
 ];
 
 const num = (v: number | undefined) => (v === undefined ? '' : String(v));
@@ -64,6 +72,20 @@ export const StudioLine = ({ line, status, when, ttsReady }: Props) => {
                 </option>
               ))}
             </select>
+          </div>
+          <div class={f(kind === 'cue')} data-when="cue">
+            <span>Moment</span>
+            <select name="trigger.at">
+              {CUE_MOMENTS.map((o) => (
+                <option value={o.key} selected={t.kind === 'cue' && o.key === t.at}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div class={f(kind === 'cue')} data-when="cue">
+            <span>Ordre</span>
+            <input name="trigger.order" type="number" min="0" step="1" value={t.kind === 'cue' ? String(t.order) : '1'} />
           </div>
           <div class={f(kind === 'distance')} data-when="distance">
             <span>Distance (m)</span>

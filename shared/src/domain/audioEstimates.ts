@@ -1,5 +1,6 @@
-import type { AudioEvent, AudioTrigger } from '../schemas/audio';
+import type { AudioEvent, AudioTrigger, CueMoment } from '../schemas/audio';
 import type { Locale } from '../i18n/index';
+import { ceremonySequence } from './audioTriggers';
 import { formatKm } from './format';
 
 export type EstimatedFiring = {
@@ -15,6 +16,8 @@ export type EstimatedFiring = {
 };
 
 const PACE_LABEL: Record<Locale, string> = { fr: 'selon l’allure', en: 'pace-based' };
+// Short: it fills the studio's position column, where "0,2 km" sits for the others.
+const CUE_LABEL: Record<Locale, string> = { fr: 'avant', en: 'before' };
 
 const metersAtSeconds = (seconds: number, paceSecPerKm: number): number => (paceSecPerKm > 0 ? (seconds / paceSecPerKm) * 1000 : 0);
 
@@ -24,7 +27,8 @@ const clamp = (m: number, distanceM: number) => Math.max(0, Math.min(distanceM, 
  * Where every event of a script is expected to fire, for a runner holding `paceSecPerKm`.
  * Authoring-time only: it turns time-based and recurring triggers into positions along the
  * course so the studio can draw them on the map and on the timeline. Pace triggers have no
- * position by nature and come back with `meters: null`.
+ * position by nature and come back with `meters: null`. The start ceremony (cue triggers)
+ * sits on the start line, ahead of everything else there, in the order it is played.
  */
 export const estimateFirings = (
   events: Pick<AudioEvent, 'id' | 'trigger'>[],
@@ -43,6 +47,8 @@ export const estimateFirings = (
   });
   const firings = events.flatMap<EstimatedFiring>(({ id, trigger }) => {
     switch (trigger.kind) {
+      case 'cue':
+        return [{ ...one(id, 'cue', 0), label: CUE_LABEL[locale] }];
       case 'start':
         return [one(id, 'start', 0)];
       case 'finish':
@@ -63,18 +69,27 @@ export const estimateFirings = (
     }
   });
   // Ordered by position so the studio list, the map and the timeline agree; pace events last.
-  return [...firings].sort((a, b) => (a.meters ?? Infinity) - (b.meters ?? Infinity) || a.occurrence - b.occurrence);
+  const ceremony = (ceremonySequence({ events })?.lines ?? []).map((line) => line.id);
+  const beforeGun = (f: EstimatedFiring) => (f.kind === 'cue' ? ceremony.indexOf(f.eventId) : ceremony.length);
+  return [...firings].sort((a, b) => (a.meters ?? Infinity) - (b.meters ?? Infinity) || beforeGun(a) - beforeGun(b) || a.occurrence - b.occurrence);
 };
 
 const TRIGGER_TEXT = {
-  fr: { start: 'au départ', finish: 'à l’arrivée', distance: 'à', elapsed: 'après', split: 'tous les', pace: 'allure', after: 'après' },
-  en: { start: 'at the start', finish: 'at the finish', distance: 'at', elapsed: 'after', split: 'every', pace: 'pace', after: 'past' },
+  fr: { start: 'au départ', finish: 'à l’arrivée', distance: 'à', elapsed: 'après', split: 'tous les', pace: 'allure', after: 'après', order: 'ordre' },
+  en: { start: 'at the start', finish: 'at the finish', distance: 'at', elapsed: 'after', split: 'every', pace: 'pace', after: 'past', order: 'order' },
 } as const;
+
+const CUE_TEXT: Record<Locale, Record<CueMoment, string>> = {
+  fr: { armed: 'sur la ligne', countdown: 'compte à rebours', gun: 'coup de pistolet' },
+  en: { armed: 'on the line', countdown: 'countdown', gun: 'gun' },
+};
 
 /** One line describing a trigger, for the studio's event list. */
 export const describeTrigger = (trigger: AudioTrigger, locale: Locale = 'fr'): string => {
   const w = TRIGGER_TEXT[locale];
   switch (trigger.kind) {
+    case 'cue':
+      return `${CUE_TEXT[locale][trigger.at]} · ${w.order} ${trigger.order}`;
     case 'start':
       return w.start;
     case 'finish':

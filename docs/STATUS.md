@@ -148,7 +148,7 @@ Pipe item 4 (a), (b) and the first half of (c); `AUDIO_EXPERIENCE.md` §2.6 rows
    but `android/` now holds the preview package: the dev client costs one `npm run device:build`.
 4. First task, either way: **the walk test** in item 1. Five minutes, and it unblocks M2.
    Since session 9 the finish screen still shows "N GPS · N rejetés" and the Diagnostic button;
-   a walk before 9 Nov is a *rehearsal*, so expect "Répétition terminée", not "Arrivée !".
+   a 200 m walk ends as "Course interrompue", which is expected: read the counts under it.
 
 Note for the next session: Metro's file watcher did not fire during session 4, so edits only
 landed after `adb shell am force-stop com.arthur.flam.sivoov.dev` and a relaunch. Check whether

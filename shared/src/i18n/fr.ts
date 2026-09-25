@@ -99,7 +99,7 @@ export const fr = {
 
   // Prepare (pre-flight)
   'prepare.title': 'Avant de partir',
-  'prepare.intro': 'Trois vérifications, puis la ligne de départ.',
+  'prepare.intro': 'Quelques vérifications, puis la ligne de départ.',
   'prepare.check.permission': 'Autorisation de position',
   'prepare.check.permission.pending': 'Demande en cours…',
   'prepare.check.permission.ok': 'Position autorisée, même écran verrouillé',
@@ -115,6 +115,11 @@ export const fr = {
   'prepare.check.battery.low': 'Batterie à {level} % : rechargez avant un long effort',
   'prepare.check.battery.unknown': 'Niveau de batterie inconnu',
   'prepare.check.headphones': 'Mettez vos écouteurs : la course se vit dans les oreilles',
+  'prepare.check.pack': 'Pack audio',
+  'prepare.check.pack.loading': 'Téléchargement du pack audio…',
+  'prepare.check.pack.ok': 'Pack audio prêt · {size}',
+  'prepare.check.pack.none': 'Pas encore de voix pour ce parcours : les annonces s’afficheront à l’écran',
+  'prepare.check.pack.error': 'Pack audio non téléchargé : relancez les vérifications, ou partez sans la voix',
   'prepare.settings': 'Ouvrir les réglages du téléphone',
   'prepare.retry': 'Relancer les vérifications',
   'prepare.go': 'Aller au départ',

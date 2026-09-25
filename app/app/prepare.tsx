@@ -7,10 +7,11 @@ import * as Linking from 'expo-linking';
 import * as Location from 'expo-location';
 import { Preflight } from '@/components/Preflight';
 import { Body, Button, Display, Eyebrow, Screen } from '@/components/ui';
-import { t } from '@/i18n';
+import { usePackDownload } from '@/hooks/usePackDownload';
+import { locale, t } from '@/i18n';
 import { requestLocationPermission } from '@/services/location/device';
 import type { LocationPermission } from '@/services/location/device';
-import { GPS_LOCK_TIMEOUT_MS, batteryCheck, canStart, gpsCheck, headphonesCheck, permissionCheck } from '@/services/preflight';
+import { GPS_LOCK_TIMEOUT_MS, batteryCheck, canStart, gpsCheck, headphonesCheck, packCheck, permissionCheck } from '@/services/preflight';
 import { useSession } from '@/stores/session';
 import { space } from '@/theme';
 
@@ -71,6 +72,8 @@ export default function Prepare() {
   const insets = useSafeAreaInsets();
   const me = useSession((s) => s.me);
   const { checks, retry } = useChecks();
+  // The pack comes down here too, so it is on the phone before the start line.
+  const audio = usePackDownload(me?.course ?? null);
   const race = me?.race ?? null;
   const ready = canStart(checks);
 
@@ -79,13 +82,20 @@ export default function Prepare() {
       {race ? <Eyebrow>{race.theme.displayName}</Eyebrow> : null}
       <Display>{t('prepare.title')}</Display>
       <Body muted>{t('prepare.intro')}</Body>
-      <Preflight checks={checks} />
+      <Preflight checks={{ ...checks, pack: packCheck(audio, locale) }} />
       {checks.permission.status === 'warn' && Platform.OS !== 'web' ? (
         <Button testID="open-settings" label={t('prepare.settings')} ghost onPress={() => void Linking.openSettings()} />
       ) : null}
       <View style={{ flex: 1 }} />
       <Button testID="go-start" label={t('prepare.go')} color={race?.theme.primary} onColor={race?.theme.onPrimary} disabled={!ready} onPress={() => router.push('/run')} />
-      <Button label={t('prepare.retry')} ghost onPress={retry} />
+      <Button
+        label={t('prepare.retry')}
+        ghost
+        onPress={() => {
+          retry();
+          audio.retry();
+        }}
+      />
       <Button label={t('common.back')} ghost onPress={() => router.back()} />
     </Screen>
   );

@@ -160,12 +160,14 @@ export const scenes: Scene[] = [
   },
   {
     id: 'prepare',
-    title: 'Pre-flight — GPS lock, permission, battery, headphones',
+    title: 'Pre-flight — GPS lock, permission, battery, headphones, audio pack',
     store: true,
     go: async (page, shoot) => {
+      await withCeremonyPack(page);
       await page.goto('/prepare');
       // The GPS check is pending until a fix lands; the shot is only worth taking once it locks.
       await expect(page.getByTestId('go-start')).toBeEnabled({ timeout: 20_000 });
+      await expect(page.getByTestId('check-pack')).toHaveAccessibleName(/: ok$/);
       await shoot();
     },
   },

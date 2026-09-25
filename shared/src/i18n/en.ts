@@ -95,7 +95,7 @@ export const en: Record<keyof typeof fr, string> = {
 
   // Prepare (pre-flight)
   'prepare.title': 'Before you go',
-  'prepare.intro': 'Three checks, then the start line.',
+  'prepare.intro': 'A few checks, then the start line.',
   'prepare.check.permission': 'Location permission',
   'prepare.check.permission.pending': 'Asking…',
   'prepare.check.permission.ok': 'Location allowed, even with the screen locked',
@@ -111,6 +111,11 @@ export const en: Record<keyof typeof fr, string> = {
   'prepare.check.battery.low': 'Battery at {level}%: charge before a long effort',
   'prepare.check.battery.unknown': 'Battery level unknown',
   'prepare.check.headphones': 'Put your headphones on: the race lives in your ears',
+  'prepare.check.pack': 'Audio pack',
+  'prepare.check.pack.loading': 'Downloading the audio pack…',
+  'prepare.check.pack.ok': 'Audio pack ready · {size}',
+  'prepare.check.pack.none': 'No voice for this course yet: the announcements will show on screen',
+  'prepare.check.pack.error': 'Audio pack not downloaded: run the checks again, or start without the voice',
   'prepare.settings': 'Open the phone settings',
   'prepare.retry': 'Run the checks again',
   'prepare.go': 'Go to the start',

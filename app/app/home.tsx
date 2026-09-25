@@ -7,6 +7,7 @@ import { CourseDiagram } from '@/components/CourseDiagram';
 import { CourseMap } from '@/components/CourseMap';
 import { Body, Button, Card, Display, Eyebrow, Num, Screen } from '@/components/ui';
 import { useMyResult } from '@/hooks/useMyResult';
+import { usePackDownload } from '@/hooks/usePackDownload';
 import { useTrack } from '@/hooks/useTrack';
 import { useUploadFlush } from '@/hooks/useUploadFlush';
 import { locale, t } from '@/i18n';
@@ -29,6 +30,7 @@ export default function Home() {
   const pendingUploads = useUploadFlush(token);
   const best = useMyResult();
   const track = useTrack(me?.course ?? null);
+  usePackDownload(me?.course ?? null);
   // Back from a run, the server may know something new: ask again whenever the screen returns.
   useFocusEffect(useCallback(() => void useSession.getState().refresh().catch(() => undefined), []));
 

@@ -46,6 +46,15 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # Schema first: a Worker that expects a table the database does not have yet fails every
+      # request. If this step fails (for instance a token without D1 edit rights), nothing is
+      # deployed and the old Worker keeps running on the old schema.
+      - name: Apply D1 migrations (preview)
+        working-directory: api
+        run: npx wrangler d1 migrations apply sivoov-run-preview --remote --env preview
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Deploy Worker (preview env)
         working-directory: api
         run: npx wrangler deploy --env preview
@@ -89,6 +98,12 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
       - run: npm ci
+      - name: Apply D1 migrations (production)
+        working-directory: api
+        run: npx wrangler d1 migrations apply sivoov-run --remote
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Deploy Worker (production)
         working-directory: api
         run: npx wrangler deploy

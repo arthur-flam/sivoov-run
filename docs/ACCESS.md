@@ -27,14 +27,24 @@ sign-in screen; point a dev build at preview with `EXPO_PUBLIC_API_URL=https://p
 Web target from a session: `npm run dev -w app`, then `/signin` (the simulation is
 `/run?sim=1&pace=5:00&speed=30` once signed in).
 
-## Organizer admin (`/org/deauville-2026`)
-| Email | Code |
-|---|---|
-| orga@example.com | `000000` (local and preview) |
-| arthur.flam@gmail.com | by email |
+## Organizer admin (`/org`)
+One sign-in for every race: `/org/signin`, email only, then a six-digit code. After it, a person
+on one race lands on it; staff land on the list of every race. Roles are per race
+(`organizers.role`), staff come from the `STAFF_EMAILS` var in `api/wrangler.jsonc`.
 
-Sign in at `/org/deauville-2026/signin` with the email only. The admin has the entrant list,
-CSV import and exports (see STATUS.md for what is live).
+| Email | Role on deauville-2026 | Code |
+|---|---|---|
+| arthur.flam@gmail.com | Responsable (owner), and staff | by email |
+| orga@example.com | Responsable (owner) | `000000` (local and preview) |
+| equipe@example.com | Équipe (editor) | `000000` |
+| lecture@example.com | Lecture seule (viewer) | `000000` |
+| staff@example.com | none, staff on local and preview | `000000` |
+
+What each role may do is one table, `can()` in `shared/src/domain/access.ts`:
+viewer looks and downloads; editor also works on runners, activities and the audio;
+owner also edits the race settings and the team; staff do everything on every race and create
+races. A script or the screenshot rig takes a session with one post:
+`POST /org/signin` with `step=code&email=orga@example.com&code=000000`.
 
 ## Curl
 ```bash

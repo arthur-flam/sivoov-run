@@ -34,10 +34,10 @@ export const REQUIRED_COLUMNS: readonly RequiredColumn[] = ['bib', 'email', 'fir
 
 /** Header names, French and English, compared folded: lowercase, no accents, punctuation as spaces. */
 const HEADERS: Record<CsvColumn, readonly string[]> = {
-  bib: ['dossard', 'n dossard', 'no dossard', 'num dossard', 'numero dossard', 'numero de dossard', 'bib', 'bib number', 'numero', 'n', 'no', 'num', 'number'],
+  bib: ['dossard', 'n dossard', 'no dossard', 'num dossard', 'numero dossard', 'numero de dossard', 'bib', 'bib number'],
   email: ['email', 'e mail', 'mail', 'courriel', 'adresse email', 'adresse e mail', 'adresse mail', 'email address', 'e mail address'],
   firstName: ['prenom', 'first name', 'firstname', 'given name'],
-  lastName: ['nom', 'nom de famille', 'last name', 'lastname', 'surname', 'family name', 'name'],
+  lastName: ['nom', 'nom de famille', 'last name', 'lastname', 'surname', 'family name'],
   distanceKey: ['distance', 'course', 'epreuve', 'parcours', 'race', 'distance key'],
   line1: ['adresse', 'adresse postale', 'adresse 1', 'adresse ligne 1', 'rue', 'address', 'address 1', 'address line 1', 'street', 'line1'],
   line2: ['complement', 'complement d adresse', 'complement adresse', 'adresse 2', 'adresse ligne 2', 'address 2', 'address line 2', 'line2'],
@@ -46,12 +46,29 @@ const HEADERS: Record<CsvColumn, readonly string[]> = {
   country: ['pays', 'country'],
 };
 
+/**
+ * Names that only say "a number" or "a name": a registration export often starts with a "N°"
+ * line number, and "Name" can be the full name. They count only when no column has one of the
+ * names above for the same thing, wherever it stands in the file.
+ */
+const GENERIC_HEADERS: Partial<Record<CsvColumn, readonly string[]>> = {
+  bib: ['numero', 'n', 'no', 'num', 'number'],
+  lastName: ['name'],
+};
+
 const COLUMNS = Object.keys(HEADERS) as CsvColumn[];
 
-export const columnForHeader = (header: string): CsvColumn | null => {
+type HeaderMatch = { column: CsvColumn; generic: boolean };
+
+const matchHeader = (header: string): HeaderMatch | null => {
   const folded = foldText(header);
-  return COLUMNS.find((col) => HEADERS[col].includes(folded)) ?? null;
+  const named = COLUMNS.find((col) => HEADERS[col].includes(folded));
+  if (named) return { column: named, generic: false };
+  const generic = COLUMNS.find((col) => GENERIC_HEADERS[col]?.includes(folded));
+  return generic ? { column: generic, generic: true } : null;
 };
+
+export const columnForHeader = (header: string): CsvColumn | null => matchHeader(header)?.column ?? null;
 
 /** How far a written distance may be from the real one: "42 km" is the marathon, "20 km" is not. */
 const TOLERANCE = 0.01;
@@ -109,10 +126,16 @@ const HEADER_SEARCH = 10;
 type Line = { number: number; text: string };
 type Header = { line: Line; delimiter: CsvDelimiter; columns: Array<CsvColumn | null>; cells: string[] };
 
+/** Each column is read from one cell: the first with a specific name for it, else the first with a generic one. */
 const readHeader = (line: Line): Header => {
   const delimiter = detectDelimiter(line.text);
   const cells = splitCsvLine(line.text, delimiter);
-  return { line, delimiter, cells, columns: cells.map(columnForHeader).map((col, i, all) => (col && all.indexOf(col) === i ? col : null)) };
+  const matches = cells.map(matchHeader);
+  const chosen = (col: CsvColumn): number => {
+    const named = matches.findIndex((m) => m?.column === col && !m.generic);
+    return named !== -1 ? named : matches.findIndex((m) => m?.column === col);
+  };
+  return { line, delimiter, cells, columns: matches.map((m, i) => (m && chosen(m.column) === i ? m.column : null)) };
 };
 
 const missingColumns = (h: Header): RequiredColumn[] => REQUIRED_COLUMNS.filter((col) => !h.columns.includes(col));

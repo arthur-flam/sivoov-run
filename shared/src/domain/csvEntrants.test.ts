@@ -94,6 +94,20 @@ describe('what Excel and ticketing tools produce', () => {
     const { rejected } = parseEntrantsCsv('dossard;email;prenom;nom;distance\n;a@example.com;;B;Semi\n');
     expect(rejected).toEqual([{ line: 2, reason: 'missing_field', detail: 'bib, firstName' }]);
   });
+
+  it('takes the bib from a "Dossard" column over a bare "N°" line number, whatever their order', () => {
+    const rows = ['1;1001;Léa;Martin;lea@example.com;Semi', '2;1002;Paul;Petit;paul@example.com;Marathon'];
+    const before = parseEntrantsCsv(['N°;Dossard;Prénom;Nom;Email;Distance', ...rows].join('\n'));
+    expect(before.entrants.map((e) => e.bib)).toEqual(['1001', '1002']);
+    expect(before.headers.map((h) => h.column)).toEqual([null, 'bib', 'firstName', 'lastName', 'email', 'distanceKey']);
+    const after = parseEntrantsCsv('Dossard;Prénom;Nom;Email;Distance;N°\n1001;Léa;Martin;lea@example.com;Semi;1\n');
+    expect(after.entrants.map((e) => e.bib)).toEqual(['1001']);
+    // Alone, a "N°" or "Numéro" column is still the bib; so is "Name" still the last name.
+    expect(parseEntrantsCsv('N°;Prénom;Nom;Email;Distance\n7;Léa;Martin;lea@example.com;Semi\n').entrants.map((e) => e.bib)).toEqual(['7']);
+    expect(parseEntrantsCsv('Numéro;First name;Name;Email;Distance\n8;Sam;Reed;sam@example.com;Semi\n').entrants.map((e) => [e.bib, e.lastName])).toEqual([['8', 'Reed']]);
+    // A "Name" column (often the full name) gives way to an explicit "Last name".
+    expect(parseEntrantsCsv('Bib;Name;First name;Last name;Email;Distance\n9;Sam Reed;Sam;Reed;sam@example.com;Semi\n').entrants.map((e) => e.lastName)).toEqual(['Reed']);
+  });
 });
 
 describe('reading the uploaded bytes', () => {

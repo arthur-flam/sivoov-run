@@ -36,6 +36,9 @@ describe('readGpxPoints, for a recorded run', () => {
       { position: { lat: 1, lng: 2 }, time: null },
     ]);
   });
+  it('reads a position off the globe as no position', () => {
+    expect(readGpxPoints('<trkpt lat="91" lon="2"/><trkpt lat="49" lon="-181"/>').map((p) => p.position)).toEqual([null, null]);
+  });
   it('reads a file cut off mid-point up to where it stops', () => {
     const xml = `<gpx><trk><trkseg><trkpt lat="1" lon="2"><time>2026-11-10T08:00:00Z</time></trkpt><trkpt lat="1.001" lon="2"><time>2026-11-10T08:00`;
     expect(readGpxPoints(xml)).toEqual([

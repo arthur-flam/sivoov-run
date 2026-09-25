@@ -1,8 +1,9 @@
+import { LatLngSchema } from '../schemas/course';
 import type { LatLng } from '../schemas/course';
 
 /**
  * One `<trkpt>` or `<rtept>` as the file wrote it. A course drawn on a map has no times;
- * a treadmill or indoor recording has times and no position.
+ * a treadmill or indoor recording has times and no position. A position off the globe is none.
  */
 export type GpxPoint = { position: LatLng | null; time: number | null };
 
@@ -28,9 +29,8 @@ export const readGpxPoints = (xml: string): GpxPoint[] =>
     .map((chunk) => {
       const [, attrs = '', rest = ''] = /^\w+([^>]*)>([\s\S]*)$/.exec(chunk) ?? [];
       const body = attrs.endsWith('/') ? '' : (rest.split(/<\/(?:trkpt|rtept)\s*>/)[0] ?? '');
-      const lat = attr(attrs, 'lat');
-      const lng = attr(attrs, 'lon');
-      return { position: Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null, time: readTime(body) };
+      const position = LatLngSchema.safeParse({ lat: attr(attrs, 'lat'), lng: attr(attrs, 'lon') });
+      return { position: position.success ? position.data : null, time: readTime(body) };
     });
 
 /** A course GPX: its name and its positions, times ignored. */

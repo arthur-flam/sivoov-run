@@ -27,7 +27,7 @@ const KEEPS_AN_OWNER = "(role != 'owner' OR (SELECT COUNT(*) FROM organizers WHE
 /**
  * The race admin's own writes: creating a race with its courses and first owner, the team's
  * role changes, and the organizers' requests. Reads and writes of the race row itself go
- * through `db().raceBySlug` / `db().upsertRace`, and invitations through `adminDb().upsertOrganizer`.
+ * through `db().raceBySlug` / `db().upsertRace`, and invitations of someone new through `adminDb().upsertOrganizer`.
  */
 export const raceAdminDb = (d1: D1Database) => ({
   /** Every address already taken by a race, as slug or id. */
@@ -56,11 +56,15 @@ export const raceAdminDb = (d1: D1Database) => ({
     ]);
   },
 
-  /** Changes a member's role unless that would leave the race with no owner. True when it changed. */
-  async setRole(raceId: string, email: string, role: OrgRole): Promise<boolean> {
+  /**
+   * Changes a member's role unless that would leave the race with no owner, in one statement so
+   * two changes at the same moment cannot both pass. A name, when given, replaces theirs (an
+   * invitation sent again). True when it changed.
+   */
+  async setRole(raceId: string, email: string, role: OrgRole, name?: string): Promise<boolean> {
     const res = await d1
-      .prepare(`UPDATE organizers SET role = ? WHERE race_id = ? AND email = ? AND (? = 'owner' OR ${KEEPS_AN_OWNER})`)
-      .bind(role, raceId, email, role, raceId)
+      .prepare(`UPDATE organizers SET role = ?, name = COALESCE(?, name) WHERE race_id = ? AND email = ? AND (? = 'owner' OR ${KEEPS_AN_OWNER})`)
+      .bind(role, name ?? null, raceId, email, role, raceId)
       .run();
     return res.meta.changes > 0;
   },

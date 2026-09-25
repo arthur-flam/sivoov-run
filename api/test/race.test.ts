@@ -316,8 +316,23 @@ describe('race team', () => {
     expect(demote.status).toBe(409);
     expect(await demote.text()).toContain('Une course garde toujours au moins un responsable.');
     expect((await post(`${base}/remove`, { email: 'chef@example.com' }, cookie)).status).toBe(409);
-    expect((await post(`${base}/invite`, { email: 'chef@example.com', role: 'viewer' }, cookie)).status).toBe(409);
+    const reinvited = await post(`${base}/invite`, { email: 'chef@example.com', role: 'viewer' }, cookie);
+    expect(reinvited.status).toBe(409);
+    expect(await reinvited.text()).toContain('Une course garde toujours au moins un responsable.');
     expect((await members()).find((m) => m.email === 'chef@example.com')?.role).toBe('owner');
+  });
+
+  it('keeps an owner when every owner is invited again as editor at the same moment', async () => {
+    const race = raceNamed('quatuor-2026');
+    const owners = ['un@example.com', 'deux@example.com', 'trois@example.com', 'quatre@example.com'];
+    await db(env.DB).upsertRace(race);
+    await Promise.all(owners.map((email) => adminDb(env.DB).upsertOrganizer(member(race.id, email, 'owner'))));
+    const cookies = await Promise.all(owners.map(cookieFor));
+    // Each page was read with four owners; the last change to reach the database is refused.
+    const responses = await Promise.all(owners.map((email, i) => post(`${ORG}/${race.slug}/team/invite`, { email, role: 'editor' }, cookies[i])));
+    expect(responses.map((r) => r.status).sort()).toEqual([302, 302, 302, 409]);
+    expect(await responses.find((r) => r.status === 409)!.text()).toContain('Une course garde toujours au moins un responsable.');
+    expect((await adminDb(env.DB).members(race.id)).filter((m) => m.role === 'owner')).toHaveLength(1);
   });
 
   it('lets the owner step down once someone else is owner, and removes a member', async () => {

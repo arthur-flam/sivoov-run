@@ -194,3 +194,23 @@
 - 2026-09-23: `expo/expo-github-action/preview@v8` rejects `qr-target: dev-build` ("Invalid QR code
   target: dev-build, expected expo-go or dev-build"): its input check only lists `dev-client`,
   which it maps to dev-build. Use `dev-client`. The preview workflow had never run before PR #1.
+- 2026-09-25: studio rework (plain-language audio admin, uploaded files). Worth knowing:
+  - Event delegation with `closest('[data-role]')` stops at the first ancestor with any role,
+    including display-only ones (`data-role="name"` inside a clickable row): the click lands on
+    the label, not the button. Match only the action roles.
+  - Moving a DOM node (appendChild into a new group) drops focus and the caret. The studio
+    reorders cards after each save, so it moves only the cards whose place changed, then gives
+    the focus and the selection range back.
+  - Headless Chromium in the cloud container does not use the agent proxy, so cdnjs (Leaflet)
+    fails while `curl` works. For a map-mode check, download the file with curl and serve it
+    with `page.route(...).fulfill({ path })`; never turn TLS checks off.
+  - `wrangler dev` does not pick up a changed `.dev.vars`: restart it.
+  - A Playwright `fullPage` screenshot taken after a click (which scrolls the element into
+    view) stitches the page around a sticky header. Scroll back to the top first (the
+    `org-studio-edit` scene uses `page.mouse.wheel`, since the Worker tsconfig has no DOM lib).
+  - A viewer page test that asserts a word is absent (`not.toContain('Réglages')`) also sees
+    the inlined stylesheet and scripts: a French word in a CSS comment broke the dashboard test.
+    Assert on elements (`/<button[^>]*data-role="publish"/`) rather than bare strings.
+  - The seed (`api/tools/seed.ts`) upserts `courses.landmarks` and `courses.geometry_key`: now
+    that organizers edit "Les lieux du parcours" and import their own GPX, a re-seed would
+    overwrite both. Change the seed before running it on a race an organizer has worked on.

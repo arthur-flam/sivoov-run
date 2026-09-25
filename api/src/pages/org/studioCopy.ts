@@ -20,7 +20,7 @@ export const WHEN_OPTIONS: { key: AudioTrigger['kind']; label: string }[] = [
   { key: 'distance', label: 'À un kilomètre précis' },
   { key: 'elapsed', label: 'Après un temps de course' },
   { key: 'split', label: 'Tous les N kilomètres' },
-  { key: 'pace', label: 'Si le coureur ralentit ou va trop vite' },
+  { key: 'pace', label: 'Selon l’allure du coureur' },
   { key: 'finish', label: 'À l’arrivée' },
 ];
 

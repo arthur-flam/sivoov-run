@@ -94,6 +94,67 @@ describe('what Excel and ticketing tools produce', () => {
     const { rejected } = parseEntrantsCsv('dossard;email;prenom;nom;distance\n;a@example.com;;B;Semi\n');
     expect(rejected).toEqual([{ line: 2, reason: 'missing_field', detail: 'bib, firstName' }]);
   });
+
+  it('takes the bib from a "Dossard" column over a bare "N°" line number, whatever their order', () => {
+    const rows = ['1;1001;Léa;Martin;lea@example.com;Semi', '2;1002;Paul;Petit;paul@example.com;Marathon'];
+    const before = parseEntrantsCsv(['N°;Dossard;Prénom;Nom;Email;Distance', ...rows].join('\n'));
+    expect(before.entrants.map((e) => e.bib)).toEqual(['1001', '1002']);
+    expect(before.headers.map((h) => h.column)).toEqual([null, 'bib', 'firstName', 'lastName', 'email', 'distanceKey']);
+    const after = parseEntrantsCsv('Dossard;Prénom;Nom;Email;Distance;N°\n1001;Léa;Martin;lea@example.com;Semi;1\n');
+    expect(after.entrants.map((e) => e.bib)).toEqual(['1001']);
+    // Alone, a "N°" or "Numéro" column is still the bib; so is "Name" still the last name.
+    expect(parseEntrantsCsv('N°;Prénom;Nom;Email;Distance\n7;Léa;Martin;lea@example.com;Semi\n').entrants.map((e) => e.bib)).toEqual(['7']);
+    expect(parseEntrantsCsv('Numéro;First name;Name;Email;Distance\n8;Sam;Reed;sam@example.com;Semi\n').entrants.map((e) => [e.bib, e.lastName])).toEqual([['8', 'Reed']]);
+    // A "Name" column (often the full name) gives way to an explicit "Last name".
+    expect(parseEntrantsCsv('Bib;Name;First name;Last name;Email;Distance\n9;Sam Reed;Sam;Reed;sam@example.com;Semi\n').entrants.map((e) => e.lastName)).toEqual(['Reed']);
+  });
+
+  it('reads 20 000 lines well within the Worker time limit, preview and confirmation alike', () => {
+    const header = 'Dossard;Email;Prénom;Nom;Distance;Adresse;Complément;Code postal;Ville;Pays';
+    const lines = Array.from({ length: 20_000 }, (_, i) => `${i + 1};runner${i}@example.com;Léa;Martin${i};Marathon;12 rue des Planches;;14800;Deauville;France`);
+    const text = [header, ...lines, '1;again@example.com;Paul;Petit;Semi;;;;;'].join('\r\n');
+    const started = performance.now();
+    const { entrants, rejected } = parseEntrantsCsv(text, { distances: ['marathon', 'half'] });
+    const elapsed = performance.now() - started;
+    expect(entrants).toHaveLength(20_000);
+    expect(rejected).toEqual([{ line: 20_002, reason: 'duplicate_bib', detail: '2', bib: '1' }]);
+    expect(elapsed).toBeLessThan(1500);
+  });
+});
+
+describe('cells a spreadsheet would run as a formula', () => {
+  const risky = ['=HYPERLINK("http://evil.example","Voir")', '+33 6 12 34 56 78', '-Dupont', '@SUM(A1:A9)', '\tTab', "'=already quoted"];
+
+  it('are written as text in the downloads, with a leading apostrophe', () => {
+    const csv = toCsv([['Nom'], ...risky.map((v) => [v]), ['\rretour'], ['Dupont'], ['l’=égal'], [-2], [42]]);
+    expect(csv.replace(/^\uFEFF/, '').split('\r\n').slice(1, -1)).toEqual([
+      `"'=HYPERLINK(""http://evil.example"",""Voir"")"`,
+      "'+33 6 12 34 56 78",
+      "'-Dupont",
+      "'@SUM(A1:A9)",
+      "'\tTab",
+      "''=already quoted",
+      // A carriage return inside a cell is quoted as well.
+      `"'\rretour"`,
+      'Dupont',
+      'l’=égal',
+      // Numbers are numbers: a negative one is not a formula.
+      '-2',
+      '42',
+    ]);
+  });
+
+  it('come back as they were when the download is imported again', () => {
+    const header = ['Dossard', 'Prénom', 'Nom', 'Email', 'Distance'];
+    const rows = risky.map((v, i) => [`${i + 1}`, v, v, `r${i}@example.com`, 'Semi']);
+    const { entrants, rejected } = parseEntrantsCsv(toCsv([header, ...rows, ['-7', 'Anna', "'Ohana", 'anna@example.com', 'Semi']]));
+    expect(rejected).toEqual([]);
+    // Cells are trimmed on import, so the tab-led one comes back without its tab, as it always has.
+    expect(entrants.map((e) => [e.bib, e.firstName, e.lastName])).toEqual([
+      ...risky.map((v, i) => [`${i + 1}`, v.trim(), v.trim()]),
+      ['-7', 'Anna', "'Ohana"],
+    ]);
+  });
 });
 
 describe('reading the uploaded bytes', () => {

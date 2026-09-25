@@ -61,7 +61,18 @@ export const inviteMail = (env: Bindings, race: Race, member: Organizer, inviter
     signinUrl: `${env.BASE_URL.replace(/\/+$/, '')}/org/signin`,
   });
 
-/** Invite someone, or re-invite a member: the role is updated, the row is not duplicated, one email goes out. */
+/** Someone new joins; a member's role changes only if the race keeps an owner. False when refused. */
+const saveInvite = async (d1: D1Database, member: Organizer, isMember: boolean): Promise<boolean> => {
+  if (isMember) return raceAdminDb(d1).setRole(member.raceId, member.email, member.role, member.name);
+  await adminDb(d1).upsertOrganizer(member);
+  return true;
+};
+
+/**
+ * Invite someone, or re-invite a member: the role is updated, the row is not duplicated, one
+ * email goes out. A member's new role goes through the same guarded write as the role route,
+ * so owners stepping down at the same moment cannot leave the race without one.
+ */
 orgTeam.post('/:slug/team/invite', requireOrganizer, requireCan('manage_team'), async (c) => {
   const race = c.get('race');
   const admin = c.get('admin');
@@ -74,8 +85,6 @@ orgTeam.post('/:slug/team/invite', requireOrganizer, requireCan('manage_team'), 
   }
   const members = await adminDb(c.env.DB).members(race.id);
   const existing = members.find((m) => m.email === parsed.data.email);
-  const problem = existing ? roleChangeProblem(members, existing.email, parsed.data.role) : null;
-  if (problem) return teamPage(c, { problem: TEAM_PROBLEMS[problem], invite: { values, errors: {} } }, 409);
   const member = OrganizerSchema.parse({
     id: existing?.id ?? newId(),
     raceId: race.id,
@@ -85,7 +94,7 @@ orgTeam.post('/:slug/team/invite', requireOrganizer, requireCan('manage_team'), 
     invitedBy: admin.email,
     createdAt: new Date().toISOString(),
   });
-  await adminDb(c.env.DB).upsertOrganizer(member);
+  if (!(await saveInvite(c.env.DB, member, existing !== undefined))) return teamPage(c, { problem: TEAM_PROBLEMS.last_owner, invite: { values, errors: {} } }, 409);
   const inviter = members.find((m) => m.email === admin.email)?.name ?? admin.email;
   c.executionCtx.waitUntil(mailerFor(c.env).send(inviteMail(c.env, race, { ...member, name: member.name ?? existing?.name }, inviter)));
   return c.redirect(`/org/${race.slug}/team?done=${existing ? 'reinvited' : 'invited'}`);

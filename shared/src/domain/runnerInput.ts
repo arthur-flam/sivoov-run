@@ -16,7 +16,7 @@ export type RunnerFieldError = 'required' | 'invalid' | 'not_offered' | 'unknown
 export type RunnerInput = Pick<Entrant, 'bib' | 'email' | 'firstName' | 'lastName' | 'distanceKey' | 'address'>;
 export type RunnerInputResult = { ok: true; input: RunnerInput } | { ok: false; errors: Partial<Record<RunnerField, RunnerFieldError>> };
 
-/** A bib goes in page addresses: letters, digits and dashes, as printed on a race bib. */
+/** A bib typed by hand: letters, digits and dashes, as printed on a race bib. The import keeps the organizer's own. */
 const BIB = /^[A-Za-z0-9-]{1,20}$/;
 const MAX_NAME = 80;
 
@@ -38,13 +38,14 @@ export const runnerFieldsOf = (e: Entrant): RunnerFields => ({
   country: e.address ? countryName(e.address.country) : '',
 });
 
-/** `distances`: the race's distances; empty means the race has no course yet and any distance goes. */
-export const parseRunnerInput = (fields: RunnerFields, distances: readonly DistanceKey[]): RunnerInputResult => {
+const typedBib = (bib: string): RunnerFieldError | null => (bib === '' ? 'required' : BIB.test(bib) ? null : 'invalid');
+
+const parseRunner = (fields: RunnerFields, distances: readonly DistanceKey[], bibError: RunnerFieldError | null): RunnerInputResult => {
   const distance = DistanceKeySchema.safeParse(fields.distanceKey);
   const address = addressFromParts(fields);
   const name = (v: string): RunnerFieldError | null => (v === '' ? 'required' : v.length > MAX_NAME ? 'invalid' : null);
   const checks: Array<[RunnerField, RunnerFieldError | null]> = [
-    ['bib', fields.bib === '' ? 'required' : BIB.test(fields.bib) ? null : 'invalid'],
+    ['bib', bibError],
     ['firstName', name(fields.firstName)],
     ['lastName', name(fields.lastName)],
     ['email', fields.email === '' ? 'required' : EntrantSchema.shape.email.safeParse(fields.email).success ? null : 'invalid'],
@@ -66,3 +67,14 @@ export const parseRunnerInput = (fields: RunnerFields, distances: readonly Dista
     },
   };
 };
+
+/** A runner added by hand. `distances`: the race's distances; empty means the race has no course yet and any distance goes. */
+export const parseRunnerInput = (fields: RunnerFields, distances: readonly DistanceKey[]): RunnerInputResult => parseRunner(fields, distances, typedBib(fields.bib));
+
+/**
+ * A runner edited: the bib is their identity and cannot be changed, so the stored one is kept as
+ * it is, whatever was posted, even one the import took that a bib typed by hand could not be
+ * ("M-0012 A", "1234/B"). The other fields are checked as for a new runner.
+ */
+export const parseRunnerEdit = (storedBib: string, fields: RunnerFields, distances: readonly DistanceKey[]): RunnerInputResult =>
+  parseRunner({ ...fields, bib: storedBib }, distances, null);

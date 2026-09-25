@@ -1,7 +1,8 @@
 import { SELF, env } from 'cloudflare:test';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { db } from '../src/db/queries';
-import { MAX_LEADS_PER_EMAIL_PER_DAY } from '../src/lib/leads';
+import { leadNetworks } from '../src/db/leadQueries';
+import { MAX_LEADS_PER_EMAIL_PER_DAY, MAX_LEADS_PER_NETWORK_PER_DAY, MAX_LEAD_EMAILS_PER_HOUR } from '../src/lib/leads';
 import { deauvilleCourses, deauvilleRace } from '../src/seed/deauville';
 
 beforeAll(async () => {
@@ -19,10 +20,11 @@ const page = async (path: string) => {
   return { status: res.status, html: await res.text() };
 };
 
-const postLead = (fields: Record<string, string>, query = '') =>
+/** `ip`: the sender's address as Cloudflare gives it; local dev and these tests have none by default. */
+const postLead = (fields: Record<string, string>, query = '', ip?: string) =>
   SELF.fetch(`http://run.test/organisateurs${query}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...(ip ? { 'CF-Connecting-IP': ip } : {}) },
     body: new URLSearchParams(fields).toString(),
   });
 
@@ -124,6 +126,64 @@ describe('organizers page', () => {
     expect(await refused.text()).toContain('déjà écrit');
     expect(await leadsFrom('paul@example.com')).toHaveLength(MAX_LEADS_PER_EMAIL_PER_DAY);
   });
+  it(`refuses a ${MAX_LEADS_PER_NETWORK_PER_DAY + 1}th lead a day from one network, whatever email it gives`, async () => {
+    const from = (n: number, ip: string) => postLead({ name: `Script ${n}`, email: `script${n}@example.com`, race: 'Spam' }, '', ip);
+    for (let n = 0; n < MAX_LEADS_PER_NETWORK_PER_DAY; n++) expect((await from(n, '203.0.113.7')).status).toBe(200);
+    const refused = await from(MAX_LEADS_PER_NETWORK_PER_DAY, '203.0.113.7');
+    expect(refused.status).toBe(429);
+    expect(await refused.text()).toContain('déjà écrit');
+    expect(await leadsFrom(`script${MAX_LEADS_PER_NETWORK_PER_DAY}@example.com`)).toHaveLength(0);
+    // Another network is not concerned.
+    expect((await from(99, '198.51.100.20')).status).toBe(200);
+    // Nothing of the address itself is kept.
+    const { objects } = await env.FILES.list({ prefix: 'admin/leads-ip/' });
+    expect(objects.length).toBeGreaterThan(0);
+    expect(objects.some((o) => o.key.includes('203.0.113.7'))).toBe(false);
+  });
+
+  it('counts nothing by network when the request has no address (local dev)', async () => {
+    for (let n = 0; n <= MAX_LEADS_PER_NETWORK_PER_DAY; n++) {
+      expect((await postLead({ name: `Local ${n}`, email: `local${n}@example.com`, race: 'Essai' })).status).toBe(200);
+    }
+  });
+
+  it('lets a network write again a day later, and forgets it after that day', async () => {
+    const networks = leadNetworks(env.FILES);
+    const monday = new Date('2026-10-05T09:00:00Z');
+    const tuesday = new Date('2026-10-06T09:00:01Z');
+    const admitted: boolean[] = [];
+    for (let n = 0; n <= MAX_LEADS_PER_NETWORK_PER_DAY; n++) admitted.push(await networks.admit('hash-lundi', `lead-${n}`, monday, MAX_LEADS_PER_NETWORK_PER_DAY));
+    expect(admitted).toEqual([...Array(MAX_LEADS_PER_NETWORK_PER_DAY).fill(true), false]);
+    await networks.forgetOld(tuesday);
+    expect((await env.FILES.list({ prefix: 'admin/leads-ip/hash-lundi/' })).objects).toEqual([]);
+    expect(await networks.admit('hash-lundi', 'lead-next', tuesday, MAX_LEADS_PER_NETWORK_PER_DAY)).toBe(true);
+  });
+
+  it(`stops emailing staff past ${MAX_LEAD_EMAILS_PER_HOUR} leads in an hour, and still keeps the leads`, async () => {
+    const recent = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const lastHour = async () => (await env.DB.prepare('SELECT COUNT(*) AS n FROM leads WHERE created_at > ?').bind(new Date(Date.now() - 3_600_000).toISOString()).first<number>('n'))!;
+    const missing = Math.max(0, MAX_LEAD_EMAILS_PER_HOUR - 1 - (await lastHour()));
+    await env.DB.batch(
+      Array.from({ length: missing }, (_, i) =>
+        env.DB.prepare("INSERT INTO leads (id, name, email, race, locale, created_at) VALUES (?, 'Flot', ?, 'Spam', 'fr', ?)").bind(`flood-${i}`, `flood${i}@example.com`, recent),
+      ),
+    );
+    expect(await lastHour()).toBe(MAX_LEAD_EMAILS_PER_HOUR - 1);
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const lines = () => log.mock.calls.map(([line]) => String(line));
+    // The last one of the hour is still sent to staff.
+    expect((await postLead({ name: 'Vingtième', email: 'vingt@example.com', race: 'Semi' })).status).toBe(200);
+    expect(lines().filter((l) => l.startsWith('[mail]'))).toHaveLength(2);
+    log.mockClear();
+    const past = await postLead({ name: 'De trop', email: 'trop@example.com', race: 'Semi' });
+    expect(past.status).toBe(200);
+    expect(await past.text()).toContain('Merci, De trop.');
+    expect(await leadsFrom('trop@example.com')).toHaveLength(1);
+    expect(lines().filter((l) => l.startsWith('[mail]'))).toEqual([]);
+    expect(lines().filter((l) => l.startsWith('[leads]'))).toHaveLength(1);
+    await env.DB.prepare("DELETE FROM leads WHERE id LIKE 'flood-%'").run();
+  });
+
   it('thanks a bot that fills the hidden field, and keeps nothing', async () => {
     const res = await postLead({ name: 'Bot', email: 'bot@example.com', race: 'Spam', website: 'https://spam.example' });
     expect(res.status).toBe(200);

@@ -147,6 +147,8 @@ Pipe item 4 (a), (b) and the first half of (c); `AUDIO_EXPERIENCE.md` §2.6 rows
 3. **Laptop at hand?** `npm run device:doctor`, then `npm run device` is still the fastest loop,
    but `android/` now holds the preview package: the dev client costs one `npm run device:build`.
 4. First task, either way: **the walk test** in item 1. Five minutes, and it unblocks M2.
+   Since session 9 the finish screen still shows "N GPS · N rejetés" and the Diagnostic button;
+   a walk before 9 Nov is a *rehearsal*, so expect "Répétition terminée", not "Arrivée !".
 
 Note for the next session: Metro's file watcher did not fire during session 4, so edits only
 landed after `adb shell am force-stop com.arthur.flam.sivoov.dev` and a relaunch. Check whether
@@ -185,13 +187,16 @@ dev client", happened on 2026-09-13 on a real Galaxy S23 (see below), minus the 
    set `BROWSER_RENDERING_TOKEN` (session 9 notes) and check one real card render on preview;
    send a real Strava and a real Garmin Connect export through `/{race}/upload`; share a
    result link into WhatsApp and iMessage and look at the preview.
-4. **Audio v1**, in the order of `docs/AUDIO_EXPERIENCE.md` §4 and Part 2 §2.6: (a) the `cue`
-   trigger so intro → countdown → gun play *before* the clock starts and the digits follow the
-   countdown file (today all three fire at the gun); (b) pack download from the race home and
-   *Préparer* with a visible "pack prêt" state; (c) sequence playback (N files back to back),
-   then number fragments for splits and name files per entrant; (d) `interval` trigger and file
-   upload per line in the studio; (e) "moins de voix". JS + pipeline, no native change. The
-   rewritten Deauville script (double loop, ~38 events) is content work in the studio.
+4. **Audio v1**: (a) cue trigger, (b) pack download with a visible state and (c, first half)
+   sequence playback are **done** (session 9, start ceremony). Left, in order: switch preview's
+   draft ceremony lines to cues in the studio, re-render and publish (only once the app update
+   is on the phones); number fragments for splits and name files per entrant; (d) `interval`
+   trigger and file upload per line; (e) "moins de voix". The rewritten Deauville script
+   (double loop, ~38 events) is content work in the studio.
+5. **Merge this branch and ship it.** Session 9's work is on `claude/running-app-launch-xopyvv`,
+   not on main, so nothing of it is deployed or published. Merging deploys the preview Worker
+   and publishes the JS update; production still needs `npm run db:migrate:production -w api`
+   (0005) before the studio opens there. No new migration in session 9.
 
 ### M3 (17 Oct): stores — and the real schedule risk
 5. **iOS does not exist yet.** Everything on this page is Android. There is no iOS build, no

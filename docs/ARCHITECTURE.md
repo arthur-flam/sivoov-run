@@ -62,6 +62,9 @@ organizer set aside never counts, and the app never writes those columns.
 Rows are validated by zod schemas in `shared/schemas/` on the way in and out of D1.
 
 ## Web surfaces (Worker, server-rendered)
+- `/`: the open races. `/organisateurs` (`?lang=en`, `/organizers` redirects): the page for race
+  directors, with a contact form stored in `leads`. `/media/races/<raceId>/<sha256>.<ext>`: logos and
+  photos uploaded in the admin (PNG, JPEG, WebP, immutable).
 - `/{race}`: landing. `/{race}/signin`: bib + email → code. `/{race}/app`: install.
 - `/{race}/prepare`: course, trailer, instructions. `/{race}/results`, `/{race}/results/{bib}`
   (certificate, share image). `/{race}/upload`: GPX fallback.

@@ -165,6 +165,8 @@ export const en: Record<keyof typeof fr, string> = {
   'home.pack.download': 'Download the audio pack',
   'home.pack.ready': 'Audio pack ready',
   'home.signout': 'Sign out',
+  'home.help': 'A question about the race? The organizer will answer.',
+  'home.helpWrite': 'Write to the organizer',
 
   'run.ready': 'Ready?',
   'run.checks.gps': 'GPS signal',

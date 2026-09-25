@@ -172,6 +172,8 @@ export const fr = {
   'home.pack.download': 'Télécharger le pack audio',
   'home.pack.ready': 'Pack audio prêt',
   'home.signout': 'Se déconnecter',
+  'home.help': 'Une question sur la course\u00a0? L’organisateur vous répond.',
+  'home.helpWrite': 'Écrire à l’organisateur',
 
   // Run
   'run.ready': 'Prêt ?',

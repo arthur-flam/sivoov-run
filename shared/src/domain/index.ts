@@ -4,6 +4,8 @@ export * from './smoothing';
 export * from './tracker';
 export * from './official';
 export * from './raceWindow';
+export * from './finish';
+export * from './color';
 export * from './simulate';
 export * from './audioTriggers';
 export * from './audioScript';

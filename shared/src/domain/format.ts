@@ -36,3 +36,11 @@ export const parsePace = (text: string): number | null => {
   if (!m) return null;
   return Number(m[1]) * 60 + Number(m[2]);
 };
+
+/** "1er", "12e" in French; "1st", "12th" in English. A results table, not a sentence. */
+export const formatRank = (rank: number, locale: Locale): string => {
+  if (locale === 'fr') return rank === 1 ? '1er' : `${rank}e`;
+  const teen = rank % 100 >= 11 && rank % 100 <= 13;
+  const suffix = teen ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[rank % 10] ?? 'th';
+  return `${rank}${suffix}`;
+};

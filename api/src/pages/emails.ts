@@ -64,6 +64,9 @@ export const teamInviteEmail = ({ to, name, inviter, race, roleLabel, roleHint, 
 <p><a href="${escapeHtml(signinUrl)}">Entrer dans l’espace organisateur</a></p>
 <p>Saisissez votre adresse (${escapeHtml(to)}). Vous recevrez un code à 6 chiffres. Il n’y a pas de mot de passe.</p>
 <p>Sivoov Run</p>`,
+  };
+};
+
 /**
  * Sent by the organizer from a runner's page: the bib, where to go and how to sign in. Plain
  * enough to be forwarded to someone who has never heard of Sivoov.

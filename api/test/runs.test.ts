@@ -260,14 +260,14 @@ describe('setting a time aside', () => {
     const results = async () => (await SELF.fetch(`http://run.test/${SLUG}/results?distance=half`)).text();
     const csv = async () => (await get(`${base}/export/results.csv`, cookie)).text();
     expect(await results()).toContain('PETIT');
-    expect(await csv()).toContain('4001;Nina PETIT;half;1:45:30;6330000;21098;finished;');
+    expect(await csv()).toContain('4001;Nina;Petit;Semi-marathon;1:45:30;6330;21098;Arrivé;');
 
     const res = await post(`${base}/runs/run-fin/exclude`, { reason: 'gps', note: 'Saut de 2 km au km 12.' }, cookie);
     expect(res.status).toBe(302);
     expect(res.headers.get('location')).toBe(`/org/${SLUG}/runs/run-fin?done=excluded`);
     expect(await exclusionOf('run-fin')).toMatchObject({ excluded_reason: 'Problème de GPS. Saut de 2 km au km 12.', excluded_by: 'equipe@example.com' });
     expect(await results()).not.toContain('PETIT');
-    expect(await csv()).toContain('4001;Nina PETIT;half;1:45:30;6330000;21098;excluded;');
+    expect(await csv()).toContain('4001;Nina;Petit;Semi-marathon;1:45:30;6330;21098;Écarté;');
     const detail = await page(`${base}/runs/run-fin?done=excluded`, cookie);
     expect(detail).toContain('Temps écarté. Il n’apparaît plus dans les résultats');
     expect(detail).toContain('Rétablir ce temps');
@@ -293,7 +293,7 @@ describe('setting a time aside', () => {
     expect(back.headers.get('location')).toBe(`/org/${SLUG}/runs/run-fin?done=restored`);
     expect(await exclusionOf('run-fin')).toEqual({ excluded_at: null, excluded_reason: null, excluded_by: null });
     expect(await results()).toContain('PETIT');
-    expect(await csv()).toContain('4001;Nina PETIT;half;1:45:30;6330000;21098;finished;');
+    expect(await csv()).toContain('4001;Nina;Petit;Semi-marathon;1:45:30;6330;21098;Arrivé;');
   });
   it('makes a runner’s next best time their result when the best one is set aside', async () => {
     const cookie = await cookieFor('orga@example.com');

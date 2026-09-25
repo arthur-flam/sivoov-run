@@ -171,6 +171,9 @@ export const OrgDashboardPage = ({ race, access, funnel, distances, recent, setu
               <a class="btn btn-block" href={`${base}/export/results.csv`}>
                 <Icon name="download" /> Résultats
               </a>
+              <a class="btn btn-block" href={`${base}/export/medals.csv`}>
+                <Icon name="download" /> Adresses pour les médailles
+              </a>
             </div>
           </Card>
         </div>

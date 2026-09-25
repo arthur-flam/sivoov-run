@@ -172,17 +172,19 @@ const parseLine = (h: Header, line: Line, options: CsvParseOptions): Parsed => {
   return { line: number, entrant: entrant.data, ...(warning ? { warning } : {}) };
 };
 
-/** The second line with a bib already seen is refused, pointing at the first. */
-const refuseDuplicates = (parsed: Parsed[]): Parsed[] =>
-  parsed.reduce<{ out: Parsed[]; seen: Map<string, number> }>(
-    ({ out, seen }, p) => {
-      if (!p.entrant) return { out: [...out, p], seen };
-      const first = seen.get(p.entrant.bib);
-      if (first !== undefined) return { out: [...out, { line: p.line, rejection: { line: p.line, reason: 'duplicate_bib', detail: String(first), bib: p.entrant.bib } }], seen };
-      return { out: [...out, p], seen: new Map([...seen, [p.entrant.bib, p.line]]) };
-    },
-    { out: [], seen: new Map() },
-  ).out;
+/**
+ * The second line with a bib already seen is refused, pointing at the first. One pass over the
+ * lines: a file of 20 000 runners is read twice (preview, then confirmation) within the Worker's CPU limit.
+ */
+const refuseDuplicates = (parsed: Parsed[]): Parsed[] => {
+  // Built from the end, so each bib is left with the line where it first appears.
+  const firstLine = new Map(parsed.flatMap((p) => (p.entrant ? [[p.entrant.bib, p.line] as const] : [])).reverse());
+  return parsed.map((p) => {
+    if (!p.entrant) return p;
+    const first = firstLine.get(p.entrant.bib) ?? p.line;
+    return first === p.line ? p : { line: p.line, rejection: { line: p.line, reason: 'duplicate_bib', detail: String(first), bib: p.entrant.bib } };
+  });
+};
 
 /**
  * Parses the organizer's runner list. Never throws: every line it cannot import is reported with

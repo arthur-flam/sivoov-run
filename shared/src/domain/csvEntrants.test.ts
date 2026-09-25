@@ -108,6 +108,18 @@ describe('what Excel and ticketing tools produce', () => {
     // A "Name" column (often the full name) gives way to an explicit "Last name".
     expect(parseEntrantsCsv('Bib;Name;First name;Last name;Email;Distance\n9;Sam Reed;Sam;Reed;sam@example.com;Semi\n').entrants.map((e) => e.lastName)).toEqual(['Reed']);
   });
+
+  it('reads 20 000 lines well within the Worker time limit, preview and confirmation alike', () => {
+    const header = 'Dossard;Email;Prénom;Nom;Distance;Adresse;Complément;Code postal;Ville;Pays';
+    const lines = Array.from({ length: 20_000 }, (_, i) => `${i + 1};runner${i}@example.com;Léa;Martin${i};Marathon;12 rue des Planches;;14800;Deauville;France`);
+    const text = [header, ...lines, '1;again@example.com;Paul;Petit;Semi;;;;;'].join('\r\n');
+    const started = performance.now();
+    const { entrants, rejected } = parseEntrantsCsv(text, { distances: ['marathon', 'half'] });
+    const elapsed = performance.now() - started;
+    expect(entrants).toHaveLength(20_000);
+    expect(rejected).toEqual([{ line: 20_002, reason: 'duplicate_bib', detail: '2', bib: '1' }]);
+    expect(elapsed).toBeLessThan(1500);
+  });
 });
 
 describe('reading the uploaded bytes', () => {

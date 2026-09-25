@@ -9,6 +9,8 @@ export * from './audioScript';
 export * from './audioEstimates';
 export * from './format';
 export * from './gpx';
+export * from './gpxWrite';
+export * from './runReview';
 export * from './csvEntrants';
 export * from './mapbox';
 export * from './access';

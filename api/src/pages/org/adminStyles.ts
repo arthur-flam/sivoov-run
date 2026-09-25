@@ -214,4 +214,41 @@ table.a-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .error { padding: 12px 14px; border-radius: var(--radius); margin-bottom: 16px; background: var(--bad-bg); border: 1px solid var(--bad-border); color: var(--bad); }
 .empty { color: var(--ink-2); padding: 24px 0; }
 .pill { display: inline-block; padding: 1px 8px; border-radius: var(--radius-pill); background: var(--surface-2); font-size: 12px; }
+
+/* runs */
+/* A unit after a big number ("21,10 km", "5:16 /km") stays small, so the number fits half a phone. */
+.stat .v small { font-size: 0.5em; font-weight: 500; color: var(--ink-2); margin-left: 3px; }
+/* Columns a phone does without: a table shows fewer cells below 1000px and repeats what matters under the name. */
+@media (max-width: 999px) { .wide-only { display: none !important; } }
+@media (min-width: 1000px) { .narrow-only { display: none !important; } }
+.a-table td.fill { width: 45%; min-width: 72px; }
+.meter { display: block; height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+.meter i { display: block; height: 100%; border-radius: 4px; background: var(--border-strong); }
+.meter.good i { background: var(--good); }
+.meter.warn i { background: var(--warn); }
+.meter.info i { background: var(--info); }
+.meter.bad i { background: var(--bad); }
+.pager { display: flex; justify-content: space-between; gap: 10px; margin-top: 14px; }
+.disclosure > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.disclosure > summary::-webkit-details-marker { display: none; }
+.disclosure > summary b { display: block; font-size: 16px; font-weight: 600; }
+.disclosure > summary .hint { display: block; font-size: 13px; color: var(--muted); }
+.disclosure > summary::after { content: ''; flex: none; width: 9px; height: 9px; border-right: 2px solid var(--ink-2); border-bottom: 2px solid var(--ink-2); transform: rotate(45deg); margin: 0 4px 4px 0; }
+.disclosure[open] > summary::after { transform: rotate(-135deg); margin: 4px 4px 0 0; }
+.disclosure-body { margin-top: 14px; }
+.log { font-family: var(--font-mono); font-size: 12px; line-height: 1.55; background: var(--surface-2); color: var(--ink); border-radius: var(--radius-sm); padding: 10px 12px; margin-top: 12px; overflow: auto; max-height: 340px; white-space: pre; }
+.choices { border: 0; display: grid; gap: 10px; margin-bottom: 16px; min-width: 0; }
+.choices legend { font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+.choices .err { font-size: 13px; color: var(--bad); }
+.choices .check { font-size: 14px; }
+.map-box { height: 320px; border-radius: var(--radius); overflow: hidden; background: var(--surface-2); }
+@media (min-width: 900px) { .map-box { height: 440px; } }
+.map-svg { border-radius: var(--radius); background: var(--surface-2); overflow: hidden; }
+.map-svg svg { width: 100%; height: auto; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--ink-2); margin-top: 10px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.legend i.start { background: transparent; border: 3px solid var(--good); }
+.legend i.end { background: var(--ink); }
+.legend i.km { background: var(--surface); border: 2px solid var(--race-primary); }
 `;

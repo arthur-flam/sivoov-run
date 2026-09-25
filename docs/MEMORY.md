@@ -274,3 +274,20 @@
   - The seed (`api/tools/seed.ts`) upserts `courses.landmarks` and `courses.geometry_key`: now
     that organizers edit "Les lieux du parcours" and import their own GPX, a re-seed would
     overwrite both. Change the seed before running it on a race an organizer has worked on.
+- 2026-09-25: review fixes (import, exports, team, organizers' form). Worth knowing:
+  - A race between two requests can be tested in the workers pool: `Promise.all` of SELF.fetch
+    calls interleaves their D1 awaits. Two requests interleaved about half the time; four
+    owners stepping down at once broke the old JS-then-upsert check every run. The SQL guard
+    (`KEEPS_AN_OWNER` in one UPDATE) is what holds; a check on a list read earlier does not.
+  - A per-sender limit kept in one R2 JSON object (read, append, write) lets a burst through:
+    every request reads "under the limit". The lead form writes one small object per post
+    (`admin/leads-ip/<sha256(ip)>/<time>_<id>`), then lists the prefix: R2 lists are strongly
+    consistent, so the Nth post to land always sees N. Same idea for the hourly staff-email cap
+    in D1: insert first, count after.
+  - `toCsv` writes a text cell starting with `= + - @`, a tab or a CR after an apostrophe (Excel
+    shows it as text) and `parseEntrantsCsv` takes one apostrophe off, so downloads re-import
+    unchanged. Numbers passed as numbers are left alone. Build rows with numbers as numbers.
+  - The import's column names have two tiers: a generic "N°"/"Numéro"/"Name" counts only when no
+    column says "Dossard"/"Bib"/"Last name". Add a new synonym to the right tier.
+  - `SELF.fetch` in the api tests sends no `CF-Connecting-IP`; pass it by hand to test anything
+    keyed on the sender's address.

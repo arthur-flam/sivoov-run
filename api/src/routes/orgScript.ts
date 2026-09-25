@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { z } from 'zod';
-import { AudioScriptSchema, duplicateFileKeys } from '@sivoov/shared';
+import { AudioScriptSchema, duplicateFileKeys, whenInWords } from '@sivoov/shared';
 import type { AudioScript, ScriptLine } from '@sivoov/shared';
 import type { AppEnv } from '../env';
 import { db } from '../db/queries';
@@ -153,14 +153,15 @@ orgScript.get(`${PATH}/uploads/:file`, ...guard, async (c) => {
   return (await streamPrivate(c.env.FILES, `${UPLOAD_PREFIX}${file}`, 'application/octet-stream')) ?? c.json({ error: 'not_found' }, 404);
 });
 
-/** A click on the map -> the official distance along the course, and how far off the line it was. */
+/** A click on the map -> the official distance along the course, how far off the line it was, and those words. */
 orgScript.post(`${PATH}/script/project`, ...guard, async (c) => {
   const course = c.get('course');
   const ctx = await loadStudioContext(c.env, course);
   if (!ctx.track) return c.json({ error: 'no_geometry', detail: 'Ce parcours n’a pas encore de tracé.' }, 409);
   const parsed = LatLngBody.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: 'invalid' }, 400);
-  return c.json(distanceForClick(ctx.track, course.distanceM, parsed.data));
+  const found = distanceForClick(ctx.track, course.distanceM, parsed.data);
+  return c.json({ ...found, when: whenInWords({ kind: 'distance', meters: found.meters }) });
 });
 
 /** Builds the pack at the draft's version, makes it live, and moves the draft on. */

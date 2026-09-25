@@ -46,7 +46,7 @@ const pct = (meters: number, distanceM: number): string => `${((Math.min(meters,
 
 /** The frise under the map: one dot per firing (faint for repeats), a label every 5 km and the total at the end. */
 const Timeline = ({ firings, distanceM, categoryOf }: { firings: PlacedFiring[]; distanceM: number; categoryOf: (id: string) => string }) => {
-  const labels = Array.from({ length: Math.floor(distanceM / 5000) + 1 }, (_, i) => i * 5000).filter((m) => m < distanceM * 0.88);
+  const labels = Array.from({ length: Math.floor(distanceM / 5000) + 1 }, (_, i) => i * 5000).filter((m) => m < distanceM * 0.8);
   return (
     <div class="timeline">
       <div class="tl-track" data-role="tl-dots">

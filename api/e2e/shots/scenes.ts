@@ -102,23 +102,20 @@ export const scenes: Scene[] = [
     go: async (page, shoot) => {
       await orgSignIn(page);
       await page.getByRole('link', { name: 'Parcours et annonces' }).first().click();
-      await expect(page.getByRole('heading', { name: 'Ajouter un parcours' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Ajouter une distance' })).toBeVisible();
       await shoot();
     },
   },
   {
     id: 'org-studio',
-    title: 'Organizer — the audio studio, schematic course (no tiles)',
+    title: 'Organizer — the audio studio: what the runner hears and where, schematic course (no tiles)',
     go: async (page, shoot) => {
       await orgSignIn(page);
       // `?map=svg` is the offline path: the SVG diagram carries the same event markers as the map.
       await page.goto('/org/deauville-2026/courses/deauville-2026-marathon?map=svg');
-      await expect(page.getByRole('heading', { name: /Studio/ })).toBeVisible();
+      await expect(page.getByRole('heading', { name: /Annonces/ })).toBeVisible();
       await expect(page.locator('.ev').first()).toBeVisible();
       await shoot();
-      await page.locator('.ev-name').filter({ hasText: /^Les Planches$/ }).click();
-      await expect(page.locator('.ev.open textarea')).toBeVisible();
-      await shoot('event');
     },
   },
   {
@@ -128,6 +125,20 @@ export const scenes: Scene[] = [
       await orgSignIn(page);
       await page.goto('/org/deauville-2026/runners/import');
       await expect(page.getByRole('heading', { name: 'Importer des coureurs' })).toBeVisible();
+      await shoot();
+    },
+  },
+  {
+    id: 'org-studio-edit',
+    title: 'Organizer — the studio with one announcement open in the simple editor',
+    go: async (page, shoot) => {
+      await orgSignIn(page);
+      await page.goto('/org/deauville-2026/courses/deauville-2026-marathon?map=svg');
+      await page.locator('.ev-name').filter({ hasText: /^Les Planches$/ }).click();
+      await expect(page.locator('.ev.open textarea')).toBeVisible();
+      await expect(page.locator('.ev.open').getByText('Réglages avancés')).toBeVisible();
+      // Clicking scrolled the row into view; a full-page picture is taken from the top (sticky header).
+      await page.mouse.wheel(0, -10_000);
       await shoot();
     },
   },

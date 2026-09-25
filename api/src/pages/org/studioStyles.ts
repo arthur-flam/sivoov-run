@@ -101,4 +101,5 @@ export const studioStyles = `
 .ev-delete { color: var(--bad); }
 .ev-adv { margin-bottom: 10px; }
 .ev-adv .field .hint { display: block; margin-top: 2px; }
+.ev-body input:disabled, .ev-body select:disabled, .ev-body textarea:disabled { background: var(--bg); color: var(--ink-2); border-color: var(--border); cursor: default; opacity: 1; }
 `;

@@ -785,7 +785,7 @@
           window.L.popup()
             .setLatLng(event.latlng)
             .setContent(
-              '<div style="text-align:center">Au km ' + kmInput(out.json.meters).replace(/,(\d{2})\d*/, ',$1') +
+              '<div style="text-align:center">' + out.json.when +
                 '<br><button type="button" class="btn btn-sm" data-role="place" data-meters="' + out.json.meters + '" style="margin-top:8px">Ajouter une annonce ici</button></div>',
             )
             .openOn(map);

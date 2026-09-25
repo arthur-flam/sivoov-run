@@ -173,7 +173,8 @@ describe('the script draft', () => {
   it('turns a click on the map into a distance along the course', async () => {
     const res = await send(`/courses/${COURSE}/script/project`, { lat: 49.364, lng: 0.08 });
     expect(res.status).toBe(200);
-    const { meters, offsetM } = (await res.json()) as { meters: number; offsetM: number };
+    const { meters, offsetM, when } = (await res.json()) as { meters: number; offsetM: number; when: string };
+    expect(when).toMatch(/^Au km \d+(,\d{1,2})?$/);
     expect(meters).toBeGreaterThan(3000);
     expect(meters).toBeLessThan(6000);
     expect(offsetM).toBeLessThan(5);

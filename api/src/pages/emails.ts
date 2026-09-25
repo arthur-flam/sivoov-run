@@ -64,5 +64,38 @@ export const teamInviteEmail = ({ to, name, inviter, race, roleLabel, roleHint, 
 <p><a href="${escapeHtml(signinUrl)}">Entrer dans l’espace organisateur</a></p>
 <p>Saisissez votre adresse (${escapeHtml(to)}). Vous recevrez un code à 6 chiffres. Il n’y a pas de mot de passe.</p>
 <p>Sivoov Run</p>`,
+/**
+ * Sent by the organizer from a runner's page: the bib, where to go and how to sign in. Plain
+ * enough to be forwarded to someone who has never heard of Sivoov.
+ */
+export const instructionsEmail = ({ to, firstName, bib, distance, race, raceUrl, window, supportEmail }: {
+  to: string; firstName: string; bib: string; distance: string; race: Race; raceUrl: string; window: string; supportEmail?: string;
+}): Mail => {
+  const name = race.theme.displayName;
+  const steps = [
+    `Ouvrez la page de la course : ${raceUrl}`,
+    `Touchez « Je participe », puis saisissez votre numéro de dossard (${bib}) et cette adresse email.`,
+    'Vous recevez un code à 6 chiffres par email : saisissez-le sur la page.',
+    'Installez ensuite l’application Sivoov et connectez-vous de la même façon. C’est elle qui vous accompagne pendant la course.',
+  ];
+  const help = supportEmail ? `Une question ? Écrivez à ${supportEmail}.` : 'Une question ? Contactez l’organisateur de la course.';
+  return {
+    to,
+    subject: `Votre dossard ${bib} · ${name}`,
+    text: [
+      `Bonjour ${firstName},`,
+      `Votre inscription en virtuel est prête.\nCourse : ${name}\nDistance : ${distance}\nDossard : ${bib}`,
+      `Vous courez où vous voulez, ${window}.`,
+      `Pour vous connecter :\n${steps.map((s, i) => `${i + 1}. ${s}`).join('\n')}`,
+      help,
+      'Bonne course !\nSivoov Run',
+    ].join('\n\n'),
+    html: `<p>Bonjour ${escapeHtml(firstName)},</p>
+<p>Votre inscription en virtuel est prête.<br />Course : <strong>${escapeHtml(name)}</strong><br />Distance : ${escapeHtml(distance)}</p>
+<p style="font-size:15px;margin:0">Votre dossard</p><p style="font-size:34px;font-weight:700;margin:0 0 16px">${escapeHtml(bib)}</p>
+<p>Vous courez où vous voulez, ${escapeHtml(window)}.</p>
+<p><strong>Pour vous connecter</strong></p>
+<ol>${steps.map((s) => `<li>${escapeHtml(s).replace(escapeHtml(raceUrl), `<a href="${escapeHtml(raceUrl)}">${escapeHtml(raceUrl)}</a>`)}</li>`).join('')}</ol>
+<p>${escapeHtml(help)}</p><p>Bonne course !<br />Sivoov Run</p>`,
   };
 };

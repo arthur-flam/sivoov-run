@@ -5,7 +5,7 @@ import type { RunList, RunListItem, RunListQuery } from '../../db/runQueries';
 import { ago, distanceName, plural } from './format';
 import { runStatusView } from './runStatus';
 import { FILTER_EMPTY, FILTER_LABELS, howLabel, km } from './runsCopy';
-import { Badge, Card, Chips, Empty, Icon, PageHead, Pager } from './ui';
+import { Badge, Card, Chips, Empty, Icon, PageHead, PagerLinks } from './ui';
 
 type Props = { race: Race; courses: Course[]; list: RunList; query: RunListQuery; now?: Date };
 
@@ -135,7 +135,7 @@ export const OrgRunsPage = ({ race, courses, list, query, now = new Date() }: Pr
           </div>
         )}
       </Card>
-      <Pager
+      <PagerLinks
         newer={query.page > 1 ? runsHref(base, query, { page: query.page - 1 }) : undefined}
         older={list.hasOlder ? runsHref(base, query, { page: query.page + 1 }) : undefined}
       />

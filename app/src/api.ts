@@ -1,9 +1,23 @@
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 import { z } from 'zod';
-import { AudioPackSchema, CourseGeometrySchema, CourseSchema, EntrantPublicSchema, RaceSchema, RunSchema, RunTraceSchema } from '@sivoov/shared';
+import { AudioPackSchema, CLIENT_HEADER, CourseGeometrySchema, CourseSchema, EntrantPublicSchema, RaceSchema, RunSchema, RunTraceSchema, formatClientHeader } from '@sivoov/shared';
 import type { Run, RunTrace } from '@sivoov/shared';
 
 export const API_URL: string = (Constants.expoConfig?.extra as { apiUrl?: string } | undefined)?.apiUrl ?? 'https://run.sivoov.app';
+
+/**
+ * `app/2.0.0 (android 16; samsung SM-S911B)` on every call, so the organizer can see who reached
+ * the app and on which phone. Only what React Native already knows: no native module.
+ */
+const constants = Platform.constants as { Release?: string; Brand?: string; Model?: string };
+const model = Platform.OS === 'android' ? [constants.Brand, constants.Model].filter(Boolean).join(' ') : Platform.OS === 'ios' ? ((Platform as { isPad?: boolean }).isPad ? 'iPad' : 'iPhone') : undefined;
+const CLIENT = formatClientHeader({
+  platform: Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'web',
+  osVersion: Platform.OS === 'android' ? constants.Release : Platform.OS === 'ios' ? String(Platform.Version) : undefined,
+  model,
+  appVersion: Constants.expoConfig?.version,
+});
 
 export class ApiError extends Error {
   constructor(
@@ -28,7 +42,7 @@ const request = async <T extends z.ZodType>(path: string, schema: T, init: Reque
     const res = await fetch(`${API_URL}/api${path}`, {
       ...init,
       signal: controller.signal,
-      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(init.headers ?? {}) },
+      headers: { 'Content-Type': 'application/json', [CLIENT_HEADER]: CLIENT, ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(init.headers ?? {}) },
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new ApiError(res.status, (body as { error?: string }).error ?? 'unknown');

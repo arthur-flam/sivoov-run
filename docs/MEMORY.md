@@ -215,3 +215,19 @@
   `POST /x/settings/logo/remove` ran the upload handler: the combined regex splits on the bare `|`.
   It only shows once several such routes share a prefix (a lone one works). Register one route
   per value instead (`SECTIONS.forEach((s) => app.post(`.../${s}`, ...))`, api/src/routes/orgRace.tsx).
+- 2026-09-25: runners admin (list, runner page, add/edit/delete, two-step import, French downloads).
+  - `all` is an SQL keyword: `SUM(...) AS all` is a syntax error in D1. Quote aliases built from
+    a list (`AS "all"`).
+  - workerd's `TextDecoder` does decode `windows-1252` (Excel on Windows writes it, curly
+    apostrophe 0x92 included); verified in the workerd tests. `Response.text()` strips a leading
+    BOM, so a test that wants to prove the BOM is there must read `arrayBuffer()`.
+  - `sessions` has no index on `entrant_id`: the runner list aggregates sessions once per race in
+    a CTE rather than per row.
+  - The app sends `X-Sivoov-Client: app/<version> (<os> <version>; <model>)` on every API call,
+    built from react-native `Platform` and expo-constants (no native module). A custom header
+    needs its name in the `/api/*` CORS `allowHeaders`, or the web target's preflight fails.
+  - "Instructions" emails sent from a runner's page are logged in R2 (`admin/instructions/<id>.json`),
+    not in D1, so no migration was needed; that log backs the three-a-day limit.
+  - `scripts/shots.sh` still runs `DELETE FROM organizer_codes`, a table 0006 dropped; with both
+    statements in one `--command` the whole call fails, so `auth_codes` is no longer wiped
+    between passes. The runner scenes sign in with TEST_CODE and issue no code, so they are fine.

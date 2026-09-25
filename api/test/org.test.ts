@@ -149,19 +149,25 @@ describe('roles', () => {
 
 describe('import and export', () => {
   const csv = '﻿Dossard;Email;Prénom;Nom;Distance\r\n2001;anna@example.com;Anna;Roux;Semi\r\n2002;bob@example.com;Bob;Leroy;Marathon\r\nx;bad;;;10k\r\n';
-  const send = (cookie: string, body: FormData) => SELF.fetch(`${base}/runners/import`, { method: 'POST', headers: { Cookie: cookie }, body });
+  const send = (cookie: string, body: FormData) => SELF.fetch(`${base}/runners/import`, { method: 'POST', headers: { Cookie: cookie }, body, redirect: 'manual' });
 
   it('imports a multipart file idempotently and reports the outcome', async () => {
     const cookie = await cookieFor('orga@example.com');
     const fd = new FormData();
     fd.append('file', new File([csv], 'inscrits.csv', { type: 'text/csv' }));
-    const first = await (await send(cookie, fd)).text();
-    expect(first).toContain('2 ajoutés, 0 mis à jour, 1 refusés');
-    expect(first).toContain('Ligne 4');
+    // Sending the file shows what it would do; confirming writes it.
+    const preview = await (await send(cookie, fd)).text();
+    expect(preview).toContain('2 nouveaux coureurs, 0 mis à jour, 1 ligne refusée.');
+    expect(preview).toContain('Ligne 4');
+    const first = new FormData();
+    first.append('step', 'confirm');
+    first.append('csv', csv);
+    expect((await send(cookie, first)).headers.get('location')).toBe(`/org/${SLUG}/runners?done=imported&added=2&updated=0&refused=1`);
     const again = new FormData();
+    again.append('step', 'confirm');
     again.append('csv', csv.replace('Anna;Roux', 'Anna;Durand'));
-    const second = await (await send(cookie, again)).text();
-    expect(second).toContain('0 ajoutés, 2 mis à jour, 1 refusés');
+    // Only Anna changed: Bob is already up to date.
+    expect((await send(cookie, again)).headers.get('location')).toBe(`/org/${SLUG}/runners?done=imported&added=0&updated=1&refused=1`);
     const stored = await db(env.DB).entrantByBibEmail(SLUG, '2001', 'anna@example.com');
     expect(stored?.lastName).toBe('Durand');
     expect(stored?.id).toBe(`${SLUG}-2001`);
@@ -171,7 +177,7 @@ describe('import and export', () => {
     // The first admin's import address still works.
     expect((await get(`${base}/import`, cookie)).headers.get('location')).toBe(`/org/${SLUG}/runners/import`);
   });
-  it('exports runners and results as semicolon CSV', async () => {
+  it('exports runners and results as semicolon CSV with French headers', async () => {
     const cookie = await cookieFor('orga@example.com');
     await db(env.DB).upsertRun(
       { id: 'run-org-1', entrantId: `${SLUG}-2002`, courseId: `${SLUG}-marathon`, status: 'finished', source: 'app', startedAt: '2026-11-10T09:00:00+01:00', finishedAt: '2026-11-10T12:30:00+01:00', elapsedMs: 12_600_000, distanceM: 42195, splits: [] },
@@ -180,11 +186,11 @@ describe('import and export', () => {
     const entrants = await get(`${base}/export/entrants.csv`, cookie);
     expect(entrants.headers.get('content-type')).toContain('text/csv');
     const entrantsCsv = await entrants.text();
-    expect(entrantsCsv).toContain('bib;email;first_name;last_name;distance_key;best_time');
-    expect(entrantsCsv).toContain('2002;bob@example.com;Bob;Leroy;marathon;3:30:00');
+    expect(entrantsCsv).toContain('Dossard;Prénom;Nom;Email;Distance;Adresse;Complément;Code postal;Ville;Pays;Connecté;Dans l’application;Meilleur temps');
+    expect(entrantsCsv).toContain('2002;Bob;Leroy;bob@example.com;Marathon;;;;;;Non;Non;3:30:00');
     const results = await (await get(`${base}/export/results.csv`, cookie)).text();
-    expect(results).toContain('2002;Bob LEROY;marathon;3:30:00;12600000;42195;finished;2026-11-10T12:30:00+01:00');
-    expect(results).toContain('2001;Anna DURAND;half;;;;not_started;');
+    expect(results).toContain('2002;Bob;Leroy;Marathon;3:30:00;12600;42195;Arrivé;2026-11-10 12:30');
+    expect(results).toContain('2001;Anna;Durand;Semi-marathon;;;;Pas encore couru;');
     expect((await get(`${base}/export/results.csv`)).status).toBe(302);
   });
   it('counts the finish on the home page and shows it in the latest activities', async () => {

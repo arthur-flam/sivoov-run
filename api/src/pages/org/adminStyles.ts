@@ -291,7 +291,7 @@ table.a-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 
 /* A disclosure that opens a small form in place ("Modifier"). */
 .disclose > summary { list-style: none; }
-.disclose > summary.btn-quiet { margin-left: -10px; }
+.disclose > summary.btn-quiet.btn-sm { margin-left: -12px; }
 .disclose > summary::-webkit-details-marker { display: none; }
 .disclose[open] > summary { background: var(--surface-2); }
 .disclose-body { margin-top: 10px; padding: 14px; border-radius: var(--radius); background: var(--bg); border: 1px solid var(--border); }

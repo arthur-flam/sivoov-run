@@ -13,6 +13,11 @@ export type Bindings = Env & {
   ELEVENLABS_API_TOKEN?: string;
   /** Comma-separated emails of Sivoov staff: every race in /org, and race creation. A wrangler var. */
   STAFF_EMAILS?: string;
+  /**
+   * When set (preview), real email goes only to these addresses or `@domains`, comma-separated;
+   * everything else is logged. Production leaves it unset.
+   */
+  MAIL_ALLOWLIST?: string;
 };
 
 export type AppEnv = { Bindings: Bindings };

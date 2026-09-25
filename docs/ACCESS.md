@@ -38,7 +38,12 @@ on one race lands on it; staff land on the list of every race. Roles are per rac
 | orga@example.com | Responsable (owner) | `000000` (local and preview) |
 | equipe@example.com | Équipe (editor) | `000000` |
 | lecture@example.com | Lecture seule (viewer) | `000000` |
-| staff@example.com | none, staff on local and preview | `000000` |
+| staff@example.com | none, staff on **local only** | `000000` |
+
+Preview is reachable by anyone who knows the test code, so it is fenced: no test staff account,
+real email only to `MAIL_ALLOWLIST` (a wrangler var, addresses or `@domains`; the rest is logged
+by the Worker), and a test account cannot render the ElevenLabs voice there. Add a real tester
+to `MAIL_ALLOWLIST` to let them receive codes and invitations on preview.
 
 What each role may do is one table, `can()` in `shared/src/domain/access.ts`:
 viewer looks and downloads; editor also works on runners, activities and the audio;

@@ -14,15 +14,21 @@ export const DISTANCE_METERS: Record<DistanceKey, number> = {
 export const RaceStatusSchema = z.enum(['draft', 'open', 'live', 'closed']);
 export type RaceStatus = z.infer<typeof RaceStatusSchema>;
 
+/**
+ * A link or a picture on a page: web addresses only. `z.url()` alone accepts `javascript:` and
+ * friends, and these are typed by organizers and shown to everyone.
+ */
+export const WebUrlSchema = z.url({ protocol: /^https?$/ });
+
 /** The race layer of the design: what the organizer brings. Everything else is Sivoov. */
 export const RaceThemeSchema = z.object({
   displayName: z.string().min(1),
   primary: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   onPrimary: z.string().regex(/^#[0-9a-fA-F]{6}$/),
-  logo: z.url().optional(),
-  hero: z.url().optional(),
-  medal: z.url().optional(),
-  partnerLogos: z.array(z.url()).default([]),
+  logo: WebUrlSchema.optional(),
+  hero: WebUrlSchema.optional(),
+  medal: WebUrlSchema.optional(),
+  partnerLogos: z.array(WebUrlSchema).default([]),
 });
 export type RaceTheme = z.infer<typeof RaceThemeSchema>;
 
@@ -41,7 +47,7 @@ export const RaceSchema = z.object({
   windowStart: z.iso.datetime({ offset: true }),
   windowEnd: z.iso.datetime({ offset: true }),
   timezone: z.string().default('Europe/Paris'),
-  organizerUrl: z.url().optional(),
+  organizerUrl: WebUrlSchema.optional(),
   /** Where runners write when they are stuck; shown on the race page and in the app. */
   supportEmail: z.string().trim().toLowerCase().pipe(z.email()).optional(),
   theme: RaceThemeSchema,

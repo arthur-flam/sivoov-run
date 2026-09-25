@@ -12,6 +12,7 @@ import { publishScript } from '../lib/publish';
 import { distanceForClick, estimatesFor, loadStudioContext, paceFromQuery } from '../lib/studio';
 import type { StudioContext } from '../lib/studio';
 import { renderLine, ttsKey } from '../lib/tts';
+import { maySpendCredit } from '../lib/testCode';
 import { UPLOAD_PREFIX, missingUploads, storeUpload } from '../lib/uploads';
 import { UPLOAD_ERRORS } from '../pages/org/studioCopy';
 
@@ -80,6 +81,9 @@ orgScript.put(`${PATH}/script`, ...edit, async (c) => {
 
 /** One line to MP3. Cached in R2 by the text hash, so a second call is free. */
 orgScript.post(`${PATH}/script/render`, ...edit, async (c) => {
+  if (!maySpendCredit(c.env, c.get('admin').email)) {
+    return c.json({ error: 'test_account', detail: 'Un compte de test ne peut pas enregistrer la voix ici. Connectez-vous avec votre adresse.' }, 403);
+  }
   if (!c.env.ELEVENLABS_API_TOKEN) {
     return c.json({ error: 'tts_unavailable', detail: 'La voix de l’annonceur n’est pas disponible ici. Vous pouvez écrire et écouter avec la voix de l’ordinateur.' }, 503);
   }

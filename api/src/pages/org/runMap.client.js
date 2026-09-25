@@ -43,12 +43,12 @@
     (data.kms || []).forEach(function (km) {
       L.circleMarker([km.lat, km.lng], { radius: 4, color: line, weight: 2, fillColor: surface, fillOpacity: 1 })
         .addTo(map)
-        .bindTooltip(km.label);
+        .bindTooltip(document.createTextNode(km.label));
     });
     const first = data.points[0];
     const last = data.points[data.points.length - 1];
     // The end is a dot and the start a ring around it: a loop starts and ends in the same place.
-    L.circleMarker(last, { radius: 6, color: surface, weight: 2, fillColor: css('--ink'), fillOpacity: 1 }).addTo(map).bindTooltip(data.endLabel || 'Arrivée');
+    L.circleMarker(last, { radius: 6, color: surface, weight: 2, fillColor: css('--ink'), fillOpacity: 1 }).addTo(map).bindTooltip(document.createTextNode(data.endLabel || 'Arrivée'));
     L.circleMarker(first, { radius: 10, color: css('--good'), weight: 3.5, fill: false }).addTo(map).bindTooltip('Départ');
   }
 

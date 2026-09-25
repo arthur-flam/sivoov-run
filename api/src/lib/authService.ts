@@ -40,15 +40,15 @@ export const verifyCode = async (env: Bindings, req: CodeVerify, client: Session
   const active = await q.activeCode(entrant.id);
   const testCode = acceptsTestCode(env, entrant.email, req.code);
   if (!testCode) {
-    if (!active || active.expires_at < new Date().toISOString() || active.attempts >= MAX_CODE_ATTEMPTS) return { ok: false, error: 'bad_code' };
-    if (active.code_hash !== (await sha256Hex(req.code))) {
-      await q.bumpAttempts(active.id);
-      return { ok: false, error: 'bad_code' };
-    }
+    // Count the attempt before comparing, so a burst of parallel guesses cannot outrun the limit.
+    if (!active || !(await q.claimAttempt(active.id, MAX_CODE_ATTEMPTS))) return { ok: false, error: 'bad_code' };
+    if (active.code_hash !== (await sha256Hex(req.code))) return { ok: false, error: 'bad_code' };
+    if (!(await q.consumeCode(active.id))) return { ok: false, error: 'bad_code' };
+  } else if (active) {
+    await q.consumeCode(active.id);
   }
   const token = randomHex(32);
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
-  if (active) await q.consumeCode(active.id);
   await q.createSession(newId(), entrant.id, await sha256Hex(token), expiresAt, client);
   return { ok: true, token, expiresAt, entrant };
 };

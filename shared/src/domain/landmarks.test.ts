@@ -39,6 +39,10 @@ describe('les lieux du parcours', () => {
     });
   });
 
+  it('refuse markup in a name or a description, which would end up in the map tooltips', () => {
+    const out = landmarksFromRows([row({ name: '<img src=x onerror=alert(1)>', km: '1' }), row({ name: 'Touques', km: '3,9', description: 'a > b' })], MARATHON);
+    expect(out).toEqual({ ok: false, errors: { 0: 'Sans les signes < et >, s’il vous plaît.', 1: 'Sans les signes < et >, s’il vous plaît.' } });
+  });
   it('make readable ids from names, never twice the same', () => {
     expect(landmarkSlug('Hippodrome de la Touques')).toBe('hippodrome-de-la-touques');
     expect(landmarkSlug('Tourgéville')).toBe('tourgeville');

@@ -7,7 +7,6 @@ import {
   EntrantPublicSchema,
   RunSchema,
   RunTraceSchema,
-  deauvilleMarathonGeometry,
   officialStatus,
   staticMapUrl,
 } from '@sivoov/shared';
@@ -35,14 +34,14 @@ api.get('/races/:slug', async (c) => {
   return c.json({ race, courses: await q.coursesForRace(race.id) });
 });
 
-/** Course geometry: from R2 when uploaded, else the bundled Deauville fixture (dev). */
+/** Course geometry from R2, or 404 when the organizer has not sent the GPX yet (the app then shows its own fallback). */
 api.get('/courses/:id/geometry', async (c) => {
   const q = db(c.env.DB);
   const course = await q.courseById(c.req.param('id'));
   if (!course) return c.json({ error: 'not_found' }, 404);
   const object = course.geometryKey ? await c.env.FILES.get(course.geometryKey) : null;
-  if (object) return new Response(object.body, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' } });
-  return c.json(CourseGeometrySchema.parse({ ...deauvilleMarathonGeometry, courseId: course.id }));
+  if (!object) return c.json({ error: 'not_found' }, 404);
+  return new Response(object.body, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' } });
 });
 
 /**
@@ -62,7 +61,8 @@ api.get('/courses/:id/map.png', async (c) => {
   const cached = await cache.match(cacheKey);
   if (cached) return cached;
   const object = course.geometryKey ? await c.env.FILES.get(course.geometryKey) : null;
-  const geometry = object ? CourseGeometrySchema.parse(await object.json()) : deauvilleMarathonGeometry;
+  if (!object) return c.json({ error: 'not_found' }, 404);
+  const geometry = CourseGeometrySchema.parse(await object.json());
   const race = await q.raceById(course.raceId);
   const color = (race?.theme.primary ?? '#e63946').replace('#', '');
   const upstream = await fetch(staticMapUrl({ points: geometry.points, token, width: size.data.w, height: size.data.h, color }));

@@ -45,11 +45,21 @@ export const adminDb = (d1: D1Database) => ({
     const row = await d1.prepare('SELECT COUNT(*) AS n FROM admin_codes WHERE email = ? AND created_at > ?').bind(email, sinceIso).first<{ n: number }>();
     return row?.n ?? 0;
   },
-  async bumpAttempts(codeId: string): Promise<void> {
-    await d1.prepare('UPDATE admin_codes SET attempts = attempts + 1 WHERE id = ?').bind(codeId).run();
+  /**
+   * Takes one attempt of the code in a single statement: false when none is left, when it
+   * expired or when it was used. Checking and counting in two steps let parallel guesses through.
+   */
+  async claimAttempt(codeId: string, maxAttempts: number): Promise<boolean> {
+    const res = await d1
+      .prepare('UPDATE admin_codes SET attempts = attempts + 1 WHERE id = ? AND attempts < ? AND consumed_at IS NULL AND expires_at > ?')
+      .bind(codeId, maxAttempts, new Date().toISOString())
+      .run();
+    return res.meta.changes === 1;
   },
-  async consumeCode(codeId: string): Promise<void> {
-    await d1.prepare('UPDATE admin_codes SET consumed_at = ? WHERE id = ?').bind(new Date().toISOString(), codeId).run();
+  /** Marks the code used; false when another request used it first. */
+  async consumeCode(codeId: string): Promise<boolean> {
+    const res = await d1.prepare('UPDATE admin_codes SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL').bind(new Date().toISOString(), codeId).run();
+    return res.meta.changes === 1;
   },
 
   async createSession(id: string, email: string, tokenHash: string, expiresAt: string): Promise<void> {

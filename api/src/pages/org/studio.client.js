@@ -775,7 +775,7 @@
     const paper = cssVar('--surface', 'white');
     (data.landmarks || []).forEach((mark) => {
       if (mark.lat === null) return;
-      window.L.circleMarker([mark.lat, mark.lng], { radius: 5, color: place, weight: 2, fillColor: paper, fillOpacity: 1 }).addTo(map).bindTooltip(mark.name);
+      window.L.circleMarker([mark.lat, mark.lng], { radius: 5, color: place, weight: 2, fillColor: paper, fillOpacity: 1 }).addTo(map).bindTooltip(document.createTextNode(mark.name));
     });
     if (canEdit) {
       // A click near the line proposes an announcement at that distance along the course.

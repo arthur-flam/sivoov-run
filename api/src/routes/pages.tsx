@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
-import { CodeRequestSchema, CodeVerifySchema, buildTrack, deauvilleMarathonGeometry, t } from '@sivoov/shared';
+import { CodeRequestSchema, CodeVerifySchema, buildTrack, t } from '@sivoov/shared';
 import type { Course, CourseTrack } from '@sivoov/shared';
 import type { AppEnv } from '../env';
 import { db } from '../db/queries';
@@ -18,16 +18,15 @@ export const pages = new Hono<AppEnv>();
 
 const SESSION_COOKIE = 'sivoov_session';
 
+/** The course line when the race has one; a new race shows no course until its GPX is in, never another race's. */
 const trackFor = async (env: AppEnv['Bindings'], course: Course | undefined): Promise<CourseTrack | null> => {
-  if (!course) return null;
-  const object = course.geometryKey ? await env.FILES.get(course.geometryKey) : null;
-  const geometry = object ? CourseGeometrySchema.parse(await object.json()) : deauvilleMarathonGeometry;
-  return buildTrack(geometry.points);
+  const object = course?.geometryKey ? await env.FILES.get(course.geometryKey) : null;
+  return object ? buildTrack(CourseGeometrySchema.parse(await object.json()).points) : null;
 };
 
 /** The Mapbox picture of a course, when the Worker has a token to draw it (else the SVG diagram). */
 const mapUrlFor = (env: AppEnv['Bindings'], course: Course | undefined, size = ''): string | null =>
-  env.MAPBOX_TOKEN && course ? `/api/courses/${course.id}/map.png${size}` : null;
+  env.MAPBOX_TOKEN && course?.geometryKey ? `/api/courses/${course.id}/map.png${size}` : null;
 
 pages.get('/', async (c) => {
   const locale = localeOf(c);

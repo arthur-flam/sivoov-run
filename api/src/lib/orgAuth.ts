@@ -48,12 +48,10 @@ export const verifyOrganizerCode = async (env: Bindings, email: string, code: st
   if (!isStaff(env, email) && !(await q.isMember(email))) return { ok: false, error: 'unknown_organizer' };
   const active = await q.activeCode(email);
   if (!acceptsTestCode(env, email, code)) {
-    if (!active || active.expires_at < new Date().toISOString() || active.attempts >= MAX_CODE_ATTEMPTS) return { ok: false, error: 'bad_code' };
-    if (active.code_hash !== (await sha256Hex(code))) {
-      await q.bumpAttempts(active.id);
-      return { ok: false, error: 'bad_code' };
-    }
-    await q.consumeCode(active.id);
+    // Count the attempt before comparing, so a burst of parallel guesses cannot outrun the limit.
+    if (!active || !(await q.claimAttempt(active.id, MAX_CODE_ATTEMPTS))) return { ok: false, error: 'bad_code' };
+    if (active.code_hash !== (await sha256Hex(code))) return { ok: false, error: 'bad_code' };
+    if (!(await q.consumeCode(active.id))) return { ok: false, error: 'bad_code' };
   }
   const token = randomHex(32);
   const expiresAt = new Date(Date.now() + ORG_SESSION_TTL_MS).toISOString();

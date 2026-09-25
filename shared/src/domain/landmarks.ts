@@ -45,6 +45,8 @@ export const landmarksFromRows = (rows: LandmarkRow[], officialM: number): Landm
     const meters = metersFromKm(row.km);
     if (row.name.trim() === '') return 'Donnez un nom à ce lieu, ou videz la ligne pour le retirer.';
     if (row.name.trim().length > LANDMARK_NAME_MAX) return `Un nom de ${LANDMARK_NAME_MAX} caractères au plus.`;
+    // Names end up in map tooltips and pages: markup has no business in them.
+    if (/[<>]/.test(row.name) || /[<>]/.test(row.description)) return 'Sans les signes < et >, s’il vous plaît.';
     if (meters === null) return 'Écrivez le kilomètre, par exemple 5,2.';
     if (meters > officialM) return `Ce kilomètre est après l’arrivée (${kmInput(officialM)} km).`;
     if (row.description.trim().length > LANDMARK_DESCRIPTION_MAX) return `Une description de ${LANDMARK_DESCRIPTION_MAX} caractères au plus.`;

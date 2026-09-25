@@ -9,3 +9,9 @@ export const isTestAccount = (email: string): boolean => /@example\.(com|org|net
  */
 export const acceptsTestCode = (env: Pick<Bindings, 'TEST_CODE' | 'ENVIRONMENT'>, email: string, code: string): boolean =>
   env.ENVIRONMENT !== 'production' && !!env.TEST_CODE && code === env.TEST_CODE && isTestAccount(email);
+
+/**
+ * Voice rendering costs ElevenLabs credit: on preview and production, a session opened with the
+ * shared test code may not spend it. Local always may (the tests stub the provider).
+ */
+export const maySpendCredit = (env: Pick<Bindings, 'ENVIRONMENT'>, email: string): boolean => env.ENVIRONMENT === 'local' || !isTestAccount(email);

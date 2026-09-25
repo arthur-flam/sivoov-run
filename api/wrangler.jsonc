@@ -22,7 +22,9 @@
     "preview": {
       "name": "sivoov-run-preview",
       // TEST_CODE signs in the seeded @example.com test entrants without an email (docs/ACCESS.md).
-      "vars": { "ENVIRONMENT": "preview", "BASE_URL": "https://preview.run.sivoov.app", "TEST_CODE": "000000", "STAFF_EMAILS": "arthur.flam@gmail.com,staff@example.com" },
+      // Preview is open to anyone with the test code: no test staff account there, and real email
+      // only to MAIL_ALLOWLIST (the rest is logged). staff@example.com is staff on local only.
+      "vars": { "ENVIRONMENT": "preview", "BASE_URL": "https://preview.run.sivoov.app", "TEST_CODE": "000000", "STAFF_EMAILS": "arthur.flam@gmail.com", "MAIL_ALLOWLIST": "arthur.flam@gmail.com" },
       "d1_databases": [
         { "binding": "DB", "database_name": "sivoov-run-preview", "database_id": "09328ba9-5588-49dd-a8a1-5144c4f874a8", "migrations_dir": "migrations" }
       ],

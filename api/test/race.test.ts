@@ -174,6 +174,18 @@ describe('race settings', () => {
     expect(await res.text()).toContain('Le dernier jour ne peut pas être avant le premier.');
   });
 
+  it('refuses a website that is not a web address, so no script can hide behind the link', async () => {
+    const cookie = await cookieFor('reglages@example.com');
+    const before = (await raceOf(SETTINGS.slug)).organizerUrl;
+    const res = await post(
+      `${base}/race`,
+      { name: 'X', displayName: 'X', city: 'Caen', country: 'FR', dateStart: '2026-11-14', dateEnd: '2026-11-15', organizerUrl: 'javascript://%0aalert(document.domain)' },
+      cookie,
+    );
+    expect(res.status).toBe(400);
+    expect((await raceOf(SETTINGS.slug)).organizerUrl).toBe(before);
+  });
+
   it('hides a draft from the home page and the race list, not from its own address', async () => {
     const cookie = await cookieFor('reglages@example.com');
     const listed = async () => ((await (await SELF.fetch('http://run.test/api/races')).json()) as { races: Array<{ slug: string }> }).races.map((r) => r.slug);

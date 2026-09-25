@@ -109,6 +109,28 @@ describe('organizer sign-in', () => {
   });
 });
 
+describe('sign-in codes', () => {
+  it('count every attempt, even a burst of parallel guesses: five at most, then the code is dead', async () => {
+    const hash = await sha256Hex('424242');
+    const expires = new Date(Date.now() + 15 * 60_000).toISOString();
+    await adminDb(env.DB).createCode('burst-admin', 'orga@example.com', hash, expires);
+    const claims = await Promise.all(Array.from({ length: 12 }, () => adminDb(env.DB).claimAttempt('burst-admin', 5)));
+    expect(claims.filter(Boolean)).toHaveLength(5);
+    expect((await post(`${ORG}/signin`, { step: 'code', email: 'orga@example.com', code: '424242' })).status).toBe(401);
+    // Runner codes follow the same rule.
+    await db(env.DB).upsertEntrant({ id: `${SLUG}-9901`, raceId: SLUG, bib: '9901', email: 'burst@example.com', firstName: 'B', lastName: 'U', distanceKey: 'half', source: 'manual' });
+    await db(env.DB).createCode('burst-runner', `${SLUG}-9901`, hash, expires);
+    const runnerClaims = await Promise.all(Array.from({ length: 12 }, () => db(env.DB).claimAttempt('burst-runner', 5)));
+    expect(runnerClaims.filter(Boolean)).toHaveLength(5);
+  });
+  it('can be used once only', async () => {
+    const hash = await sha256Hex('515151');
+    await adminDb(env.DB).createCode('once-admin', 'equipe@example.com', hash, new Date(Date.now() + 15 * 60_000).toISOString());
+    const [first, second] = await Promise.all([adminDb(env.DB).consumeCode('once-admin'), adminDb(env.DB).consumeCode('once-admin')]);
+    expect([first, second].filter(Boolean)).toHaveLength(1);
+  });
+});
+
 describe('roles', () => {
   it('keeps one race’s team out of another race’s admin', async () => {
     const cookie = await cookieFor('autre@example.com');

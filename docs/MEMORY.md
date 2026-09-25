@@ -231,3 +231,26 @@
   - `scripts/shots.sh` still runs `DELETE FROM organizer_codes`, a table 0006 dropped; with both
     statements in one `--command` the whole call fails, so `auth_codes` is no longer wiped
     between passes. The runner scenes sign in with TEST_CODE and issue no code, so they are fine.
+- 2026-09-25: admin rebuild with five parallel worktree agents. For the next session that fans out:
+  - Agent worktrees (`isolation: worktree`) were created from an old commit (`3d9b825`), not
+    from the session's working branch. Every agent had to fast-forward to the branch first; say
+    so in the brief, or the agent builds on a tree without the work it is meant to extend.
+  - `cp -al <main>/node_modules ./node_modules` gives a worktree its dependencies in seconds and
+    no disk: the workspace links inside are relative symlinks, so they resolve to the worktree's
+    own `shared/`. A symlinked `node_modules` would resolve to the main checkout instead.
+  - Parallel agents each ran `wrangler dev` on their own `--port` and `--inspector-port`; the
+    local D1/R2 under `api/.wrangler/` is per worktree, so they never saw each other's data.
+  - The merge cost was in the shared append points (end of `ui.tsx`, `adminStyles.ts`,
+    `scenes.ts`, `emails.ts`, the shared barrels) and in two agents inventing the same component
+    (`Choices`, `Pager`) with different props. Next time: name the components each agent may
+    add, or give one agent the kit.
+  - The screenshot rig's `DELETE FROM organizer_codes` (noted above) is fixed: it wipes
+    `admin_codes` now.
+  - `PW_CHROMIUM=/opt/pw-browsers/chromium` makes `api/playwright.shots.config.ts` use the
+    container's Chromium; no throwaway config needed any more. In that browser cdnjs fails TLS
+    (proxy CA), so Leaflet pages only show their SVG fallback in container screenshots.
+  - Contrary to the 2026-09-12 note, `curl https://preview.run.sivoov.app` works from the cloud
+    sandbox now (checked 2026-09-25): a session can verify a deploy itself.
+  - deploy.yml now runs `wrangler d1 migrations apply` before `wrangler deploy` (preview and
+    production). The Cloudflare token must be allowed to edit D1; if it is not, the deploy stops
+    before the Worker, and the old Worker keeps serving the old schema.

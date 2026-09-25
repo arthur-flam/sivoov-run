@@ -145,7 +145,6 @@ export const fr = {
   'finish.share': 'Partager mon arrivée',
   'finish.certificate': 'Mon certificat',
   'finish.home': 'Retour à l’accueil',
-  'finish.avgPace': 'Allure moyenne',
   'finish.shareMessage': '{race}, {distance} : {time} 🏅 Couru là où j’étais, avec le départ et l’arrivée dans les oreilles. {url}',
   'home.finisher': 'Finisher',
   'home.finisher.body': 'Votre temps officiel · {distance}',

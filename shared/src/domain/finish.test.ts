@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { averagePace, finishOutcome } from './finish';
+import { RunSchema } from '../schemas/run';
+import { averagePace, bestRankedRun, finishOutcome } from './finish';
 
 const window = { windowStart: '2026-11-09T00:00:00+01:00', windowEnd: '2026-11-15T23:59:59+01:00' };
 const HALF = 21097.5;
@@ -29,5 +30,26 @@ describe('average pace', () => {
   });
   it('is unknown before the first metre', () => {
     expect(averagePace(10_000, 0)).toBeNull();
+  });
+});
+
+describe('the best official run the phone knows of', () => {
+  const run = (id: string, startedAt: string, elapsedMs: number, over: Record<string, unknown> = {}) =>
+    RunSchema.parse({ id, entrantId: 'e', courseId: 'c', status: 'finished', source: 'app', startedAt, elapsedMs, distanceM: HALF, ...over });
+  it('is the fastest finish of race week', () => {
+    const best = bestRankedRun(window, HALF, [run('a', '2026-11-10T08:00:00Z', 6_600_000), run('b', '2026-11-14T08:00:00Z', 6_300_000)]);
+    expect(best?.id).toBe('b');
+  });
+  it('ignores a faster rehearsal, a simulation and a run stopped short', () => {
+    const best = bestRankedRun(window, HALF, [
+      run('rehearsal', '2026-10-01T08:00:00Z', 5_000_000),
+      run('sim', '2026-11-10T08:00:00Z', 5_000_000, { source: 'simulation' }),
+      run('short', '2026-11-11T08:00:00Z', 1_000_000, { distanceM: 5000 }),
+      run('real', '2026-11-12T08:00:00Z', 6_900_000),
+    ]);
+    expect(best?.id).toBe('real');
+  });
+  it('is nothing before any finish', () => {
+    expect(bestRankedRun(window, HALF, [])).toBeNull();
   });
 });

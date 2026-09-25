@@ -13,6 +13,8 @@ export const colors = {
   night: '#0c0c0c',
   nightCard: '#181818',
   nightBorder: '#2a2a2a',
+  /** The course not yet run, on the night ground: visible, but quieter than the accent. */
+  nightLine: '#3f3f46',
   snow: '#ffffff',
   fog: '#a1a1aa',
 } as const;

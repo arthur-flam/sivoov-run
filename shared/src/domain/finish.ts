@@ -1,5 +1,7 @@
 import type { Race } from '../schemas/race';
-import { windowPhase } from './raceWindow';
+import type { Run } from '../schemas/run';
+import { officialStatus } from './official';
+import { isRanked, windowPhase } from './raceWindow';
 
 /**
  * What the finish line says to the runner, decided on the phone before any network:
@@ -28,3 +30,14 @@ export const finishOutcome = ({ distanceM, courseDistanceM, startedAtMs, window 
 /** Seconds per kilometre over the whole run; null before the first metre. */
 export const averagePace = (elapsedMs: number, distanceM: number): number | null =>
   distanceM > 0 ? elapsedMs / distanceM : null;
+
+/**
+ * The runner's best official run among everything the phone knows: the runs the server
+ * returned and the ones still waiting to upload, judged by the same rules the server applies.
+ * The home screen shows the finish before the upload has gone through.
+ */
+export const bestRankedRun = (race: Pick<Race, 'windowStart' | 'windowEnd'>, courseDistanceM: number, runs: Run[]): Run | null =>
+  runs
+    .map((run) => ({ ...run, status: officialStatus(run, courseDistanceM) }))
+    .filter((run) => isRanked(race, run))
+    .reduce<Run | null>((best, run) => (best === null || run.elapsedMs < best.elapsedMs ? run : best), null);

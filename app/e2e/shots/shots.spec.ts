@@ -10,7 +10,7 @@ const OUT = '../docs/shots';
  */
 // 'open-debug' is the way into the device logbook: wanted on a phone under test, never in a
 // store screenshot (docs/MEMORY.md).
-const DEV_CHROME = ['sim-badge', 'sim-badge-live', 'dev-sim-link', 'open-debug']
+const DEV_CHROME = ['sim-badge', 'sim-badge-live', 'sim-badge-finish', 'dev-sim-link', 'open-debug']
   .map((id) => `[data-testid="${id}"]`)
   .join(', ')
   .concat(' { visibility: hidden !important; }');

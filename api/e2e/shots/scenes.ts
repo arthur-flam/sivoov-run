@@ -131,4 +131,26 @@ export const scenes: Scene[] = [
       await shoot();
     },
   },
+  {
+    id: 'org-runs',
+    title: 'Organizer — activities: every run, filtered by outcome and distance',
+    go: async (page, shoot) => {
+      await orgSignIn(page);
+      await page.goto('/org/deauville-2026/runs');
+      await expect(page.getByRole('heading', { name: 'Activités' })).toBeVisible();
+      await shoot();
+    },
+  },
+  {
+    id: 'org-run',
+    title: 'Organizer — one finished run: time, trace (no tiles), kilometres, what was heard',
+    go: async (page, shoot) => {
+      await orgSignIn(page);
+      // The sample finish from `npm run seed:runs`; `?map=svg` draws the trace without tiles or network.
+      await page.goto('/org/deauville-2026/runs/seed-1001-half?map=svg');
+      await expect(page.getByRole('heading', { name: 'Marc DUPONT' })).toBeVisible();
+      await expect(page.getByRole('img', { name: 'Tracé GPS du coureur' })).toBeVisible();
+      await shoot();
+    },
+  },
 ];

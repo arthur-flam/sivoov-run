@@ -156,3 +156,61 @@ export const ConfirmButton = ({ message, class: cls = 'btn btn-danger', children
     {children}
   </button>
 );
+
+/** A thin horizontal bar, `share` in [0, 1]: a kilometre against the slowest one, a part of a whole. */
+export const Meter = ({ share, tone = 'neutral' }: { share: number; tone?: Tone }) => (
+  <span class={`meter ${tone}`} aria-hidden="true">
+    <i style={`width:${Math.round(Math.max(0, Math.min(1, share)) * 100)}%`}></i>
+  </span>
+);
+
+/** Newer and older links under a long list. Renders nothing when everything fits on one page. */
+export const Pager = ({ newer, older, newerLabel = 'Plus récentes', olderLabel = 'Plus anciennes' }: { newer?: string; older?: string; newerLabel?: string; olderLabel?: string }) =>
+  newer || older ? (
+    <nav class="pager" aria-label="Pages">
+      {newer ? (
+        <a class="btn btn-sm" href={newer}>
+          ← {newerLabel}
+        </a>
+      ) : (
+        <span></span>
+      )}
+      {older ? (
+        <a class="btn btn-sm" href={older}>
+          {olderLabel} →
+        </a>
+      ) : null}
+    </nav>
+  ) : null;
+
+/** A part of the page that opens on demand, for details only support needs. Closed by default. */
+export const Disclosure = ({ summary, hint, children }: { summary: Child; hint?: Child; children: Child }) => (
+  <details class="disclosure">
+    <summary>
+      <span>
+        <b>{summary}</b>
+        {hint ? <span class="hint">{hint}</span> : null}
+      </span>
+    </summary>
+    <div class="disclosure-body">{children}</div>
+  </details>
+);
+
+/** Lines as a machine wrote them (a phone's log), monospaced and scrollable. */
+export const LogLines = ({ lines }: { lines: string[] }) => <pre class="log">{lines.join('\n')}</pre>;
+
+export type Choice = { value: string; label: Child };
+
+/** One choice among a few, as radio buttons under a legend. Keeps the choice made when a form comes back. */
+export const Choices = ({ legend, name, options, value, error }: { legend: Child; name: string; options: Choice[]; value?: string; error?: Child }) => (
+  <fieldset class={error ? 'choices bad' : 'choices'}>
+    <legend>{legend}</legend>
+    {options.map((o) => (
+      <label class="check">
+        <input type="radio" name={name} value={o.value} checked={o.value === value} />
+        <span>{o.label}</span>
+      </label>
+    ))}
+    {error ? <span class="err">{error}</span> : null}
+  </fieldset>
+);

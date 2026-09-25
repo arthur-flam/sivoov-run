@@ -37,6 +37,8 @@ done
 # A shot of a screen with no race in it is worth nothing: make sure local D1/R2 have one.
 npm run db:migrate:local -w api >/dev/null 2>&1 || true
 npm run seed -w api -- local >/dev/null 2>&1 || echo "seed failed; screenshots may be empty" >&2
+# Sample runs (a finish, a stop, a simulation) so the activity screens show real-looking data.
+npm run seed:runs -w api -- local >/dev/null 2>&1 || echo "sample runs failed; activity screenshots may be empty" >&2
 # Sign-in codes are capped at 5 per hour per entrant, which a repeated shots run would hit.
 # The local D1 is disposable, so wipe the codes and start every run from zero.
 ( cd api && npx wrangler d1 execute sivoov-run --local --env local \

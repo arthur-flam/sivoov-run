@@ -1,5 +1,6 @@
 import type { AudioPack, Course, Entrant, Race, Run } from '@sivoov/shared';
 import { audioPackFromRow, courseFromRow, entrantFromRow, raceFromRow, runFromRow } from './rows';
+import { COUNTS_AS_FINISH } from './dashboardQueries';
 
 /** Typed D1 access. Every read goes through a row schema; every write takes a domain object. */
 export const db = (d1: D1Database) => ({
@@ -147,15 +148,18 @@ export const db = (d1: D1Database) => ({
     const row = await d1.prepare('SELECT * FROM runs WHERE id = ?').bind(id).first();
     return row ? runFromRow(row) : null;
   },
-  /** Official results: best finished run per entrant, by time. */
+  /**
+   * Official results: best finished run per entrant, by time. A time the organizer set aside
+   * never counts, neither as a result nor as someone's best (COUNTS_AS_FINISH, on both aliases).
+   */
   async resultsForCourse(courseId: string): Promise<Array<{ run: Run; entrant: Entrant }>> {
     const { results } = await d1
       .prepare(
         `SELECT r.*, e.id AS e_id, e.race_id AS e_race_id, e.bib AS e_bib, e.email AS e_email, e.first_name AS e_first_name,
                 e.last_name AS e_last_name, e.distance_key AS e_distance_key, e.address AS e_address, e.source AS e_source, e.slot_at AS e_slot_at
          FROM runs r JOIN entrants e ON e.id = r.entrant_id
-         WHERE r.course_id = ? AND r.status IN ('finished', 'uploaded')
-           AND r.elapsed_ms = (SELECT MIN(elapsed_ms) FROM runs r2 WHERE r2.entrant_id = r.entrant_id AND r2.course_id = r.course_id AND r2.status IN ('finished', 'uploaded'))
+         WHERE r.course_id = ? AND ${COUNTS_AS_FINISH}
+           AND r.elapsed_ms = (SELECT MIN(elapsed_ms) FROM runs r2 WHERE r2.entrant_id = r.entrant_id AND r2.course_id = r.course_id AND ${COUNTS_AS_FINISH.replaceAll('r.', 'r2.')})
          ORDER BY r.elapsed_ms ASC`,
       )
       .bind(courseId)

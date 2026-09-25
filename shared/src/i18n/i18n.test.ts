@@ -9,7 +9,7 @@ describe('i18n', () => {
   });
   it('fills params', () => {
     expect(t('fr', 'signin.welcome', { firstName: 'Marc' })).toBe('Bienvenue, Marc.');
-    expect(translator('en')('landing.tagline', { race: 'Deauville' })).toBe('Run Deauville wherever you are.');
+    expect(translator('en')('landing.tagline', { race: 'Deauville' })).toBe('Deauville, wherever you are.');
   });
   it('is French first', () => {
     expect(resolveLocale(undefined)).toBe('fr');

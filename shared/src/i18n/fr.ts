@@ -19,7 +19,7 @@ export const fr = {
 
   // Landing
   'landing.eyebrow': 'Course virtuelle officielle',
-  'landing.tagline': 'Courez {race} où que vous soyez.',
+  'landing.tagline': '{race}, où que vous soyez.',
   'landing.lede': 'Pendant la semaine de la course, courez la distance là où vous êtes.',
   'landing.cta': 'Je participe',
   'landing.window': 'Du {start} au {end}',

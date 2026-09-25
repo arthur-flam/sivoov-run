@@ -18,7 +18,7 @@ export const en: Record<keyof typeof fr, string> = {
   'distance.5k': '5 km',
 
   'landing.eyebrow': 'Official virtual race',
-  'landing.tagline': 'Run {race} wherever you are.',
+  'landing.tagline': '{race}, wherever you are.',
   'landing.lede': 'During race week, run the distance wherever you are.',
   'landing.cta': 'Sign in',
   'landing.window': 'From {start} to {end}',

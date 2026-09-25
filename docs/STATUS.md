@@ -42,7 +42,7 @@ and the persisted upload entry still carries the splits in SecureStore.
 ## Session 9 — the finish line and the share (the payoff and the only viral loop)
 Before this session a finish ended on a wall of splits, and nothing a runner could show anyone
 existed. Now, end to end (screens: `npm run shots`, scenes `run-finished`, `home`, `result`,
-`result-pending`, `card-og`, `card-story`, `card-race`, `results`):
+`result-pending` (the bib page), `card-og`, `card-story`, `card-bib`, `card-race`, `results`):
 - **App finish screen** (`app/src/components/Finish.tsx`, `Medal.tsx`): an official finish lands
   a medal struck with the course (race ribbon, or `theme.medal` when the organizer sends a
   photo), the time, pace, bib, a haptic, **Partager mon arrivée** (RN `Share`: a sentence plus
@@ -71,6 +71,10 @@ existed. Now, end to end (screens: `npm run shots`, scenes `run-finished`, `home
   switch on** (below); without it previews fall back to the Mapbox course map.
 - **Night accent**: `readableOn` lifts the race colour to 3:1 on black; Deauville's navy progress
   line and runner dot were invisible on the run screen.
+- **Pre-race share** (entries sell before race week, so this is the share that can sell one):
+  until the window closes, a runner's page without a time is their **bib page** ("Léa court
+  Marathon International de Deauville.", a bib plate, Share, "Courez avec Léa"), with a bib card
+  as its link preview; the app's bib card has **Partager mon dossard** until the finish.
 - **Upload tolerance decided**: a watch stopped on the line measures ~0.24 % short through the
   tracker; within 0.5 % an upload is credited the distance and timed to its last point.
 

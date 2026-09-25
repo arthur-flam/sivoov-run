@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,7 +13,7 @@ import { locale, t } from '@/i18n';
 import { openCertificate, openResults, shareBib, shareFinish } from '@/share';
 import { useSession } from '@/stores/session';
 import { useUploads } from '@/stores/uploads';
-import { colors, fonts, radius, space } from '@/theme';
+import { colors, radius, space } from '@/theme';
 
 const fmt = (iso: string, tz: string) => new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', { day: 'numeric', month: 'long', timeZone: tz }).format(new Date(iso));
 
@@ -62,17 +62,16 @@ export default function Home() {
         <Display>{t('signin.welcome', { firstName: entrant.firstName })}</Display>
 
         {best ? (
-          <View style={[styles.finisher, { backgroundColor: race.theme.primary }]} testID="finisher-card">
-            <Body style={[styles.finisherLabel, { color: race.theme.primary, backgroundColor: race.theme.onPrimary }]}>{t('home.finisher')}</Body>
-            <Num size={72} style={{ color: race.theme.onPrimary }} testID="finisher-time">
+          <Card>
+            <Body muted>{t('home.finisher.body', { distance: distanceLabel(locale, entrant.distanceKey) })}</Body>
+            <Num size={72} testID="finisher-time">
               {formatOfficialTime(best.elapsedMs)}
             </Num>
-            <Body style={{ color: race.theme.onPrimary, opacity: 0.85 }}>{t('home.finisher.body', { distance: distanceLabel(locale, entrant.distanceKey) })}</Body>
-            <View style={styles.finisherActions}>
-              <Button label={t('finish.share')} color={race.theme.onPrimary} onColor={race.theme.primary} onPress={() => void shareFinish(race, entrant, best.elapsedMs)} />
-              <Button label={t('finish.certificate')} ghost dark onPress={() => openCertificate(race, entrant.bib)} />
+            <View style={styles.cardActions}>
+              <Button label={t('finish.share')} color={race.theme.primary} onColor={race.theme.onPrimary} onPress={() => void shareFinish(race, entrant, best.elapsedMs)} />
+              <Button label={t('finish.certificate')} ghost onPress={() => openCertificate(race, entrant.bib)} />
             </View>
-          </View>
+          </Card>
         ) : null}
 
         <Card style={styles.bibCard}>
@@ -82,9 +81,9 @@ export default function Home() {
               {entrant.bib}
             </Num>
             {!best && phase !== 'after' ? (
-              <Pressable testID="share-bib" accessibilityRole="button" onPress={() => void shareBib(race, entrant)} style={styles.shareBib}>
-                <Body style={[styles.shareBibLabel, { color: race.theme.primary }]}>{t('home.shareBib')} →</Body>
-              </Pressable>
+              <View style={styles.cardActions}>
+                <Button testID="share-bib" label={t('home.shareBib')} ghost onPress={() => void shareBib(race, entrant)} />
+              </View>
             ) : null}
           </View>
           <View style={[styles.stripe, { backgroundColor: race.theme.primary }]} />
@@ -152,13 +151,9 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
-  finisher: { borderRadius: radius.lg, padding: space.lg, gap: space.xs },
-  finisherLabel: { alignSelf: 'flex-start', fontFamily: fonts.bodyBold, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase', paddingHorizontal: space.sm, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' },
-  finisherActions: { gap: space.sm, marginTop: space.md },
+  cardActions: { gap: space.sm, marginTop: space.sm },
   bibCard: { flexDirection: 'row', alignItems: 'stretch', overflow: 'hidden' },
   stripe: { width: 10, borderRadius: 5, marginLeft: space.md },
-  shareBib: { alignSelf: 'flex-start', paddingVertical: space.sm, marginTop: space.xs },
-  shareBibLabel: { fontFamily: fonts.bodyBold, fontSize: 15 },
   big: { fontSize: 22, lineHeight: 28 },
   diagram: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, alignItems: 'center' },
   cta: { gap: space.sm },

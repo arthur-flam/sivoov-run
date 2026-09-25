@@ -40,6 +40,24 @@ the finish screen, results header, certificate, share image. Everywhere else is 
 - Whether the race layer also picks the announcer voice, or Sivoov has one voice.
 - Dark run screen vs light: prototype both under sunlight before deciding.
 
+## Until the identity is decided (owner's instruction, 2026-09-25)
+Nothing here is committed to: the direction above is a proposal. Until it is decided, new
+surfaces are built from the existing tokens and components only — `app/src/theme.ts` and
+`app/src/components/ui.tsx` in the app, the `tokens` and existing classes in
+`api/src/pages/styles.ts` on the web — with no decoration of their own (no new colours,
+gradients, shadows, frames, ornamental SVG or motion). Function and hierarchy only, so the
+identity can be applied later without undoing anything.
+
+Surfaces waiting for the identity, all deliberately plain today:
+- the share cards (`api/src/pages/card.tsx`): link previews and the image a runner posts;
+- the certificate and the bib page (`api/src/pages/result.tsx`, `.cert-*` in `styles.ts`);
+- the finish screen (`app/src/components/Finish.tsx`): a medal or ceremony moment belongs here
+  once there is a look for it; the organizer's medal photo (`theme.medal`) shows if provided;
+- the finisher card on the app's home.
+
+Kept because they are legibility, not identity: the race colour lifted to 3:1 on the night run
+screen (`readableOn`) and the untrodden course line (`colors.nightLine`).
+
 ## Conventions
 - Web pages: server-rendered, one CSS file with the tokens above, no framework. Mobile
   first, gutter 16px minimum, works at 360px wide.

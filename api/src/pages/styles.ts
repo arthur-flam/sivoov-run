@@ -1,6 +1,8 @@
-/** One stylesheet, the Sivoov layer. The race layer arrives as CSS variables on <body>. */
-export const styles = `
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/**
+ * The design tokens, alone: the share cards (pages/card.tsx) use them too, so a change of
+ * identity is a change here. The identity itself is not decided yet (docs/DESIGN.md).
+ */
+export const tokens = `
 :root {
   --bg: #faf9f7; --card: #ffffff; --ink: #1a1a1a; --ink-2: #52525b; --muted: #a1a1aa;
   --border: #e8e6e3; --accent: #e8786f; --accent-bg: #fef2f1; --accent-name: #b8443b;
@@ -9,6 +11,12 @@ export const styles = `
   --race-primary: #1a1a1a; --race-on-primary: #ffffff;
   --gutter: 16px; --max: 1040px;
 }
+`;
+
+/** One stylesheet, the Sivoov layer. The race layer arrives as CSS variables on <body>. */
+export const styles = `
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+${tokens}
 html { -webkit-text-size-adjust: 100%; }
 body { font-family: var(--font-body); background: var(--bg); color: var(--ink); line-height: 1.55; -webkit-font-smoothing: antialiased; }
 a { color: inherit; }
@@ -74,7 +82,7 @@ footer { padding: 30px 0 50px; font-size: 13px; color: var(--muted); display: fl
 .race-chip i { width: 10px; height: 10px; border-radius: 50%; background: var(--race-primary); }
 
 .welcome { text-align: center; padding: 50px 0; }
-.welcome .bib { display: inline-block; border: 2px solid var(--ink); border-radius: 10px; padding: 10px 26px; font-family: var(--font-num); font-size: 56px; font-weight: 700; line-height: 1; margin: 18px 0; font-variant-numeric: tabular-nums; }
+.welcome .bib, .result-pending .bib { display: inline-block; border: 2px solid var(--ink); border-radius: 10px; padding: 10px 26px; font-family: var(--font-num); font-size: 56px; font-weight: 700; line-height: 1; margin: 18px 0; font-variant-numeric: tabular-nums; }
 .stores { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 22px; }
 
 table.results { width: 100%; border-collapse: collapse; font-size: 15px; }
@@ -104,22 +112,20 @@ table.results { width: 100%; border-collapse: collapse; font-size: 15px; }
 .results a.runner { text-decoration: none; }
 .results a.runner:hover { text-decoration: underline; }
 
-/* A runner's result: the certificate, printable, then the ways to share it. */
-.certificate { position: relative; margin: 20px 0 22px; background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 44px 24px 22px; text-align: center; overflow: hidden; box-shadow: 0 22px 44px -30px rgba(26, 26, 26, 0.35); }
-.certificate::before { content: ''; position: absolute; inset: 14px 10px 10px; border: 1px solid var(--border); border-radius: 12px; pointer-events: none; }
-.cert-band { position: absolute; top: 0; left: 0; right: 0; height: 6px; background: var(--race-primary); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-.certificate .eyebrow { margin-bottom: 18px; }
-.cert-name { font-family: var(--font-display); font-weight: 500; font-size: clamp(34px, 8vw, 58px); line-height: 1.04; letter-spacing: -0.02em; }
-.cert-crossed { color: var(--ink-2); font-size: 15px; margin-top: 14px; }
-.cert-race { font-family: var(--font-display); font-style: italic; font-size: clamp(22px, 5vw, 32px); line-height: 1.15; color: var(--race-primary); margin-top: 2px; }
-.cert-distance { font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin-top: 10px; }
-.cert-time { font-family: var(--font-num); font-weight: 700; font-size: clamp(80px, 24vw, 150px); line-height: 0.95; letter-spacing: -0.01em; margin: 20px 0 4px; font-variant-numeric: tabular-nums; }
-.cert-facts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px 12px; max-width: 620px; margin: 22px auto 0; }
+/* A runner's result: the certificate, printable, then the ways to share it. Plain on purpose:
+   it uses the tokens and patterns above and nothing of its own until the identity is decided. */
+.certificate { margin: 20px 0 22px; background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 32px 20px 20px; text-align: center; }
+.cert-name { font-family: var(--font-display); font-weight: 500; font-size: clamp(32px, 7vw, 52px); line-height: 1.05; }
+.cert-crossed { color: var(--ink-2); margin-top: 12px; }
+.cert-race { font-family: var(--font-display); font-size: clamp(22px, 5vw, 30px); line-height: 1.15; }
+.cert-distance { color: var(--ink-2); margin-top: 6px; }
+.cert-time { font-family: var(--font-num); font-weight: 700; font-size: clamp(72px, 22vw, 140px); line-height: 1; margin: 18px 0 4px; font-variant-numeric: tabular-nums; }
+.cert-facts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px 12px; max-width: 620px; margin: 20px auto 0; }
 @media (min-width: 640px) { .cert-facts { grid-template-columns: repeat(4, 1fr); } }
-.cert-facts dt { font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.cert-facts dt { font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
 .cert-facts dd { font-family: var(--font-num); font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.cert-course { width: 150px; margin: 22px auto 0; }
-.cert-foot { position: relative; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+.cert-course { width: 150px; margin: 20px auto 0; }
+.cert-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
 .result-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 26px; }
 .result-actions .btn { flex: 1 1 auto; }
 @media (min-width: 640px) { .result-actions .btn { flex: 0 0 auto; } }
@@ -135,8 +141,6 @@ table.results { width: 100%; border-collapse: collapse; font-size: 15px; }
 .result-pending p { color: var(--ink-2); max-width: 48ch; margin: 0 auto; }
 .result-pending .hint { margin-top: 14px; }
 .result-pending .result-actions { margin-top: 26px; margin-bottom: 0; }
-.bib-plate { display: inline-grid; justify-items: center; gap: 2px; border: 3px solid var(--ink); border-radius: 12px; background: var(--card); padding: 10px 30px 12px; margin: 4px 0 24px; font-family: var(--font-num); font-size: 72px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; box-shadow: 0 16px 34px -26px rgba(26, 26, 26, 0.5); }
-.bib-plate span { font-family: var(--font-body); font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--race-primary); }
 .result-cta { border-top: 1px solid var(--border); padding: 36px 0 8px; }
 .result-cta h2 { font-family: var(--font-display); font-weight: 500; font-size: 28px; line-height: 1.15; letter-spacing: -0.01em; max-width: 20ch; }
 .result-cta p { color: var(--ink-2); max-width: 56ch; margin-top: 10px; }
@@ -146,7 +150,7 @@ table.results { width: 100%; border-collapse: collapse; font-size: 15px; }
   @page { size: A4 landscape; margin: 10mm; }
   body { background: #fff; }
   .topbar, footer, .result-actions, .result-splits, .result-cta { display: none !important; }
-  .certificate { box-shadow: none; margin: 0; padding: 56px 48px 28px; }
+  .certificate { margin: 0; padding: 48px 40px 24px; }
 }
 
 /* Upload fallback: the file input is the drop target itself, so a file dropped anywhere on it lands, with no script. */

@@ -43,12 +43,11 @@ and the persisted upload entry still carries the splits in SecureStore.
 Before this session a finish ended on a wall of splits, and nothing a runner could show anyone
 existed. Now, end to end (screens: `npm run shots`, scenes `run-finished`, `home`, `result`,
 `result-pending` (the bib page), `card-og`, `card-story`, `card-bib`, `card-race`, `results`):
-- **App finish screen** (`app/src/components/Finish.tsx`, `Medal.tsx`): an official finish lands
-  a medal struck with the course (race ribbon, or `theme.medal` when the organizer sends a
-  photo), the time, pace, bib, a haptic, **Partager mon arrivée** (RN `Share`: a sentence plus
-  the certificate link, whose preview is the finisher card) and **Mon certificat** (opens the
-  web page). A rehearsal, a late run and a stop each say what they count for. Diagnostic stays a
-  small link for the walk test.
+- **App finish screen** (`app/src/components/Finish.tsx`): the time, pace, bib, a haptic,
+  **Partager mon arrivée** (RN `Share`: a sentence plus the certificate link, whose preview is
+  the finisher card) and **Mon certificat** (opens the web page). A rehearsal, a late run and a
+  stop each say what they count for. Diagnostic and the GPS counts stay on it for the walk test.
+  Deliberately plain: see DESIGN.md "Until the identity is decided".
 - **Home** knows where the runner stands: the finisher card with the best official time as soon
   as the run is queued (`useMyResult` merges `/me` and the upload queue through
   `bestRankedRun`), days until the race opens, **Faire une répétition** before the window,
@@ -217,8 +216,9 @@ the near-black ghost labels on the night screens.
   travels anyway; the web page shares the image file itself where the browser allows.
 - **The certificate is the web page**, printed to PDF by the browser (print CSS). No PDF library.
 - **Upload tolerance 0.5 %** of the course distance for a watch stopped on the line.
-- The finish screen is the one place with motion outside the countdown (a spring on the medal,
-  core `Animated`): Reanimated 4 needs react-native-worklets, which is not installed.
+- **No opinionated design until the identity is decided** (owner): new surfaces use the existing
+  tokens and components only; the surfaces waiting for a look are listed in DESIGN.md. A first
+  pass with a gold medal, framed certificate and coloured cards was taken back out.
 
 ## Decisions taken 2026-09-13 (studio slice)
 - The **script is a shared schema** (`shared/schemas/audioScript.ts` + `domain/audioScript.ts`).

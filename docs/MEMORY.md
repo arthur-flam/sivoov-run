@@ -237,7 +237,10 @@
   screenshot there renders in fallback fonts (a wide sans for Barlow Condensed). Judge spacing
   with that in mind; the real cards are narrower.
 - 2026-09-25: Reanimated 4 is in package.json but `react-native-worklets` is not, so nothing may
-  use Reanimated yet; the medal on the finish screen uses core `Animated` with the native driver.
+  use Reanimated yet; any motion needs core `Animated` (native driver) until that is sorted.
+- 2026-09-25: the owner has not committed to a visual identity and does not want design
+  opinions shipped meanwhile: build new screens from the existing tokens and components, plain
+  (DESIGN.md, "Until the identity is decided").
 - 2026-09-25: leaving the run for home used `router.replace('/home')`, which stacks a second home
   over prepare and the first home. `router.dismissTo('/home')` goes back to the one that exists,
   and `useFocusEffect` there refreshes `/me`.

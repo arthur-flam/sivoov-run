@@ -34,7 +34,6 @@ export const ResultPage = ({ race, result, track, locale, now, shareUrl, storyCa
       {best ? (
         <>
           <article class="certificate" aria-label={t('result.certificate')}>
-            <div class="cert-band" />
             <div class="eyebrow">{t('result.certificate')}</div>
             <h1 class="cert-name">
               {entrant.firstName} <span>{entrant.lastName.toUpperCase()}</span>
@@ -42,7 +41,7 @@ export const ResultPage = ({ race, result, track, locale, now, shareUrl, storyCa
             <p class="cert-crossed">{t('result.crossed')}</p>
             <p class="cert-race">{race.theme.displayName}</p>
             <p class="cert-distance">
-              {distanceLabel(locale, entrant.distanceKey)} · {t('landing.eyebrow').toLowerCase()}
+              {distance} · {t('landing.eyebrow').toLowerCase()}
             </p>
             <div class="cert-time" data-testid="result-time">
               {formatOfficialTime(best.run.elapsedMs)}
@@ -105,8 +104,7 @@ export const ResultPage = ({ race, result, track, locale, now, shareUrl, storyCa
       ) : open ? (
         <section class="result-pending">
           <div class="eyebrow">{race.theme.displayName}</div>
-          <div class="bib-plate" data-testid="bib-plate">
-            <span>{t('result.bib')}</span>
+          <div class="bib" data-testid="bib-plate">
             {entrant.bib}
           </div>
           <h1>{t('result.bib.title', { firstName: entrant.firstName, race: race.theme.displayName })}</h1>

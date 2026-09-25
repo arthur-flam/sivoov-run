@@ -163,7 +163,6 @@ export const en: Record<keyof typeof fr, string> = {
   'finish.certificate': 'My certificate',
   'finish.home': 'Back to home',
   'finish.shareMessage': '{race}, {distance}: {time} 🏅 Ran it from where I was, with the start and the finish in my ears. {url}',
-  'home.finisher': 'Finisher',
   'home.finisher.body': 'Your official time · {distance}',
   'home.runAgain': 'Run again',
   'home.runAgain.note': 'Only your best time counts.',

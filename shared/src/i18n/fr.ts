@@ -169,7 +169,6 @@ export const fr = {
   'finish.certificate': 'Mon certificat',
   'finish.home': 'Retour à l’accueil',
   'finish.shareMessage': '{race}, {distance} : {time} 🏅 Couru là où j’étais, avec le départ et l’arrivée dans les oreilles. {url}',
-  'home.finisher': 'Finisher',
   'home.finisher.body': 'Votre temps officiel · {distance}',
   'home.runAgain': 'Courir à nouveau',
   'home.runAgain.note': 'Seul votre meilleur temps compte.',

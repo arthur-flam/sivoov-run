@@ -119,10 +119,8 @@ export default function Run() {
           race={race}
           course={course}
           entrant={me.entrant}
-          track={track}
           state={state}
           outcome={outcome}
-          accent={accent}
           simulation={source.kind === 'simulation'}
           uploadStatus={uploadStatus}
           onHome={() => router.dismissTo('/home')}

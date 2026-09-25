@@ -159,16 +159,13 @@ export const scenes: Scene[] = [
   },
   {
     id: 'run-finished',
-    title: 'Finish — the medal, the official time, share, then the splits',
+    title: 'Finish — the official time, share, then the splits',
     store: true,
     go: async (page, shoot) => {
       // The half at 5:00/km is 105 minutes of race: ~30 s of wall clock at x240.
       await openRun(page, 240);
       await page.getByTestId('start').click();
       await expect(page.getByTestId('final-time')).toBeVisible({ timeout: 180_000 });
-      // The medal lands on a spring: let it settle before the picture.
-      await expect(page.getByTestId('medal')).toBeVisible();
-      await page.waitForTimeout(900);
       await shoot();
       if (await scrollToEnd(page)) await shoot('splits');
     },

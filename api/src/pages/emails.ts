@@ -1,4 +1,4 @@
-import type { Race } from '@sivoov/shared';
+import type { Lead, Race } from '@sivoov/shared';
 import type { Mail } from '../lib/mailer';
 
 export const codeEmail = ({ to, firstName, race, code }: { to: string; firstName: string; race: Race; code: string }): Mail => ({
@@ -7,6 +7,26 @@ export const codeEmail = ({ to, firstName, race, code }: { to: string; firstName
   text: `Bonjour ${firstName},\n\nVotre code pour ${race.theme.displayName} : ${code}\n\nIl est valable 15 minutes.\n\nSivoov Run`,
   html: `<p>Bonjour ${firstName},</p><p>Votre code pour <strong>${race.theme.displayName}</strong> :</p>
 <p style="font-size:34px;letter-spacing:0.3em;font-weight:700">${code}</p><p>Il est valable 15 minutes.</p><p>Sivoov Run</p>`,
+});
+
+/**
+ * To Sivoov staff when a race organizer writes from /organisateurs. Plain text only: every field
+ * comes from a public form, and text cannot inject markup into anyone's mail client.
+ */
+export const leadEmail = ({ to, lead }: { to: string; lead: Lead }): Mail => ({
+  to,
+  subject: `Nouvelle demande organisateur · ${lead.race}`,
+  text: [
+    'Une demande est arrivée depuis la page organisateurs.',
+    '',
+    `Nom : ${lead.name}`,
+    `Email : ${lead.email}`,
+    `Course : ${lead.race}`,
+    `Langue : ${lead.locale === 'fr' ? 'français' : 'anglais'}`,
+    ...(lead.message ? ['', 'Message :', lead.message] : []),
+    '',
+    `Répondez directement à ${lead.email}.`,
+  ].join('\n'),
 });
 
 export const organizerCodeEmail = ({ to, race, code }: { to: string; race: Race; code: string }): Mail => ({

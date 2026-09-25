@@ -22,7 +22,7 @@ export const tokens = `
   --font-num: 'Barlow Condensed', 'DM Sans', sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   /* Shape */
-  --radius-sm: 8px; --radius: 12px; --radius-lg: 16px; --radius-pill: 999px;
+  --radius-sm: 8px; --radius: 12px; --radius-lg: 16px; --radius-xl: 32px; --radius-pill: 999px;
   --shadow: 0 1px 2px rgba(20, 20, 20, 0.04), 0 4px 16px rgba(20, 20, 20, 0.05);
   --gutter: 16px; --max: 1040px;
   /* Race layer defaults, overridden on <body> by the race theme */
@@ -31,6 +31,9 @@ export const tokens = `
   --card: var(--surface); --accent-name: var(--accent-ink);
 }
 `;
+
+/** The browser's own chrome (`<meta name="theme-color">`) on pages without a race: the --bg above. */
+export const THEME_COLOR = '#faf9f7';
 
 /** Google Fonts for the three faces above. Change it together with the --font-* tokens. */
 export const FONTS_URL =

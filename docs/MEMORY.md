@@ -194,3 +194,19 @@
 - 2026-09-23: `expo/expo-github-action/preview@v8` rejects `qr-target: dev-build` ("Invalid QR code
   target: dev-build, expected expo-go or dev-build"): its input check only lists `dev-client`,
   which it maps to dev-build. Use `dev-client`. The preview workflow had never run before PR #1.
+- 2026-09-25: public pages and /organisateurs. Things worth knowing next time:
+  - `Intl.DateTimeFormat.formatRange` joins "14" and "15 novembre 2026" with an en dash
+    (U+2013), which the copy rules forbid. `fmtRaceDays` / `fmtSpan` in `api/src/pages/dates.ts`
+    build "14 et 15 novembre 2026" and "du 9 au 15 novembre" from the dictionary instead.
+  - A race's `dateStart`/`dateEnd` are ISO dates (midnight UTC once parsed): format them in UTC,
+    not in the race timezone, or every race west of Greenwich shows the day before.
+  - `/organisateurs` is its own router (`api/src/routes/organizers.tsx`) mounted before the pages,
+    like `/org`; `localeOf` moved to `api/src/routes/locale.ts` so both routers share it.
+  - The lead form is a public form that mails staff: a hidden `website` field (bots fill it, the
+    lead is thanked and dropped) and five leads per email per day. The staff mail is plain text
+    only, since every field in it was typed by a stranger.
+  - Workerd tests can assert on mail: the console mailer logs synchronously when `send` is
+    called, so `vi.spyOn(console, 'log')` sees the `[mail] to=...` lines before the response
+    returns (see `api/test/public.test.ts`).
+  - A thrown-together screenshot script that splits `name=path` on `=` silently drops
+    `?lang=en` and photographs the French page. Split on the first `=` only.

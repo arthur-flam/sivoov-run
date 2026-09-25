@@ -1,13 +1,16 @@
 import type { Child } from 'hono/jsx';
 import type { Race } from '@sivoov/shared';
 import type { Locale } from '@sivoov/shared';
+import { translator } from '@sivoov/shared';
 import { styles } from './styles';
-import { FONTS_URL } from './tokens';
+import { FONTS_URL, THEME_COLOR } from './tokens';
 
 type Props = { title: string; description?: string; locale: Locale; race?: Race; path: string; children: Child };
 
+export const ORGANIZERS_PATH = '/organisateurs';
 
 export const Layout = ({ title, description, locale, race, path, children }: Props) => {
+  const t = translator(locale);
   const other = locale === 'fr' ? 'en' : 'fr';
   const themeVars = race ? `--race-primary:${race.theme.primary};--race-on-primary:${race.theme.onPrimary};` : '';
   return (
@@ -17,7 +20,7 @@ export const Layout = ({ title, description, locale, race, path, children }: Pro
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>{title}</title>
         {description ? <meta name="description" content={description} /> : null}
-        <meta name="theme-color" content={race?.theme.primary ?? '#faf9f7'} />
+        <meta name="theme-color" content={race?.theme.primary ?? THEME_COLOR} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
         <link rel="stylesheet" href={FONTS_URL} />
@@ -29,14 +32,20 @@ export const Layout = ({ title, description, locale, race, path, children }: Pro
             <a class="brand" href="/">
               Sivoov <span>Run</span>
             </a>
-            <a class="lang" href={`${path}?lang=${other}`} hreflang={other}>
-              {other === 'en' ? 'English' : 'Français'}
-            </a>
+            <nav class="topnav">
+              <a href={ORGANIZERS_PATH} aria-current={path === ORGANIZERS_PATH ? 'page' : undefined}>
+                {t('site.nav.organizers')}
+              </a>
+              <a class="lang" href={`${path}?lang=${other}`} hreflang={other}>
+                {t('site.otherLanguage')}
+              </a>
+            </nav>
           </header>
           {children}
           <footer>
-            <span>{locale === 'fr' ? 'Une expérience Sivoov' : 'A Sivoov experience'}</span>
-            <span>
+            <span>{t('landing.poweredBy')}</span>
+            <span class="footer-links">
+              <a href="/org">{t('site.footer.organizerSpace')}</a>
               <a href="https://sivoov.app">sivoov.app</a>
             </span>
           </footer>

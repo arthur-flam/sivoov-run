@@ -10,5 +10,6 @@ export * from './audioScript';
 export * from './audioEstimates';
 export * from './format';
 export * from './gpx';
+export * from './upload';
 export * from './csvEntrants';
 export * from './mapbox';

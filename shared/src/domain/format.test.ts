@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatClock, formatKm, formatOfficialTime, formatPace, formatRank, parsePace } from './format';
+import { formatClock, formatKm, formatMegabytes, formatOfficialTime, formatPace, formatRank, parsePace } from './format';
 
 describe('format', () => {
   it('clock', () => {
@@ -19,6 +19,11 @@ describe('format', () => {
   it('km per locale', () => {
     expect(formatKm(10000, 'fr')).toBe('10,00 km');
     expect(formatKm(21097.5, 'en', 1)).toBe('21.1 km');
+  });
+  it('download size per locale, a tiny pack still showing a size', () => {
+    expect(formatMegabytes(1_850_000, 'fr')).toBe('1,9 Mo');
+    expect(formatMegabytes(1_850_000, 'en')).toBe('1.9 MB');
+    expect(formatMegabytes(12_000, 'fr')).toBe('0,1 Mo');
   });
 });
 

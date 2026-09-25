@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { batteryCheck, canStart, gpsCheck, permissionCheck } from './preflight';
+import { batteryCheck, canStart, gpsCheck, packCheck, permissionCheck } from './preflight';
 
 describe('pre-flight checks', () => {
   it('locks GPS on a fix under 30 m and keeps the best accuracy seen', () => {
@@ -28,5 +28,17 @@ describe('pre-flight checks', () => {
     expect(canStart({ gps: gpsCheck(10, 1000), permission: permissionCheck('always') })).toBe(true);
     expect(canStart({ gps: gpsCheck(10, 1000), permission: permissionCheck('foreground') })).toBe(false);
     expect(canStart({ gps: gpsCheck(null, 1000), permission: permissionCheck('always') })).toBe(false);
+  });
+  it('says the audio pack is on the phone, and how big it is', () => {
+    expect(packCheck({ status: 'ready', bytes: 1_850_000 }, 'fr')).toEqual({ status: 'ok', key: 'prepare.check.pack.ok', params: { size: '1,9 Mo' } });
+    expect(packCheck({ status: 'ready', bytes: 1_850_000 }, 'en').params).toEqual({ size: '1.9 MB' });
+    expect(packCheck({ status: 'loading', bytes: 0 }, 'fr')).toEqual({ status: 'pending', key: 'prepare.check.pack.loading' });
+    expect(packCheck({ status: 'idle', bytes: 0 }, 'fr').status).toBe('pending');
+  });
+  it('warns when the pack did not come down or does not exist, and never holds the start for it', () => {
+    expect(packCheck({ status: 'error', bytes: 0 }, 'fr')).toEqual({ status: 'warn', key: 'prepare.check.pack.error' });
+    expect(packCheck({ status: 'none', bytes: 0 }, 'fr')).toEqual({ status: 'warn', key: 'prepare.check.pack.none' });
+    const checks = { gps: gpsCheck(10, 1000), permission: permissionCheck('always'), pack: packCheck({ status: 'error', bytes: 0 }, 'fr') };
+    expect(canStart(checks)).toBe(true);
   });
 });

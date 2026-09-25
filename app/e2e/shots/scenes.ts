@@ -67,6 +67,54 @@ export const scrollToEnd = async (page: Page): Promise<boolean> => {
   return scrolled;
 };
 
+/** `seconds` of silence as an 8 kHz 8-bit mono WAV: a file the browser can load, time and end. */
+const silentWav = (seconds: number): Buffer => {
+  const samples = Math.round(seconds * 8000);
+  const header = Buffer.alloc(44);
+  header.write('RIFF', 0);
+  header.writeUInt32LE(36 + samples, 4);
+  header.write('WAVEfmt ', 8);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(1, 22);
+  header.writeUInt32LE(8000, 24);
+  header.writeUInt32LE(8000, 28);
+  header.writeUInt16LE(1, 32);
+  header.writeUInt16LE(8, 34);
+  header.write('data', 36);
+  header.writeUInt32LE(samples, 40);
+  return Buffer.concat([header, Buffer.alloc(samples, 128)]);
+};
+
+/**
+ * The one thing the rig serves itself: the local stack has no rendered voice (ElevenLabs is
+ * not reachable from it), so no course has a published pack. This one carries the Deauville
+ * script's start ceremony as silent files: an intro, a ten-second countdown, the gun.
+ */
+const withCeremonyPack = async (page: Page): Promise<void> => {
+  const files = { intro: silentWav(4), countdown: silentWav(10), gun: silentWav(2) };
+  const lines = [
+    { id: 'ceremony.intro', at: 'armed', key: 'intro' },
+    { id: 'ceremony.countdown', at: 'countdown', key: 'countdown' },
+    { id: 'ceremony.gun', at: 'gun', key: 'gun' },
+  ] as const;
+  await page.route('**/shots-audio/*.wav', (route) => {
+    const key = route.request().url().split('/').pop()!.replace('.wav', '') as keyof typeof files;
+    return route.fulfill({ body: files[key], contentType: 'audio/wav' });
+  });
+  await page.route('**/api/courses/*/pack', (route) =>
+    route.fulfill({
+      json: {
+        courseId: route.request().url().split('/').at(-2),
+        version: 1,
+        locale: 'fr',
+        events: lines.map((l) => ({ id: l.id, trigger: { kind: 'cue', at: l.at, order: 1 }, source: { kind: 'file', key: `${l.key}.wav` }, mix: 'wait', priority: 10, category: 'ceremony', once: true })),
+        files: Object.fromEntries(lines.map((l) => [`${l.key}.wav`, { url: `http://localhost:8788/shots-audio/${l.key}.wav`, bytes: files[l.key].length, sha256: 'silent' }])),
+      },
+    }),
+  );
+};
+
 const openRun = async (page: Page, speed: number): Promise<void> => {
   await page.goto(`/run?sim=1&pace=5:00&noise=4&speed=${speed}`);
   await expect(page.getByTestId('sim-badge')).toBeVisible({ timeout: 20_000 });
@@ -112,12 +160,14 @@ export const scenes: Scene[] = [
   },
   {
     id: 'prepare',
-    title: 'Pre-flight — GPS lock, permission, battery, headphones',
+    title: 'Pre-flight — GPS lock, permission, battery, headphones, audio pack',
     store: true,
     go: async (page, shoot) => {
+      await withCeremonyPack(page);
       await page.goto('/prepare');
       // The GPS check is pending until a fix lands; the shot is only worth taking once it locks.
       await expect(page.getByTestId('go-start')).toBeEnabled({ timeout: 20_000 });
+      await expect(page.getByTestId('check-pack')).toHaveAccessibleName(/: ok$/);
       await shoot();
     },
   },
@@ -133,12 +183,16 @@ export const scenes: Scene[] = [
   },
   {
     id: 'run-countdown',
-    title: 'Run — the countdown before the gun',
+    title: 'Run — the start ceremony: on the line, then the countdown file’s digits',
     go: async (page, shoot) => {
-      // Real time, so the countdown holds still long enough to be caught.
-      await openRun(page, 1);
+      // The device source (the rig grants a fixed position): simulation skips the ceremony.
+      await withCeremonyPack(page);
+      await page.goto('/run');
       await page.getByTestId('start').click();
-      await expect(page.getByTestId('countdown')).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByTestId('on-the-line')).toBeVisible({ timeout: 10_000 });
+      await shoot('line');
+      // Two seconds into the ten-second countdown file: the digit reads 8.
+      await expect(page.getByTestId('countdown')).toHaveText('8', { timeout: 15_000 });
       await shoot();
     },
   },

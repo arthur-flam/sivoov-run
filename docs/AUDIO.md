@@ -94,6 +94,11 @@ text never leaves the organizer session.
 ## Playback rules in the app
 - Background audio session, mixes with the runner's music (duck), never steals focus
   permanently.
+- The pack downloads from the race home and the pre-flight, so it is on the phone before the
+  start line; the pre-flight says so ("Pack audio prêt · 1,9 Mo"). A run never waits for it.
+- Files play through `playSequence` (`app/src/audio/player.ts`): N files back to back, all or
+  nothing, with a watchdog because expo-audio reports no load error on Android. The event
+  queue plays each event as a sequence of one; the start ceremony is a sequence of its lines.
 - Interruptions (call) pause; events missed during a pause are dropped, not queued, except
   `finish`.
 - Volume and "less talk" setting: `coaching` and `personal` can be turned down independently

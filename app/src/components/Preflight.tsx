@@ -16,15 +16,16 @@ export const CheckRow = ({ title, check, testID }: { title: string; check: Check
   </View>
 );
 
-export type PreflightChecks = { permission: Check; gps: Check; battery: Check; headphones: Check };
+export type PreflightChecks = { permission: Check; gps: Check; battery: Check; headphones: Check; pack: Check };
 
-/** The four pre-flight rows. The screen decides what the checks are; this only shows them. */
+/** The pre-flight rows. The screen decides what the checks are; this only shows them. */
 export const Preflight = ({ checks }: { checks: PreflightChecks }) => (
   <Card style={{ gap: space.sm }}>
     <CheckRow testID="check-permission" title={t('prepare.check.permission')} check={checks.permission} />
     <CheckRow testID="check-gps" title={t('run.checks.gps')} check={checks.gps} />
     <CheckRow testID="check-battery" title={t('run.checks.battery')} check={checks.battery} />
     <CheckRow testID="check-headphones" title={t('run.checks.headphones')} check={checks.headphones} />
+    <CheckRow testID="check-pack" title={t('prepare.check.pack')} check={checks.pack} />
   </Card>
 );
 

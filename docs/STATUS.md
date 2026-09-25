@@ -109,6 +109,32 @@ and gets a time marked "import" in the results. Local only so far; nothing deplo
   with GPS. Judging a marathon GPX costs 60-110 ms of CPU: fine on Workers Paid, over the Free
   plan's 10 ms — check the account's plan before race week.
 
+## Session 9: the start ceremony, in sync
+Pipe item 4 (a), (b) and the first half of (c); `AUDIO_EXPERIENCE.md` §2.6 rows 1, 3, 4.
+- **`cue` trigger** (`at: 'armed' | 'countdown' | 'gun'`, `order`). `ceremonySequence()` in
+  `shared/` orders the lines; `nextEvents` never fires one. The studio edits cues ("Avant le
+  départ") and draws them at the start; the Deauville seed moved its intro, countdown and gun to cues.
+- **The clock starts when the gun file starts.** Pressing Start plays the ceremony back to back
+  (`playSequence` in `app/src/audio/player.ts`, which the event player now uses too): a plain
+  "Sur la ligne" screen during the `armed` lines, then digits read from the countdown file
+  (`ceil(duration - currentTime)`), then `startRun()` dated from the gun file's own position.
+- **Fallbacks:** a pack with no cue (every pack published so far), a missing file or a line that
+  fails before the gun → the silent 5 s countdown; a failing gun file → the race starts at once.
+  Simulation skips the ceremony, so the rig and e2e stay fast.
+- **The pack downloads from the race home and the pre-flight**, whose fifth line reads "Pack audio
+  prêt · N Mo", downloading, no pack yet, or not downloaded (retried by "Relancer les
+  vérifications"). It never blocks the start. `/prepare` no longer announces a count of checks.
+- **Verified on the web target** (Playwright, silent WAVs through `page.route`): digits 4-3-2-1 for
+  a 4 s countdown file, the clock at 0:00 when the gun plays, the fallback on a broken file.
+  **Not verified on a phone:** expo-audio's `playing`/`currentTime` status timing on Android, the
+  gap between files, the ceremony through headphones with music ducked.
+- **Before the next publish:** preview's draft still has the old `start` / `elapsed: 0` triggers
+  (the seed never overwrites a draft): switch the three lines to cues in the studio. Re-render the
+  intro (it now ends with « Coureurs, à vos marques ») and the numbers-only countdown, and check the
+  countdown file lasts about ten seconds. Publish only once this app update is on the phones: an
+  older build plays no cue at all.
+- Not done from §2.5: checking `sha256` of downloaded files, deleting older pack versions.
+
 ## Start here (next session)
 1. Read this file, `docs/WORKFLOW.md` (loop 2b), `docs/MEMORY.md`.
 2. **No laptop?** That is now the supported case. `Sivoov (Preview)` on the phone is standalone;

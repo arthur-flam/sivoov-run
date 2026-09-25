@@ -244,3 +244,18 @@
 - 2026-09-25: leaving the run for home used `router.replace('/home')`, which stacks a second home
   over prepare and the first home. `router.dismissTo('/home')` goes back to the one that exists,
   and `useFocusEffect` there refreshes `/me`.
+- 2026-09-25: start ceremony (session 9). Things worth knowing next time:
+  - A sub-agent's worktree can be cut from `main` while the session branch is commits ahead:
+    compare `git log main..<session branch>` before building on it.
+  - expo-audio on the web: `onended` emits no status; `didJustFinish` arrives with the `pause`
+    event the browser fires just before `ended`. Web statuses always say `isLoaded: true`;
+    `duration` is 0 until the metadata is in. Statuses come from `timeupdate`, throttled to the
+    player's `updateInterval` (500 ms unless `createAudioPlayer(src, { updateInterval })` says
+    otherwise), and now carry an `error` string, set by the web `onerror`.
+  - A status lags the sound by up to one update: the gun is dated `now - currentTime`, not `now`.
+  - Headless Chromium loads and plays a silent WAV served by `page.route`, and reports its
+    duration and position: that is how the rig and the ad-hoc e2e checks drive the ceremony
+    with no rendered voice.
+  - The pack store's retry keeps the pack and files it already has: `me` refreshes while a
+    run is on screen (a flushed upload triggers it), and a reload that emptied the store then
+    silenced the rest of the run. `usePackDownload` is keyed on the course id for the same reason.

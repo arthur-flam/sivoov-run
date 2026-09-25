@@ -14,10 +14,13 @@ these are generated, and the reviewable artefact is the sheet or the files you s
 
 ## What it drives
 
-Nothing is mocked. The rig starts the local Worker and the Expo web target, migrates and
+Nothing is mocked but the audio pack. The rig starts the local Worker and the Expo web target, migrates and
 seeds the local D1, signs in as a real seeded entrant, and runs a **simulated half marathon
 at ×240** so the finish screen and the splits are real output, not a fixture. A full pass is
-about seventy seconds.
+about seventy seconds. The local stack has no rendered voice, so the `prepare` and
+`run-countdown` scenes serve a pack of silent WAVs carrying the start ceremony
+(`withCeremonyPack` in `app/e2e/shots/scenes.ts`); `run-countdown` uses the device source
+because simulation skips the ceremony.
 
 ## Options
 

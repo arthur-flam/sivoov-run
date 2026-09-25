@@ -224,3 +224,20 @@
     With parallel sessions, start `wrangler dev --env local --port <free>` and run Playwright with
     a throwaway config spreading `playwright.shots.config.ts` with `webServer: undefined` and
     `use.baseURL` on that port.
+- 2026-09-25: `Agent` with `isolation: worktree` branches from the local `main`, not from the
+  session branch: two subagents started eight commits behind and one could not fast-forward
+  (the auto-mode check refused it). For parallel work on a session branch, create the worktree
+  yourself (`git worktree add .claude/worktrees/<name> -b <name> HEAD`) and point the agent at
+  it; `.claude/worktrees/` is in `.git/info/exclude`.
+- 2026-09-25: SQLite in workerd refuses an outer alias in the ORDER BY of a subquery that sits in
+  a JOIN's ON clause (`no such column: ra.window_end`, then `e.race_id`), while a similar query
+  ran fine through `wrangler d1 execute --local`. Test SQL in the workerd suite, not the CLI.
+  `db/ranked.ts` looks the race window up by id, and `resultRows` binds the id (`?1`).
+- 2026-09-25: the cloud container cannot reach Google Fonts: every page and share-card
+  screenshot there renders in fallback fonts (a wide sans for Barlow Condensed). Judge spacing
+  with that in mind; the real cards are narrower.
+- 2026-09-25: Reanimated 4 is in package.json but `react-native-worklets` is not, so nothing may
+  use Reanimated yet; the medal on the finish screen uses core `Animated` with the native driver.
+- 2026-09-25: leaving the run for home used `router.replace('/home')`, which stacks a second home
+  over prepare and the first home. `router.dismissTo('/home')` goes back to the one that exists,
+  and `useFocusEffect` there refreshes `/me`.

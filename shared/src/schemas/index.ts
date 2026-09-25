@@ -7,3 +7,4 @@ export * from './audio';
 export * from './audioScript';
 export * from './auth';
 export * from './organizer';
+export * from './lead';

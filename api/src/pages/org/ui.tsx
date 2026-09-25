@@ -156,3 +156,64 @@ export const ConfirmButton = ({ message, class: cls = 'btn btn-danger', children
     {children}
   </button>
 );
+
+export type ChoiceOption = { value: string; label: Child; hint?: Child };
+
+/** Radio buttons (or checkboxes) as cards, each with one plain sentence under its name. */
+export const Choices = ({ type = 'radio', name, legend, hint, options, selected, columns, error }: {
+  type?: 'radio' | 'checkbox'; name: string; legend: Child; hint?: Child; options: ChoiceOption[]; selected: readonly string[]; columns?: 2; error?: Child;
+}) => (
+  <fieldset class={columns === 2 ? 'choices two' : 'choices'}>
+    <legend>
+      {legend} {hint ? <span class="hint">{hint}</span> : null}
+    </legend>
+    {options.map((o) => (
+      <label class="choice">
+        <input type={type} name={name} value={o.value} checked={selected.includes(o.value)} />
+        <span>
+          <b>{o.label}</b>
+          {o.hint ? <small>{o.hint}</small> : null}
+        </span>
+      </label>
+    ))}
+    {error ? <span class="err">{error}</span> : null}
+  </fieldset>
+);
+
+/** A native color picker with the color's code next to it. */
+export const ColorInput = ({ id, name, value }: { id: string; name: string; value: string }) => (
+  <div class="color-input">
+    <input type="color" id={id} name={name} value={value} />
+    <code data-code-for={id}>{value}</code>
+  </div>
+);
+
+/** What a picture slot holds now, or an empty frame saying so. */
+export const ImageFrame = ({ src, alt, empty, wide }: { src?: string; alt: string; empty: Child; wide?: boolean }) => (
+  <div class={`img-frame${wide ? ' wide' : ''}${src ? ' filled' : ''}`}>{src ? <img src={src} alt={alt} /> : <span>{empty}</span>}</div>
+);
+
+/** A list of people or requests. Each row: a lead (avatar), a name, a short line, badges, and room below. */
+export const Rows = ({ children }: { children: Child }) => <ul class="rows">{children}</ul>;
+
+export const Row = ({ lead, title, sub, aside, dim, children }: { lead?: Child; title: Child; sub?: Child; aside?: Child; dim?: boolean; children?: Child }) => (
+  <li class={dim ? 'dim' : undefined}>
+    <div class="row-top">
+      {lead ?? null}
+      <div class="row-main">
+        <b>{title}</b>
+        {sub ? <span>{sub}</span> : null}
+      </div>
+      {aside ? <div class="row-aside">{aside}</div> : null}
+    </div>
+    {children ? <div class="row-body">{children}</div> : null}
+  </li>
+);
+
+/** A small button that opens a form in place ("Modifier"). */
+export const Disclose = ({ label, children }: { label: Child; children: Child }) => (
+  <details class="disclose">
+    <summary class="btn btn-sm btn-quiet">{label}</summary>
+    <div class="disclose-body">{children}</div>
+  </details>
+);

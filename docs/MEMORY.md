@@ -194,3 +194,8 @@
 - 2026-09-23: `expo/expo-github-action/preview@v8` rejects `qr-target: dev-build` ("Invalid QR code
   target: dev-build, expected expo-go or dev-build"): its input check only lists `dev-client`,
   which it maps to dev-build. Use `dev-client`. The preview workflow had never run before PR #1.
+- 2026-09-25: Hono's RegExpRouter does not group an alternation inside a route param. With
+  `/:slug/settings/:section{race|window}` and `/:slug/settings/:slot{logo|hero}` mounted together,
+  `POST /x/settings/logo/remove` ran the upload handler: the combined regex splits on the bare `|`.
+  It only shows once several such routes share a prefix (a lone one works). Register one route
+  per value instead (`SECTIONS.forEach((s) => app.post(`.../${s}`, ...))`, api/src/routes/orgRace.tsx).

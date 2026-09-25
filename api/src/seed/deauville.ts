@@ -52,10 +52,18 @@ export const deauvilleTestEntrants: Entrant[] = [
   { bib: '1003', email: 'arthur.flam@gmail.com', firstName: 'Arthur', lastName: 'Flam', distanceKey: 'half' },
 ].map((e) => EntrantSchema.parse({ ...e, id: `deauville-2026-${e.bib}`, raceId: deauvilleRace.id, source: 'manual' }));
 
-/** Who may open /org/deauville-2026. The @example.com one signs in with TEST_CODE on local and preview. */
-export const deauvilleOrganizers: Organizer[] = ['arthur.flam@gmail.com', 'orga@example.com'].map((email) =>
-  OrganizerSchema.parse({ id: `deauville-2026-org-${email.split('@')[0]}`, raceId: deauvilleRace.id, email }),
-);
+/**
+ * Who may open /org/deauville-2026, one per role. The @example.com ones sign in with TEST_CODE on
+ * local and preview (docs/ACCESS.md) and are not seeded on production.
+ */
+export const deauvilleOrganizers: Organizer[] = (
+  [
+    ['arthur.flam@gmail.com', 'owner'],
+    ['orga@example.com', 'owner'],
+    ['equipe@example.com', 'editor'],
+    ['lecture@example.com', 'viewer'],
+  ] as const
+).map(([email, role]) => OrganizerSchema.parse({ id: `deauville-2026-org-${email.split('@')[0]}`, raceId: deauvilleRace.id, email, role }));
 
 /**
  * The v0 marathon script, seeded as the studio's draft. Its version is set at insert time to

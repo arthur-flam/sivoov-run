@@ -3,7 +3,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AudioPackSchema, buildTrack, deauvilleMarathonGeometry } from '@sivoov/shared';
 import type { AudioScriptInput } from '@sivoov/shared';
 import { db } from '../src/db/queries';
-import { orgDb } from '../src/db/orgQueries';
+import { sha256HexBytes } from '../src/lib/crypto';
+import { adminDb } from '../src/db/adminQueries';
 import { scriptDb } from '../src/db/scriptQueries';
 import { deauvilleCourses, deauvilleOrganizers, deauvilleRace } from '../src/seed/deauville';
 
@@ -44,12 +45,12 @@ beforeAll(async () => {
   const q = db(env.DB);
   await q.upsertRace(deauvilleRace);
   await Promise.all(deauvilleCourses.map((c) => q.upsertCourse(c)));
-  await Promise.all(deauvilleOrganizers.map((o) => orgDb(env.DB).upsertOrganizer(o)));
+  await Promise.all(deauvilleOrganizers.map((o) => adminDb(env.DB).upsertOrganizer(o)));
   // The seeded marathon's trace, as `npm run seed` puts it in R2.
   await env.FILES.put('courses/deauville-2026-marathon.json', JSON.stringify(deauvilleMarathonGeometry), {
     httpMetadata: { contentType: 'application/json' },
   });
-  const res = await SELF.fetch(`${base}/signin`, {
+  const res = await SELF.fetch('http://run.test/org/signin', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ step: 'code', email: 'orga@example.com', code: env.TEST_CODE! }).toString(),
@@ -76,15 +77,22 @@ const send = (path: string, body: unknown, method = 'POST') =>
   SELF.fetch(`${base}${path}`, { method, headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
 describe('courses page', () => {
-  it('needs a session, then lists the race courses with their status', async () => {
+  it('needs a session, then says in plain words where each distance stands and what to do next', async () => {
     expect((await SELF.fetch(`${base}/courses`, { redirect: 'manual' })).status).toBe(302);
     const html = await (await get('/courses')).text();
-    expect(html).toContain('Parcours et audio');
+    expect(html).toContain('Parcours et annonces');
     expect(html).toContain('Marathon');
-    expect(html).toContain('Ouvrir le studio');
-    // The seeded marathon has a trace in R2 (42,4 km measured) and nine landmarks.
-    expect(html).toContain('42,41 km mesurés');
-    expect(html).toContain('aucun script');
+    // The seeded marathon has a trace in R2 (42,4 km measured), matching its official distance.
+    expect(html).toContain('Tracé importé');
+    expect(html).toContain('42,41 km mesurés pour 42,195 km officiels');
+    // The half points at the same file: 42,4 km for 21,1 km is flagged, not accepted.
+    expect(html).toContain('Tracé à vérifier');
+    expect(html).toContain('Le tracé mesure 42,41 km pour 21,098 km officiels. Vérifiez que c’est le bon fichier.');
+    expect(html).toContain('Pas encore d’annonce');
+    expect(html).toContain('Pas encore publiées');
+    expect(html).toContain('Écrire les annonces');
+    expect(html).toContain('Un fichier GPX décrit le parcours point par point');
+    expect(html).toContain('Ajouter une distance');
   });
 
   it('creates a course and refuses a second one on the same distance', async () => {
@@ -95,13 +103,19 @@ describe('courses page', () => {
         body: new URLSearchParams(fields).toString(),
         redirect: 'manual',
       });
-    const created = await form({ distanceKey: '10k', distanceM: '10000' });
+    // The official distance is typed in km with a decimal comma; a typo is shown back with the typed value.
+    const typo = await form({ distanceKey: '10k', distanceKm: 'dix' });
+    expect(typo.status).toBe(400);
+    const typoHtml = await typo.text();
+    expect(typoHtml).toContain('Écrivez la distance en kilomètres');
+    expect(typoHtml).toContain('value="dix"');
+    const created = await form({ distanceKey: '10k', distanceKm: '10' });
     expect(created.status).toBe(302);
     expect(created.headers.get('location')).toBe(`/org/${SLUG}/courses/${COURSE}`);
     const course = await db(env.DB).courseById(COURSE);
     expect(course?.distanceM).toBe(10_000);
     expect(course?.geometryKey).toBeUndefined();
-    expect(await (await form({ distanceKey: '10k', distanceM: '10000' })).text()).toContain('déjà un parcours');
+    expect(await (await form({ distanceKey: '10k', distanceKm: '10' })).text()).toContain('déjà un parcours');
   });
 
   it('stores an uploaded GPX as the course geometry and measures it', async () => {
@@ -116,15 +130,19 @@ describe('courses page', () => {
     expect(geometry.courseId).toBe(COURSE);
     expect(geometry.points).toHaveLength(5);
     const measured = Math.round(buildTrack(geometry.points as { lat: number; lng: number }[]).totalM);
-    expect(res.headers.get('location')).toBe(`/org/${SLUG}/courses/${COURSE}#gpx-${measured}`);
     expect(measured).toBeGreaterThan(1000);
+    // Back to the courses page, where the card compares the measured length with the official one.
+    expect(res.headers.get('location')).toBe(`/org/${SLUG}/courses?done=gpx#${COURSE}`);
+    const html = await (await get('/courses?done=gpx')).text();
+    expect(html).toContain('Tracé importé. Vérifiez sa longueur ci-dessous.');
   });
 
   it('refuses a GPX with no track points', async () => {
     const fd = new FormData();
     fd.append('gpx', new File(['<gpx></gpx>'], 'vide.gpx', { type: 'application/gpx+xml' }));
     const res = await SELF.fetch(`${base}/courses/${COURSE}/gpx`, { method: 'POST', headers: { Cookie: cookie }, body: fd });
-    expect(await res.text()).toContain('GPX illisible');
+    expect(res.status).toBe(422);
+    expect(await res.text()).toContain('Ce fichier ne contient pas de tracé lisible');
   });
 });
 
@@ -155,7 +173,8 @@ describe('the script draft', () => {
   it('turns a click on the map into a distance along the course', async () => {
     const res = await send(`/courses/${COURSE}/script/project`, { lat: 49.364, lng: 0.08 });
     expect(res.status).toBe(200);
-    const { meters, offsetM } = (await res.json()) as { meters: number; offsetM: number };
+    const { meters, offsetM, when } = (await res.json()) as { meters: number; offsetM: number; when: string };
+    expect(when).toMatch(/^Au km \d+(,\d{1,2})?$/);
     expect(meters).toBeGreaterThan(3000);
     expect(meters).toBeLessThan(6000);
     expect(offsetM).toBeLessThan(5);
@@ -234,11 +253,26 @@ describe('publishing', () => {
     expect(JSON.parse(text).events[0].title).toBe('Le départ');
   });
 
-  it('shows the published pack and the new draft version in the studio', async () => {
+  it('shows in the studio that runners have this version, in plain words', async () => {
     const html = await (await get(`/courses/${COURSE}`)).text();
-    expect(html).toContain('Publier la version 2');
-    expect(html).toContain('Déjà publié : v1');
+    expect(html).toContain('2 annonces · dernière publication le');
+    expect(html).toContain('Les coureurs ont cette version depuis le');
     expect(html).toContain('La digue');
+    expect(html).toContain('Au km 3');
+    expect(html).toContain('Voix prête');
+    // Nothing changed since: the publish button is there, and says there is nothing to send.
+    expect(html).toMatch(/data-role="publish" disabled="">Publié</);
+  });
+
+  it('remembers what it published, and the studio cannot overwrite that', async () => {
+    const draft = await scriptDb(env.DB).draft(COURSE);
+    expect(draft?.script.published).toMatchObject({ version: 1 });
+    const saved = await send(`/courses/${COURSE}/script`, { ...TWO_LINES, published: { version: 9, at: '2020-01-01T00:00:00Z', fingerprint: 'forged' } }, 'PUT');
+    const body = (await saved.json()) as { script: { published: { version: number; fingerprint: string } }; estimates: { summary: { changed: boolean } } };
+    expect(body.script.published.version).toBe(1);
+    expect(body.script.published.fingerprint).toBe(draft?.script.published?.fingerprint);
+    // The same lines as published: nothing to publish.
+    expect(body.estimates.summary.changed).toBe(false);
   });
 
   it('falls back to the SVG diagram with ?map=svg, whatever the Mapbox token', async () => {
@@ -248,5 +282,241 @@ describe('publishing', () => {
     expect(html).toContain('Tracé schématique');
     // The same events, as dots on the diagram.
     expect(html).toContain('data-event="course.digue"');
+  });
+});
+
+/** A short "MP3": an ID3 header, then bytes of its own so its hash differs from the stubbed voice. */
+const bell = new Uint8Array([0x49, 0x44, 0x33, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2a, 0x62, 0x65, 0x6c, 0x6c]);
+/** The smallest WAV header the Worker recognises. */
+const wav = new Uint8Array([...'RIFF'].map((c) => c.charCodeAt(0)).concat([0x24, 0x08, 0, 0], [...'WAVEfmt '].map((c) => c.charCodeAt(0)), [0x10, 0, 0, 0]));
+
+const uploadTo = (lineId: string, bytes: Uint8Array, name: string) => {
+  const fd = new FormData();
+  fd.append('file', new File([bytes], name));
+  return SELF.fetch(`${base}/courses/${COURSE}/script/lines/${lineId}/audio`, { method: 'POST', headers: { Cookie: cookie, Accept: 'application/json' }, body: fd });
+};
+
+type LineView = { id: string; source: string; rendered: boolean; label: string; audioPath: string | null };
+type Answer = {
+  script: { lines: { id: string; audio?: { kind: string; hash: string; format: string; bytes: number; name: string } }[] };
+  estimates: { lines: LineView[]; summary: { changed: boolean; publish: string; text: string } };
+};
+
+describe('the organizer’s own sound file', () => {
+  it('puts an uploaded MP3 on a line, stored once by its content, and plays it back', async () => {
+    const res = await uploadTo('course.digue', bell, 'cloche.mp3');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Answer;
+    const hash = await sha256HexBytes(bell.buffer as ArrayBuffer);
+    expect(body.script.lines.find((l) => l.id === 'course.digue')?.audio).toEqual({ kind: 'upload', hash, format: 'mp3', bytes: bell.length, name: 'cloche.mp3' });
+    expect(await env.FILES.head(`studio-uploads/${hash}.mp3`)).not.toBeNull();
+    const status = body.estimates.lines.find((l) => l.id === 'course.digue');
+    expect(status).toMatchObject({ source: 'upload', rendered: true, label: 'Fichier audio', audioPath: `/uploads/${hash}.mp3` });
+    // A change runners do not have yet, and nothing left to record: it can go out.
+    expect(body.estimates.summary).toMatchObject({ changed: true, publish: 'ready' });
+    expect((await scriptDb(env.DB).draft(COURSE))?.script.lines.find((l) => l.id === 'course.digue')?.audio?.hash).toBe(hash);
+
+    const played = await get(`/courses/${COURSE}/uploads/${hash}.mp3`);
+    expect(played.status).toBe(200);
+    expect(played.headers.get('Content-Type')).toBe('audio/mpeg');
+    expect(played.headers.get('Cache-Control')).toContain('private');
+    expect(new Uint8Array(await played.arrayBuffer())).toEqual(bell);
+  });
+
+  it('refuses a file that is not a sound, and one over 5 MB', async () => {
+    const text = await uploadTo('course.digue', new TextEncoder().encode('<html>pas un son</html>'), 'cloche.mp3');
+    expect(text.status).toBe(415);
+    expect(((await text.json()) as { detail: string }).detail).toBe('Ce fichier n’est pas un son MP3, M4A ou WAV.');
+    const big = new Uint8Array(5 * 1024 * 1024 + 1);
+    big.set(bell);
+    const tooBig = await uploadTo('course.digue', big, 'long.mp3');
+    expect(tooBig.status).toBe(413);
+    expect(((await tooBig.json()) as { detail: string }).detail).toContain('5 Mo');
+    expect((await uploadTo('nope', bell, 'cloche.mp3')).status).toBe(404);
+  });
+
+  it('does not record the voice for a line that plays a file', async () => {
+    const res = await send(`/courses/${COURSE}/script/render`, { lineId: 'course.digue' });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { detail: string }).detail).toContain('Revenez à la voix');
+  });
+
+  it('keeps the file when the whole script is saved again, and refuses a file the Worker never stored', async () => {
+    const current = (await (await get(`/courses/${COURSE}/script`)).json()) as { script: Answer['script'] & Record<string, unknown> };
+    const again = (await (await send(`/courses/${COURSE}/script`, current.script, 'PUT')).json()) as Answer;
+    expect(again.script.lines.find((l) => l.id === 'course.digue')?.audio?.name).toBe('cloche.mp3');
+    const forged = {
+      ...current.script,
+      lines: current.script.lines.map((l) => (l.id === 'ceremony.gun' ? { ...l, audio: { kind: 'upload', hash: 'b'.repeat(64), format: 'mp3', bytes: 10, name: 'x.mp3' } } : l)),
+    };
+    const refused = await send(`/courses/${COURSE}/script`, forged, 'PUT');
+    expect(refused.status).toBe(400);
+    expect(((await refused.json()) as { detail: string }).detail).toBe('Fichier audio introuvable pour : Le départ.');
+  });
+
+  it('publishes the uploaded bytes instead of a voice, without calling ElevenLabs', async () => {
+    ttsCalls = [];
+    const res = await send(`/courses/${COURSE}/script/publish`, {});
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ version: 2, files: 2, bytes: mp3.length + bell.length });
+    expect(ttsCalls).toHaveLength(0);
+
+    const pack = await db(env.DB).latestAudioPack(COURSE);
+    expect(pack?.version).toBe(2);
+    // The pack format is the one the app knows: a file event, a file entry with its sha256.
+    expect(pack!.events.find((e) => e.id === 'course.digue')?.source).toEqual({ kind: 'file', key: 'digue.mp3' });
+    expect(pack!.files['digue.mp3']).toMatchObject({ bytes: bell.length, sha256: await sha256HexBytes(bell.buffer as ArrayBuffer) });
+    const object = await env.FILES.get(`packs/${COURSE}/2/digue.mp3`);
+    expect(new Uint8Array(await object!.arrayBuffer())).toEqual(bell);
+    const served = await SELF.fetch(`http://run.test/api/courses/${COURSE}/pack`);
+    const text = await served.text();
+    expect(AudioPackSchema.safeParse(JSON.parse(text)).success).toBe(true);
+    expect(text).not.toContain('studio-uploads');
+    expect(text).not.toContain('cloche.mp3');
+  });
+
+  it('keeps a WAV file’s format in the pack', async () => {
+    expect((await uploadTo('ceremony.gun', wav, 'pistolet.wav')).status).toBe(200);
+    const res = await send(`/courses/${COURSE}/script/publish`, {});
+    expect(res.status).toBe(200);
+    const pack = await db(env.DB).latestAudioPack(COURSE);
+    expect(pack!.events.find((e) => e.id === 'ceremony.gun')?.source).toEqual({ kind: 'file', key: 'gun.wav' });
+    const object = await env.FILES.get(`packs/${COURSE}/3/gun.wav`);
+    expect(object?.httpMetadata?.contentType).toBe('audio/wav');
+  });
+
+  it('returns a line to the voice when its file is removed', async () => {
+    const res = await SELF.fetch(`${base}/courses/${COURSE}/script/lines/course.digue/audio`, { method: 'DELETE', headers: { Cookie: cookie, Accept: 'application/json' } });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Answer;
+    expect(body.script.lines.find((l) => l.id === 'course.digue')?.audio).toBeUndefined();
+    // Its text was recorded earlier, so the voice is ready again at once.
+    expect(body.estimates.lines.find((l) => l.id === 'course.digue')).toMatchObject({ source: 'voice', rendered: true, label: 'Voix prête' });
+    expect(body.estimates.summary).toMatchObject({ changed: true, publish: 'ready' });
+    expect((await scriptDb(env.DB).draft(COURSE))?.script.lines.find((l) => l.id === 'course.digue')?.audio).toBeUndefined();
+  });
+});
+
+describe('what the courses page says after publishing', () => {
+  it('offers to publish the changes from the card, then says runners have them', async () => {
+    const before = await (await get('/courses')).text();
+    expect(before).toContain('Des changements ne sont pas encore publiés');
+    expect(before).toContain('Publier les changements');
+    const res = await SELF.fetch(`${base}/courses/${COURSE}/publish`, { method: 'POST', headers: { Cookie: cookie }, redirect: 'manual' });
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe(`/org/${SLUG}/courses?done=published#${COURSE}`);
+    expect((await db(env.DB).latestAudioPack(COURSE))?.version).toBe(4);
+    const after = await (await get('/courses?done=published')).text();
+    expect(after).toContain('Annonces publiées. Les coureurs les reçoivent la prochaine fois qu’ils ouvrent l’application.');
+    expect(after).toMatch(/Publiées le \d{1,2} [^,]+, les coureurs les ont/);
+    expect(after).toContain('2 annonces, toutes prêtes');
+  });
+});
+
+describe('a viewer', () => {
+  let viewer = '';
+  beforeAll(async () => {
+    const res = await SELF.fetch('http://run.test/org/signin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ step: 'code', email: 'lecture@example.com', code: env.TEST_CODE! }).toString(),
+      redirect: 'manual',
+    });
+    viewer = res.headers.get('set-cookie')!.split(';')[0]!;
+  });
+  const as = (path: string, init: RequestInit = {}) =>
+    SELF.fetch(`${base}${path}`, { ...init, headers: { Cookie: viewer, Accept: 'application/json', ...((init.headers as Record<string, string>) ?? {}) }, redirect: 'manual' });
+
+  it('sees the studio read-only and can listen', async () => {
+    const res = await SELF.fetch(`${base}/courses/${COURSE}`, { headers: { Cookie: viewer } });
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain('Lecture seule');
+    expect(html).toContain('data-role="listen"');
+    expect(html).not.toMatch(/<button[^>]*data-role="publish"/);
+    expect(html).not.toMatch(/<button[^>]*data-role="add"/);
+    expect(html).not.toMatch(/<button[^>]*data-role="delete"/);
+    expect(html).not.toContain('Utiliser un fichier audio');
+    expect(html).toMatch(/<textarea[^>]*disabled=""/);
+    expect((await as(`/courses/${COURSE}/script`)).status).toBe(200);
+    const courses = await (await SELF.fetch(`${base}/courses`, { headers: { Cookie: viewer } })).text();
+    expect(courses).toContain('Voir et écouter les annonces');
+    expect(courses).not.toContain('Ajouter une distance');
+    expect(courses).not.toContain('name="gpx"');
+  });
+
+  it('cannot write the script, record a voice, add or remove a file, or publish', async () => {
+    const json = { 'Content-Type': 'application/json' };
+    const before = await scriptDb(env.DB).draft(COURSE);
+    expect((await as(`/courses/${COURSE}/script`, { method: 'PUT', headers: json, body: JSON.stringify(TWO_LINES) })).status).toBe(403);
+    expect((await as(`/courses/${COURSE}/script/render`, { method: 'POST', headers: json, body: JSON.stringify({ lineId: 'ceremony.gun' }) })).status).toBe(403);
+    const fd = new FormData();
+    fd.append('file', new File([bell], 'cloche.mp3'));
+    expect((await as(`/courses/${COURSE}/script/lines/course.digue/audio`, { method: 'POST', body: fd })).status).toBe(403);
+    expect((await as(`/courses/${COURSE}/script/lines/ceremony.gun/audio`, { method: 'DELETE' })).status).toBe(403);
+    expect((await as(`/courses/${COURSE}/script/publish`, { method: 'POST', headers: json, body: '{}' })).status).toBe(403);
+    // The page forms send them back to the race home with a note.
+    const form = await SELF.fetch(`${base}/courses/${COURSE}/publish`, { method: 'POST', headers: { Cookie: viewer }, redirect: 'manual' });
+    expect(form.headers.get('location')).toBe(`/org/${SLUG}?denied=1`);
+    expect((await scriptDb(env.DB).draft(COURSE))?.updatedAt).toBe(before?.updatedAt);
+    expect((await db(env.DB).latestAudioPack(COURSE))?.version).toBe(4);
+  });
+
+  it('cannot change the places of a course', async () => {
+    const res = await SELF.fetch(`${base}/courses/${SLUG}-marathon/landmarks`, {
+      method: 'POST',
+      headers: { Cookie: viewer, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams([['id', ''], ['name', 'Ailleurs'], ['km', '1'], ['description', '']]).toString(),
+      redirect: 'manual',
+    });
+    expect(res.headers.get('location')).toBe(`/org/${SLUG}?denied=1`);
+    expect((await db(env.DB).courseById(`${SLUG}-marathon`))?.landmarks.some((l) => l.name === 'Ailleurs')).toBe(false);
+  });
+});
+
+describe('les lieux du parcours', () => {
+  const MARATHON = `${SLUG}-marathon`;
+  const saveRows = (rows: [string, string, string, string][]) =>
+    SELF.fetch(`${base}/courses/${MARATHON}/landmarks`, {
+      method: 'POST',
+      headers: { Cookie: cookie, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(rows.flatMap(([id, name, km, description]) => [['id', id], ['name', name], ['km', km], ['description', description]])).toString(),
+      redirect: 'manual',
+    });
+
+  it('shows a wrong row back with what to fix, and saves nothing', async () => {
+    const before = (await db(env.DB).courseById(MARATHON))?.landmarks;
+    const res = await saveRows([
+      ['planches', 'Les Planches', '0,2', ''],
+      ['', 'Le phare', '99', 'Trop loin.'],
+    ]);
+    expect(res.status).toBe(400);
+    const html = await res.text();
+    expect(html).toContain('Ce kilomètre est après l’arrivée (42,195 km).');
+    expect(html).toContain('value="Le phare"');
+    expect(html).toContain('value="99"');
+    expect((await db(env.DB).courseById(MARATHON))?.landmarks).toEqual(before);
+  });
+
+  it('saves the places typed in km, and the public race page shows them', async () => {
+    const res = await saveRows([
+      ['planches', 'Les Planches', '0,2', 'La promenade en bois.'],
+      ['', 'Le casino', '1,5', 'Face aux jardins.'],
+      ['normandy', '', '', ''],
+      ['', '', '', ''],
+    ]);
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe(`/org/${SLUG}/courses?done=landmarks#${MARATHON}`);
+    expect((await db(env.DB).courseById(MARATHON))?.landmarks).toEqual([
+      { id: 'planches', name: 'Les Planches', meters: 200, description: 'La promenade en bois.' },
+      { id: 'le-casino', name: 'Le casino', meters: 1500, description: 'Face aux jardins.' },
+    ]);
+    const page = await (await get('/courses?done=landmarks')).text();
+    expect(page).toContain('Lieux du parcours enregistrés.');
+    expect(page).toContain('Les lieux du parcours (2)');
+    const landing = await (await SELF.fetch(`http://run.test/${SLUG}`)).text();
+    expect(landing).toContain('Le casino');
+    expect(landing).toContain('Face aux jardins.');
+    expect(landing).not.toContain('Hôtel Le Normandy');
   });
 });

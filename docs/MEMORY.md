@@ -194,3 +194,100 @@
 - 2026-09-23: `expo/expo-github-action/preview@v8` rejects `qr-target: dev-build` ("Invalid QR code
   target: dev-build, expected expo-go or dev-build"): its input check only lists `dev-client`,
   which it maps to dev-build. Use `dev-client`. The preview workflow had never run before PR #1.
+- 2026-09-25: public pages and /organisateurs. Things worth knowing next time:
+  - `Intl.DateTimeFormat.formatRange` joins "14" and "15 novembre 2026" with an en dash
+    (U+2013), which the copy rules forbid. `fmtRaceDays` / `fmtSpan` in `api/src/pages/dates.ts`
+    build "14 et 15 novembre 2026" and "du 9 au 15 novembre" from the dictionary instead.
+  - A race's `dateStart`/`dateEnd` are ISO dates (midnight UTC once parsed): format them in UTC,
+    not in the race timezone, or every race west of Greenwich shows the day before.
+  - `/organisateurs` is its own router (`api/src/routes/organizers.tsx`) mounted before the pages,
+    like `/org`; `localeOf` moved to `api/src/routes/locale.ts` so both routers share it.
+  - The lead form is a public form that mails staff: a hidden `website` field (bots fill it, the
+    lead is thanked and dropped) and five leads per email per day. The staff mail is plain text
+    only, since every field in it was typed by a stranger.
+  - Workerd tests can assert on mail: the console mailer logs synchronously when `send` is
+    called, so `vi.spyOn(console, 'log')` sees the `[mail] to=...` lines before the response
+    returns (see `api/test/public.test.ts`).
+  - A thrown-together screenshot script that splits `name=path` on `=` silently drops
+    `?lang=en` and photographs the French page. Split on the first `=` only.
+- 2026-09-25: Hono's RegExpRouter does not group an alternation inside a route param. With
+  `/:slug/settings/:section{race|window}` and `/:slug/settings/:slot{logo|hero}` mounted together,
+  `POST /x/settings/logo/remove` ran the upload handler: the combined regex splits on the bare `|`.
+  It only shows once several such routes share a prefix (a lone one works). Register one route
+  per value instead (`SECTIONS.forEach((s) => app.post(`.../${s}`, ...))`, api/src/routes/orgRace.tsx).
+- 2026-09-25: runners admin (list, runner page, add/edit/delete, two-step import, French downloads).
+  - `all` is an SQL keyword: `SUM(...) AS all` is a syntax error in D1. Quote aliases built from
+    a list (`AS "all"`).
+  - workerd's `TextDecoder` does decode `windows-1252` (Excel on Windows writes it, curly
+    apostrophe 0x92 included); verified in the workerd tests. `Response.text()` strips a leading
+    BOM, so a test that wants to prove the BOM is there must read `arrayBuffer()`.
+  - `sessions` has no index on `entrant_id`: the runner list aggregates sessions once per race in
+    a CTE rather than per row.
+  - The app sends `X-Sivoov-Client: app/<version> (<os> <version>; <model>)` on every API call,
+    built from react-native `Platform` and expo-constants (no native module). A custom header
+    needs its name in the `/api/*` CORS `allowHeaders`, or the web target's preflight fails.
+  - "Instructions" emails sent from a runner's page are logged in R2 (`admin/instructions/<id>.json`),
+    not in D1, so no migration was needed; that log backs the three-a-day limit.
+  - `scripts/shots.sh` still runs `DELETE FROM organizer_codes`, a table 0006 dropped; with both
+    statements in one `--command` the whole call fails, so `auth_codes` is no longer wiped
+    between passes. The runner scenes sign in with TEST_CODE and issue no code, so they are fine.
+- 2026-09-25: admin rebuild with five parallel worktree agents. For the next session that fans out:
+  - Agent worktrees (`isolation: worktree`) were created from an old commit (`3d9b825`), not
+    from the session's working branch. Every agent had to fast-forward to the branch first; say
+    so in the brief, or the agent builds on a tree without the work it is meant to extend.
+  - `cp -al <main>/node_modules ./node_modules` gives a worktree its dependencies in seconds and
+    no disk: the workspace links inside are relative symlinks, so they resolve to the worktree's
+    own `shared/`. A symlinked `node_modules` would resolve to the main checkout instead.
+  - Parallel agents each ran `wrangler dev` on their own `--port` and `--inspector-port`; the
+    local D1/R2 under `api/.wrangler/` is per worktree, so they never saw each other's data.
+  - The merge cost was in the shared append points (end of `ui.tsx`, `adminStyles.ts`,
+    `scenes.ts`, `emails.ts`, the shared barrels) and in two agents inventing the same component
+    (`Choices`, `Pager`) with different props. Next time: name the components each agent may
+    add, or give one agent the kit.
+  - The screenshot rig's `DELETE FROM organizer_codes` (noted above) is fixed: it wipes
+    `admin_codes` now.
+  - `PW_CHROMIUM=/opt/pw-browsers/chromium` makes `api/playwright.shots.config.ts` use the
+    container's Chromium; no throwaway config needed any more. In that browser cdnjs fails TLS
+    (proxy CA), so Leaflet pages only show their SVG fallback in container screenshots.
+  - Contrary to the 2026-09-12 note, `curl https://preview.run.sivoov.app` works from the cloud
+    sandbox now (checked 2026-09-25): a session can verify a deploy itself.
+  - deploy.yml now runs `wrangler d1 migrations apply` before `wrangler deploy` (preview and
+    production). The Cloudflare token must be allowed to edit D1; if it is not, the deploy stops
+    before the Worker, and the old Worker keeps serving the old schema.
+- 2026-09-25: studio rework (plain-language audio admin, uploaded files). Worth knowing:
+  - Event delegation with `closest('[data-role]')` stops at the first ancestor with any role,
+    including display-only ones (`data-role="name"` inside a clickable row): the click lands on
+    the label, not the button. Match only the action roles.
+  - Moving a DOM node (appendChild into a new group) drops focus and the caret. The studio
+    reorders cards after each save, so it moves only the cards whose place changed, then gives
+    the focus and the selection range back.
+  - Headless Chromium in the cloud container does not use the agent proxy, so cdnjs (Leaflet)
+    fails while `curl` works. For a map-mode check, download the file with curl and serve it
+    with `page.route(...).fulfill({ path })`; never turn TLS checks off.
+  - `wrangler dev` does not pick up a changed `.dev.vars`: restart it.
+  - A Playwright `fullPage` screenshot taken after a click (which scrolls the element into
+    view) stitches the page around a sticky header. Scroll back to the top first (the
+    `org-studio-edit` scene uses `page.mouse.wheel`, since the Worker tsconfig has no DOM lib).
+  - A viewer page test that asserts a word is absent (`not.toContain('Réglages')`) also sees
+    the inlined stylesheet and scripts: a French word in a CSS comment broke the dashboard test.
+    Assert on elements (`/<button[^>]*data-role="publish"/`) rather than bare strings.
+  - The seed (`api/tools/seed.ts`) upserts `courses.landmarks` and `courses.geometry_key`: now
+    that organizers edit "Les lieux du parcours" and import their own GPX, a re-seed would
+    overwrite both. Change the seed before running it on a race an organizer has worked on.
+- 2026-09-25: review fixes (import, exports, team, organizers' form). Worth knowing:
+  - A race between two requests can be tested in the workers pool: `Promise.all` of SELF.fetch
+    calls interleaves their D1 awaits. Two requests interleaved about half the time; four
+    owners stepping down at once broke the old JS-then-upsert check every run. The SQL guard
+    (`KEEPS_AN_OWNER` in one UPDATE) is what holds; a check on a list read earlier does not.
+  - A per-sender limit kept in one R2 JSON object (read, append, write) lets a burst through:
+    every request reads "under the limit". The lead form writes one small object per post
+    (`admin/leads-ip/<sha256(ip)>/<time>_<id>`), then lists the prefix: R2 lists are strongly
+    consistent, so the Nth post to land always sees N. Same idea for the hourly staff-email cap
+    in D1: insert first, count after.
+  - `toCsv` writes a text cell starting with `= + - @`, a tab or a CR after an apostrophe (Excel
+    shows it as text) and `parseEntrantsCsv` takes one apostrophe off, so downloads re-import
+    unchanged. Numbers passed as numbers are left alone. Build rows with numbers as numbers.
+  - The import's column names have two tiers: a generic "N°"/"Numéro"/"Name" counts only when no
+    column says "Dossard"/"Bib"/"Last name". Add a new synonym to the right tier.
+  - `SELF.fetch` in the api tests sends no `CF-Connecting-IP`; pass it by hand to test anything
+    keyed on the sender's address.

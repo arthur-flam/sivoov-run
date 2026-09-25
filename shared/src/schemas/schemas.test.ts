@@ -23,6 +23,11 @@ describe('race', () => {
     expect(race.country).toBe('FR');
     expect(race.theme.partnerLogos).toEqual([]);
   });
+  it('keeps links and pictures to web addresses', () => {
+    expect(RaceSchema.safeParse({ ...base, organizerUrl: 'javascript://%0aalert(1)' }).success).toBe(false);
+    expect(RaceSchema.safeParse({ ...base, theme: { ...base.theme, logo: 'data:image/svg+xml,<svg/>' } }).success).toBe(false);
+    expect(RaceSchema.safeParse({ ...base, organizerUrl: 'https://www.marathon-deauville.com' }).success).toBe(true);
+  });
   it('rejects a slug with capitals', () => {
     expect(RaceSchema.safeParse({ ...base, slug: 'Deauville' }).success).toBe(false);
   });

@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { distanceLabel, formatKm } from '@sivoov/shared';
@@ -68,6 +68,12 @@ export default function Home() {
           <Card>
             <Body testID="pending-uploads">{t('upload.pendingCount', { count: pendingUploads })}</Body>
             <Button label={t('upload.retry')} ghost onPress={() => token && void useUploads.getState().flush(token).catch(() => undefined)} />
+          </Card>
+        ) : null}
+        {race.supportEmail ? (
+          <Card>
+            <Body muted>{t('home.help')}</Body>
+            <Button testID="write-organizer" label={t('home.helpWrite')} ghost onPress={() => void Linking.openURL(`mailto:${race.supportEmail}`)} />
           </Card>
         ) : null}
         {course ? <Button testID="go-run" label={t('home.run')} color={accent} onColor={race.theme.onPrimary} onPress={() => router.push('/prepare')} /> : null}

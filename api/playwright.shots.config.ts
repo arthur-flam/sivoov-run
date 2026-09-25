@@ -15,7 +15,12 @@ export default defineConfig({
   testDir: './e2e/shots',
   timeout: 60_000,
   workers: 1,
-  use: { baseURL: process.env.BASE_URL ?? 'http://localhost:8788' },
+  use: {
+    baseURL: process.env.BASE_URL ?? 'http://localhost:8788',
+    // Cloud containers ship a Chromium the pinned Playwright does not know (docs/MEMORY.md):
+    // PW_CHROMIUM=/opt/pw-browsers/chromium points the rig at it.
+    ...(process.env.PW_CHROMIUM ? { launchOptions: { executablePath: process.env.PW_CHROMIUM } } : {}),
+  },
   projects: chosen.map((p) => ({
     name: p.id,
     use: { viewport: { width: p.width, height: p.height }, deviceScaleFactor: p.scale, locale: p.locale },

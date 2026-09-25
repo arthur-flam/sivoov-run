@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectDelimiter, distanceKeyFromLabel, parseEntrantsCsv, splitCsvLine, toCsv } from './csvEntrants';
+import { decodeSpreadsheet, detectDelimiter, distanceKeyFromLabel, parseEntrantsCsv, planImport, splitCsvLine, toCsv } from './csvEntrants';
 
 describe('parseEntrantsCsv', () => {
   it('reads the canonical comma file', () => {
@@ -28,10 +28,11 @@ describe('parseEntrantsCsv', () => {
     const { entrants, rejected } = parseEntrantsCsv(text);
     expect(entrants.map((e) => e.bib)).toEqual(['1']);
     expect(rejected).toEqual([
-      { line: 3, reason: 'bad_email', detail: '2' },
-      { line: 4, reason: 'missing_field', detail: '3' },
-      { line: 5, reason: 'bad_distance', detail: 'ultra' },
-      { line: 6, reason: 'duplicate_bib', detail: '1' },
+      { line: 3, reason: 'bad_email', detail: 'not-an-email', bib: '2' },
+      { line: 4, reason: 'missing_field', detail: 'firstName', bib: '3' },
+      { line: 5, reason: 'bad_distance', detail: 'ultra', bib: '4' },
+      // The detail of a duplicate is the line where that bib first appears.
+      { line: 6, reason: 'duplicate_bib', detail: '2', bib: '1' },
       { line: 7, reason: 'column_count' },
     ]);
   });
@@ -44,10 +45,176 @@ describe('parseEntrantsCsv', () => {
   });
 });
 
+describe('what Excel and ticketing tools produce', () => {
+  it('finds the header below a title row, reads a tab-separated paste and ignores empty rows', () => {
+    const text = 'Inscrits Marathon de Deauville\n;;;;\nN° dossard\tNom de famille\tPrénom\tAdresse e-mail\tÉpreuve\tClub\n12\tRoux\tAnna\tanna@example.com\tMarathon\tASPTT\n\t\t\t\t\t\n';
+    const { entrants, rejected, delimiter, headers } = parseEntrantsCsv(text);
+    expect(delimiter).toBe('\t');
+    expect(rejected).toEqual([]);
+    expect(entrants).toEqual([{ bib: '12', email: 'anna@example.com', firstName: 'Anna', lastName: 'Roux', distanceKey: 'marathon' }]);
+    expect(headers.map((h) => h.column)).toEqual(['bib', 'lastName', 'firstName', 'email', 'distanceKey', null]);
+  });
+
+  it('reads the optional address columns into the medal address', () => {
+    const text = [
+      'Dossard;Prénom;Nom;Email;Distance;Adresse;Complément;Code postal;Ville;Pays',
+      '1;Léa;Martin;lea@example.com;Semi;12 rue des Planches;Bât. B;14800;Deauville;',
+      '2;Paul;Petit;paul@example.com;10 km;1 place;;1000;Bourg-en-Bresse;France',
+      '3;Ana;Silva;ana@example.com;10 km;;;;;',
+      '4;Tom;Lee;tom@example.com;10 km;3 Main St;;SW1A;London;Royaume-Uni',
+    ].join('\r\n');
+    const { entrants, warnings } = parseEntrantsCsv(text);
+    expect(warnings).toEqual([]);
+    expect(entrants.map((e) => e.address)).toEqual([
+      { line1: '12 rue des Planches', line2: 'Bât. B', postalCode: '14800', city: 'Deauville', country: 'FR' },
+      { line1: '1 place', postalCode: '01000', city: 'Bourg-en-Bresse', country: 'FR' },
+      undefined,
+      { line1: '3 Main St', postalCode: 'SW1A', city: 'London', country: 'GB' },
+    ]);
+  });
+
+  it('imports a runner whose address is incomplete without it, and says so', () => {
+    const text = 'bib,email,first name,last name,distance,address,city,postal code,country\n1,a@example.com,A,B,Marathon,12 rue,,14800,\n2,b@example.com,C,D,Marathon,1 rue,Oslo,0150,Narnia\n';
+    const { entrants, rejected, warnings } = parseEntrantsCsv(text);
+    expect(rejected).toEqual([]);
+    expect(entrants.map((e) => [e.bib, e.address])).toEqual([['1', undefined], ['2', undefined]]);
+    expect(warnings).toEqual([
+      { line: 2, reason: 'incomplete_address', detail: 'city', bib: '1' },
+      { line: 3, reason: 'unknown_country', detail: 'Narnia', bib: '2' },
+    ]);
+  });
+
+  it('refuses a distance the race does not offer, when it knows them', () => {
+    const text = 'dossard;email;prenom;nom;distance\n1;a@example.com;A;B;Marathon\n2;b@example.com;C;D;5 km\n';
+    expect(parseEntrantsCsv(text).rejected).toEqual([]);
+    expect(parseEntrantsCsv(text, { distances: ['marathon', 'half'] }).rejected).toEqual([{ line: 3, reason: 'distance_not_offered', detail: '5 km', bib: '2' }]);
+  });
+
+  it('says which required cells are empty on a line', () => {
+    const { rejected } = parseEntrantsCsv('dossard;email;prenom;nom;distance\n;a@example.com;;B;Semi\n');
+    expect(rejected).toEqual([{ line: 2, reason: 'missing_field', detail: 'bib, firstName' }]);
+  });
+
+  it('takes the bib from a "Dossard" column over a bare "N°" line number, whatever their order', () => {
+    const rows = ['1;1001;Léa;Martin;lea@example.com;Semi', '2;1002;Paul;Petit;paul@example.com;Marathon'];
+    const before = parseEntrantsCsv(['N°;Dossard;Prénom;Nom;Email;Distance', ...rows].join('\n'));
+    expect(before.entrants.map((e) => e.bib)).toEqual(['1001', '1002']);
+    expect(before.headers.map((h) => h.column)).toEqual([null, 'bib', 'firstName', 'lastName', 'email', 'distanceKey']);
+    const after = parseEntrantsCsv('Dossard;Prénom;Nom;Email;Distance;N°\n1001;Léa;Martin;lea@example.com;Semi;1\n');
+    expect(after.entrants.map((e) => e.bib)).toEqual(['1001']);
+    // Alone, a "N°" or "Numéro" column is still the bib; so is "Name" still the last name.
+    expect(parseEntrantsCsv('N°;Prénom;Nom;Email;Distance\n7;Léa;Martin;lea@example.com;Semi\n').entrants.map((e) => e.bib)).toEqual(['7']);
+    expect(parseEntrantsCsv('Numéro;First name;Name;Email;Distance\n8;Sam;Reed;sam@example.com;Semi\n').entrants.map((e) => [e.bib, e.lastName])).toEqual([['8', 'Reed']]);
+    // A "Name" column (often the full name) gives way to an explicit "Last name".
+    expect(parseEntrantsCsv('Bib;Name;First name;Last name;Email;Distance\n9;Sam Reed;Sam;Reed;sam@example.com;Semi\n').entrants.map((e) => e.lastName)).toEqual(['Reed']);
+  });
+
+  it('reads 20 000 lines well within the Worker time limit, preview and confirmation alike', () => {
+    const header = 'Dossard;Email;Prénom;Nom;Distance;Adresse;Complément;Code postal;Ville;Pays';
+    const lines = Array.from({ length: 20_000 }, (_, i) => `${i + 1};runner${i}@example.com;Léa;Martin${i};Marathon;12 rue des Planches;;14800;Deauville;France`);
+    const text = [header, ...lines, '1;again@example.com;Paul;Petit;Semi;;;;;'].join('\r\n');
+    const started = performance.now();
+    const { entrants, rejected } = parseEntrantsCsv(text, { distances: ['marathon', 'half'] });
+    const elapsed = performance.now() - started;
+    expect(entrants).toHaveLength(20_000);
+    expect(rejected).toEqual([{ line: 20_002, reason: 'duplicate_bib', detail: '2', bib: '1' }]);
+    expect(elapsed).toBeLessThan(1500);
+  });
+});
+
+describe('cells a spreadsheet would run as a formula', () => {
+  const risky = ['=HYPERLINK("http://evil.example","Voir")', '+33 6 12 34 56 78', '-Dupont', '@SUM(A1:A9)', '\tTab', "'=already quoted"];
+
+  it('are written as text in the downloads, with a leading apostrophe', () => {
+    const csv = toCsv([['Nom'], ...risky.map((v) => [v]), ['\rretour'], ['Dupont'], ['l’=égal'], [-2], [42]]);
+    expect(csv.replace(/^\uFEFF/, '').split('\r\n').slice(1, -1)).toEqual([
+      `"'=HYPERLINK(""http://evil.example"",""Voir"")"`,
+      "'+33 6 12 34 56 78",
+      "'-Dupont",
+      "'@SUM(A1:A9)",
+      "'\tTab",
+      "''=already quoted",
+      // A carriage return inside a cell is quoted as well.
+      `"'\rretour"`,
+      'Dupont',
+      'l’=égal',
+      // Numbers are numbers: a negative one is not a formula.
+      '-2',
+      '42',
+    ]);
+  });
+
+  it('come back as they were when the download is imported again', () => {
+    const header = ['Dossard', 'Prénom', 'Nom', 'Email', 'Distance'];
+    const rows = risky.map((v, i) => [`${i + 1}`, v, v, `r${i}@example.com`, 'Semi']);
+    const { entrants, rejected } = parseEntrantsCsv(toCsv([header, ...rows, ['-7', 'Anna', "'Ohana", 'anna@example.com', 'Semi']]));
+    expect(rejected).toEqual([]);
+    // Cells are trimmed on import, so the tab-led one comes back without its tab, as it always has.
+    expect(entrants.map((e) => [e.bib, e.firstName, e.lastName])).toEqual([
+      ...risky.map((v, i) => [`${i + 1}`, v.trim(), v.trim()]),
+      ['-7', 'Anna', "'Ohana"],
+    ]);
+  });
+});
+
+describe('reading the uploaded bytes', () => {
+  const bytes = (s: string) => Uint8Array.from([...s].map((c) => c.charCodeAt(0)));
+
+  it('reads a Windows-1252 file (Excel on Windows) with its accents and curly apostrophes', () => {
+    // é = 0xE9, ë = 0xEB, and 0x92 is the typographic apostrophe in Windows-1252 only.
+    const decoded = decodeSpreadsheet(bytes('Dossard;Prénom;Nom;Email;Distance\r\n7;Gaël;D\x92Arc;gael@example.com;Semi\r\n'));
+    expect(decoded).toMatchObject({ ok: true, encoding: 'windows-1252' });
+    const { entrants } = parseEntrantsCsv(decoded.ok ? decoded.text : '');
+    expect(entrants).toEqual([{ bib: '7', email: 'gael@example.com', firstName: 'Gaël', lastName: `D${String.fromCharCode(0x2019)}Arc`, distanceKey: 'half' }]);
+  });
+
+  it('reads UTF-8 with or without a BOM, and UTF-16', () => {
+    const utf8 = new TextEncoder().encode('Prénom');
+    expect(decodeSpreadsheet(utf8)).toEqual({ ok: true, text: 'Prénom', encoding: 'utf-8' });
+    expect(decodeSpreadsheet(Uint8Array.from([0xef, 0xbb, 0xbf, ...utf8]))).toEqual({ ok: true, text: 'Prénom', encoding: 'utf-8' });
+    const utf16 = Uint8Array.from([0xff, 0xfe, ...[...'Né'].flatMap((c) => [c.charCodeAt(0), 0])]);
+    expect(decodeSpreadsheet(utf16)).toEqual({ ok: true, text: 'Né', encoding: 'utf-16' });
+  });
+
+  it('recognises a workbook sent instead of a CSV, and an empty file', () => {
+    expect(decodeSpreadsheet(Uint8Array.from([0x50, 0x4b, 0x03, 0x04, 0x14]))).toEqual({ ok: false, reason: 'spreadsheet' });
+    expect(decodeSpreadsheet(Uint8Array.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1]))).toEqual({ ok: false, reason: 'spreadsheet' });
+    expect(decodeSpreadsheet(new Uint8Array())).toEqual({ ok: false, reason: 'empty' });
+  });
+});
+
+describe('planImport', () => {
+  const stored = { bib: '1', email: 'a@example.com', firstName: 'A', lastName: 'B', distanceKey: 'marathon' as const, address: { line1: '1 rue', postalCode: '14800', city: 'Deauville', country: 'FR' } };
+  it('tells new bibs from changed and unchanged ones', () => {
+    const plan = planImport([stored], [
+      { bib: '1', email: 'a@example.com', firstName: 'A', lastName: 'B', distanceKey: 'marathon' },
+      { bib: '1', email: 'a@example.com', firstName: 'A', lastName: 'B', distanceKey: 'half' },
+      { bib: '2', email: 'b@example.com', firstName: 'C', lastName: 'D', distanceKey: 'half' },
+    ]);
+    // A file without an address keeps the stored one: not a change.
+    expect(plan.map((p) => p.change)).toEqual(['same', 'updated', 'new']);
+  });
+  it('counts a new address as a change', () => {
+    const moved = { ...stored, address: { ...stored.address, city: 'Trouville' } };
+    expect(planImport([stored], [moved]).map((p) => p.change)).toEqual(['updated']);
+    expect(planImport([stored], [stored]).map((p) => p.change)).toEqual(['same']);
+  });
+});
+
 describe('helpers', () => {
   it('maps distance labels', () => {
     expect(['Marathon', '42,195', 'SEMI', 'half marathon', '10 km', '5K'].map(distanceKeyFromLabel)).toEqual(['marathon', 'marathon', 'half', 'half', '10k', '5k']);
     expect(distanceKeyFromLabel('trail')).toBeNull();
+  });
+  it('maps the distance labels race directors actually write', () => {
+    const cases: Array<[string, string | null]> = [
+      ['Semi', 'half'], ['21 km', 'half'], ['21,1 km', 'half'], ['Semi-marathon', 'half'], ['1/2 marathon', 'half'], ['Demi-marathon', 'half'], ['21097', 'half'],
+      ['Marathon', 'marathon'], ['42,195 km', 'marathon'], ['42.195', 'marathon'], ['42 km', 'marathon'], ['Marathon de Deauville 2026', 'marathon'], ['Marathon (42,195 km)', 'marathon'],
+      ['10 km', '10k'], ['10K', '10k'], ['10 000 m', '10k'], ['10 kilomètres', '10k'], ['Course 10 km', '10k'],
+      ['5 km', '5k'], ['5000 m', '5k'],
+      ['20 km', null], ['Trail 30 km', null], ['ultra', null], ['', null],
+    ];
+    expect(cases.map(([label]) => [label, distanceKeyFromLabel(label)])).toEqual(cases);
   });
   it('detects the delimiter from the header', () => {
     expect(detectDelimiter('a;b;c')).toBe(';');

@@ -1,8 +1,7 @@
 import { Hono } from 'hono';
-import type { Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
-import { CodeRequestSchema, CodeVerifySchema, buildTrack, deauvilleMarathonGeometry, localeFromHeader, resolveLocale } from '@sivoov/shared';
-import type { Course, CourseTrack, Locale } from '@sivoov/shared';
+import { CodeRequestSchema, CodeVerifySchema, buildTrack, t } from '@sivoov/shared';
+import type { Course, CourseTrack } from '@sivoov/shared';
 import type { AppEnv } from '../env';
 import { db } from '../db/queries';
 import { Layout } from '../pages/layout';
@@ -13,36 +12,36 @@ import { InstallPage } from '../pages/install';
 import { ResultsPage } from '../pages/results';
 import { CourseGeometrySchema } from '@sivoov/shared';
 import { entrantForToken, requestCode, signOut, verifyCode } from '../lib/authService';
+import { localeOf } from './locale';
 
 export const pages = new Hono<AppEnv>();
 
 const SESSION_COOKIE = 'sivoov_session';
 
-/** ?lang= wins and is remembered; then the cookie; then Accept-Language; French by default. */
-const localeOf = (c: Context<AppEnv>): Locale => {
-  const fromQuery = c.req.query('lang');
-  if (fromQuery) {
-    const l = resolveLocale(fromQuery);
-    setCookie(c, 'lang', l, { path: '/', maxAge: 365 * 86400, sameSite: 'Lax' });
-    return l;
-  }
-  const fromCookie = getCookie(c, 'lang');
-  return fromCookie ? resolveLocale(fromCookie) : localeFromHeader(c.req.header('Accept-Language'));
+/** The course line when the race has one; a new race shows no course until its GPX is in, never another race's. */
+const trackFor = async (env: AppEnv['Bindings'], course: Course | undefined): Promise<CourseTrack | null> => {
+  const object = course?.geometryKey ? await env.FILES.get(course.geometryKey) : null;
+  return object ? buildTrack(CourseGeometrySchema.parse(await object.json()).points) : null;
 };
 
-const trackFor = async (env: AppEnv['Bindings'], course: Course | undefined): Promise<CourseTrack | null> => {
-  if (!course) return null;
-  const object = course.geometryKey ? await env.FILES.get(course.geometryKey) : null;
-  const geometry = object ? CourseGeometrySchema.parse(await object.json()) : deauvilleMarathonGeometry;
-  return buildTrack(geometry.points);
-};
+/** The Mapbox picture of a course, when the Worker has a token to draw it (else the SVG diagram). */
+const mapUrlFor = (env: AppEnv['Bindings'], course: Course | undefined, size = ''): string | null =>
+  env.MAPBOX_TOKEN && course?.geometryKey ? `/api/courses/${course.id}/map.png${size}` : null;
 
 pages.get('/', async (c) => {
   const locale = localeOf(c);
-  const races = await db(c.env.DB).races();
+  const q = db(c.env.DB);
+  const races = await q.races();
+  const cards = await Promise.all(
+    races.map(async (race) => {
+      const courses = await q.coursesForRace(race.id);
+      const mapUrl = mapUrlFor(c.env, courses[0], '?w=720&h=480');
+      return { race, courses, mapUrl, track: mapUrl ? null : await trackFor(c.env, courses[0]) };
+    }),
+  );
   return c.html(
-    <Layout title="Sivoov Run" locale={locale} path="/">
-      <HomePage races={races} locale={locale} />
+    <Layout title="Sivoov Run" description={t(locale, 'site.home.title')} locale={locale} path="/">
+      <HomePage cards={cards} locale={locale} />
     </Layout>,
   );
 });
@@ -53,8 +52,8 @@ pages.get('/:slug', async (c) => {
   const race = await q.raceBySlug(c.req.param('slug'));
   if (!race) return c.notFound();
   const courses = await q.coursesForRace(race.id);
-  const track = await trackFor(c.env, courses[0]);
-  const mapUrl = c.env.MAPBOX_TOKEN && courses[0] ? `/api/courses/${courses[0].id}/map.png` : null;
+  const mapUrl = mapUrlFor(c.env, courses[0]);
+  const track = mapUrl ? null : await trackFor(c.env, courses[0]);
   return c.html(
     <Layout title={`${race.theme.displayName} · Sivoov Run`} description={race.name} locale={locale} race={race} path={`/${race.slug}`}>
       <LandingPage race={race} courses={courses} track={track} mapUrl={mapUrl} locale={locale} />

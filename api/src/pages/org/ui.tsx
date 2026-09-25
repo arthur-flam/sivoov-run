@@ -1,0 +1,305 @@
+import type { Child } from 'hono/jsx';
+
+/**
+ * The admin's building blocks. A screen is a PageHead and a few Cards; it should not need
+ * CSS of its own (adminStyles.ts holds it all, colors come from tokens.ts).
+ */
+
+export type Tone = 'neutral' | 'good' | 'warn' | 'bad' | 'info';
+
+const ICONS = {
+  home: 'M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
+  runners: 'M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M20 20v-1.5a3.5 3.5 0 0 0-2.5-3.35M15.5 4.15a3.5 3.5 0 0 1 0 6.7',
+  activity: 'M3 12h4l3 8 4-16 3 8h4',
+  audio: 'M11 5 6 9H3v6h3l5 4zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13',
+  settings: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1',
+  team: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
+  races: 'M4 21V4M4 4h13l-2 4 2 4H4',
+  inbox: 'M22 12h-6l-2 3h-4l-2-3H2M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11',
+  check: 'M20 6 9 17l-5-5',
+  download: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3',
+  upload: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12',
+  plus: 'M12 5v14M5 12h14',
+  external: 'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3',
+  play: 'M6 4l14 8-14 8z',
+} as const;
+export type IconName = keyof typeof ICONS;
+
+export const Icon = ({ name }: { name: IconName }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d={ICONS[name]} />
+  </svg>
+);
+
+export const PageHead = ({ title, sub, back, actions }: { title: Child; sub?: Child; back?: { href: string; label: string }; actions?: Child }) => (
+  <div class="ph">
+    <div>
+      {back ? (
+        <a class="back" href={back.href}>
+          ← {back.label}
+        </a>
+      ) : null}
+      <h1>{title}</h1>
+      {sub ? <p>{sub}</p> : null}
+    </div>
+    {actions ? <div class="actions">{actions}</div> : null}
+  </div>
+);
+
+export const Card = ({ title, sub, actions, flush, id, children }: { title?: Child; sub?: Child; actions?: Child; flush?: boolean; id?: string; children: Child }) => (
+  <section class={flush ? 'card flush' : 'card'} id={id}>
+    {title || actions ? (
+      <div class="card-h">
+        <div>
+          {title ? <h2>{title}</h2> : null}
+          {sub ? <p>{sub}</p> : null}
+        </div>
+        {actions ?? null}
+      </div>
+    ) : null}
+    {children}
+  </section>
+);
+
+export const Stat = ({ label, value, hint, href, share }: { label: Child; value: Child; hint?: Child; href?: string; share?: number }) => {
+  const body = (
+    <>
+      <div class="l">{label}</div>
+      <div class="v">{value}</div>
+      {hint ? <div class="h">{hint}</div> : null}
+      {share !== undefined ? (
+        <div class="bar" aria-hidden="true">
+          <i style={`width:${Math.round(Math.max(0, Math.min(1, share)) * 100)}%`}></i>
+        </div>
+      ) : null}
+    </>
+  );
+  return href ? (
+    <a class="stat" href={href}>
+      {body}
+    </a>
+  ) : (
+    <div class="stat">{body}</div>
+  );
+};
+
+export const Badge = ({ tone = 'neutral', children }: { tone?: Tone; children: Child }) => <span class={`badge ${tone}`}>{children}</span>;
+
+export const Flash = ({ tone = 'info', children }: { tone?: Tone; children: Child }) => (
+  <div class={`flash ${tone}`} role={tone === 'bad' ? 'alert' : 'status'}>
+    {children}
+  </div>
+);
+
+export const Empty = ({ title, children, action }: { title: Child; children?: Child; action?: Child }) => (
+  <div class="empty-state">
+    <b>{title}</b>
+    {children ? <p>{children}</p> : null}
+    {action ?? null}
+  </div>
+);
+
+export const Field = ({ label, hint, error, for: htmlFor, children }: { label: Child; hint?: Child; error?: Child; for?: string; children: Child }) => (
+  <div class={error ? 'field bad' : 'field'}>
+    <label for={htmlFor}>
+      {label} {hint ? <span class="hint">{hint}</span> : null}
+    </label>
+    {children}
+    {error ? <span class="err">{error}</span> : null}
+  </div>
+);
+
+export type Chip = { label: Child; href: string; on?: boolean; count?: number };
+
+export const Chips = ({ items, label }: { items: Chip[]; label: string }) => (
+  <nav class="chips" aria-label={label}>
+    {items.map((i) => (
+      <a href={i.href} class={i.on ? 'on' : ''} aria-current={i.on ? 'true' : undefined}>
+        {i.label}
+        {i.count !== undefined ? <span class="n">{i.count}</span> : null}
+      </a>
+    ))}
+  </nav>
+);
+
+export type TodoItem = { done: boolean; label: Child; hint?: Child; action?: Child };
+
+export const Checklist = ({ items }: { items: TodoItem[] }) => (
+  <ul class="todo">
+    {items.map((i) => (
+      <li class={i.done ? 'done' : ''}>
+        <span class="tick">{i.done ? <Icon name="check" /> : null}</span>
+        <div>
+          <b>{i.label}</b>
+          {i.hint ? <span>{i.hint}</span> : null}
+        </div>
+        <div>{i.done ? null : (i.action ?? null)}</div>
+      </li>
+    ))}
+  </ul>
+);
+
+export const KeyValues = ({ rows }: { rows: Array<[Child, Child]> }) => (
+  <dl class="kv">
+    {rows.map(([k, v]) => (
+      <>
+        <dt>{k}</dt>
+        <dd>{v}</dd>
+      </>
+    ))}
+  </dl>
+);
+
+/** A form button that asks before doing something that cannot be undone. */
+export const ConfirmButton = ({ message, class: cls = 'btn btn-danger', children }: { message: string; class?: string; children: Child }) => (
+  <button class={cls} type="submit" onclick={`return confirm(${JSON.stringify(message)})`}>
+    {children}
+  </button>
+);
+
+/** A thin horizontal bar, `share` in [0, 1]: a kilometre against the slowest one, a part of a whole. */
+export const Meter = ({ share, tone = 'neutral' }: { share: number; tone?: Tone }) => (
+  <span class={`meter ${tone}`} aria-hidden="true">
+    <i style={`width:${Math.round(Math.max(0, Math.min(1, share)) * 100)}%`}></i>
+  </span>
+);
+
+/** Newer and older links under a long list. Renders nothing when everything fits on one page. */
+export const PagerLinks = ({ newer, older, newerLabel = 'Plus récentes', olderLabel = 'Plus anciennes' }: { newer?: string; older?: string; newerLabel?: string; olderLabel?: string }) =>
+  newer || older ? (
+    <nav class="pager-links" aria-label="Pages">
+      {newer ? (
+        <a class="btn btn-sm" href={newer}>
+          ← {newerLabel}
+        </a>
+      ) : (
+        <span></span>
+      )}
+      {older ? (
+        <a class="btn btn-sm" href={older}>
+          {olderLabel} →
+        </a>
+      ) : null}
+    </nav>
+  ) : null;
+
+/** A part of the page that opens on demand, for details only support needs. Closed by default. */
+export const Disclosure = ({ summary, hint, children }: { summary: Child; hint?: Child; children: Child }) => (
+  <details class="disclosure">
+    <summary>
+      <span>
+        <b>{summary}</b>
+        {hint ? <span class="hint">{hint}</span> : null}
+      </span>
+    </summary>
+    <div class="disclosure-body">{children}</div>
+  </details>
+);
+
+/** Lines as a machine wrote them (a phone's log), monospaced and scrollable. */
+export const LogLines = ({ lines }: { lines: string[] }) => <pre class="log">{lines.join('\n')}</pre>;
+export type ChoiceOption = { value: string; label: Child; hint?: Child };
+
+/** Radio buttons (or checkboxes) as cards, each with one plain sentence under its name. */
+export const Choices = ({ type = 'radio', name, legend, hint, options, selected, columns, error }: {
+  type?: 'radio' | 'checkbox'; name: string; legend: Child; hint?: Child; options: ChoiceOption[]; selected: readonly string[]; columns?: 2; error?: Child;
+}) => (
+  <fieldset class={columns === 2 ? 'choices two' : 'choices'}>
+    <legend>
+      {legend} {hint ? <span class="hint">{hint}</span> : null}
+    </legend>
+    {options.map((o) => (
+      <label class="choice">
+        <input type={type} name={name} value={o.value} checked={selected.includes(o.value)} />
+        <span>
+          <b>{o.label}</b>
+          {o.hint ? <small>{o.hint}</small> : null}
+        </span>
+      </label>
+    ))}
+    {error ? <span class="err">{error}</span> : null}
+  </fieldset>
+);
+
+/** A native color picker with the color's code next to it. */
+export const ColorInput = ({ id, name, value }: { id: string; name: string; value: string }) => (
+  <div class="color-input">
+    <input type="color" id={id} name={name} value={value} />
+    <code data-code-for={id}>{value}</code>
+  </div>
+);
+
+/** What a picture slot holds now, or an empty frame saying so. */
+export const ImageFrame = ({ src, alt, empty, wide }: { src?: string; alt: string; empty: Child; wide?: boolean }) => (
+  <div class={`img-frame${wide ? ' wide' : ''}${src ? ' filled' : ''}`}>{src ? <img src={src} alt={alt} /> : <span>{empty}</span>}</div>
+);
+
+/** A list of people or requests. Each row: a lead (avatar), a name, a short line, badges, and room below. */
+export const Rows = ({ children }: { children: Child }) => <ul class="rows">{children}</ul>;
+
+export const Row = ({ lead, title, sub, aside, dim, children }: { lead?: Child; title: Child; sub?: Child; aside?: Child; dim?: boolean; children?: Child }) => (
+  <li class={dim ? 'dim' : undefined}>
+    <div class="row-top">
+      {lead ?? null}
+      <div class="row-main">
+        <b>{title}</b>
+        {sub ? <span>{sub}</span> : null}
+      </div>
+      {aside ? <div class="row-aside">{aside}</div> : null}
+    </div>
+    {children ? <div class="row-body">{children}</div> : null}
+  </li>
+);
+
+/** A small button that opens a form in place ("Modifier"). */
+export const Disclose = ({ label, children }: { label: Child; children: Child }) => (
+  <details class="disclose">
+    <summary class="btn btn-sm btn-quiet">{label}</summary>
+    <div class="disclose-body">{children}</div>
+  </details>
+);
+
+/** "Page 2 sur 13" with the two neighbours. Renders nothing for a single page. */
+export const Pager = ({ page, pages, href }: { page: number; pages: number; href: (page: number) => string }) =>
+  pages <= 1 ? null : (
+    <nav class="pager" aria-label="Pages">
+      {page > 1 ? (
+        <a class="btn btn-sm" href={href(page - 1)} rel="prev">
+          ← Précédente
+        </a>
+      ) : (
+        <span></span>
+      )}
+      <span class="muted small">
+        Page {page} sur {pages}
+      </span>
+      {page < pages ? (
+        <a class="btn btn-sm" href={href(page + 1)} rel="next">
+          Suivante →
+        </a>
+      ) : (
+        <span></span>
+      )}
+    </nav>
+  );
+
+const FILE_DROP_SCRIPT = `(function(){var z=document.currentScript.parentNode,i=z.querySelector('input'),n=z.querySelector('.drop-name');
+['dragenter','dragover'].forEach(function(t){z.addEventListener(t,function(){z.classList.add('over')})});
+['dragleave','drop'].forEach(function(t){z.addEventListener(t,function(){z.classList.remove('over')})});
+i.addEventListener('change',function(){var f=i.files&&i.files[0];n.textContent=f?f.name:'';z.classList.toggle('has',!!f);if(f&&z.dataset.drop==='submit'){z.classList.add('busy');i.form.submit()}})})();`;
+
+/**
+ * A file input shown as a large drop area. The input covers the whole area, so clicking and
+ * dropping work without JavaScript; the script only shows the chosen name and, with `autoSubmit`,
+ * sends the form as soon as a file is chosen.
+ */
+export const FileDrop = ({ name, accept, title, hint, autoSubmit }: { name: string; accept: string; title: Child; hint?: Child; autoSubmit?: boolean }) => (
+  <div class="drop" data-drop={autoSubmit ? 'submit' : ''}>
+    <input type="file" name={name} accept={accept} aria-label="Choisir un fichier" />
+    <Icon name="upload" />
+    <b>{title}</b>
+    {hint ? <span>{hint}</span> : null}
+    <span class="drop-name" aria-live="polite"></span>
+    <script dangerouslySetInnerHTML={{ __html: FILE_DROP_SCRIPT }} />
+  </div>
+);

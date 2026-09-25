@@ -2,10 +2,11 @@ import { expect, test } from '@playwright/test';
 
 const shots = 'test-results/shots';
 
-test('landing renders the race and the course diagram', async ({ page }) => {
+test('landing renders the race and the course, as a map or as the diagram', async ({ page }) => {
   await page.goto('/deauville-2026');
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Deauville');
-  await expect(page.locator('svg[role=img]')).toBeVisible();
+  // The Mapbox picture when the Worker has a token, the SVG diagram otherwise.
+  await expect(page.locator('img.course-map, svg[role=img]').first()).toBeVisible();
   await page.screenshot({ path: `${shots}/landing-mobile.png`, fullPage: true });
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.screenshot({ path: `${shots}/landing-desktop.png`, fullPage: true });

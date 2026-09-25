@@ -49,3 +49,25 @@ the finish screen, results header, certificate, share image. Everywhere else is 
 - Every screen has a loading, empty and error state, and a French and English string set.
 - Motion: Reanimated only for the run screen (progress, countdown). Elsewhere, none.
 - Assets: SVG for icons and the course diagram, no icon font.
+
+## Voice and copy (all surfaces)
+We are talking to runners and to race directors, not to developers.
+- Plain words, short sentences, "vous". Say what happens and what to do next.
+- No em dashes or en dashes as punctuation. Use a full stop, a comma or a colon.
+- No jargon on screen: not "pack", "manifest", "TTS", "slug", "trigger", "upload", "token",
+  "draft v3". Say "les annonces", "la voix", "publier", "l'adresse de la page", "importer".
+- No marketing filler ("immersive", "révolutionnaire", "unique", "seamless", "unleash") and
+  no emoji. One idea per sentence. If a sentence could sit on any product's page, cut it.
+- Numbers the French way: `42,195 km`, `5:30 /km`, `3 h 12 min`, dates as `14 nov.`.
+- Empty is a state, not a dash: write "Pas encore" or leave the cell blank, never "—".
+- Admin: French only for now; every label is a noun a race director already uses
+  (Coureurs, Dossard, Parcours, Résultats, Annonces, Équipe, Réglages).
+
+## Theming contract (so the identity can change later)
+- `api/src/pages/tokens.ts` holds every color, font, radius and shadow as a CSS variable.
+  Changing the identity is an edit there (plus `FONTS_URL`). No other file hard-codes a color;
+  status colors are `--good`, `--warn`, `--bad`, `--info` with their `-bg` and `-border`.
+- The race layer is `--race-primary` / `--race-on-primary`, set on `<body>` from `race.theme`.
+- The admin has its own stylesheet (`api/src/pages/org/adminStyles.ts`) and components
+  (`api/src/pages/org/ui.tsx`): page header, card, stat, badge, table, form field, flash, empty
+  state. New admin screens compose those instead of writing CSS.

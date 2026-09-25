@@ -75,6 +75,8 @@ export const en: Record<keyof typeof fr, string> = {
   'run.checks.battery': 'Battery',
   'run.start': 'Take the start',
   'run.countdown': 'Starting in',
+  'run.armed.title': 'On the line',
+  'run.armed.body': 'Listen: the start is given in your headphones.',
   'run.next': 'Next',
   'run.finish': 'Finish',
   'run.stopHold': 'Hold to stop',

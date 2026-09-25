@@ -79,6 +79,8 @@ export const fr = {
   'run.checks.battery': 'Batterie',
   'run.start': 'Prendre le départ',
   'run.countdown': 'Départ dans',
+  'run.armed.title': 'Sur la ligne',
+  'run.armed.body': 'Écoutez : le départ est donné dans vos écouteurs.',
   'run.next': 'Prochain',
   'run.finish': 'Arrivée',
   'run.stopHold': 'Maintenir pour arrêter',

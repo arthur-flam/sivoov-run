@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useKeepAwake } from 'expo-keep-awake';
 import Constants from 'expo-constants';
 import { constantPace, finishOutcome, formatClock, formatKm, formatPace, nextLandmark, parsePace, progress, readableOn } from '@sivoov/shared';
+import { usePackStore } from '@/audio/packStore';
 import { useAudioPack, useAudioPlayback } from '@/audio/usePlayback';
 import { CourseDiagram } from '@/components/CourseDiagram';
 import { Finish } from '@/components/Finish';
@@ -96,8 +97,21 @@ export default function Run() {
           <CourseDiagram track={track} officialM={course.distanceM} runM={0} landmarks={course.landmarks} accent={accent} width={diagramW} height={diagramW * 0.8} />
         </View>
         <View style={{ flex: 1 }} />
-        <Button testID="start" label={t('run.start')} color={race.theme.primary} onColor={race.theme.onPrimary} onPress={() => void run.start(source)} />
+        <Button testID="start" label={t('run.start')} color={race.theme.primary} onColor={race.theme.onPrimary} onPress={() => void run.start(source, { uriFor: usePackStore.getState().uriFor })} />
         <Button label={t('common.back')} ghost dark onPress={() => router.back()} />
+      </Screen>
+    );
+  }
+
+  // The ceremony's first lines: no digits yet, the runner is on the line and listening.
+  if (phase === 'countdown' && run.cue === 'armed') {
+    return (
+      <Screen dark style={[styles.center, { padding: space.lg }]}>
+        <Eyebrow dark>{race.theme.displayName}</Eyebrow>
+        <Display dark style={{ textAlign: 'center' }}>{t('run.armed.title')}</Display>
+        <Body dark muted style={{ textAlign: 'center' }} testID="on-the-line">
+          {t('run.armed.body')}
+        </Body>
       </Screen>
     );
   }

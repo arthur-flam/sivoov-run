@@ -194,3 +194,33 @@
 - 2026-09-23: `expo/expo-github-action/preview@v8` rejects `qr-target: dev-build` ("Invalid QR code
   target: dev-build, expected expo-go or dev-build"): its input check only lists `dev-client`,
   which it maps to dev-build. Use `dev-client`. The preview workflow had never run before PR #1.
+- 2026-09-25: upload fallback (session 9). Things worth knowing next time:
+  - A parallel-agent worktree can be cut from an older commit than the session branch it will
+    merge into: this one started at `3d9b825` while `claude/running-app-launch-xopyvv` was eight
+    commits ahead (`raceWindow.ts`, `official.ts`, the Chromium launcher all missing). Compare
+    `git log` with the session branch first; with no local commits, `git merge --ff-only` fixes it.
+  - A GPX has no accuracy and no Doppler speed, so the tracker runs on positions alone (default
+    10 m accuracy, no ±15 % step bound, Kalman starts at v = 0). Measured on the simulated
+    Deauville half at 1 Hz: the official time comes out 0.29 % fast at 3 m noise, 1.17 % at 5 m,
+    3.40 % at 8 m (the app, with Doppler, is 0.23 % at 8 m). Watches smooth their output, so 3 m
+    is the realistic row, but a noisy phone-app GPX is judged more generously than the app.
+  - The other way round: on a clean 1 Hz track the 8 m jitter filter cuts Deauville's corners and
+    measures 0.24 % short (21 047 m of 21 097.5). A runner who stops the watch the instant it
+    shows the distance can be refused as tens of metres short. Owner's call: tolerance or override.
+  - A synthetic file that ends exactly on the distance never finishes: the chords sum to
+    9999.9999999 m of 10 000. Synthetic runs in tests go a little past the line, like real ones.
+  - The tracker refuses steps above 10 m/s but keeps its last accepted fix, so a bus ride comes
+    back later as one long step once (distance / time since that fix) drops under 10 m/s. Its
+    kilometres then come out near 1:40. `evaluateUpload` refuses any kilometre under 2:10; the
+    app does not check this at all.
+  - World records moved in 2026 (marathon 1:59:30, half 56:51, 1000 m 2:11.83), so the
+    too-fast thresholds are floors rounded down to the minute, not the records themselves.
+  - A 1 Hz Garmin marathon GPX (heart rate + cadence) is 5.2 MB and ~16 000 points; reading and
+    judging it costs 60-110 ms of CPU in Node. Fine on the Workers paid plan, far over the Free
+    plan's 10 ms; which plan the account is on was not checked.
+  - `api/src/lib/testCode.test.ts` is run by neither api vitest config (`test/**` in workerd,
+    `tools/**` in node), so `npm test` does not run it.
+  - `npm run shots` reuses whatever answers on :8788, which can be another worktree's Worker.
+    With parallel sessions, start `wrangler dev --env local --port <free>` and run Playwright with
+    a throwaway config spreading `playwright.shots.config.ts` with `webServer: undefined` and
+    `use.baseURL` on that port.

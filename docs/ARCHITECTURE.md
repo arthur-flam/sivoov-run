@@ -59,7 +59,9 @@ Rows are validated by zod schemas in `shared/schemas/` on the way in and out of 
 ## Web surfaces (Worker, server-rendered)
 - `/{race}`: landing. `/{race}/signin`: bib + email → code. `/{race}/app`: install.
 - `/{race}/prepare`: course, trailer, instructions. `/{race}/results`, `/{race}/results/{bib}`
-  (certificate, share image). `/{race}/upload`: GPX fallback.
+  (certificate, share image). `/{race}/upload`: GPX fallback behind the web session, judged by
+  the app's tracker (`evaluateUpload` in `shared/`), stored as a run with `source: upload`.
+- `/{race}/signin?next=/…`: returns to a same-site path after the code instead of the install page.
 - `/org/{race}`: organizer admin (entrants, runs, exports, imports).
   `/org/{race}/courses`: courses, GPX upload, and per course the audio **studio**
   (`/org/{race}/courses/{courseId}`): the course on a Leaflet/Mapbox map with every audio

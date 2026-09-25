@@ -145,4 +145,13 @@ table.results { width: 100%; border-collapse: collapse; font-size: 15px; }
   .topbar, footer, .result-actions, .result-splits, .result-cta { display: none !important; }
   .certificate { box-shadow: none; margin: 0; padding: 56px 48px 28px; }
 }
+
+/* Upload fallback: the file input is the drop target itself, so a file dropped anywhere on it lands, with no script. */
+.field input.upload-file { font-size: 15px; color: var(--ink-2); padding: 28px 16px; border: 1.5px dashed #d4d0cb; border-radius: 16px; background: var(--card); cursor: pointer; }
+.field input.upload-file:hover { border-color: var(--race-primary); }
+.upload-file::file-selector-button { font: inherit; font-weight: 600; margin-right: 14px; padding: 10px 18px; border-radius: 999px; border: 1px solid var(--race-primary); background: transparent; color: var(--race-primary); cursor: pointer; }
+.upload-hint { font-size: 13px; color: var(--muted); }
+.form-page .upload-contact { margin: 10px 0 0; color: inherit; font-weight: 600; }
+.upload-accepted { font-family: var(--font-display); font-weight: 500; font-size: 22px; letter-spacing: -0.01em; margin: 38px 0 14px; }
+.upload-accepted + .what li { font-size: 15px; color: var(--ink-2); }
 `;

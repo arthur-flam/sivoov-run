@@ -7,6 +7,7 @@ import { audio } from './routes/audio';
 import { pages } from './routes/pages';
 import { results } from './routes/results';
 import { org } from './routes/org';
+import { upload } from './routes/upload';
 
 const app = new Hono<AppEnv>();
 
@@ -17,7 +18,9 @@ app.route('/api', api);
 app.route('/api', audio);
 // Organizer admin is mounted before the pages so that /org/:slug is not taken for a race slug.
 app.route('/org', org);
+// Before the pages too, like /org: nothing in them may claim /:slug/results or /:slug/upload first.
 app.route('/', results);
+app.route('/', upload);
 app.route('/', pages);
 
 app.notFound((c) => (c.req.path.startsWith('/api') ? c.json({ error: 'not_found' }, 404) : c.text('Page introuvable', 404)));

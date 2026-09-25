@@ -14,10 +14,11 @@ import { SigninPage } from '../pages/signin';
 import { InstallPage } from '../pages/install';
 import { CourseGeometrySchema } from '@sivoov/shared';
 import { entrantForToken, requestCode, signOut, verifyCode } from '../lib/authService';
+import { sameSitePath } from '../lib/nextPath';
 
 export const pages = new Hono<AppEnv>();
 
-const SESSION_COOKIE = 'sivoov_session';
+export const SESSION_COOKIE = 'sivoov_session';
 
 /** ?lang= wins and is remembered; then the cookie; then Accept-Language; French by default. */
 export const localeOf = (c: Context<AppEnv>): Locale => {
@@ -76,7 +77,7 @@ pages.get('/:slug/signin', async (c) => {
   if (!race) return c.notFound();
   return c.html(
     <Layout title={`${locale === 'fr' ? 'Identifiez-vous' : 'Sign in'} · ${race.theme.displayName}`} locale={locale} race={race} path={`/${race.slug}/signin`}>
-      <SigninPage race={race} locale={locale} state={{ step: 'identify' }} />
+      <SigninPage race={race} locale={locale} state={{ step: 'identify' }} next={sameSitePath(c.req.query('next'))} />
     </Layout>,
   );
 });
@@ -88,10 +89,11 @@ pages.post('/:slug/signin', async (c) => {
   if (!race) return c.notFound();
   const form = await c.req.parseBody();
   const raceSlug = race.slug;
+  const next = sameSitePath(form.next);
   const render = (state: Parameters<typeof SigninPage>[0]['state'], status: 200 | 400 | 401 | 404 | 429 = 200) =>
     c.html(
       <Layout title={`${locale === 'fr' ? 'Identifiez-vous' : 'Sign in'} · ${race.theme.displayName}`} locale={locale} race={race} path={`/${race.slug}/signin`}>
-        <SigninPage race={race} locale={locale} state={state} />
+        <SigninPage race={race} locale={locale} state={state} next={next} />
       </Layout>,
       status,
     );
@@ -111,7 +113,7 @@ pages.post('/:slug/signin', async (c) => {
   const result = await verifyCode(c.env, parsed.data);
   if (!result.ok) return render({ step: 'code', bib: parsed.data.bib, email: parsed.data.email, error: 'bad_code' }, 401);
   setCookie(c, SESSION_COOKIE, result.token, { path: '/', httpOnly: true, sameSite: 'Lax', secure: c.env.ENVIRONMENT !== 'local', maxAge: 180 * 86400 });
-  return c.redirect(`/${race.slug}/app`);
+  return c.redirect(next ?? `/${race.slug}/app`);
 });
 
 pages.get('/:slug/app', async (c) => {

@@ -38,6 +38,28 @@ with a test that fails on the old code:
 Not done: `tick()` still mixes the wall clock into `elapsedMs` between fixes (small split skew),
 and the persisted upload entry still carries the splits in SecureStore.
 
+## Session 9 — upload fallback
+`/{race}/upload` exists (PRD M2): a signed-in runner sends the GPX from a watch or another app
+and gets a time marked "import" in the results. Local only so far; nothing deployed.
+- `shared/`: `readGpxPoints` reads each point's position and `<time>` (course GPX unchanged);
+  `evaluateUpload` replays the points through the app's own tracker, from the first point to
+  the crossing of the course distance, pauses included. Refusals, each with a French and
+  English message: no track, treadmill (no positions, sent to the organizer), drawn route (no
+  times), started outside the window, short of the distance (says how far, and by how much),
+  an average faster than the world record for the distance (records floored to the minute), a
+  kilometre under 2:10 (a vehicle; the 1000 m record is 2:11.83). 17 new tests.
+- `api/`: `GET`/`POST /{race}/upload` (`routes/upload.tsx`, `pages/upload.tsx`) behind the
+  `sivoov_session` cookie; no session → `/{race}/signin?next=…`, and sign-in now honours a
+  same-site `next`. Accepted: `source: 'upload'`, status through `officialStatus`, every point
+  in R2 as the trace, run id `upload-<entrant>-<start ms>` so a re-upload replaces itself,
+  then a 303 to `/{race}/results/{bib}` (built in parallel by another session). Files over
+  10 MB refused before the body is read. The install page links to it. 6 workerd tests.
+- Screens: `npm run shots -- --web upload` (empty page, a 48 m-short refusal, a treadmill).
+- Open for the owner: a watch stopped exactly at the distance can measure a few tens of metres
+  short through the tracker (MEMORY 2026-09-25) and is refused; decide whether uploads get a
+  tolerance or an organizer override. Treadmill runs are refused, where the PRD says the
+  fallback "covers treadmills". TCX (most watches, and treadmills with a distance) is not read.
+
 ## Start here (next session)
 1. Read this file, `docs/WORKFLOW.md` (loop 2b), `docs/MEMORY.md`.
 2. **No laptop?** That is now the supported case. `Sivoov (Preview)` on the phone is standalone;
@@ -84,9 +106,10 @@ dev client", happened on 2026-09-13 on a real Galaxy S23 (see below), minus the 
    the tracker is finally tuned against real GPS instead of simulated noise. Watch: drift while
    stopped at a light, whether audio ducked music or stopped it, gaps while the screen was off,
    battery drop (PRD section 7 budgets half a phone for a marathon, and nothing has measured it).
-3. **Results and certificate**, then the **GPX upload fallback** (`/{race}/upload`). Both are
-   named in M2 and neither exists. The fallback is also the insurance policy if the device run
-   keeps disappointing.
+3. **Results and certificate** (being built in parallel). The **GPX upload fallback**
+   (`/{race}/upload`) is done locally (session 9): deploy it to preview, then send a real
+   export from Strava and from Garmin Connect through it, and decide the tolerance question
+   in the session 9 notes.
 4. **Audio v1**, in the order of `docs/AUDIO_EXPERIENCE.md` §4 and Part 2 §2.6: (a) the `cue`
    trigger so intro → countdown → gun play *before* the clock starts and the digits follow the
    countdown file (today all three fire at the gun); (b) pack download from the race home and

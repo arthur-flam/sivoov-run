@@ -6,7 +6,7 @@ import type { AppEnv } from '../env';
 import { db } from '../db/queries';
 import { cardDeps, cardFormat, cardPng, cardsEnabled, previewImage } from '../lib/cards';
 import type { CardFormat } from '../lib/cards';
-import { cardRunner, fullName, raceCardId, resultForBib, runCardId } from '../lib/results';
+import { fullName, raceCardId, resultForBib, runCardId, runnerCardFor } from '../lib/results';
 import { ShareCard } from '../pages/card';
 import { fmtDate } from '../pages/dates';
 import { Layout } from '../pages/layout';
@@ -51,18 +51,23 @@ results.get('/:slug/results/:bib', async (c) => {
   const t = translator(locale);
   const base = origin(c);
   const page = `${base}/${race.slug}/results/${result.entrant.bib}`;
-  const cards = cardsEnabled(cardDeps(c.env));
-  const time = result.best ? formatOfficialTime(result.best.run.elapsedMs) : null;
-  const title = time ? `${fullName(result.entrant)} · ${time} · ${race.theme.displayName}` : `${fullName(result.entrant)} · ${race.theme.displayName}`;
+  const deps = cardDeps(c.env);
+  const card = runnerCardFor(race, result, locale, Date.now());
+  // A link preview fetches the page, then its image: start the photograph now, not then.
+  if (card && cardsEnabled(deps)) c.executionCtx.waitUntil(cardPng(deps, card.id, 'og', `${page}/card?format=og&lang=${locale}`).catch(() => null));
+  const name = fullName(result.entrant);
+  const title = result.best
+    ? `${name} · ${formatOfficialTime(result.best.run.elapsedMs)} · ${race.theme.displayName}`
+    : t('result.bib.title', { firstName: name, race: race.theme.displayName });
   const og: OpenGraph = {
     title,
     description: t('result.og.description', { distance: distanceLabel(locale, result.entrant.distanceKey) }),
     url: page,
-    image: result.best ? previewImage(c.env, `${page}/card.png?format=og&lang=${locale}`, result.course.id, base) : previewImage(c.env, `${base}/${race.slug}/og.png?lang=${locale}`, result.course.id, base),
+    image: previewImage(c.env, card ? `${page}/card.png?format=og&lang=${locale}` : `${base}/${race.slug}/og.png?lang=${locale}`, result.course.id, base),
   };
   return c.html(
     <Layout title={title} locale={locale} race={race} path={`/${race.slug}/results/${result.entrant.bib}`} og={og}>
-      <ResultPage race={race} result={result} track={await trackFor(c.env, result.course)} locale={locale} shareUrl={page} storyCardUrl={result.best && cards ? `${page}/card.png?format=story&lang=${locale}` : null} />
+      <ResultPage race={race} result={result} track={await trackFor(c.env, result.course)} locale={locale} now={Date.now()} shareUrl={page} storyCardUrl={card && cardsEnabled(deps) ? `${page}/card.png?format=story&lang=${locale}` : null} />
     </Layout>,
   );
 });
@@ -73,11 +78,10 @@ results.get('/:slug/results/:bib/card', async (c) => {
   const q = db(c.env.DB);
   const race = await q.raceBySlug(c.req.param('slug'));
   const result = race ? await resultForBib(q, race, c.req.param('bib')) : null;
+  const card = race && result ? runnerCardFor(race, result, locale, Date.now()) : null;
   const track = result ? await trackFor(c.env, result.course) : null;
-  if (!race || !result?.best || !track) return c.notFound();
-  return c.html(
-    <ShareCard race={race} track={track} format={cardFormat(c.req.query('format'))} locale={locale} host={new URL(c.req.url).host} runner={cardRunner(race, result.entrant, result.best.run, locale)} subtitle="" />,
-  );
+  if (!race || !card || !track) return c.notFound();
+  return c.html(<ShareCard race={race} track={track} format={cardFormat(c.req.query('format'))} locale={locale} host={new URL(c.req.url).host} runner={card.card} subtitle="" />);
 });
 
 results.get('/:slug/results/:bib/card.png', async (c) => {
@@ -85,10 +89,11 @@ results.get('/:slug/results/:bib/card.png', async (c) => {
   const q = db(c.env.DB);
   const race = await q.raceBySlug(c.req.param('slug'));
   const result = race ? await resultForBib(q, race, c.req.param('bib')) : null;
-  if (!race || !result?.best) return c.notFound();
+  const card = race && result ? runnerCardFor(race, result, locale, Date.now()) : null;
+  if (!race || !result || !card) return c.notFound();
   const format = cardFormat(c.req.query('format'));
   const page = `${origin(c)}/${race.slug}/results/${result.entrant.bib}/card?format=${format}&lang=${locale}`;
-  const body = await cardPng(cardDeps(c.env), runCardId(result.best.run, locale), format, page);
+  const body = await cardPng(cardDeps(c.env), card.id, format, page);
   return body ? png(body) : c.notFound();
 });
 

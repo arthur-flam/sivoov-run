@@ -5,8 +5,11 @@ import { db } from '../src/db/queries';
 import { cardKey, cardPng } from '../src/lib/cards';
 import { deauvilleCourses, deauvilleRace } from '../src/seed/deauville';
 
-// A race of its own, so the runs other suites upload never change a rank here.
-const race = RaceSchema.parse({ ...deauvilleRace, id: 'podium-2026', slug: 'podium-2026' });
+// A race of its own, so the runs other suites upload never change a rank here. Its window is
+// in 2099, so the pages that depend on today's date (the bib page until the window closes)
+// read the same whenever the suite runs; `closed` is a race whose window is long over.
+const race = RaceSchema.parse({ ...deauvilleRace, id: 'podium-2026', slug: 'podium-2026', windowStart: '2099-11-09T00:00:00+01:00', windowEnd: '2099-11-15T23:59:59+01:00' });
+const closed = RaceSchema.parse({ ...deauvilleRace, id: 'closed-2020', slug: 'closed-2020', windowStart: '2020-11-09T00:00:00+01:00', windowEnd: '2020-11-15T23:59:59+01:00' });
 const half = CourseSchema.parse({ ...deauvilleCourses[1], id: 'podium-2026-half', raceId: race.id });
 const entrant = (bib: string, firstName: string, lastName: string) =>
   EntrantSchema.parse({ id: `podium-${bib}`, raceId: race.id, bib, email: `runner${bib}@example.com`, firstName, lastName, distanceKey: 'half', source: 'manual' });
@@ -24,14 +27,17 @@ beforeAll(async () => {
   await q.upsertRace(race);
   await q.upsertCourse(half);
   await Promise.all([marc, lea, paul].map((e) => q.upsertEntrant(e)));
+  await q.upsertRace(closed);
+  await q.upsertCourse(CourseSchema.parse({ ...half, id: 'closed-2020-half', raceId: closed.id }));
+  await q.upsertEntrant(EntrantSchema.parse({ ...paul, id: 'closed-3003', raceId: closed.id, bib: '3003' }));
   // Marc rehearsed fast in October, then ran race week slower: only the second one counts.
-  await q.upsertRun(run('marc-rehearsal', marc.id, '2026-10-04T08:00:00.000Z', 5_400_000), null);
-  await q.upsertRun(run('marc-race', marc.id, '2026-11-12T07:30:00.000Z', 6_300_000), null);
+  await q.upsertRun(run('marc-rehearsal', marc.id, '2099-10-04T08:00:00.000Z', 5_400_000), null);
+  await q.upsertRun(run('marc-race', marc.id, '2099-11-12T07:30:00.000Z', 6_300_000), null);
   // Léa: a slower finish during the week, and one started the minute the window closed.
-  await q.upsertRun(run('lea-race', lea.id, '2026-11-09T00:00:00+01:00', 6_600_000), null);
-  await q.upsertRun(run('lea-late', lea.id, '2026-11-16T00:00:00+01:00', 6_000_000), null);
+  await q.upsertRun(run('lea-race', lea.id, '2099-11-09T00:00:00+01:00', 6_600_000), null);
+  await q.upsertRun(run('lea-late', lea.id, '2099-11-16T00:00:00+01:00', 6_000_000), null);
   // Paul stopped: nothing to rank.
-  await q.upsertRun(run('paul-stop', paul.id, '2026-11-13T08:00:00.000Z', 1_200_000, 'abandoned'), null);
+  await q.upsertRun(run('paul-stop', paul.id, '2099-11-13T08:00:00.000Z', 1_200_000, 'abandoned'), null);
 });
 
 describe('the results table', () => {
@@ -75,10 +81,19 @@ describe('a finisher’s certificate', () => {
     expect(html).toContain('Courez Marathon International de Deauville, vous aussi.');
     expect(html).toContain(`href="/${race.slug}"`);
   });
-  it('says plainly when the runner has not finished yet', async () => {
+  it('is a bib page before the finish, inviting friends to run along', async () => {
     const res = await SELF.fetch(`${base}/results/2003`);
     expect(res.status).toBe(200);
-    expect(await res.text()).toContain('Paul n’a pas encore franchi la ligne.');
+    const html = await res.text();
+    expect(html).toContain('Paul court Marathon International de Deauville.');
+    expect(html).toContain('data-testid="bib-plate"');
+    expect(html).toContain('Courez avec Paul');
+    expect(html).toContain('<meta property="og:title" content="Paul BERNARD court Marathon International de Deauville."/>');
+  });
+  it('says there is no time once the window has closed', async () => {
+    const html = await (await SELF.fetch(`http://run.test/${closed.slug}/results/3003`)).text();
+    expect(html).toContain('Pas de temps enregistré pour Paul.');
+    expect(html).not.toContain('data-share=""');
   });
   it('404s a bib that is not in the race', async () => {
     expect((await SELF.fetch(`${base}/results/9999`)).status).toBe(404);
@@ -94,8 +109,13 @@ describe('share cards', () => {
     expect(html).toContain('Marc DUPONT');
     expect(html).toContain('1:45:00');
   });
-  it('has no card for someone who has not finished', async () => {
-    expect((await SELF.fetch(`${base}/results/2003/card`)).status).toBe(404);
+  it('shows the bib on the card of someone who has not finished yet', async () => {
+    const html = await (await SELF.fetch(`${base}/results/2003/card?format=og`)).text();
+    expect(html).toContain('Dossard');
+    expect(html).toContain('>2003<');
+  });
+  it('has no card once the window has closed without a finish', async () => {
+    expect((await SELF.fetch(`http://run.test/${closed.slug}/results/3003/card`)).status).toBe(404);
   });
   it('answers 404 for the PNG when this deployment renders no cards', async () => {
     expect((await SELF.fetch(`${base}/results/2001/card.png`)).status).toBe(404);

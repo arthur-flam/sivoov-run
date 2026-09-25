@@ -1,5 +1,5 @@
 import type { CourseTrack, Locale, Race } from '@sivoov/shared';
-import { averagePace, distanceLabel, formatClock, formatOfficialTime, formatPace, formatRank, translator } from '@sivoov/shared';
+import { averagePace, distanceLabel, formatClock, formatOfficialTime, formatPace, formatRank, translator, windowPhase } from '@sivoov/shared';
 import type { RunnerResult } from '../lib/results';
 import { fullName, runDate } from '../lib/results';
 import { CourseDiagram } from './courseDiagram';
@@ -11,6 +11,7 @@ type Props = {
   result: RunnerResult;
   track: CourseTrack | null;
   locale: Locale;
+  now: number;
   /** The page's own absolute URL, which is what gets shared. */
   shareUrl: string;
   /** The portrait card as PNG, when cards are rendered on this deployment. */
@@ -22,9 +23,12 @@ type Props = {
  * and for every visitor who is not that runner, the way into the race. This page is what a
  * shared link opens, so it is the product's front door as much as the landing page.
  */
-export const ResultPage = ({ race, result, track, locale, shareUrl, storyCardUrl }: Props) => {
+export const ResultPage = ({ race, result, track, locale, now, shareUrl, storyCardUrl }: Props) => {
   const t = translator(locale);
   const { entrant, course, best } = result;
+  const open = windowPhase(race, now) !== 'after';
+  const dates = { start: fmtDate(race.windowStart, locale, race.timezone), end: fmtDate(race.windowEnd, locale, race.timezone) };
+  const distance = distanceLabel(locale, entrant.distanceKey);
   return (
     <>
       {best ? (
@@ -72,27 +76,14 @@ export const ResultPage = ({ race, result, track, locale, shareUrl, storyCardUrl
             </p>
           </article>
 
-          <div class="result-actions">
-            <button
-              type="button"
-              class="btn btn-race"
-              data-share=""
-              data-url={shareUrl}
-              data-text={t('finish.shareMessage', { race: race.theme.displayName, distance: distanceLabel(locale, entrant.distanceKey), time: formatOfficialTime(best.run.elapsedMs), url: '' }).trim()}
-              data-card={storyCardUrl ?? ''}
-              data-copied={t('result.copied')}
-            >
-              {t('result.share')}
-            </button>
-            {storyCardUrl ? (
-              <a class="btn btn-ghost" href={storyCardUrl} download={`${race.slug}-${entrant.bib}.png`}>
-                {t('result.download')}
-              </a>
-            ) : null}
-            <button type="button" class="btn btn-ghost" data-print="">
-              {t('result.print')}
-            </button>
-          </div>
+          <ShareActions
+            url={shareUrl}
+            text={t('finish.shareMessage', { race: race.theme.displayName, distance, time: formatOfficialTime(best.run.elapsedMs), url: '' })}
+            cardUrl={storyCardUrl}
+            fileName={`${race.slug}-${entrant.bib}.png`}
+            locale={locale}
+            print
+          />
 
           {best.run.splits.length > 0 ? (
             <details class="result-splits">
@@ -111,24 +102,36 @@ export const ResultPage = ({ race, result, track, locale, shareUrl, storyCardUrl
             </details>
           ) : null}
         </>
+      ) : open ? (
+        <section class="result-pending">
+          <div class="eyebrow">{race.theme.displayName}</div>
+          <div class="bib-plate" data-testid="bib-plate">
+            <span>{t('result.bib')}</span>
+            {entrant.bib}
+          </div>
+          <h1>{t('result.bib.title', { firstName: entrant.firstName, race: race.theme.displayName })}</h1>
+          <p>{t('result.bib.body', { firstName: entrant.firstName, distance, bib: entrant.bib, ...dates })}</p>
+          <ShareActions
+            url={shareUrl}
+            text={t('share.bibMessage', { race: race.theme.displayName, distance, bib: entrant.bib, ...dates, url: '' })}
+            cardUrl={storyCardUrl}
+            fileName={`${race.slug}-${entrant.bib}.png`}
+            locale={locale}
+          />
+        </section>
       ) : (
         <section class="result-pending">
           <div class="eyebrow">{race.theme.displayName}</div>
-          <h1>{t('result.pending.title', { firstName: entrant.firstName })}</h1>
-          <p>
-            {t('result.pending.body', {
-              start: fmtDate(race.windowStart, locale, race.timezone),
-              end: fmtDate(race.windowEnd, locale, race.timezone),
-            })}
-          </p>
+          <h1>{t('result.none.title', { firstName: entrant.firstName })}</h1>
+          <p>{t('result.none.body', dates)}</p>
           <p class="hint">
-            {fullName(entrant)} · {distanceLabel(locale, entrant.distanceKey)} · {t('result.bib')} {entrant.bib}
+            {fullName(entrant)} · {distance} · {t('result.bib')} {entrant.bib}
           </p>
         </section>
       )}
 
       <section class="result-cta">
-        <h2>{t('result.cta.title', { race: race.theme.displayName })}</h2>
+        <h2>{!best && open ? t('result.bib.cta', { firstName: entrant.firstName }) : t('result.cta.title', { race: race.theme.displayName })}</h2>
         <p>{t('landing.lede')}</p>
         <p class="cta-row">
           <a class="btn btn-race" href={`/${race.slug}`}>
@@ -139,5 +142,29 @@ export const ResultPage = ({ race, result, track, locale, shareUrl, storyCardUrl
       </section>
       <script dangerouslySetInnerHTML={{ __html: resultClient }} />
     </>
+  );
+};
+
+type ShareProps = { url: string; text: string; cardUrl: string | null; fileName: string; locale: Locale; print?: boolean };
+
+/** Share (the card image where the browser can share files), download the card, print. */
+const ShareActions = ({ url, text, cardUrl, fileName, locale, print = false }: ShareProps) => {
+  const t = translator(locale);
+  return (
+    <div class="result-actions">
+      <button type="button" class="btn btn-race" data-share="" data-url={url} data-text={text.trim()} data-card={cardUrl ?? ''} data-copied={t('result.copied')}>
+        {t('result.share')}
+      </button>
+      {cardUrl ? (
+        <a class="btn btn-ghost" href={cardUrl} download={fileName}>
+          {t('result.download')}
+        </a>
+      ) : null}
+      {print ? (
+        <button type="button" class="btn btn-ghost" data-print="">
+          {t('result.print')}
+        </button>
+      ) : null}
+    </div>
   );
 };

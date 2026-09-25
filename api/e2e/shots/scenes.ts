@@ -135,10 +135,19 @@ export const scenes: Scene[] = [
   },
   {
     id: 'result-pending',
-    title: 'Result — a bib that has not crossed the line yet',
+    title: 'Result — before the finish, the bib page a runner shares to bring friends in',
     go: async (page, shoot) => {
       await page.goto(`${RACE}/results/1002`);
-      await expect(page.getByRole('heading', { level: 1 })).toContainText('pas encore');
+      await expect(page.getByTestId('bib-plate')).toBeVisible();
+      await shoot();
+    },
+  },
+  {
+    id: 'card-bib',
+    title: 'Share card — the bib, under a link shared before the race',
+    go: async (page, shoot) => {
+      await page.setViewportSize({ width: 1200, height: 630 });
+      await page.goto(`${RACE}/results/1002/card?format=og`);
       await shoot();
     },
   },

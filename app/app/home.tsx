@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,7 +10,7 @@ import { useMyResult } from '@/hooks/useMyResult';
 import { useTrack } from '@/hooks/useTrack';
 import { useUploadFlush } from '@/hooks/useUploadFlush';
 import { locale, t } from '@/i18n';
-import { openCertificate, openResults, shareFinish } from '@/share';
+import { openCertificate, openResults, shareBib, shareFinish } from '@/share';
 import { useSession } from '@/stores/session';
 import { useUploads } from '@/stores/uploads';
 import { colors, fonts, radius, space } from '@/theme';
@@ -81,6 +81,11 @@ export default function Home() {
             <Num size={72} testID="bib-number">
               {entrant.bib}
             </Num>
+            {!best && phase !== 'after' ? (
+              <Pressable testID="share-bib" accessibilityRole="button" onPress={() => void shareBib(race, entrant)} style={styles.shareBib}>
+                <Body style={[styles.shareBibLabel, { color: race.theme.primary }]}>{t('home.shareBib')} →</Body>
+              </Pressable>
+            ) : null}
           </View>
           <View style={[styles.stripe, { backgroundColor: race.theme.primary }]} />
         </Card>
@@ -152,6 +157,8 @@ const styles = StyleSheet.create({
   finisherActions: { gap: space.sm, marginTop: space.md },
   bibCard: { flexDirection: 'row', alignItems: 'stretch', overflow: 'hidden' },
   stripe: { width: 10, borderRadius: 5, marginLeft: space.md },
+  shareBib: { alignSelf: 'flex-start', paddingVertical: space.sm, marginTop: space.xs },
+  shareBibLabel: { fontFamily: fonts.bodyBold, fontSize: 15 },
   big: { fontSize: 22, lineHeight: 28 },
   diagram: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, alignItems: 'center' },
   cta: { gap: space.sm },

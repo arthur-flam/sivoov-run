@@ -4,8 +4,11 @@ import { CARD_SIZE } from '../lib/cards';
 import type { CardFormat } from '../lib/cards';
 import { FONTS } from './layout';
 
-/** The runner on a card; absent, the card is the race's own (the landing page's link preview). */
-export type CardRunner = { name: string; time: string; distance: string; date: string };
+/**
+ * The runner on a card: a finisher (label "Finisher", the time) or an entrant before the finish
+ * (label "Dossard", the bib). Absent, the card is the race's own, under the landing page.
+ */
+export type CardRunner = { label: string; name: string; big: string; meta: string };
 
 type Props = { race: Race; track: CourseTrack; format: CardFormat; locale: Locale; host: string; runner?: CardRunner; subtitle: string };
 
@@ -49,12 +52,10 @@ export const ShareCard = ({ race, track, format, locale, host, runner, subtitle 
           </svg>
           {runner ? (
             <section class="who">
-              <div class="label">{t('card.finisher')}</div>
+              <div class="label">{runner.label}</div>
               <div class="name">{runner.name}</div>
-              <div class="time">{runner.time}</div>
-              <div class="meta">
-                {runner.distance} · {runner.date}
-              </div>
+              <div class="time">{runner.big}</div>
+              <div class="meta">{runner.meta}</div>
             </section>
           ) : (
             <section class="who">

@@ -134,6 +134,9 @@ table.results { width: 100%; border-collapse: collapse; font-size: 15px; }
 .result-pending h1 { font-family: var(--font-display); font-weight: 500; font-size: clamp(28px, 6vw, 40px); line-height: 1.1; letter-spacing: -0.01em; max-width: 18ch; margin: 0 auto 14px; }
 .result-pending p { color: var(--ink-2); max-width: 48ch; margin: 0 auto; }
 .result-pending .hint { margin-top: 14px; }
+.result-pending .result-actions { margin-top: 26px; margin-bottom: 0; }
+.bib-plate { display: inline-grid; justify-items: center; gap: 2px; border: 3px solid var(--ink); border-radius: 12px; background: var(--card); padding: 10px 30px 12px; margin: 4px 0 24px; font-family: var(--font-num); font-size: 72px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; box-shadow: 0 16px 34px -26px rgba(26, 26, 26, 0.5); }
+.bib-plate span { font-family: var(--font-body); font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--race-primary); }
 .result-cta { border-top: 1px solid var(--border); padding: 36px 0 8px; }
 .result-cta h2 { font-family: var(--font-display); font-weight: 500; font-size: 28px; line-height: 1.15; letter-spacing: -0.01em; max-width: 20ch; }
 .result-cta p { color: var(--ink-2); max-width: 56ch; margin-top: 10px; }

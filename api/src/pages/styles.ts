@@ -1,14 +1,8 @@
-/** One stylesheet, the Sivoov layer. The race layer arrives as CSS variables on <body>. */
-export const styles = `
+import { tokens } from './tokens';
+
+/** The public pages' stylesheet, the Sivoov layer. Colors and type come from ./tokens.ts; the race layer arrives as CSS variables on <body>. */
+export const styles = `${tokens}
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-:root {
-  --bg: #faf9f7; --card: #ffffff; --ink: #1a1a1a; --ink-2: #52525b; --muted: #a1a1aa;
-  --border: #e8e6e3; --accent: #e8786f; --accent-bg: #fef2f1; --accent-name: #b8443b;
-  --font-display: 'Fraunces', Georgia, serif; --font-body: 'DM Sans', system-ui, -apple-system, sans-serif;
-  --font-num: 'Barlow Condensed', 'DM Sans', sans-serif;
-  --race-primary: #1a1a1a; --race-on-primary: #ffffff;
-  --gutter: 16px; --max: 1040px;
-}
 html { -webkit-text-size-adjust: 100%; }
 body { font-family: var(--font-body); background: var(--bg); color: var(--ink); line-height: 1.55; -webkit-font-smoothing: antialiased; }
 a { color: inherit; }
@@ -68,7 +62,7 @@ footer { padding: 30px 0 50px; font-size: 13px; color: var(--muted); display: fl
 .field input { font: inherit; font-size: 18px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); color: var(--ink); width: 100%; }
 .field input.code { font-family: var(--font-num); font-size: 34px; letter-spacing: 0.3em; text-align: center; }
 .field input:focus { outline: 3px solid var(--accent); outline-offset: 1px; border-color: transparent; }
-.error { background: var(--accent-bg); border: 1px solid #fcd9d6; color: var(--accent-name); padding: 12px 14px; border-radius: 12px; margin-bottom: 16px; font-size: 15px; }
+.error { background: var(--bad-bg); border: 1px solid var(--bad-border); color: var(--bad); padding: 12px 14px; border-radius: 12px; margin-bottom: 16px; font-size: 15px; }
 .hint { font-size: 13px; color: var(--muted); margin-top: 12px; }
 .race-chip { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); margin-bottom: 26px; }
 .race-chip i { width: 10px; height: 10px; border-radius: 50%; background: var(--race-primary); }
@@ -98,5 +92,5 @@ table.results { width: 100%; border-collapse: collapse; font-size: 15px; }
 .report { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin: 18px 0; }
 .rejects { list-style: none; display: grid; gap: 6px; font-size: 14px; color: var(--ink-2); margin-bottom: 22px; }
 .rejects li b { font-family: var(--font-num); font-size: 16px; color: var(--ink); margin-right: 8px; }
-.ok { background: #eef8f0; border: 1px solid #cfe9d5; color: #1f6b34; padding: 12px 14px; border-radius: 12px; margin-bottom: 16px; font-size: 15px; }
+.ok { background: var(--good-bg); border: 1px solid var(--good-border); color: var(--good); padding: 12px 14px; border-radius: 12px; margin-bottom: 16px; font-size: 15px; }
 `;

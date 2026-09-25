@@ -38,6 +38,7 @@ export const RaceRowSchema = z.object({
   window_end: z.string(),
   timezone: z.string(),
   organizer_url: z.string().nullable(),
+  support_email: z.string().nullable().optional(),
   theme: json(RaceThemeSchema),
   status: z.string(),
 });
@@ -47,7 +48,7 @@ export const raceFromRow = (row: unknown): Race => {
   return RaceSchema.parse({
     id: r.id, slug: r.slug, name: r.name, city: r.city, country: r.country,
     dateStart: r.date_start, dateEnd: r.date_end, windowStart: r.window_start, windowEnd: r.window_end,
-    timezone: r.timezone, organizerUrl: r.organizer_url ?? undefined, theme: r.theme, status: r.status,
+    timezone: r.timezone, organizerUrl: r.organizer_url ?? undefined, supportEmail: r.support_email ?? undefined, theme: r.theme, status: r.status,
   });
 };
 

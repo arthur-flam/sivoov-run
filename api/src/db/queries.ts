@@ -18,14 +18,14 @@ export const db = (d1: D1Database) => ({
   async upsertRace(race: Race): Promise<void> {
     await d1
       .prepare(
-        `INSERT INTO races (id, slug, name, city, country, date_start, date_end, window_start, window_end, timezone, organizer_url, theme, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO races (id, slug, name, city, country, date_start, date_end, window_start, window_end, timezone, organizer_url, support_email, theme, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET slug=excluded.slug, name=excluded.name, city=excluded.city, country=excluded.country,
            date_start=excluded.date_start, date_end=excluded.date_end, window_start=excluded.window_start, window_end=excluded.window_end,
-           timezone=excluded.timezone, organizer_url=excluded.organizer_url, theme=excluded.theme, status=excluded.status`,
+           timezone=excluded.timezone, organizer_url=excluded.organizer_url, support_email=excluded.support_email, theme=excluded.theme, status=excluded.status`,
       )
       .bind(race.id, race.slug, race.name, race.city, race.country, race.dateStart, race.dateEnd, race.windowStart, race.windowEnd,
-        race.timezone, race.organizerUrl ?? null, JSON.stringify(race.theme), race.status)
+        race.timezone, race.organizerUrl ?? null, race.supportEmail ?? null, JSON.stringify(race.theme), race.status)
       .run();
   },
 

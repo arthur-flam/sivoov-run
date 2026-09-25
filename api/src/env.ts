@@ -11,6 +11,8 @@ export type Bindings = Env & {
    * it the studio still writes, plays back with the browser voice and refuses to render.
    */
   ELEVENLABS_API_TOKEN?: string;
+  /** Comma-separated emails of Sivoov staff: every race in /org, and race creation. A wrangler var. */
+  STAFF_EMAILS?: string;
 };
 
 export type AppEnv = { Bindings: Bindings };

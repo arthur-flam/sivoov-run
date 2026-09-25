@@ -42,6 +42,8 @@ export const RaceSchema = z.object({
   windowEnd: z.iso.datetime({ offset: true }),
   timezone: z.string().default('Europe/Paris'),
   organizerUrl: z.url().optional(),
+  /** Where runners write when they are stuck; shown on the race page and in the app. */
+  supportEmail: z.string().trim().toLowerCase().pipe(z.email()).optional(),
   theme: RaceThemeSchema,
   status: RaceStatusSchema.default('draft'),
 });

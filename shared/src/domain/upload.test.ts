@@ -98,6 +98,21 @@ describe('an upload that is refused', () => {
     expect(Math.abs(verdict.distanceM - 9_600)).toBeLessThan(10);
   });
 
+  it('credits a watch stopped on the line, which the tracker measures a hair short', () => {
+    // 99.7 % of the distance: what a clean track of a curved course comes back as.
+    const verdict = evaluateUpload({ points: straight([{ m: 9_970, secPerKm: 300 }]), course: tenK, race });
+    expect(verdict.ok).toBe(true);
+    if (!verdict.ok) return;
+    expect(verdict.run.distanceM).toBe(10_000);
+    // Timed to the last point, when the watch was stopped.
+    expect(verdict.run.elapsedMs).toBe(Math.round(9.97 * 300) * 1000);
+  });
+
+  it('still refuses a run one per cent short', () => {
+    const verdict = evaluateUpload({ points: straight([{ m: 9_900, secPerKm: 300 }]), course: tenK, race });
+    expect(verdict.ok ? 'accepted' : verdict.reason).toBe('too_short');
+  });
+
   it('when it started before the window opened or after it closed', () => {
     const lateSunday = Date.parse('2026-11-08T23:30:00+01:00');
     expect(evaluateUpload({ points: straight([{ m: 10_000, secPerKm: 300 }], lateSunday), course: tenK, race })).toEqual({

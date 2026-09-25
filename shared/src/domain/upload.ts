@@ -25,6 +25,14 @@ const RECORD_FLOOR_MS: Record<DistanceKey, number> = {
  */
 const FASTEST_KILOMETRE_MS = 130_000;
 
+/**
+ * A watch stopped on the finish line, replayed through the tracker, measures a little short:
+ * its 8 m steps cut the corners (0.24 % on a clean 1 Hz track of Deauville's half). Within
+ * this margin the runner is credited the distance and timed to the last point, which is when
+ * they stopped the watch. A marathon's margin is 211 m, under a minute at any racing pace.
+ */
+export const UPLOAD_DISTANCE_TOLERANCE = 0.005;
+
 export type UploadedRun = { startedAt: string; finishedAt: string; elapsedMs: number; distanceM: number; splits: Split[] };
 
 export type UploadRefusal =
@@ -68,8 +76,10 @@ export const evaluateUpload = ({ points, course, race }: UploadInput): UploadVer
   const phase = windowPhase(race, first.timestamp);
   if (phase !== 'open') return { ok: false, reason: phase === 'before' ? 'before_window' : 'after_window', startedAt };
 
-  const state = samples.reduce((s, sample) => applySample(s, sample), startRun(idleRun(course.distanceM), first.timestamp));
-  if (state.phase !== 'finished') return { ok: false, reason: 'too_short', distanceM: state.distanceM };
+  const replayed = samples.reduce((s, sample) => applySample(s, sample), startRun(idleRun(course.distanceM), first.timestamp));
+  const onTheLine = replayed.phase !== 'finished' && replayed.distanceM >= course.distanceM * (1 - UPLOAD_DISTANCE_TOLERANCE);
+  if (replayed.phase !== 'finished' && !onTheLine) return { ok: false, reason: 'too_short', distanceM: replayed.distanceM };
+  const state = onTheLine ? { ...replayed, distanceM: course.distanceM, elapsedMs: last.timestamp - first.timestamp } : replayed;
   if (state.elapsedMs < RECORD_FLOOR_MS[course.distanceKey]) return { ok: false, reason: 'faster_than_record', elapsedMs: state.elapsedMs };
   const fast = state.splits.find((s) => s.splitMs < FASTEST_KILOMETRE_MS);
   if (fast) return { ok: false, reason: 'fast_kilometre', km: fast.km, splitMs: fast.splitMs };

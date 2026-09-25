@@ -101,10 +101,10 @@ export const scenes: Scene[] = [
   },
   {
     id: 'upload-refused',
-    title: 'Upload — refused: a watch stopped short of the line, then a treadmill file',
+    title: 'Upload — refused: a watch that died at 20.4 km, then a treadmill file',
     go: async (page, shoot) => {
       await runnerSignIn(page, `${RACE}/upload`);
-      await page.getByLabel('Votre fichier GPX').setInputFiles({ name: 'course.gpx', mimeType: 'application/gpx+xml', buffer: gpxRun(21_050) });
+      await page.getByLabel('Votre fichier GPX').setInputFiles({ name: 'course.gpx', mimeType: 'application/gpx+xml', buffer: gpxRun(20_400) });
       await page.getByRole('button', { name: 'Envoyer mon fichier' }).click();
       await expect(page.getByRole('alert')).toContainText('il manque');
       await shoot();

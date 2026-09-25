@@ -318,6 +318,26 @@ describe('the import', () => {
     expect(await (await post(`${base}/runners/import`, { csv: '  ' }, cookie)).text()).toContain('Choisissez un fichier');
   });
 
+  it('imports bibs the form would refuse, and those runners can still be edited', async () => {
+    const cookie = await cookieFor('orga@example.com');
+    const imported = ['1234/B', 'M-0012 A'];
+    const file = ['Dossard;Prénom;Nom;Email;Distance', ...imported.map((bib, i) => `${bib};Nina;Noel${i};nina${i}@example.com;Semi`)].join('\r\n');
+    expect((await post(`${base}/runners/import`, { step: 'confirm', csv: file }, cookie)).headers.get('location')).toContain('added=2');
+    const href = (bib: string) => `${base}/runners/${encodeURIComponent(bib)}`;
+    for (const [i, bib] of imported.entries()) {
+      const form = await (await get(`${href(bib)}/edit`, cookie)).text();
+      expect(form).toContain(`Dossard ${bib}.`);
+      const saved = await post(`${href(bib)}/edit`, { bib, firstName: 'Nina', lastName: `Noel${i}`, email: `nina.noel${i}@example.com`, distanceKey: 'half' }, cookie);
+      expect(saved.status).toBe(302);
+      expect(saved.headers.get('location')).toBe(`/org/${SLUG}/runners/${encodeURIComponent(bib)}?done=saved`);
+      expect(await stored(bib)).toMatchObject({ bib, email: `nina.noel${i}@example.com` });
+    }
+    // Adding one by hand still asks for letters, digits and dashes.
+    const typed = await post(`${base}/runners/new`, { bib: '1235/B', firstName: 'Olga', lastName: 'Orsi', email: 'olga@example.com', distanceKey: 'half' }, cookie);
+    expect(typed.status).toBe(400);
+    expect(await typed.text()).toContain('Des chiffres et des lettres seulement');
+  });
+
   it('offers a template with French headers', async () => {
     const cookie = await cookieFor('orga@example.com');
     const bytes = new Uint8Array(await (await get(`${base}/runners/import/modele.csv`, cookie)).arrayBuffer());

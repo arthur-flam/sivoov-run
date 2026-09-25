@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { EntrantSchema } from '../schemas/entrant';
-import { parseRunnerInput, runnerFieldsFrom, runnerFieldsOf } from './runnerInput';
+import { parseRunnerEdit, parseRunnerInput, runnerFieldsFrom, runnerFieldsOf } from './runnerInput';
 
 const typed = (over: Record<string, string> = {}) =>
   runnerFieldsFrom({ bib: ' 1234 ', firstName: 'Léa', lastName: 'Martin', email: ' Lea@Example.com ', distanceKey: 'half', ...over });
@@ -28,6 +28,17 @@ describe('a runner typed by hand', () => {
     expect(full.ok && full.input.address).toEqual({ line1: '12 rue des Planches', postalCode: '14800', city: 'Deauville', country: 'FR' });
     expect(parseRunnerInput(typed({ line1: '12 rue des Planches', city: 'Deauville' }), [])).toEqual({ ok: false, errors: { postalCode: 'required' } });
     expect(parseRunnerInput(typed({ line1: '1 rue', postalCode: '1', city: 'X', country: 'Narnia' }), [])).toEqual({ ok: false, errors: { country: 'unknown_country' } });
+  });
+
+  it('keeps the stored bib on an edit, even one the import took that a bib typed by hand could not be', () => {
+    const imported = ['1234/B', 'M-0012 A', 'B'.repeat(21)];
+    expect(imported.map((bib) => parseRunnerEdit(bib, typed({ bib: '999', email: 'lea.martin@example.com' }), ['half']))).toEqual(
+      imported.map((bib) => ({ ok: true, input: { bib, firstName: 'Léa', lastName: 'Martin', email: 'lea.martin@example.com', distanceKey: 'half' } })),
+    );
+    // The other fields are checked as for a new runner.
+    expect(parseRunnerEdit('1234/B', typed({ email: 'lea@' }), ['half'])).toEqual({ ok: false, errors: { email: 'invalid' } });
+    // Adding by hand still asks for letters, digits and dashes.
+    expect(imported.map((bib) => parseRunnerInput(typed({ bib }), ['half']))).toEqual(imported.map(() => ({ ok: false, errors: { bib: 'invalid' } })));
   });
 
   it('fills the form back from a stored runner', () => {

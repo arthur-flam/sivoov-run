@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { DistanceKeySchema, EntrantSchema, decodeSpreadsheet, parseEntrantsCsv, parseRunnerInput, planImport, runnerFieldsFrom, runnerFieldsOf } from '@sivoov/shared';
+import { DistanceKeySchema, EntrantSchema, decodeSpreadsheet, parseEntrantsCsv, parseRunnerEdit, parseRunnerInput, planImport, runnerFieldsFrom, runnerFieldsOf } from '@sivoov/shared';
 import type { DistanceKey, Entrant } from '@sivoov/shared';
 import type { AppEnv } from '../env';
 import { MAX_INSTRUCTIONS_PER_DAY, RUNNER_FILTERS, instructionsLog, runnerDb, sentInLastDay } from '../db/runnerQueries';
@@ -192,9 +192,10 @@ orgRunners.post('/:slug/runners/:bib/edit', requireOrganizer, requireCan('edit_r
   const q = runnerDb(c.env.DB);
   const [runner, distances, form] = await Promise.all([q.byBib(race.id, c.req.param('bib')), q.distanceKeys(race.id), c.req.parseBody()]);
   if (!runner) return notFoundPage(c);
-  // The bib is the runner's identity: the one in the address wins over anything posted.
+  // The bib is the runner's identity: the stored one wins over anything posted, and is not
+  // checked again, since the import takes bibs ("1234/B") the form would not.
   const values = { ...runnerFieldsFrom(form), bib: runner.entrant.bib };
-  const parsed = parseRunnerInput(values, distances.includes(runner.entrant.distanceKey) ? distances : [...distances, runner.entrant.distanceKey]);
+  const parsed = parseRunnerEdit(runner.entrant.bib, values, distances.includes(runner.entrant.distanceKey) ? distances : [...distances, runner.entrant.distanceKey]);
   if (!parsed.ok) return formPage(c, 'edit', distances, { values, errors: parsed.errors }, 400);
   await q.update(EntrantSchema.parse({ ...runner.entrant, ...parsed.input, address: parsed.input.address }));
   return c.redirect(`${runnerHref(race.slug, runner.entrant.bib)}?done=saved`);

@@ -142,11 +142,21 @@ const missingColumns = (h: Header): RequiredColumn[] => REQUIRED_COLUMNS.filter(
 
 type Parsed = { line: number; entrant?: CsvEntrant; rejection?: CsvRejection; warning?: CsvWarning };
 
+/**
+ * A text cell a spreadsheet would run as a formula starts with one of = + - @, a tab or a carriage
+ * return. The downloads write it after an apostrophe, so Excel shows it as text; a value that
+ * already starts with apostrophes before such a character gets one more, so that the import can
+ * always take exactly one off and a downloaded file comes back as it was.
+ */
+const FORMULA_CELL = /^'*[=+\-@\t\r]/;
+const guardFormula = (s: string): string => (FORMULA_CELL.test(s) ? `'${s}` : s);
+const unguardFormula = (s: string): string => (s.startsWith("'") && FORMULA_CELL.test(s) ? s.slice(1) : s);
+
 const EmailSchema = EntrantSchema.shape.email;
 
 const parseLine = (h: Header, line: Line, options: CsvParseOptions): Parsed => {
   const number = line.number;
-  const fields = splitCsvLine(line.text, h.delimiter);
+  const fields = splitCsvLine(line.text, h.delimiter).map((f) => unguardFormula(f).trim());
   const lastRequired = Math.max(...REQUIRED_COLUMNS.map((col) => h.columns.indexOf(col)));
   if (fields.length <= lastRequired) return { line: number, rejection: { line: number, reason: 'column_count' } };
   const raw = Object.fromEntries(COLUMNS.map((col) => [col, h.columns.includes(col) ? (fields[h.columns.indexOf(col)] ?? '') : ''])) as Record<CsvColumn, string>;
@@ -260,11 +270,15 @@ export const decodeSpreadsheet = (bytes: Uint8Array): DecodedFile => {
   }
 };
 
+/** Numbers are written as they are: a negative one is a number, not a formula. */
 const escapeCsv = (value: string | number | null | undefined, delimiter: string): string => {
-  const s = value === null || value === undefined ? '' : String(value);
+  const s = value === null || value === undefined ? '' : typeof value === 'number' ? String(value) : guardFormula(value);
   return /["\r\n]/.test(s) || s.includes(delimiter) ? `"${s.replaceAll('"', '""')}"` : s;
 };
 
-/** Rows to CSV text with a BOM so that Excel opens it as UTF-8. Semicolons by default: French spreadsheets. */
+/**
+ * Rows to CSV text with a BOM so that Excel opens it as UTF-8. Semicolons by default: French
+ * spreadsheets. Text Excel would run as a formula (a name typed as `=HYPERLINK(...)`) stays text.
+ */
 export const toCsv = (rows: Array<Array<string | number | null | undefined>>, delimiter: ',' | ';' = ';'): string =>
   BOM + rows.map((row) => row.map((v) => escapeCsv(v, delimiter)).join(delimiter)).join('\r\n') + '\r\n';

@@ -122,6 +122,41 @@ describe('what Excel and ticketing tools produce', () => {
   });
 });
 
+describe('cells a spreadsheet would run as a formula', () => {
+  const risky = ['=HYPERLINK("http://evil.example","Voir")', '+33 6 12 34 56 78', '-Dupont', '@SUM(A1:A9)', '\tTab', "'=already quoted"];
+
+  it('are written as text in the downloads, with a leading apostrophe', () => {
+    const csv = toCsv([['Nom'], ...risky.map((v) => [v]), ['\rretour'], ['Dupont'], ['l’=égal'], [-2], [42]]);
+    expect(csv.replace(/^\uFEFF/, '').split('\r\n').slice(1, -1)).toEqual([
+      `"'=HYPERLINK(""http://evil.example"",""Voir"")"`,
+      "'+33 6 12 34 56 78",
+      "'-Dupont",
+      "'@SUM(A1:A9)",
+      "'\tTab",
+      "''=already quoted",
+      // A carriage return inside a cell is quoted as well.
+      `"'\rretour"`,
+      'Dupont',
+      'l’=égal',
+      // Numbers are numbers: a negative one is not a formula.
+      '-2',
+      '42',
+    ]);
+  });
+
+  it('come back as they were when the download is imported again', () => {
+    const header = ['Dossard', 'Prénom', 'Nom', 'Email', 'Distance'];
+    const rows = risky.map((v, i) => [`${i + 1}`, v, v, `r${i}@example.com`, 'Semi']);
+    const { entrants, rejected } = parseEntrantsCsv(toCsv([header, ...rows, ['-7', 'Anna', "'Ohana", 'anna@example.com', 'Semi']]));
+    expect(rejected).toEqual([]);
+    // Cells are trimmed on import, so the tab-led one comes back without its tab, as it always has.
+    expect(entrants.map((e) => [e.bib, e.firstName, e.lastName])).toEqual([
+      ...risky.map((v, i) => [`${i + 1}`, v.trim(), v.trim()]),
+      ['-7', 'Anna', "'Ohana"],
+    ]);
+  });
+});
+
 describe('reading the uploaded bytes', () => {
   const bytes = (s: string) => Uint8Array.from([...s].map((c) => c.charCodeAt(0)));
 

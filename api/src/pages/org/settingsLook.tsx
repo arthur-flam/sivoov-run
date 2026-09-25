@@ -34,10 +34,10 @@ const PREVIEW_JS = `(() => {
 const mb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} Mo`;
 
 const SLOTS: Record<ImageSlot, { title: string; hint: string; empty: string; alt: string; wide: boolean }> = {
-  logo: { title: 'Logo', hint: 'Idéalement sans fond, lisible sur du blanc.', empty: 'Pas encore de logo', alt: 'Logo de la course', wide: false },
+  logo: { title: 'Logo', hint: 'En haut de la page de votre course. Idéalement sans fond, lisible sur du blanc.', empty: 'Pas encore de logo', alt: 'Logo de la course', wide: false },
   hero: {
     title: 'Photo d’en-tête',
-    hint: 'Une photo large, en paysage.',
+    hint: 'En tête de la page de votre course. Une photo large, en paysage.',
     empty: 'Pas encore de photo',
     alt: 'Photo d’en-tête de la course',
     wide: true,

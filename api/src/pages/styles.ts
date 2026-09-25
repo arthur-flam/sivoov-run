@@ -56,6 +56,9 @@ p { text-wrap: pretty; }
 .what li { display: flex; gap: 12px; align-items: flex-start; font-size: 16px; }
 .what li::before { content: ''; flex: none; width: 10px; height: 10px; margin-top: 8px; border-radius: 50%; background: var(--race-primary); }
 .hero .what { margin-top: 22px; }
+/* The race's own pictures, from its settings: a header photo and a logo. */
+.race-banner { width: 100%; height: clamp(160px, 32vw, 360px); object-fit: cover; border-radius: var(--radius-lg); margin-top: 4px; }
+.race-logo { height: 56px; width: auto; max-width: 220px; object-fit: contain; margin-bottom: 18px; }
 
 .course { display: grid; grid-template-columns: 1fr; gap: 24px; align-items: center; }
 @media (min-width: 720px) { .course { grid-template-columns: 1.1fr 1fr; } }

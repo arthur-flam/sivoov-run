@@ -23,7 +23,9 @@ export const LandingPage = ({ race, courses, track, mapUrl, locale }: Props) => 
   );
   return (
     <>
+      {race.theme.hero ? <img class="race-banner" src={race.theme.hero} alt="" width={1040} height={360} /> : null}
       <section class="hero">
+        {race.theme.logo ? <img class="race-logo" src={race.theme.logo} alt={race.theme.displayName} height={56} /> : null}
         <div class="eyebrow">{t('landing.eyebrow')}</div>
         <h1>
           {before}

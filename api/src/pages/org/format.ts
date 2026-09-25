@@ -52,4 +52,4 @@ export const windowState = (race: Race, now: Date = new Date()): WindowState => 
   return { phase: 'after', text: `Terminé depuis le ${day(race.windowEnd)}` };
 };
 
-export const STATUS_LABELS: Record<Race['status'], string> = { draft: 'Brouillon', open: 'Inscriptions ouvertes', live: 'En cours', closed: 'Terminée' };
+export const STATUS_LABELS: Record<Race['status'], string> = { draft: 'Brouillon', open: 'Ouverte', live: 'En cours', closed: 'Terminée' };

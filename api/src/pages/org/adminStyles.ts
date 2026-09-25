@@ -229,4 +229,15 @@ details.disclose > :not(summary) { margin-top: 12px; }
 .inline-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
 .inline-form .field { flex: 1 1 220px; margin-bottom: 0; }
 .field input[type=file] { font-size: 14px; padding: 8px; background: var(--bg); }
+/* A short list edited in place, one row per item (the places of a course). */
+.list-edit { display: grid; gap: 8px; }
+.list-edit-head, .list-edit-row { display: grid; grid-template-columns: minmax(0, 1fr) 84px; gap: 6px 8px; }
+.list-edit-head { font-size: 12px; font-weight: 600; color: var(--muted); }
+.list-edit-row { padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.list-edit-row input { font: inherit; font-size: 15px; padding: 8px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); width: 100%; min-width: 0; }
+.list-edit-row input:focus { outline: 3px solid var(--accent-bg); border-color: var(--accent); }
+.list-edit-row .wide, .list-edit-row .err { grid-column: 1 / -1; }
+.list-edit-row input.wide { font-size: 14px; color: var(--ink-2); }
+.list-edit-row .err { font-size: 13px; color: var(--bad); }
+.list-edit-row.bad input { border-color: var(--bad); }
 `;

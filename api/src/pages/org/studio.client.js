@@ -814,6 +814,14 @@
     }
     call('PUT', '/script', JSON.parse(stored)).then((out) => {
       if (out.status === 200) return void window.location.reload();
+      // Refused as invalid: offering it again at every visit would not help. Kept on a network failure.
+      if (out.status === 400) {
+        try {
+          window.localStorage.removeItem(LS_KEY);
+        } catch {
+          /* private mode */
+        }
+      }
       say('Impossible de reprendre ces modifications : ' + detailOf(out), 'bad');
     });
   }

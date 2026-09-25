@@ -7,6 +7,7 @@ export * from './simulate';
 export * from './audioTriggers';
 export * from './audioScript';
 export * from './audioEditor';
+export * from './landmarks';
 export * from './audioEstimates';
 export * from './format';
 export * from './gpx';

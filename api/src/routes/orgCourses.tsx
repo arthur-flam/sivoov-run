@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-import { CourseGeometrySchema, CourseSchema, DISTANCE_METERS, DistanceKeySchema, can, metersFromKm, parseGpx } from '@sivoov/shared';
+import { CourseGeometrySchema, CourseSchema, DISTANCE_METERS, DistanceKeySchema, can, landmarksFromRows, metersFromKm, parseGpx } from '@sivoov/shared';
 import type { AppEnv } from '../env';
 import { db } from '../db/queries';
 import { scriptDb } from '../db/scriptQueries';
@@ -10,6 +10,7 @@ import { publishScript } from '../lib/publish';
 import { DEFAULT_PACE_SEC_PER_KM, courseAudioCard, geometryKeyFor, loadStudioContext, paceFromQuery, studioPageData } from '../lib/studio';
 import { OrgCoursesPage } from '../pages/org/courses';
 import type { NewCourseForm } from '../pages/org/courses';
+import type { LandmarksForm } from '../pages/org/landmarks';
 import { OrgStudioPage } from '../pages/org/studio';
 import { doneMessage, orgPage } from './orgPage';
 
@@ -24,7 +25,7 @@ const DONE: Record<string, string> = {
   landmarks: 'Lieux du parcours enregistrés.',
 };
 
-type PageState = { error?: string; form?: NewCourseForm; status?: 400 | 409 | 422 };
+type PageState = { error?: string; form?: NewCourseForm; landmarks?: LandmarksForm; status?: 400 | 409 | 422 };
 
 const coursesPage = async (c: CoursesContext, state: PageState = {}) => {
   const race = c.get('race');
@@ -34,7 +35,7 @@ const coursesPage = async (c: CoursesContext, state: PageState = {}) => {
     c,
     'courses',
     'Parcours et annonces',
-    <OrgCoursesPage race={race} access={c.get('access')} cards={cards} done={doneMessage(c, DONE)} error={state.error} form={state.form} />,
+    <OrgCoursesPage race={race} access={c.get('access')} cards={cards} done={doneMessage(c, DONE)} error={state.error} form={state.form} landmarks={state.landmarks} />,
     { status: state.status },
   );
 };
@@ -81,6 +82,27 @@ orgCourses.post('/:slug/courses/:courseId/gpx', requireOrganizer, requireCan('ed
   await c.env.FILES.put(key, JSON.stringify(geometry.data), { httpMetadata: { contentType: 'application/json' } });
   await db(c.env.DB).setGeometryKey(course.id, key);
   return c.redirect(`/org/${race.slug}/courses?done=gpx#${course.id}`);
+});
+
+/** Every value of a repeated form field, in order (one row of the list per index). */
+const all = (v: unknown): string[] => (v === undefined ? [] : [v].flat().map((x) => (typeof x === 'string' ? x : '')));
+
+/**
+ * "Les lieux du parcours": the whole list, every time, as rows of name / km / description.
+ * An empty row is dropped; a wrong one is shown back with what to fix, nothing saved.
+ */
+orgCourses.post('/:slug/courses/:courseId/landmarks', requireOrganizer, requireCan('edit_audio'), requireCourse, async (c) => {
+  const race = c.get('race');
+  const course = c.get('course');
+  const body = await c.req.parseBody({ all: true });
+  const [ids, kms, descriptions] = [all(body.id), all(body.km), all(body.description)];
+  const rows = all(body.name).map((name, i) => ({ id: ids[i] ?? '', name, km: kms[i] ?? '', description: descriptions[i] ?? '' }));
+  const outcome = landmarksFromRows(rows, course.distanceM);
+  if (!outcome.ok) {
+    return coursesPage(c, { landmarks: { courseId: course.id, rows, errors: outcome.errors }, error: 'Certains lieux sont à corriger : rien n’a été enregistré.', status: 400 });
+  }
+  await db(c.env.DB).upsertCourse({ ...course, landmarks: outcome.landmarks });
+  return c.redirect(`/org/${race.slug}/courses?done=landmarks#${course.id}`);
 });
 
 /** "Publier les changements" from a course card: the same publish as the studio's, as a form. */

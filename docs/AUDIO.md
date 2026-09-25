@@ -59,7 +59,10 @@ paints what the Worker wrote.
    off the official distance is flagged "Tracé à vérifier"), the announcements (how many, how
    many still need their voice), the publication (never, since when, or changes not published).
    One primary button: "Écrire les annonces", "Continuer", or "Publier les changements" (a
-   confirmed form post to `/courses/{id}/publish`). "Ajouter une distance" takes km.
+   confirmed form post to `/courses/{id}/publish`). "Ajouter une distance" takes km. "Les lieux
+   du parcours" (`course.landmarks`: name, km, a short line) is a plain list on each card
+   (`POST /courses/{id}/landmarks`, rules in `shared/domain/landmarks.ts`): the public race page
+   lists them and the studio map shows them.
 2. **The studio**, `/org/{race}/courses/{courseId}`: the course on a Leaflet/Mapbox map (or the
    SVG diagram with `?map=svg`, no token or no network), the distance frise, and the list grouped
    by moment in running order: "Au départ", "Sur le parcours", "Pendant toute la course" (every

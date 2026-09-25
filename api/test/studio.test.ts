@@ -461,4 +461,62 @@ describe('a viewer', () => {
     expect((await scriptDb(env.DB).draft(COURSE))?.updatedAt).toBe(before?.updatedAt);
     expect((await db(env.DB).latestAudioPack(COURSE))?.version).toBe(4);
   });
+
+  it('cannot change the places of a course', async () => {
+    const res = await SELF.fetch(`${base}/courses/${SLUG}-marathon/landmarks`, {
+      method: 'POST',
+      headers: { Cookie: viewer, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams([['id', ''], ['name', 'Ailleurs'], ['km', '1'], ['description', '']]).toString(),
+      redirect: 'manual',
+    });
+    expect(res.headers.get('location')).toBe(`/org/${SLUG}?denied=1`);
+    expect((await db(env.DB).courseById(`${SLUG}-marathon`))?.landmarks.some((l) => l.name === 'Ailleurs')).toBe(false);
+  });
+});
+
+describe('les lieux du parcours', () => {
+  const MARATHON = `${SLUG}-marathon`;
+  const saveRows = (rows: [string, string, string, string][]) =>
+    SELF.fetch(`${base}/courses/${MARATHON}/landmarks`, {
+      method: 'POST',
+      headers: { Cookie: cookie, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(rows.flatMap(([id, name, km, description]) => [['id', id], ['name', name], ['km', km], ['description', description]])).toString(),
+      redirect: 'manual',
+    });
+
+  it('shows a wrong row back with what to fix, and saves nothing', async () => {
+    const before = (await db(env.DB).courseById(MARATHON))?.landmarks;
+    const res = await saveRows([
+      ['planches', 'Les Planches', '0,2', ''],
+      ['', 'Le phare', '99', 'Trop loin.'],
+    ]);
+    expect(res.status).toBe(400);
+    const html = await res.text();
+    expect(html).toContain('Ce kilomètre est après l’arrivée (42,195 km).');
+    expect(html).toContain('value="Le phare"');
+    expect(html).toContain('value="99"');
+    expect((await db(env.DB).courseById(MARATHON))?.landmarks).toEqual(before);
+  });
+
+  it('saves the places typed in km, and the public race page shows them', async () => {
+    const res = await saveRows([
+      ['planches', 'Les Planches', '0,2', 'La promenade en bois.'],
+      ['', 'Le casino', '1,5', 'Face aux jardins.'],
+      ['normandy', '', '', ''],
+      ['', '', '', ''],
+    ]);
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe(`/org/${SLUG}/courses?done=landmarks#${MARATHON}`);
+    expect((await db(env.DB).courseById(MARATHON))?.landmarks).toEqual([
+      { id: 'planches', name: 'Les Planches', meters: 200, description: 'La promenade en bois.' },
+      { id: 'le-casino', name: 'Le casino', meters: 1500, description: 'Face aux jardins.' },
+    ]);
+    const page = await (await get('/courses?done=landmarks')).text();
+    expect(page).toContain('Lieux du parcours enregistrés.');
+    expect(page).toContain('Les lieux du parcours (2)');
+    const landing = await (await SELF.fetch(`http://run.test/${SLUG}`)).text();
+    expect(landing).toContain('Le casino');
+    expect(landing).toContain('Face aux jardins.');
+    expect(landing).not.toContain('Hôtel Le Normandy');
+  });
 });

@@ -3,6 +3,8 @@ import type { Access, DistanceKey, Race } from '@sivoov/shared';
 import type { CourseAudioCard } from '../../lib/studio';
 import { traceMatches } from '../../lib/studio';
 import { distanceName, plural } from './format';
+import { LandmarksEditor } from './landmarks';
+import type { LandmarksForm } from './landmarks';
 import { PUBLISH_CONFIRM, dayFr } from './studioCopy';
 import { Badge, Card, Checklist, ConfirmButton, Empty, Field, Flash, Icon, PageHead } from './ui';
 import type { TodoItem } from './ui';
@@ -10,7 +12,7 @@ import type { TodoItem } from './ui';
 /** What the "Ajouter une distance" form sends back, kept on an error so nothing is typed twice. */
 export type NewCourseForm = { distanceKey: string; distanceKm: string; fieldError?: string };
 
-type Props = { race: Race; access: Access; cards: CourseAudioCard[]; done?: string; error?: string; form?: NewCourseForm };
+type Props = { race: Race; access: Access; cards: CourseAudioCard[]; done?: string; error?: string; form?: NewCourseForm; landmarks?: LandmarksForm };
 
 const KEYS: DistanceKey[] = ['marathon', 'half', '10k', '5k'];
 const km = (meters: number, digits: number) => formatKm(meters, 'fr', digits);
@@ -117,7 +119,7 @@ const AddDistance = ({ race, used, form }: { race: Race; used: DistanceKey[]; fo
 };
 
 /** One card per distance: where it stands in plain words, and the one next step. */
-export const OrgCoursesPage = ({ race, access, cards, done, error, form }: Props) => {
+export const OrgCoursesPage = ({ race, access, cards, done, error, form, landmarks }: Props) => {
   const base = `/org/${race.slug}/courses`;
   const canEdit = can(access, 'edit_audio');
   return (
@@ -151,6 +153,7 @@ export const OrgCoursesPage = ({ race, access, cards, done, error, form }: Props
                     <NextStep card={card} base={base} canEdit={canEdit} />
                   </div>
                   {canEdit ? <GpxImport card={card} base={base} /> : null}
+                  <LandmarksEditor course={card.course} base={base} canEdit={canEdit} form={landmarks} />
                 </Card>
               </div>
             );

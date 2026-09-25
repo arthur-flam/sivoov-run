@@ -1,4 +1,5 @@
 import { defineConfig } from '@playwright/test';
+import { chromiumLaunch } from '../scripts/playwright-chromium';
 
 /** The web half of the screenshot rig (docs/SHOTS.md). Run it with `npm run shots` from the root. */
 export type Preset = { id: string; width: number; height: number; scale: number; locale: string };
@@ -15,7 +16,7 @@ export default defineConfig({
   testDir: './e2e/shots',
   timeout: 60_000,
   workers: 1,
-  use: { baseURL: process.env.BASE_URL ?? 'http://localhost:8788' },
+  use: { baseURL: process.env.BASE_URL ?? 'http://localhost:8788' , launchOptions: chromiumLaunch() },
   projects: chosen.map((p) => ({
     name: p.id,
     use: { viewport: { width: p.width, height: p.height }, deviceScaleFactor: p.scale, locale: p.locale },

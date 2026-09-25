@@ -1,7 +1,10 @@
 /**
  * Seeds a D1 database and the R2 bucket with the Deauville race.
  *   npm run seed -w api -- local|preview|production
- * Idempotent: rows are upserted, the geometry object is overwritten.
+ * Idempotent and insert-only for what organizers edit in the admin: an existing race, course,
+ * script draft or team member is left as it is (colors, logo, places, GPX, roles). Test
+ * entrants are upserted. The seed's own geometry object is rewritten, and a course whose GPX was
+ * replaced in the admin no longer points at it.
  */
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
@@ -18,12 +21,11 @@ const r = deauvilleRace;
 const sql = [
   `INSERT INTO races (id, slug, name, city, country, date_start, date_end, window_start, window_end, timezone, organizer_url, theme, status)
    VALUES (${[r.id, r.slug, r.name, r.city, r.country, r.dateStart, r.dateEnd, r.windowStart, r.windowEnd, r.timezone, r.organizerUrl ?? null, JSON.stringify(r.theme), r.status].map(q).join(', ')})
-   ON CONFLICT(id) DO UPDATE SET slug=excluded.slug, name=excluded.name, city=excluded.city, date_start=excluded.date_start, date_end=excluded.date_end,
-     window_start=excluded.window_start, window_end=excluded.window_end, organizer_url=excluded.organizer_url, theme=excluded.theme, status=excluded.status;`,
+   ON CONFLICT(id) DO NOTHING;`,
   ...deauvilleCourses.map(
     (c) => `INSERT INTO courses (id, race_id, distance_key, distance_m, geometry_key, landmarks)
    VALUES (${[c.id, c.raceId, c.distanceKey, c.distanceM, c.geometryKey ?? null, JSON.stringify(c.landmarks)].map(q).join(', ')})
-   ON CONFLICT(id) DO UPDATE SET distance_m=excluded.distance_m, geometry_key=excluded.geometry_key, landmarks=excluded.landmarks;`,
+   ON CONFLICT(id) DO NOTHING;`,
   ),
   ...(target === 'production' ? [] : deauvilleTestEntrants).map(
     (e) => `INSERT INTO entrants (id, race_id, bib, email, first_name, last_name, distance_key, source)

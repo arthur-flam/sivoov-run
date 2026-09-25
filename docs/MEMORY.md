@@ -291,3 +291,9 @@
     column says "Dossard"/"Bib"/"Last name". Add a new synonym to the right tier.
   - `SELF.fetch` in the api tests sends no `CF-Connecting-IP`; pass it by hand to test anything
     keyed on the sender's address.
+- 2026-09-25: the GitHub `CLOUDFLARE_API_TOKEN` could deploy Workers but not use D1 (`code: 7403,
+  The given account is not valid or is not authorized to access this service` from
+  `wrangler d1 migrations apply --remote`). Deploying a Worker with a D1 binding does not need
+  D1 rights; applying migrations does. The token needs Account, D1, Edit for deploy.yml's
+  migration step. The failed step stopped the Worker deploy, as intended: preview kept the old
+  Worker on the old schema instead of new code on missing tables.

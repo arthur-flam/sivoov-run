@@ -86,6 +86,14 @@ landed after `adb shell am force-stop com.arthur.flam.sivoov.dev` and a relaunch
 that reproduces before assuming an edit had no effect.
 
 ## Next after session 9
+0. **Unblock the preview deploy (Arthur, two minutes).** PR #2 is merged, but the Deploy run
+   stopped at the new migration step: the `CLOUDFLARE_API_TOKEN` GitHub secret is not allowed
+   to use D1 (`code 7403: not authorized`). Nothing was deployed, preview still runs the old
+   Worker on the old schema (consistent). Fix: Cloudflare dashboard, My Profile, API Tokens,
+   edit the token GitHub uses, add **Account, D1, Edit**, save (the secret value does not
+   change). Then re-run the failed job of the Deploy run for the merge commit `27895a5`
+   (or ask a session to: `actions_run_trigger rerun_failed_jobs`). The app's JS update did
+   publish to the preview channel; it works against the old Worker.
 1. **Selling entries (Paddle)**: replace the "Vente en ligne" card with a price per distance
    and a checkout on the race page; a paid checkout creates the entrant (`source` gains a value,
    the bib is allocated) and sends the instructions email that already exists

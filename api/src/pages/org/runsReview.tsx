@@ -55,7 +55,7 @@ export const ReviewCard = ({ action, verdict, exclusion, countsIfRestored, timez
           legend="Motif"
           name="reason"
           options={EXCLUDE_REASONS.map((r) => ({ value: r.value, label: r.label }))}
-          value={form?.reason}
+          selected={form?.reason ? [form.reason] : []}
           error={form?.errors.reason}
         />
         <Field label="Note" hint="facultatif, pour votre équipe" for="exclude-note" error={form?.errors.note}>

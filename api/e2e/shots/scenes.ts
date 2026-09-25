@@ -167,6 +167,16 @@ export const scenes: Scene[] = [
     },
   },
   {
+    id: 'org-settings',
+    title: 'Organizer: race settings, the race, the window, colors and pictures, publication',
+    go: async (page, shoot) => {
+      await orgSignIn(page);
+      await page.goto('/org/deauville-2026/settings');
+      await expect(page.getByRole('heading', { name: 'Apparence' })).toBeVisible();
+      await shoot();
+    },
+  },
+  {
     id: 'org-run',
     title: 'Organizer — one finished run: time, trace (no tiles), kilometres, what was heard',
     go: async (page, shoot) => {
@@ -175,6 +185,31 @@ export const scenes: Scene[] = [
       await page.goto('/org/deauville-2026/runs/seed-1001-half?map=svg');
       await expect(page.getByRole('heading', { name: 'Marc DUPONT' })).toBeVisible();
       await expect(page.getByRole('img', { name: 'Tracé GPS du coureur' })).toBeVisible();
+      await shoot();
+    },
+  },
+  {
+    id: 'org-team',
+    title: 'Organizer: the team, roles and the invitation form',
+    go: async (page, shoot) => {
+      await orgSignIn(page);
+      await page.goto('/org/deauville-2026/team');
+      await expect(page.getByRole('heading', { name: 'Inviter quelqu’un' })).toBeVisible();
+      await shoot();
+      await page.locator('summary', { hasText: 'Modifier' }).nth(2).click();
+      await expect(page.getByRole('button', { name: 'Changer le rôle' }).first()).toBeVisible();
+      await shoot('edit');
+    },
+  },
+  {
+    id: 'org-new-race',
+    title: 'Sivoov staff: create a race',
+    go: async (page, shoot) => {
+      // Staff, not an organizer: the same one-post session as orgSignIn, for staff@example.com.
+      const res = await page.request.post('/org/signin', { form: { step: 'code', email: 'staff@example.com', code: '000000' }, maxRedirects: 0 });
+      expect(res.status()).toBe(302);
+      await page.goto('/org/new');
+      await expect(page.getByRole('heading', { name: 'Nouvelle course' })).toBeVisible();
       await shoot();
     },
   },

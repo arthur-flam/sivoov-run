@@ -210,3 +210,8 @@
     returns (see `api/test/public.test.ts`).
   - A thrown-together screenshot script that splits `name=path` on `=` silently drops
     `?lang=en` and photographs the French page. Split on the first `=` only.
+- 2026-09-25: Hono's RegExpRouter does not group an alternation inside a route param. With
+  `/:slug/settings/:section{race|window}` and `/:slug/settings/:slot{logo|hero}` mounted together,
+  `POST /x/settings/logo/remove` ran the upload handler: the combined regex splits on the bare `|`.
+  It only shows once several such routes share a prefix (a lone one works). Register one route
+  per value instead (`SECTIONS.forEach((s) => app.post(`.../${s}`, ...))`, api/src/routes/orgRace.tsx).

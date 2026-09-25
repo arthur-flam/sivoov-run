@@ -25,6 +25,9 @@ export const InstallPage = ({ race, entrant, locale }: Props) => {
         <a class="btn btn-ghost" href="https://apps.apple.com/app/sivoov" rel="noopener">App Store</a>
         <a class="btn btn-ghost" href="https://play.google.com/store/apps/details?id=com.arthur.flam.sivoov" rel="noopener">Google Play</a>
       </div>
+      <p style="margin-top:22px;font-size:15px;color:var(--ink-2)">
+        <a href={`/${race.slug}/upload`}>{t('upload.installLink')}</a>
+      </p>
       <p class="hint" style="margin-top:30px">
         <a href={`/${race.slug}/results`}>{t('home.results')}</a> · <a href={`/${race.slug}/signout`}>{t('home.signout')}</a>
       </p>

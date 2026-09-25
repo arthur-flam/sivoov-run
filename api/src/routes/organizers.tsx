@@ -29,7 +29,10 @@ organizers.get(ORGANIZERS_PATH, (c) => render(c, localeOf(c), { step: 'form', va
 /** The address an English speaker would guess. The page is one page in two languages. */
 organizers.get('/organizers', (c) => c.redirect(`${ORGANIZERS_PATH}?lang=en`, 301));
 
-/** Plain form post: stored and sent to staff, or the form comes back with what was typed. */
+/**
+ * Plain form post: stored and sent to staff, or the form comes back with what was typed. Too
+ * many from one email or one network in a day get the same polite refusal.
+ */
 organizers.post(ORGANIZERS_PATH, async (c) => {
   const locale = localeOf(c);
   const body = await c.req.parseBody();
@@ -41,7 +44,9 @@ organizers.post(ORGANIZERS_PATH, async (c) => {
     const errors = [...new Set(parsed.error.issues.map((i) => i.path[0]).filter(isField))];
     return render(c, locale, { step: 'form', values, errors }, 400);
   }
-  const result = await submitLead(c.env, parsed.data, locale, (p) => c.executionCtx.waitUntil(p));
+  // Cloudflare sets the sender's address; local dev has none.
+  const ip = c.req.header('CF-Connecting-IP')?.trim() || undefined;
+  const result = await submitLead(c.env, parsed.data, locale, (p) => c.executionCtx.waitUntil(p), ip);
   if (!result.ok) return render(c, locale, { step: 'form', values, errors: [], tooMany: true }, 429);
   return render(c, locale, { step: 'sent', name: result.lead.name });
 });

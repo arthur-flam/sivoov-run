@@ -1,5 +1,6 @@
 import { CueMomentSchema } from '../schemas/audio';
 import type { AudioTrigger, CueMoment } from '../schemas/audio';
+import { stripAudioTags } from './audioTags';
 import { formatPace } from './format';
 
 /**
@@ -179,4 +180,4 @@ export const momentOf = (trigger: AudioTrigger, distanceM: number): Moment => {
 
 /** A French voice reads about 15 characters a second: how long a text lasts, at least one second. */
 export const SPEECH_CHARS_PER_SECOND = 15;
-export const speechSeconds = (text: string): number => Math.max(1, Math.round(text.trim().length / SPEECH_CHARS_PER_SECOND));
+export const speechSeconds = (text: string): number => Math.max(1, Math.round(stripAudioTags(text).length / SPEECH_CHARS_PER_SECOND));

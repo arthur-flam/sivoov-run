@@ -1,11 +1,15 @@
 import { z } from 'zod';
 import { AudioCategorySchema, AudioTriggerSchema, MixModeSchema } from './audio';
 
-/** The voice that reads the script. One voice per script for now (AUDIO.md). */
+/** The voice that reads the script. One voice per script (AUDIO.md), chosen in the studio. */
 export const ScriptVoiceSchema = z.object({
+  /** ElevenLabs voice id. */
   id: z.string().min(1),
   name: z.string(),
+  /** ElevenLabs model: `eleven_v3` reads `[tags]`, older models get the text without them. */
   model: z.string().min(1),
+  /** 0 expressive … 1 steady. Absent: the provider's default for the model (the render cache key ignores it then). */
+  stability: z.number().min(0).max(1).optional(),
 });
 export type ScriptVoice = z.infer<typeof ScriptVoiceSchema>;
 
@@ -32,6 +36,19 @@ export const UploadedAudioSchema = z.object({
 export type UploadedAudio = z.infer<typeof UploadedAudioSchema>;
 
 /**
+ * A line said differently to each runner, on top of its offline version (the line's `text`):
+ * - `template`: the organizer's sentence with placeholders (`{prenom}`, `{temps}`, see
+ *   domain/placeholders.ts), filled with the runner's values;
+ * - `ai`: instructions; the AI writes the sentence for each runner, before the start.
+ * Rendered per runner while the phone has a network; the offline version plays otherwise.
+ */
+export const PersonalLineSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('template'), template: z.string().min(1).max(1000) }),
+  z.object({ kind: z.literal('ai'), prompt: z.string().min(1).max(1500) }),
+]);
+export type PersonalLine = z.infer<typeof PersonalLineSchema>;
+
+/**
  * One line of the script: an AudioEvent plus the text the voice reads. This is the
  * authoring shape, edited in the organizer studio and rendered by the TTS; the app never
  * sees it (the pack it downloads carries titles and file keys only).
@@ -44,13 +61,19 @@ export const ScriptLineSchema = z.object({
   priority: z.number().int().min(0).max(10),
   once: z.boolean().default(true),
   trigger: AudioTriggerSchema,
-  /** File key in the pack, without extension. Template lines carry their slots. */
+  /** File key in the pack, without extension. */
   key: z.string().min(1),
+  /** Before personal lines: slot names of a caption-only template. Read by `upgradeLine` only. */
   slots: z.array(z.string()).optional(),
-  /** French text read by the TTS. Slots appear as `{slot}`; templates are rendered on device for now. */
-  text: z.string().min(1),
+  /**
+   * What the voice reads, the same for every runner (v3 `[tags]` allowed). For a personal line
+   * it is the offline version. Empty while the organizer has not written it: publishing waits.
+   */
+  text: z.string(),
   /** The organizer's own sound for this line. When present, it is played and the text is not read. */
   audio: UploadedAudioSchema.optional(),
+  /** Said differently to each runner, `text` being the offline version. */
+  personal: PersonalLineSchema.optional(),
 });
 export type ScriptLine = z.infer<typeof ScriptLineSchema>;
 export type ScriptLineInput = z.input<typeof ScriptLineSchema>;
@@ -79,3 +102,30 @@ export const AudioScriptSchema = z.object({
 });
 export type AudioScript = z.infer<typeof AudioScriptSchema>;
 export type AudioScriptInput = z.input<typeof AudioScriptSchema>;
+
+/**
+ * What the Worker keeps, per published pack, to say its personal lines to each runner: stored
+ * privately beside the pack (never in the public manifest, which carries no script text).
+ */
+export const PersonalDefSchema = z.object({
+  eventId: z.string().min(1),
+  title: z.string(),
+  /** When it plays, in the studio's words ("Au km 21,1"): context for the AI. */
+  when: z.string().default(''),
+  phase: z.enum(['prepare', 'live']),
+  personal: PersonalLineSchema,
+  /** The offline version, the AI's example of tone and length. */
+  fallback: z.string(),
+  /** A finish line: `{temps}` is the official time. */
+  finish: z.boolean(),
+});
+export type PersonalDef = z.infer<typeof PersonalDefSchema>;
+
+export const PersonalDefsSchema = z.object({
+  courseId: z.string().min(1),
+  version: z.number().int().positive(),
+  locale: z.enum(['fr', 'en']),
+  voice: ScriptVoiceSchema,
+  lines: z.array(PersonalDefSchema),
+});
+export type PersonalDefs = z.infer<typeof PersonalDefsSchema>;

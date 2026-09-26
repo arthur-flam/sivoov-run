@@ -6,14 +6,18 @@ import {
   buildScript,
   duplicateFileKeys,
   eventFor,
+  lineIssues,
   manifestFor,
+  personalDefsFor,
   packFileKey,
   packPrefix,
   publishedContent,
   renderableLines,
   sniffAudioFormat,
   ttsCacheInput,
+  upgradeLine,
   uploadedLines,
+  voiceCacheInput,
 } from './audioScript';
 
 const line = (over: Partial<ScriptLineInput> = {}): ScriptLineInput => ({
@@ -42,20 +46,85 @@ describe('AudioScriptSchema', () => {
     expect(parsed.locale).toBe('fr');
     expect(parsed.lines[0]?.once).toBe(true);
   });
-  it('rejects an unknown trigger kind, an empty text and a bad priority', () => {
+  it('rejects an unknown trigger kind and a bad priority', () => {
     expect(AudioScriptSchema.safeParse(script([line({ trigger: { kind: 'nowhere' } as never })])).success).toBe(false);
-    expect(AudioScriptSchema.safeParse(script([line({ text: '' })])).success).toBe(false);
     expect(AudioScriptSchema.safeParse(script([line({ priority: 42 })])).success).toBe(false);
+  });
+
+  it('keeps a line whose text is not written yet as a draft, which lineIssues flags', () => {
+    const parsed = AudioScriptSchema.parse(script([line({ text: '' })]));
+    expect(lineIssues(parsed.lines[0]!)).toEqual([{ code: 'no_text' }]);
   });
 });
 
 describe('eventFor', () => {
-  it('makes a file event out of a plain line and a template event out of a slotted one', () => {
+  it('makes a file event out of a plain line', () => {
     const plain = eventFor(AudioScriptSchema.parse(script([line()])).lines[0]!);
     expect(plain.source).toEqual({ kind: 'file', key: 'landmark-planches.mp3' });
     expect(plain.title).toBe('Les Planches');
-    const template = eventFor(AudioScriptSchema.parse(script([line({ key: 'split', slots: ['km', 'splitTime'] })])).lines[0]!);
-    expect(template.source).toEqual({ kind: 'template', key: 'split', slots: ['km', 'splitTime'] });
+    expect(plain.personal).toBeUndefined();
+  });
+
+  it('plays a personal line from its offline file, marked with when the runner’s version is made', () => {
+    const [welcome, split] = AudioScriptSchema.parse(
+      script([
+        line({ id: 'ceremony.call', key: 'call', text: 'Coureurs, sur la ligne.', personal: { kind: 'template', template: 'Dossard {dossard}, {prenom} {nom}.' } }),
+        line({ id: 'personal.split', key: 'split', text: 'Un kilomètre de plus.', personal: { kind: 'template', template: 'Kilomètre {km}, {temps_km}.' } }),
+      ]),
+    ).lines;
+    expect(eventFor(welcome!)).toMatchObject({ source: { kind: 'file', key: 'call.mp3' }, personal: { phase: 'prepare' } });
+    expect(eventFor(split!)).toMatchObject({ source: { kind: 'file', key: 'split.mp3' }, personal: { phase: 'live' } });
+    const ai = AudioScriptSchema.parse(script([line({ text: 'Bienvenue.', personal: { kind: 'ai', prompt: 'Accueille le coureur par son prénom.' } })])).lines[0]!;
+    expect(eventFor(ai).personal).toEqual({ phase: 'prepare' });
+  });
+});
+
+describe('upgradeLine', () => {
+  it('turns a caption-only template of an older script into a personal line waiting for its offline version', () => {
+    const old = AudioScriptSchema.parse(script([line({ key: 'split', slots: ['km', 'splitTime'], text: 'Kilomètre {km}, {splitTime}.' })])).lines[0]!;
+    const upgraded = upgradeLine(old);
+    expect(upgraded.personal).toEqual({ kind: 'template', template: 'Kilomètre {km}, {splitTime}.' });
+    expect(upgraded.text).toBe('');
+    expect(upgraded.slots).toBeUndefined();
+    expect(upgradeLine(upgraded)).toEqual(upgraded);
+    expect(upgradeLine(AudioScriptSchema.parse(script([line()])).lines[0]!)).toEqual(AudioScriptSchema.parse(script([line()])).lines[0]);
+  });
+});
+
+describe('lineIssues', () => {
+  const parsed = (over: Partial<ScriptLineInput>) => AudioScriptSchema.parse(script([line(over)])).lines[0]!;
+  it('says what stops a line from going out', () => {
+    expect(lineIssues(parsed({}))).toEqual([]);
+    expect(lineIssues(parsed({ text: 'Bravo {prenom} !' }))).toEqual([{ code: 'placeholder_in_text', names: ['prenom'] }]);
+    expect(lineIssues(parsed({ personal: { kind: 'template', template: 'Bravo {prenon} !' } }))).toEqual([{ code: 'unknown_placeholder', names: ['prenon'] }]);
+    expect(lineIssues(parsed({ trigger: { kind: 'cue', at: 'armed', order: 1 }, personal: { kind: 'template', template: 'Déjà {temps} ?' } }))).toEqual([
+      { code: 'live_before_start', names: ['temps'] },
+    ]);
+    expect(lineIssues(parsed({ text: '', audio: { kind: 'upload', hash: 'a'.repeat(64), format: 'mp3', bytes: 10, name: 'x.mp3' } }))).toEqual([]);
+  });
+});
+
+describe('personalDefsFor', () => {
+  it('keeps what the Worker needs to say each personal line to each runner', () => {
+    const built = buildScript(
+      script([
+        line(),
+        line({ id: 'ceremony.finish', key: 'finish', trigger: { kind: 'finish' }, text: 'Vous êtes arrivé.', personal: { kind: 'template', template: '{prenom}, {temps} !' } }),
+      ]),
+    );
+    expect(personalDefsFor(built).lines).toEqual([
+      { eventId: 'ceremony.finish', title: 'Les Planches', when: 'À l’arrivée', phase: 'live', personal: { kind: 'template', template: '{prenom}, {temps} !' }, fallback: 'Vous êtes arrivé.', finish: true },
+    ]);
+  });
+});
+
+describe('voiceCacheInput', () => {
+  it('keys a render by what the model actually reads, and keeps older keys when no stability was chosen', () => {
+    const v2 = { id: 'v', name: 'George', model: 'eleven_multilingual_v2' };
+    expect(voiceCacheInput(v2, 'Partez !')).toBe(ttsCacheInput('Partez !', 'v', 'eleven_multilingual_v2'));
+    expect(voiceCacheInput(v2, '[excited] Partez !')).toBe(ttsCacheInput('Partez !', 'v', 'eleven_multilingual_v2'));
+    expect(voiceCacheInput({ ...v2, model: 'eleven_v3' }, '[excited] Partez !')).toBe('[excited] Partez !|v|eleven_v3');
+    expect(voiceCacheInput({ ...v2, model: 'eleven_v3', stability: 0.3 }, 'Partez !')).toBe('Partez !|v|eleven_v3|s0.3');
   });
 });
 

@@ -3,8 +3,7 @@ import { translator } from '@sivoov/shared';
 import { CARD_SIZE } from '../lib/cards';
 import type { CardFormat } from '../lib/cards';
 import { CourseDiagram } from './courseDiagram';
-import { FONTS } from './layout';
-import { tokens } from './styles';
+import { FONTS_URL, tokens } from './tokens';
 
 /**
  * The runner on a card: a finisher (label "Finisher", the time) or an entrant before the finish
@@ -31,7 +30,7 @@ export const ShareCard = ({ race, track, format, locale, host, runner, subtitle 
         <meta charset="utf-8" />
         <meta name="viewport" content={`width=${width}`} />
         <meta name="robots" content="noindex" />
-        <link rel="stylesheet" href={FONTS} />
+        <link rel="stylesheet" href={FONTS_URL} />
         <style dangerouslySetInnerHTML={{ __html: tokens + cardStyles(width, height) }} />
       </head>
       <body class={format} style={`--race-primary:${race.theme.primary};--race-on-primary:${race.theme.onPrimary}`}>

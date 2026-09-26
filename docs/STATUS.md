@@ -1,7 +1,7 @@
 # Status
 
-Updated: 2026-09-25 (session 9: the finish line, results, certificate, share cards, upload
-fallback, start ceremony; session 8: pre-field-test review fixes; session 7: audio experience brief + organizer studio; session 6: the no-laptop loop; session 5: the screenshot rig; session 4: phone testing on Android over USB; session 3: trace storage;
+Updated: 2026-09-26 (session 10: the finish line, results, certificate, share cards, upload
+fallback, start ceremony; session 9: the organizer admin rebuilt, roles, public pages; session 8: pre-field-test review fixes; session 7: audio experience brief + organizer studio; session 6: the no-laptop loop; session 5: the screenshot rig; session 4: phone testing on Android over USB; session 3: trace storage;
 session 2: email, access, map, audio, device, admin; production deployed). Race week: 14-15 November 2026.
 See PRD section 8 for milestones.
 
@@ -18,10 +18,40 @@ Production has the race and courses, no entrants yet.
 | 4. Native shell on Android | Built locally, no EAS: the laptop has the Android SDK and JDK 17, so `npm run device:build` prebuilds and installs `Sivoov (Dev)` (`com.arthur.flam.sivoov.dev`, pointed at preview) over a USB cable. Runbook: `docs/DEVICE.md`, wrapper: `scripts/device.sh`. `eas.json` still stands for iOS, shareable links and the store builds. |
 | 5. Audio pack v0 | Done, and **heard on a phone** 2026-09-13. `api/tools/audio/` (typed French script → ElevenLabs → R2 → `audio_packs`), `npm run audio:build -w api -- <env>`. Pack `deauville-2026-marathon/1/fr` (13 events, 12 MP3, 1.85 MB) is in preview and production R2 + D1. `GET /api/courses/:id/pack` and `/api/packs/...` serve it; the app downloads it (expo-file-system) and plays it with expo-audio (background, ducking, mix/priority queue). Km splits are caption-only. |
 | 6. Device slice | Done on the web target. Background location (expo-task-manager task, Android foreground service, "always" flow), `/prepare` pre-flight (GPS lock, permission, battery, headphones), finish uploads `PUT /api/runs/:id` + trace to R2, offline queue persisted and retried on foreground. Exercised on a Galaxy S23 on 2026-09-13: foreground service, audio, finish and upload all real; the tracker has still never seen a moving runner. |
-| 7. Organizer admin | Done and on preview: `/org/deauville-2026` (email code sign-in, counts, entrant list with search, CSV import idempotent on bib with a rejection report, entrants/results CSV exports), CLI `npm run import:entrants -w api -- <env> <file.csv>`. 6 workerd tests, Playwright screenshots. |
+| 7. Organizer admin | Rebuilt in session 9, see below. The first version (entrant list, CSV import, exports) is superseded. |
 | 9. The no-laptop loop | Done, and **proven on the phone** 2026-09-13. `Sivoov (Preview)` is a standalone release shell (`npm run device:preview`) that needs no metro: the bundle is in the APK and `expo-updates` is live on the `preview` channel, so a cloud session ships JS with `gh workflow run deploy.yml -f action=publish-preview`. The app keeps a device logbook (`app/src/diag.ts`) replacing `adb logcat`: read it on the phone (finish screen → Diagnostic, with Share), or from a session — it rides to R2 in the run's trace and `npm run trace:pull` prints it. CI typecheck and a too-tight workerd timeout fixed: CI and Deploy are **green for the first time since the repo began**, and Arthur created the three Actions secrets, so main now deploys the preview Worker and publishes the update by itself. |
 | 10. Organizer studio (courses, GPX, audio script on a map) | Done, on preview (migration + seed + secret applied 2026-09-13; the Worker deploys from main). `/org/{race}/courses` (cards per course: trace, repères, brouillon, pack; GPX upload) and `/org/{race}/courses/{courseId}` — the studio: Leaflet + Mapbox tiles, one marker per audio event at its projected distance, click the course to add one there, target pace turning `elapsed`/`split` into positions, distance frise, per-event editor with autosave, `Écouter` (MP3 or browser voice), `Générer la voix` (ElevenLabs from the Worker, R2 cache at `tts/<hash>.mp3`), `Publier la version N` (pack + manifest + `audio_packs`, draft bumped). Migration `0005_audio_scripts`. 13 workerd tests, two new screenshots. The CLI (`npm run audio:build`) still works on the same shared schema. |
+| 11. Organizer admin v2 (session 9) | Done on the branch `claude/admin-ux-polish-a4nngf`. One sign-in for every race (`/org/signin`), roles per race (owner/editor/viewer) plus staff (`STAFF_EMAILS`), rules in one pure table (`can()`, shared). Race home (numbers, latest activities, "Pour être prêt" checklist), Coureurs (filters by app status, runner page, add/edit/delete, instructions email, two-step Excel-proof import, French downloads incl. medal addresses), Activités (list, one run with its GPS trace on Mapbox, km splits, what the runner heard, phone, GPX download, set a time aside), Parcours et annonces (plain-words studio, km and minutes, own audio file per announcement, places of the course), Équipe (invite, roles), Réglages (race, window in the race timezone, support email, colors with contrast check, logo and photo upload served at `/media`, status, a "Vente en ligne" placeholder), staff pages (new race, leads). Migration 0006. 42 screenshot scenes. |
+| 12. Public pages (session 9) | Done on the branch. `/` is short and direct with race cards, `/organisateurs` (FR/EN) sells to race directors with a contact form stored in `leads` and mailed to staff, the race page is tighter and shows the logo, photo and support email set in the admin. The app shows "Écrire à l'organisateur" when the race has a support email. |
 | 8. Screenshot rig | Done. `npm run shots` photographs 9 app screens and 8 web pages headlessly in ~70 s into `docs/shots/` with a contact sheet; `npm run shots:store` writes exact App Store (1290x2796) and Play (1080x1920) files with the dev chrome hidden. Presets include an English pass. Runbook: `docs/SHOTS.md`. |
+
+## Session 9: the organizer admin, rebuilt (2026-09-25)
+Asked for: a polished admin for race directors (not techies), roles and access, easy audio
+editing, runs visible in detail with Mapbox, marketing copy and a clear link for organizers,
+a direct runner home page, plain language with no em dashes. Built as a foundation (me) plus
+five parallel worktree agents (activities, runners, audio, race settings/team, public pages),
+then merged and reviewed. Everything is on `claude/admin-ux-polish-a4nngf`.
+- **Access**: `/org/signin` with email + code, one session for every race of that email.
+  `organizers.role` is owner, editor or viewer; `STAFF_EMAILS` (wrangler var) lists Sivoov
+  staff, who see every race, create races (`/org/new`) and read the leads (`/org/leads`).
+  Test accounts per role in `docs/ACCESS.md`. The old per-race sign-in links redirect.
+- **Design is swappable**: every color, font and radius is a token in
+  `api/src/pages/tokens.ts`; the admin composes `api/src/pages/org/ui.tsx`. See DESIGN.md
+  "Voice and copy" and "Theming contract".
+- **Deploy**: `deploy.yml` applies D1 migrations before deploying the Worker (preview on
+  push to main, production on promote). Migration 0006 drops `organizer_codes/_sessions`
+  (everyone signs in again once) and adds roles, admin sessions, runner session tracking,
+  run exclusion, `races.support_email`, `leads`.
+- **The seed is now insert-only** for the race and courses: re-running it never resets what an
+  organizer edited (colors, logo, places, GPX). `npm run seed:runs -w api -- local|preview` adds
+  three sample runs with traces (never production).
+- **Placeholders to replace**: pricing ("Tarif sur demande", `organizers.price.*` in the i18n
+  files), the organizers hero (an HTML phone mockup, `ORGANIZERS_HERO_IMAGE` in
+  `api/src/pages/organizers/page.tsx`), the "Vente en ligne" card (`settingsSale.tsx`, for
+  Paddle), Deauville's support email and logo (set them in Réglages).
+- **Promises on /organisateurs that are not built yet**: the file upload fallback, the
+  certificate, the announcer saying the runner's name. All are v1 scope (PRD) and due before
+  race week; change the copy if one slips.
 
 ## Session 8: review fixes before the field test
 A code review of everything so far found ways a real run could be lost or corrupted. Fixed, each
@@ -39,7 +69,7 @@ with a test that fails on the old code:
 Not done: `tick()` still mixes the wall clock into `elapsedMs` between fixes (small split skew),
 and the persisted upload entry still carries the splits in SecureStore.
 
-## Session 9 — the finish line and the share (the payoff and the only viral loop)
+## Session 10 — the finish line and the share (the payoff and the only viral loop)
 Before this session a finish ended on a wall of splits, and nothing a runner could show anyone
 existed. Now, end to end (screens: `npm run shots`, scenes `run-finished`, `home`, `result`,
 `result-pending` (the bib page), `card-og`, `card-story`, `card-bib`, `card-race`, `results`):
@@ -53,6 +83,11 @@ existed. Now, end to end (screens: `npm run shots`, scenes `run-finished`, `home
   `bestRankedRun`), days until the race opens, **Faire une répétition** before the window,
   **Courir à nouveau · seul votre meilleur temps compte** during it, results after it. The
   course map falls back to the diagram when the Mapbox PNG cannot load.
+- **One rule for "counts"** since the merge with the admin rebuild: `COUNTS_AS_FINISH` (admin home,
+  runner list, medal export, results) is `rankedRun('r')`: finished, not set aside by the
+  organizer, started inside the window, on the entrant's own distance. The admin's run *detail*
+  badge (`runVerdict` in `shared/domain/runReview.ts`) does not know the window yet: a rehearsal
+  reads "Arrivé" there while the export says "Hors classement".
 - **Race window enforced** (`shared/domain/raceWindow.ts`, SQL twin `api/src/db/ranked.ts`): a run
   started outside 9-15 Nov is stored, never ranked — in the public results, the organizer's
   counts and the results CSV (reported `not_ranked`: that file decides who gets a medal). A run
@@ -85,7 +120,7 @@ To switch the share cards on (one-time, laptop or dashboard): create a Cloudflar
 `CF_ACCOUNT_ID` is already a var in `wrangler.jsonc`. Then open
 `https://preview.run.sivoov.app/deauville-2026/og.png` once: a PNG means it works.
 
-## Session 9 — upload fallback
+## Session 10 — upload fallback
 `/{race}/upload` exists (PRD M2): a signed-in runner sends the GPX from a watch or another app
 and gets a time marked "import" in the results. Local only so far; nothing deployed.
 - `shared/`: `readGpxPoints` reads each point's position and `<time>` (course GPX unchanged);
@@ -109,7 +144,7 @@ and gets a time marked "import" in the results. Local only so far; nothing deplo
   with GPS. Judging a marathon GPX costs 60-110 ms of CPU: fine on Workers Paid, over the Free
   plan's 10 ms — check the account's plan before race week.
 
-## Session 9: the start ceremony, in sync
+## Session 10 — the start ceremony, in sync
 Pipe item 4 (a), (b) and the first half of (c); `AUDIO_EXPERIENCE.md` §2.6 rows 1, 3, 4.
 - **`cue` trigger** (`at: 'armed' | 'countdown' | 'gun'`, `order`). `ceremonySequence()` in
   `shared/` orders the lines; `nextEvents` never fires one. The studio edits cues ("Avant le
@@ -147,12 +182,28 @@ Pipe item 4 (a), (b) and the first half of (c); `AUDIO_EXPERIENCE.md` §2.6 rows
 3. **Laptop at hand?** `npm run device:doctor`, then `npm run device` is still the fastest loop,
    but `android/` now holds the preview package: the dev client costs one `npm run device:build`.
 4. First task, either way: **the walk test** in item 1. Five minutes, and it unblocks M2.
-   Since session 9 the finish screen still shows "N GPS · N rejetés" and the Diagnostic button;
+   Since session 10 the finish screen still shows "N GPS · N rejetés" and the Diagnostic button;
    a 200 m walk ends as "Course interrompue", which is expected: read the counts under it.
 
 Note for the next session: Metro's file watcher did not fire during session 4, so edits only
 landed after `adb shell am force-stop com.arthur.flam.sivoov.dev` and a relaunch. Check whether
 that reproduces before assuming an edit had no effect.
+
+## Next after session 9
+0. **Preview deploy**: the first Deploy run after PR #2 stopped at the new migration step
+   because the `CLOUDFLARE_API_TOKEN` GitHub secret had no D1 rights (`code 7403`). Arthur
+   added Account, D1, Edit on 2026-09-26. The session's GitHub integration cannot re-run
+   workflows (403), so the next push to main is what deploys; verify with
+   `curl https://preview.run.sivoov.app/organisateurs` (200 once the new Worker is live).
+1. **Selling entries (Paddle)**: replace the "Vente en ligne" card with a price per distance
+   and a checkout on the race page; a paid checkout creates the entrant (`source` gains a value,
+   the bib is allocated) and sends the instructions email that already exists
+   (`instructionsEmail`). Needs the Paddle account, a webhook route, and a decision on who is
+   the merchant of record.
+2. Look at the admin on preview with real Mapbox tiles (studio map, run trace) and a real
+   ElevenLabs render from the studio: neither could be seen from the container.
+3. Everything below (walk test, acceptance run, results/certificate, upload fallback, iOS) is
+   unchanged and still the critical path for Deauville.
 
 ## Next, in order (the pipe)
 Anchored to PRD section 8. Today is 2026-09-13: **M1 is due 26 Sep, M2 10 Oct, M3 17 Oct**, and
@@ -183,12 +234,12 @@ dev client", happened on 2026-09-13 on a real Galaxy S23 (see below), minus the 
    the tracker is finally tuned against real GPS instead of simulated noise. Watch: drift while
    stopped at a light, whether audio ducked music or stopped it, gaps while the screen was off,
    battery drop (PRD section 7 budgets half a phone for a marathon, and nothing has measured it).
-3. **Results, certificate, share cards and the upload fallback are built** (session 9). Left:
-   set `BROWSER_RENDERING_TOKEN` (session 9 notes) and check one real card render on preview;
+3. **Results, certificate, share cards and the upload fallback are built** (session 10). Left:
+   set `BROWSER_RENDERING_TOKEN` (session 10 notes) and check one real card render on preview;
    send a real Strava and a real Garmin Connect export through `/{race}/upload`; share a
    result link into WhatsApp and iMessage and look at the preview.
 4. **Audio v1**: (a) cue trigger, (b) pack download with a visible state and (c, first half)
-   sequence playback are **done** (session 9, start ceremony). Left, in order: switch preview's
+   sequence playback are **done** (session 10, start ceremony). Left, in order: switch preview's
    draft ceremony lines to cues in the studio, re-render and publish (only once the app update
    is on the phones); number fragments for splits and name files per entrant; (d) `interval`
    trigger and file upload per line; (e) "moins de voix". The rewritten Deauville script
@@ -235,7 +286,7 @@ Two bugs found in the first twenty minutes, both invisible to the web target and
 tests: the missing `RECEIVE_BOOT_COMPLETED` (every run crashed seconds after the gun) and
 the near-black ghost labels on the night screens.
 
-## Decisions taken 2026-09-25 (session 9)
+## Decisions taken 2026-09-25 (session 10)
 - **The race window is enforced** for ranking, not for running: a run outside it is stored and
   shown to the runner as a rehearsal (before) or a closed-window run (after). One rule in
   `shared` (`isRanked`, `finishOutcome`, `bestRankedRun`) and its SQL twin (`db/ranked.ts`).
@@ -333,6 +384,11 @@ the near-black ghost labels on the night screens.
 - Share cards: a runner's PNG URL carries the card's id (`v=`), so a new result never hides behind
   a cached picture; a failed render is not retried for ten minutes; a failed link-preview card
   falls back to the course map. Bib cards are taken only when their URL is asked for.
+- The admin is French only. The `/organisateurs` page and the runner pages are FR/EN.
+- Web runner sessions do not update `last_seen_at` (only the app's API calls do), so "last
+  visit" on a runner page is the app's.
+- The instructions email limit (3 a day per runner) is logged in R2, not D1.
+- iOS phones show as "iPhone"/"iPad" without the model (that needs expo-device, a native module).
 - No production entrants: import the organizer's CSV (admin slice) or seed by hand.
 - The tracker has never recorded a moving runner. Indoor runs record zero samples; Arthur has
   confirmed the phone was stationary, so Android's stationary throttling is the likely cause,

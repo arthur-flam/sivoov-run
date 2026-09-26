@@ -1,44 +1,102 @@
 import type { z } from 'zod';
 import { EntrantSchema } from '../schemas/entrant';
+import type { Entrant } from '../schemas/entrant';
+import { DISTANCE_METERS } from '../schemas/race';
 import type { DistanceKey } from '../schemas/race';
+import { addressFromParts, foldText } from './address';
+import type { AddressPart } from './address';
 
-/** One line of the organizer's CSV, validated with the entrant rules. */
-export const CsvEntrantSchema = EntrantSchema.pick({ bib: true, email: true, firstName: true, lastName: true, distanceKey: true });
+/**
+ * The organizer's runner list, as their ticketing tool or Excel writes it. Tolerant on form
+ * (encoding, separator, header names, distance labels, a title row above the headers), strict on
+ * content: every line it cannot use comes back with its number and the reason, never a guess.
+ */
+
+/** One line of the organizer's file, validated with the entrant rules. */
+export const CsvEntrantSchema = EntrantSchema.pick({ bib: true, email: true, firstName: true, lastName: true, distanceKey: true, address: true });
 export type CsvEntrant = z.infer<typeof CsvEntrantSchema>;
 
-export type CsvRejection = { line: number; reason: CsvRejectReason; detail?: string };
-export type CsvRejectReason = 'missing_columns' | 'bad_distance' | 'bad_email' | 'missing_field' | 'duplicate_bib' | 'column_count';
-export type CsvParseResult = { entrants: CsvEntrant[]; rejected: CsvRejection[]; delimiter: ',' | ';' };
+export type RequiredColumn = 'bib' | 'email' | 'firstName' | 'lastName' | 'distanceKey';
+export type CsvColumn = RequiredColumn | AddressPart;
 
-type Column = keyof CsvEntrant;
+export type CsvRejectReason = 'missing_columns' | 'bad_distance' | 'distance_not_offered' | 'bad_email' | 'missing_field' | 'duplicate_bib' | 'column_count';
+/** `detail`: the missing columns, the value that is wrong, or for a duplicate the line where the bib first appears. */
+export type CsvRejection = { line: number; reason: CsvRejectReason; detail?: string; bib?: string };
+/** A line that is imported, but not entirely: the runner comes in without an address. */
+export type CsvWarning = { line: number; reason: 'incomplete_address' | 'unknown_country'; detail: string; bib: string };
+export type CsvDelimiter = ',' | ';' | '\t';
+export type CsvHeader = { header: string; column: CsvColumn | null };
+export type CsvParseResult = { entrants: CsvEntrant[]; rejected: CsvRejection[]; warnings: CsvWarning[]; delimiter: CsvDelimiter; headers: CsvHeader[] };
+/** `distances`: the race's own distances. A line for another one is refused rather than imported with no course. */
+export type CsvParseOptions = { distances?: readonly DistanceKey[] };
 
-/** Header aliases, French first. Compared after lowercasing, trimming and stripping accents. */
-const HEADERS: Record<Column, string[]> = {
-  bib: ['bib', 'dossard', 'numero', 'n', 'no', 'num', 'number', 'bib_number'],
-  email: ['email', 'e-mail', 'mail', 'courriel', 'adresse email', 'adresse e-mail'],
-  firstName: ['first_name', 'firstname', 'prenom', 'first name'],
-  lastName: ['last_name', 'lastname', 'nom', 'last name', 'name', 'nom de famille'],
-  distanceKey: ['distance_key', 'distance', 'course', 'epreuve', 'parcours', 'race'],
+export const REQUIRED_COLUMNS: readonly RequiredColumn[] = ['bib', 'email', 'firstName', 'lastName', 'distanceKey'];
+
+/** Header names, French and English, compared folded: lowercase, no accents, punctuation as spaces. */
+const HEADERS: Record<CsvColumn, readonly string[]> = {
+  bib: ['dossard', 'n dossard', 'no dossard', 'num dossard', 'numero dossard', 'numero de dossard', 'bib', 'bib number'],
+  email: ['email', 'e mail', 'mail', 'courriel', 'adresse email', 'adresse e mail', 'adresse mail', 'email address', 'e mail address'],
+  firstName: ['prenom', 'first name', 'firstname', 'given name'],
+  lastName: ['nom', 'nom de famille', 'last name', 'lastname', 'surname', 'family name'],
+  distanceKey: ['distance', 'course', 'epreuve', 'parcours', 'race', 'distance key'],
+  line1: ['adresse', 'adresse postale', 'adresse 1', 'adresse ligne 1', 'rue', 'address', 'address 1', 'address line 1', 'street', 'line1'],
+  line2: ['complement', 'complement d adresse', 'complement adresse', 'adresse 2', 'adresse ligne 2', 'address 2', 'address line 2', 'line2'],
+  postalCode: ['code postal', 'cp', 'postal code', 'postalcode', 'zip', 'zip code', 'postcode'],
+  city: ['ville', 'commune', 'city', 'town'],
+  country: ['pays', 'country'],
 };
 
-const DISTANCES: Array<[DistanceKey, string[]]> = [
-  ['marathon', ['marathon', '42', '42k', '42km', '42.195', '42,195']],
-  ['half', ['half', 'semi', 'semi-marathon', 'semimarathon', 'halfmarathon', 'half-marathon', '21', '21k', '21km', '21.1', '21,1', '21.097', '21,097']],
-  ['10k', ['10k', '10', '10km']],
-  ['5k', ['5k', '5', '5km']],
-];
+/**
+ * Names that only say "a number" or "a name": a registration export often starts with a "N°"
+ * line number, and "Name" can be the full name. They count only when no column has one of the
+ * names above for the same thing, wherever it stands in the file.
+ */
+const GENERIC_HEADERS: Partial<Record<CsvColumn, readonly string[]>> = {
+  bib: ['numero', 'n', 'no', 'num', 'number'],
+  lastName: ['name'],
+};
 
-const normalize = (s: string): string =>
-  s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim().replace(/^"|"$/g, '').replace(/[.:]+$/, '').trim();
+const COLUMNS = Object.keys(HEADERS) as CsvColumn[];
 
-/** Spaces do not matter in a distance label: "42 km", "Semi marathon". */
+type HeaderMatch = { column: CsvColumn; generic: boolean };
+
+const matchHeader = (header: string): HeaderMatch | null => {
+  const folded = foldText(header);
+  const named = COLUMNS.find((col) => HEADERS[col].includes(folded));
+  if (named) return { column: named, generic: false };
+  const generic = COLUMNS.find((col) => GENERIC_HEADERS[col]?.includes(folded));
+  return generic ? { column: generic, generic: true } : null;
+};
+
+export const columnForHeader = (header: string): CsvColumn | null => matchHeader(header)?.column ?? null;
+
+/** How far a written distance may be from the real one: "42 km" is the marathon, "20 km" is not. */
+const TOLERANCE = 0.01;
+const KEYS = Object.keys(DISTANCE_METERS) as DistanceKey[];
+
+const keyForMeters = (meters: number): DistanceKey | null => KEYS.find((k) => Math.abs(meters - DISTANCE_METERS[k]) <= DISTANCE_METERS[k] * TOLERANCE) ?? null;
+
+/** Every number in the label, in meters: "42,195 km", "21.1", "10 000 m", "10K", "21097". */
+const metersIn = (folded: string): number[] =>
+  [...folded.replace(/(\d) (?=\d{3}(?!\d))/g, '$1').matchAll(/(\d+(?:[.,]\d+)?) ?(kilometres?|kms?|k|metres?|m)?(?![a-z])/g)].map(([, n = '', unit]) => {
+    const value = Number(n.replace(',', '.'));
+    if (unit?.startsWith('m')) return value;
+    return unit || value < 1000 ? value * 1000 : value;
+  });
+
+/**
+ * "Marathon", "Semi", "Semi-marathon", "1/2 marathon", "21 km", "42,195 km", "10 km", "10K", "5000 m"...
+ * A number that is a known distance wins, then the words. Null when neither says.
+ */
 export const distanceKeyFromLabel = (label: string): DistanceKey | null => {
-  const n = normalize(label).replace(/\s+/g, '');
-  return DISTANCES.find(([, aliases]) => aliases.includes(n))?.[0] ?? null;
+  const folded = foldText(label.replace(/(\d)[.,](\d)/g, '$1d$2')).replace(/(\d)d(\d)/g, '$1.$2');
+  if (/\b1 2 marathon\b/.test(folded)) return 'half';
+  const byNumber = metersIn(folded).map(keyForMeters).find((k) => k !== null);
+  if (byNumber) return byNumber;
+  if (/\b(semi|half|demi)/.test(folded)) return 'half';
+  if (/marathon/.test(folded)) return 'marathon';
+  return null;
 };
-
-/** Semicolon when it yields more header fields than the comma (French spreadsheets), comma otherwise. Quotes respected. */
-export const detectDelimiter = (headerLine: string): ',' | ';' => (splitCsvLine(headerLine, ';').length > splitCsvLine(headerLine, ',').length ? ';' : ',');
 
 /** Splits one line, honouring double quotes and doubled quotes inside them. */
 export const splitCsvLine = (line: string, delimiter: string): string[] => {
@@ -57,61 +115,170 @@ export const splitCsvLine = (line: string, delimiter: string): string[] => {
   return [...fields, current].map((f) => f.trim());
 };
 
-type ParsedLine = { number: number; entrant?: CsvEntrant; rejection?: CsvRejection };
+/** The separator that splits the header into the most fields: semicolon (French Excel), tab (pasted cells) or comma. */
+export const detectDelimiter = (headerLine: string): CsvDelimiter =>
+  ([';', '\t', ','] as const).reduce<CsvDelimiter>((best, d) => (splitCsvLine(headerLine, d).length > splitCsvLine(headerLine, best).length ? d : best), ',');
 
-const columnFor = (header: string): Column | null =>
-  (Object.keys(HEADERS) as Column[]).find((col) => HEADERS[col].includes(normalize(header))) ?? null;
+const BOM = String.fromCharCode(0xfeff);
+/** A title row or two above the headers is common in exports: look this far for the real header line. */
+const HEADER_SEARCH = 10;
+
+type Line = { number: number; text: string };
+type Header = { line: Line; delimiter: CsvDelimiter; columns: Array<CsvColumn | null>; cells: string[] };
+
+/** Each column is read from one cell: the first with a specific name for it, else the first with a generic one. */
+const readHeader = (line: Line): Header => {
+  const delimiter = detectDelimiter(line.text);
+  const cells = splitCsvLine(line.text, delimiter);
+  const matches = cells.map(matchHeader);
+  const chosen = (col: CsvColumn): number => {
+    const named = matches.findIndex((m) => m?.column === col && !m.generic);
+    return named !== -1 ? named : matches.findIndex((m) => m?.column === col);
+  };
+  return { line, delimiter, cells, columns: matches.map((m, i) => (m && chosen(m.column) === i ? m.column : null)) };
+};
+
+const missingColumns = (h: Header): RequiredColumn[] => REQUIRED_COLUMNS.filter((col) => !h.columns.includes(col));
+
+type Parsed = { line: number; entrant?: CsvEntrant; rejection?: CsvRejection; warning?: CsvWarning };
 
 /**
- * Parses the organizer's entrant list. Tolerates a BOM, CRLF, comma or semicolon, French headers,
- * blank lines and quoted fields. Never throws: every bad line is reported with its 1-based number.
+ * A text cell a spreadsheet would run as a formula starts with one of = + - @, a tab or a carriage
+ * return. The downloads write it after an apostrophe, so Excel shows it as text; a value that
+ * already starts with apostrophes before such a character gets one more, so that the import can
+ * always take exactly one off and a downloaded file comes back as it was.
  */
-export const parseEntrantsCsv = (text: string): CsvParseResult => {
-  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/);
-  const headerLine = lines.find((l) => l.trim() !== '') ?? '';
-  const headerIndex = lines.indexOf(headerLine);
-  const delimiter = detectDelimiter(headerLine);
-  const columns = splitCsvLine(headerLine, delimiter).map(columnFor);
-  const missing = (Object.keys(HEADERS) as Column[]).filter((col) => !columns.includes(col));
-  if (headerLine === '' || missing.length > 0) {
-    return { entrants: [], rejected: [{ line: headerIndex + 1, reason: 'missing_columns', detail: missing.join(', ') }], delimiter };
-  }
+const FORMULA_CELL = /^'*[=+\-@\t\r]/;
+const guardFormula = (s: string): string => (FORMULA_CELL.test(s) ? `'${s}` : s);
+const unguardFormula = (s: string): string => (s.startsWith("'") && FORMULA_CELL.test(s) ? s.slice(1) : s);
 
-  const parsedLines = lines
-    .map((line, i) => ({ line, number: i + 1 }))
-    .filter(({ line, number }) => number > headerIndex + 1 && line.trim() !== '')
-    .map(({ line, number }): ParsedLine => {
-      const fields = splitCsvLine(line, delimiter);
-      if (fields.length < columns.length) return { number, rejection: { line: number, reason: 'column_count' as const } };
-      const raw = Object.fromEntries(columns.flatMap((col, i) => (col ? [[col, fields[i] ?? '']] : []))) as Record<Column, string>;
-      const distanceKey = distanceKeyFromLabel(raw.distanceKey);
-      if (!distanceKey) return { number, rejection: { line: number, reason: 'bad_distance' as const, detail: raw.distanceKey } };
-      const parsed = CsvEntrantSchema.safeParse({ ...raw, distanceKey });
-      if (parsed.success) return { number, entrant: parsed.data };
-      const emailIssue = parsed.error.issues.some((issue) => issue.path[0] === 'email');
-      return { number, rejection: { line: number, reason: emailIssue ? ('bad_email' as const) : ('missing_field' as const), detail: raw.bib } };
-    });
+const EmailSchema = EntrantSchema.shape.email;
 
-  const seen = new Set<string>();
-  const withDuplicates = parsedLines.map((p): ParsedLine => {
+const parseLine = (h: Header, line: Line, options: CsvParseOptions): Parsed => {
+  const number = line.number;
+  const fields = splitCsvLine(line.text, h.delimiter).map((f) => unguardFormula(f).trim());
+  const lastRequired = Math.max(...REQUIRED_COLUMNS.map((col) => h.columns.indexOf(col)));
+  if (fields.length <= lastRequired) return { line: number, rejection: { line: number, reason: 'column_count' } };
+  const raw = Object.fromEntries(COLUMNS.map((col) => [col, h.columns.includes(col) ? (fields[h.columns.indexOf(col)] ?? '') : ''])) as Record<CsvColumn, string>;
+  const bib = raw.bib === '' ? {} : { bib: raw.bib };
+  const reject = (reason: CsvRejectReason, detail?: string): Parsed => ({ line: number, rejection: { line: number, reason, ...(detail !== undefined ? { detail } : {}), ...bib } });
+
+  const empty = REQUIRED_COLUMNS.filter((col) => raw[col] === '');
+  if (empty.length > 0) return reject('missing_field', empty.join(', '));
+  const distanceKey = distanceKeyFromLabel(raw.distanceKey);
+  if (!distanceKey) return reject('bad_distance', raw.distanceKey);
+  if (options.distances && options.distances.length > 0 && !options.distances.includes(distanceKey)) return reject('distance_not_offered', raw.distanceKey);
+  if (!EmailSchema.safeParse(raw.email).success) return reject('bad_email', raw.email);
+
+  const address = addressFromParts(raw);
+  const warning: CsvWarning | undefined =
+    address.missing.length > 0
+      ? { line: number, reason: 'incomplete_address', detail: address.missing.join(', '), bib: raw.bib }
+      : address.badCountry !== undefined
+        ? { line: number, reason: 'unknown_country', detail: address.badCountry, bib: raw.bib }
+        : undefined;
+  const entrant = CsvEntrantSchema.safeParse({ bib: raw.bib, email: raw.email, firstName: raw.firstName, lastName: raw.lastName, distanceKey, ...(address.address ? { address: address.address } : {}) });
+  if (!entrant.success) return reject('missing_field', entrant.error.issues.map((issue) => String(issue.path[0])).join(', '));
+  return { line: number, entrant: entrant.data, ...(warning ? { warning } : {}) };
+};
+
+/**
+ * The second line with a bib already seen is refused, pointing at the first. One pass over the
+ * lines: a file of 20 000 runners is read twice (preview, then confirmation) within the Worker's CPU limit.
+ */
+const refuseDuplicates = (parsed: Parsed[]): Parsed[] => {
+  // Built from the end, so each bib is left with the line where it first appears.
+  const firstLine = new Map(parsed.flatMap((p) => (p.entrant ? [[p.entrant.bib, p.line] as const] : [])).reverse());
+  return parsed.map((p) => {
     if (!p.entrant) return p;
-    if (seen.has(p.entrant.bib)) return { number: p.number, rejection: { line: p.number, reason: 'duplicate_bib' as const, detail: p.entrant.bib } };
-    seen.add(p.entrant.bib);
-    return p;
+    const first = firstLine.get(p.entrant.bib) ?? p.line;
+    return first === p.line ? p : { line: p.line, rejection: { line: p.line, reason: 'duplicate_bib', detail: String(first), bib: p.entrant.bib } };
   });
+};
 
+/**
+ * Parses the organizer's runner list. Never throws: every line it cannot import is reported with
+ * its 1-based line number, and lines imported without their address come back as warnings.
+ */
+export const parseEntrantsCsv = (text: string, options: CsvParseOptions = {}): CsvParseResult => {
+  const lines: Line[] = text
+    .replace(new RegExp(`^${BOM}`), '')
+    .split(/\r\n|\n|\r/)
+    .map((t, i) => ({ number: i + 1, text: t }));
+  const filled = lines.filter((l) => l.text.replace(/[,;\t"]/g, '').trim() !== '');
+  const candidates = filled.slice(0, HEADER_SEARCH).map(readHeader);
+  const header = candidates.find((h) => missingColumns(h).length === 0) ?? candidates[0];
+  const headers = header ? header.cells.map((cell, i) => ({ header: cell, column: header.columns[i] ?? null })) : [];
+  const missing = header ? missingColumns(header) : REQUIRED_COLUMNS;
+  if (!header || missing.length > 0) {
+    return { entrants: [], rejected: [{ line: header?.line.number ?? 1, reason: 'missing_columns', detail: missing.join(', ') }], warnings: [], delimiter: header?.delimiter ?? ',', headers };
+  }
+  const parsed = refuseDuplicates(filled.filter((l) => l.number > header.line.number).map((l) => parseLine(header, l, options)));
   return {
-    entrants: withDuplicates.flatMap((p) => (p.entrant ? [p.entrant] : [])),
-    rejected: withDuplicates.flatMap((p) => (p.rejection ? [p.rejection] : [])),
-    delimiter,
+    entrants: parsed.flatMap((p) => (p.entrant ? [p.entrant] : [])),
+    rejected: parsed.flatMap((p) => (p.rejection ? [p.rejection] : [])),
+    warnings: parsed.flatMap((p) => (p.warning && p.entrant ? [p.warning] : [])),
+    delimiter: header.delimiter,
+    headers,
   };
 };
 
+/** What sending a file would do to one runner: a new bib, a change to an existing one, or nothing. */
+export type ImportChange = 'new' | 'updated' | 'same';
+export type PlannedEntrant = { entrant: CsvEntrant; change: ImportChange };
+
+const sameAddress = (a: Entrant['address'], b: Entrant['address']): boolean => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+/**
+ * Compares the file with the runners already there, on the bib. A file without an address
+ * keeps the one already stored, so that alone is not a change.
+ */
+export const planImport = (existing: ReadonlyArray<Pick<Entrant, 'bib' | 'email' | 'firstName' | 'lastName' | 'distanceKey' | 'address'>>, incoming: readonly CsvEntrant[]): PlannedEntrant[] => {
+  const byBib = new Map(existing.map((e) => [e.bib, e]));
+  return incoming.map((entrant) => {
+    const before = byBib.get(entrant.bib);
+    if (!before) return { entrant, change: 'new' };
+    const same =
+      before.email === entrant.email &&
+      before.firstName === entrant.firstName &&
+      before.lastName === entrant.lastName &&
+      before.distanceKey === entrant.distanceKey &&
+      (entrant.address === undefined || sameAddress(before.address, entrant.address));
+    return { entrant, change: same ? 'same' : 'updated' };
+  });
+};
+
+export type DecodedFile = { ok: true; text: string; encoding: 'utf-8' | 'utf-16' | 'windows-1252' } | { ok: false; reason: 'empty' | 'spreadsheet' };
+
+const startsWith = (bytes: Uint8Array, prefix: readonly number[]): boolean => prefix.every((b, i) => bytes[i] === b);
+
+/**
+ * The bytes of an uploaded file -> text. UTF-8 (with or without a BOM), UTF-16 (Excel's
+ * "Unicode text"), and anything that is not valid UTF-8 is read as Windows-1252, which is what
+ * Excel on Windows writes for "CSV (séparateur : point-virgule)". An .xlsx or .xls workbook
+ * is recognised so the page can say how to save it as CSV instead of showing garbage.
+ */
+export const decodeSpreadsheet = (bytes: Uint8Array): DecodedFile => {
+  if (bytes.length === 0) return { ok: false, reason: 'empty' };
+  if (startsWith(bytes, [0x50, 0x4b, 0x03, 0x04]) || startsWith(bytes, [0xd0, 0xcf, 0x11, 0xe0])) return { ok: false, reason: 'spreadsheet' };
+  if (startsWith(bytes, [0xff, 0xfe])) return { ok: true, text: new TextDecoder('utf-16le').decode(bytes), encoding: 'utf-16' };
+  if (startsWith(bytes, [0xfe, 0xff])) return { ok: true, text: new TextDecoder('utf-16be').decode(bytes), encoding: 'utf-16' };
+  try {
+    return { ok: true, text: new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(bytes), encoding: 'utf-8' };
+  } catch {
+    return { ok: true, text: new TextDecoder('windows-1252').decode(bytes), encoding: 'windows-1252' };
+  }
+};
+
+/** Numbers are written as they are: a negative one is a number, not a formula. */
 const escapeCsv = (value: string | number | null | undefined, delimiter: string): string => {
-  const s = value === null || value === undefined ? '' : String(value);
+  const s = value === null || value === undefined ? '' : typeof value === 'number' ? String(value) : guardFormula(value);
   return /["\r\n]/.test(s) || s.includes(delimiter) ? `"${s.replaceAll('"', '""')}"` : s;
 };
 
-/** Rows to CSV text with a BOM so that Excel opens it as UTF-8. Semicolons by default: French spreadsheets. */
+/**
+ * Rows to CSV text with a BOM so that Excel opens it as UTF-8. Semicolons by default: French
+ * spreadsheets. Text Excel would run as a formula (a name typed as `=HYPERLINK(...)`) stays text.
+ */
 export const toCsv = (rows: Array<Array<string | number | null | undefined>>, delimiter: ',' | ';' = ';'): string =>
-  '\uFEFF' + rows.map((row) => row.map((v) => escapeCsv(v, delimiter)).join(delimiter)).join('\r\n') + '\r\n';
+  BOM + rows.map((row) => row.map((v) => escapeCsv(v, delimiter)).join(delimiter)).join('\r\n') + '\r\n';

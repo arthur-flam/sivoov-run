@@ -16,7 +16,7 @@ export default defineConfig({
   testDir: './e2e/shots',
   timeout: 60_000,
   workers: 1,
-  use: { baseURL: process.env.BASE_URL ?? 'http://localhost:8788' , launchOptions: chromiumLaunch() },
+  use: { baseURL: process.env.BASE_URL ?? 'http://localhost:8788', launchOptions: chromiumLaunch() },
   projects: chosen.map((p) => ({
     name: p.id,
     use: { viewport: { width: p.width, height: p.height }, deviceScaleFactor: p.scale, locale: p.locale },

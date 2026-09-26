@@ -4,13 +4,9 @@ import { positionForRun, toDiagram } from '@sivoov/shared';
 /** An extra dot on the diagram: the organizer studio puts one audio event per marker. */
 export type DiagramMarker = { id: string; lat: number; lng: number; category?: string; occurrence?: number; faint?: boolean };
 
-const CATEGORY_FILL: Record<string, string> = {
-  ceremony: '#b8443b',
-  course: '#0f3d6e',
-  coaching: '#1f6b34',
-  personal: '#8a5cf5',
-  safety: '#d98324',
-};
+/** Marker colors are the audio category tokens (`--cat-*` in tokens.ts). */
+const CATEGORIES: readonly string[] = ['ceremony', 'course', 'coaching', 'personal', 'safety'];
+const categoryFill = (category: string | undefined): string => (category && CATEGORIES.includes(category) ? `var(--cat-${category})` : 'var(--accent-ink)');
 
 type Props = {
   track: CourseTrack;
@@ -49,7 +45,7 @@ export const CourseDiagram = ({ track, officialM, landmarks, width = 480, height
             cx={p.x}
             cy={p.y}
             r={m.faint ? '3' : '6'}
-            fill={CATEGORY_FILL[m.category ?? ''] ?? 'var(--accent-name)'}
+            fill={categoryFill(m.category)}
             opacity={m.faint ? '0.45' : '1'}
             stroke="var(--card)"
             stroke-width={m.faint ? '0.5' : '1.5'}

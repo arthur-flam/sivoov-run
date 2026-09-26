@@ -19,14 +19,14 @@ export const db = (d1: D1Database) => ({
   async upsertRace(race: Race): Promise<void> {
     await d1
       .prepare(
-        `INSERT INTO races (id, slug, name, city, country, date_start, date_end, window_start, window_end, timezone, organizer_url, theme, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO races (id, slug, name, city, country, date_start, date_end, window_start, window_end, timezone, organizer_url, support_email, theme, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET slug=excluded.slug, name=excluded.name, city=excluded.city, country=excluded.country,
            date_start=excluded.date_start, date_end=excluded.date_end, window_start=excluded.window_start, window_end=excluded.window_end,
-           timezone=excluded.timezone, organizer_url=excluded.organizer_url, theme=excluded.theme, status=excluded.status`,
+           timezone=excluded.timezone, organizer_url=excluded.organizer_url, support_email=excluded.support_email, theme=excluded.theme, status=excluded.status`,
       )
       .bind(race.id, race.slug, race.name, race.city, race.country, race.dateStart, race.dateEnd, race.windowStart, race.windowEnd,
-        race.timezone, race.organizerUrl ?? null, JSON.stringify(race.theme), race.status)
+        race.timezone, race.organizerUrl ?? null, race.supportEmail ?? null, JSON.stringify(race.theme), race.status)
       .run();
   },
 
@@ -106,15 +106,28 @@ export const db = (d1: D1Database) => ({
     const row = await d1.prepare('SELECT COUNT(*) AS n FROM auth_codes WHERE entrant_id = ? AND created_at > ?').bind(entrantId, sinceIso).first<{ n: number }>();
     return row?.n ?? 0;
   },
-  async bumpAttempts(codeId: string): Promise<void> {
-    await d1.prepare('UPDATE auth_codes SET attempts = attempts + 1 WHERE id = ?').bind(codeId).run();
+  /**
+   * Takes one attempt of the code in a single statement: false when none is left, when it
+   * expired or when it was used. Checking and counting in two steps let parallel guesses through.
+   */
+  async claimAttempt(codeId: string, maxAttempts: number): Promise<boolean> {
+    const res = await d1
+      .prepare('UPDATE auth_codes SET attempts = attempts + 1 WHERE id = ? AND attempts < ? AND consumed_at IS NULL AND expires_at > ?')
+      .bind(codeId, maxAttempts, new Date().toISOString())
+      .run();
+    return res.meta.changes === 1;
   },
-  async consumeCode(codeId: string): Promise<void> {
-    await d1.prepare('UPDATE auth_codes SET consumed_at = ? WHERE id = ?').bind(new Date().toISOString(), codeId).run();
+  /** Marks the code used; false when another request used it first. */
+  async consumeCode(codeId: string): Promise<boolean> {
+    const res = await d1.prepare('UPDATE auth_codes SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL').bind(new Date().toISOString(), codeId).run();
+    return res.meta.changes === 1;
   },
 
-  async createSession(id: string, entrantId: string, tokenHash: string, expiresAt: string): Promise<void> {
-    await d1.prepare('INSERT INTO sessions (id, entrant_id, token_hash, expires_at) VALUES (?, ?, ?, ?)').bind(id, entrantId, tokenHash, expiresAt).run();
+  async createSession(id: string, entrantId: string, tokenHash: string, expiresAt: string, client: 'web' | 'app' = 'web'): Promise<void> {
+    await d1
+      .prepare('INSERT INTO sessions (id, entrant_id, token_hash, expires_at, client, last_seen_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(id, entrantId, tokenHash, expiresAt, client, new Date().toISOString())
+      .run();
   },
   async entrantForToken(tokenHash: string): Promise<Entrant | null> {
     const row = await d1
@@ -150,8 +163,9 @@ export const db = (d1: D1Database) => ({
     return row ? runFromRow(row) : null;
   },
   /**
-   * Official results: best ranked run per entrant, by time (`rankedRun`: finished and started
-   * inside the race window). A faster rehearsal the week before never hides the real run.
+   * Official results: best ranked run per entrant, by time (`rankedRun`: finished, not set
+   * aside, started inside the race window, on the entrant's own distance). A faster rehearsal
+   * the week before never hides the real run, and a set-aside time is nobody's best.
    */
   async resultsForCourse(courseId: string): Promise<Array<{ run: Run; entrant: Entrant }>> {
     const { results } = await d1
@@ -159,8 +173,8 @@ export const db = (d1: D1Database) => ({
         `SELECT r.*, e.id AS e_id, e.race_id AS e_race_id, e.bib AS e_bib, e.email AS e_email, e.first_name AS e_first_name,
                 e.last_name AS e_last_name, e.distance_key AS e_distance_key, e.address AS e_address, e.source AS e_source, e.slot_at AS e_slot_at
          FROM runs r JOIN entrants e ON e.id = r.entrant_id
-         WHERE r.course_id = ? AND ${rankedRun('r', 'e.race_id')}
-           AND r.id = (SELECT r2.id FROM runs r2 WHERE r2.entrant_id = r.entrant_id AND r2.course_id = r.course_id AND ${rankedRun('r2', 'e.race_id')}
+         WHERE r.course_id = ? AND ${rankedRun('r')}
+           AND r.id = (SELECT r2.id FROM runs r2 WHERE r2.entrant_id = r.entrant_id AND r2.course_id = r.course_id AND ${rankedRun('r2')}
                        ORDER BY r2.elapsed_ms ASC, r2.id ASC LIMIT 1)
          ORDER BY r.elapsed_ms ASC, r.id ASC`,
       )

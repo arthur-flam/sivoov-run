@@ -9,7 +9,8 @@ import { entrantForToken } from '../lib/authService';
 import { Layout } from '../pages/layout';
 import { UploadPage } from '../pages/upload';
 import type { UploadProblem } from '../pages/upload';
-import { SESSION_COOKIE, localeOf } from './pages';
+import { localeOf } from './locale';
+import { SESSION_COOKIE } from './pages';
 import { prewarmCards } from './results';
 
 /**

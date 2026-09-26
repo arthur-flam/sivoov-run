@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Linking, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -140,6 +140,12 @@ export default function Home() {
           </View>
         ) : null}
         {phase === 'after' ? <Button testID="open-results" label={t('home.results')} color={race.theme.primary} onColor={race.theme.onPrimary} onPress={() => openResults(race)} /> : null}
+        {race.supportEmail ? (
+          <Card>
+            <Body muted>{t('home.help')}</Body>
+            <Button testID="write-organizer" label={t('home.helpWrite')} ghost onPress={() => void Linking.openURL(`mailto:${race.supportEmail}`)} />
+          </Card>
+        ) : null}
 
         {__DEV__ ? (
           <Link testID="dev-sim-link" href={{ pathname: '/run', params: { sim: '1', pace: '5:00', speed: '30' } }} style={styles.devLink}>

@@ -52,11 +52,19 @@ run_trace     run_id → R2 object (raw GPS + audio events fired), for debugging
 audio_pack    course_id, version, manifest(json) → R2 objects (mp3), downloaded before the run
 audio_script  course_id, locale, version, script(json: lines with their French text + voice),
               updated_at                 (the organizer studio's draft; version = next publish)
-organizer     race_id, email                                (admin magic link)
+organizer     race_id, email, role(owner|editor|viewer), name, invited_by   (race team)
+admin_session email, token_hash, expires_at    (one organizer sign-in for every race; codes in admin_codes)
+lead          name, email, race, message, locale, handled_at   (the /organisateurs contact form)
 ```
+Runner `session` rows also carry `client` (web|app), `device` and `last_seen_at`, so the admin can
+tell who reached the app. `run` rows carry `excluded_at/excluded_reason/excluded_by`: a time the
+organizer set aside never counts, and the app never writes those columns.
 Rows are validated by zod schemas in `shared/schemas/` on the way in and out of D1.
 
 ## Web surfaces (Worker, server-rendered)
+- `/`: the open races. `/organisateurs` (`?lang=en`, `/organizers` redirects): the page for race
+  directors, with a contact form stored in `leads`. `/media/races/<raceId>/<sha256>.<ext>`: logos and
+  photos uploaded in the admin (PNG, JPEG, WebP, immutable).
 - `/{race}`: landing. `/{race}/signin`: bib + email → code. `/{race}/app`: install.
 - `/{race}/prepare`: course, trailer, instructions. `/{race}/results` (ranked runs only: finished
   and started inside the window), `/{race}/results/{bib}` (the certificate: prints to PDF,
@@ -68,7 +76,14 @@ Rows are validated by zod schemas in `shared/schemas/` on the way in and out of 
   preview is the Mapbox course map. `/{race}/upload`: GPX fallback behind the web session, judged by
   the app's tracker (`evaluateUpload` in `shared/`), stored as a run with `source: upload`.
 - `/{race}/signin?next=/…`: returns to a same-site path after the code instead of the install page.
-- `/org/{race}`: organizer admin (entrants, runs, exports, imports).
+- `/org`: organizer admin. `/org/signin` (email + code, one session for every race of that
+  email), `/org` (the person's races; staff see all, `/org/new` creates one, `/org/leads` lists
+  contact requests). Per race, `/org/{race}`: home (numbers, latest activities, what is left
+  to do), `runners`, `runs`, `courses`, `team`, `settings`, exports. Every route is guarded by
+  `requireOrganizer` + `requireCan(action)` over the pure `can()` table in `shared/`
+  (`domain/access.ts`); roles are owner, editor, viewer, and `STAFF_EMAILS` lists Sivoov staff.
+  The admin has its own shell and component kit (`api/src/pages/org/adminLayout.tsx`, `ui.tsx`,
+  `adminStyles.ts`), styled only through `api/src/pages/tokens.ts`.
   `/org/{race}/courses`: courses, GPX upload, and per course the audio **studio**
   (`/org/{race}/courses/{courseId}`): the course on a Leaflet/Mapbox map with every audio
   event placed on it, the script editor, voice rendering and publishing. See AUDIO.md.

@@ -1,170 +1,202 @@
-import { describeTrigger } from '@sivoov/shared';
-import type { AudioCategory, CueMoment, MixMode, ScriptLine } from '@sivoov/shared';
+import { CUE_WORDS, CueMomentSchema, editorFromTrigger, speechSeconds } from '@sivoov/shared';
+import type { ScriptLine } from '@sivoov/shared';
 import type { LineStatus } from '../../lib/studio';
+import { ADVANCED_HINTS, CATEGORY_OPTIONS, PRIORITY_OPTIONS, WHEN_OPTIONS, textMeasure } from './studioCopy';
+import { Field, Icon } from './ui';
 
-export const CATEGORIES: { key: AudioCategory; label: string }[] = [
-  { key: 'ceremony', label: 'Cérémonie' },
-  { key: 'course', label: 'Parcours' },
-  { key: 'coaching', label: 'Coaching' },
-  { key: 'personal', label: 'Personnel' },
-  { key: 'safety', label: 'Sécurité' },
-];
+type Props = { line: ScriptLine; status: LineStatus; canEdit: boolean; ttsReady: boolean };
 
-export const MIXES: { key: MixMode; label: string }[] = [
-  { key: 'duck', label: 'Baisser la musique' },
-  { key: 'wait', label: 'Attendre son tour' },
-  { key: 'interrupt', label: 'Interrompre' },
-];
+/** What the collapsed row says under the title: the first words of the text, or the file played instead. */
+export const excerptOf = (line: ScriptLine): string => (line.audio ? `Votre fichier : ${line.audio.name || 'son importé'}` : line.text);
 
-export const TRIGGERS: { key: string; label: string }[] = [
-  { key: 'cue', label: 'Avant le départ' },
-  { key: 'start', label: 'Au départ' },
-  { key: 'distance', label: 'À une distance' },
-  { key: 'elapsed', label: 'Après un temps' },
-  { key: 'split', label: 'À chaque intervalle' },
-  { key: 'pace', label: 'Selon l’allure' },
-  { key: 'finish', label: 'À l’arrivée' },
-];
+/** The start ceremony's moments, in the order they play. */
+const CUE_MOMENTS = CueMomentSchema.options;
 
-/** The start ceremony plays these in this order, before the clock; the gun starts it. */
-export const CUE_MOMENTS: { key: CueMoment; label: string }[] = [
-  { key: 'armed', label: 'Sur la ligne' },
-  { key: 'countdown', label: 'Compte à rebours' },
-  { key: 'gun', label: 'Coup de pistolet' },
-];
-
-const num = (v: number | undefined) => (v === undefined ? '' : String(v));
-
-type Props = { line: ScriptLine; status: LineStatus; when: string; ttsReady: boolean };
+const ACCEPT = '.mp3,.m4a,.wav,audio/mpeg,audio/mp4,audio/x-m4a,audio/wav';
 
 /**
- * One event: the collapsed row, then the editor. Plain inputs, no framework — the client
- * script reads them by name, rebuilds the line and saves the whole script.
+ * One announcement: the row (when, title, first words, status, a play button), then the
+ * editor, simple first (Quand, Texte lu, the sound), everything else under "Réglages avancés".
+ * Plain inputs, no framework: the client script reads them by name, turns km and minutes into
+ * the meters and seconds the script stores, and saves the whole script. Field ids are prefixed
+ * with the line id; the client rewrites them when it clones the template for a new line.
  */
-export const StudioLine = ({ line, status, when, ttsReady }: Props) => {
-  const t = line.trigger;
-  const kind = t.kind;
-  const f = (shown: boolean) => `f${shown ? '' : ' hide'}`;
+export const StudioLine = ({ line, status, canEdit, ttsReady }: Props) => {
+  const when = editorFromTrigger(line.trigger);
+  const p = `${line.id}-`;
+  const off = !canEdit;
+  const show = (kind: string | string[]) => ([kind].flat().includes(line.trigger.kind) ? '' : 'hide');
   return (
-    <div class="ev" data-line={line.id}>
-      <div class="ev-top" data-role="toggle">
-        <span class="ev-when" data-role="when">{when}</span>
-        <span class="ev-name" data-role="name">{line.title || line.id}</span>
-        <span class={`ev-flag${status.template || status.rendered ? '' : ' miss'}`} data-role="flag">
-          {status.template ? 'modèle' : status.rendered ? 'voix prête' : 'voix à générer'}
+    <div class="ev" data-line={line.id} data-audio={line.audio ? JSON.stringify(line.audio) : ''}>
+      <div class="ev-top">
+        <button type="button" class="ev-open" data-role="toggle" aria-expanded="false">
+          <span class="ev-when" data-role="when">
+            {status.when}
+          </span>
+          <span class="ev-main">
+            <b class="ev-name" data-role="name">
+              {line.title || 'Sans titre'}
+            </b>
+            <span class="ev-excerpt" data-role="excerpt">
+              {excerptOf(line)}
+            </span>
+          </span>
+        </button>
+        <span class={`badge ${status.tone}`} data-role="flag">
+          {status.label}
         </span>
-        <span class="ev-sub" data-role="sub">
-          {describeTrigger(line.trigger, 'fr')} · {CATEGORIES.find((c) => c.key === line.category)?.label ?? line.category} · priorité {line.priority}
-        </span>
+        <button type="button" class="ev-play" data-role="listen" aria-label="Écouter" title="Écouter">
+          <Icon name="play" />
+        </button>
       </div>
       <div class="ev-body">
-        <div class="f">
-          <span>Titre</span>
-          <input name="title" type="text" value={line.title} />
-        </div>
-        <div class="grid2">
-          <div class="f">
-            <span>Déclencheur</span>
-            <select name="trigger.kind">
-              {TRIGGERS.map((o) => (
-                <option value={o.key} selected={o.key === kind}>
+        <Field label="Titre" hint="pour vous repérer dans la liste" for={`${p}title`}>
+          <input id={`${p}title`} name="title" type="text" value={line.title} disabled={off} />
+        </Field>
+        <div class="form-grid two">
+          <Field label="Quand" for={`${p}kind`}>
+            <select id={`${p}kind`} name="when.kind" disabled={off}>
+              {WHEN_OPTIONS.map((o) => (
+                <option value={o.key} selected={o.key === line.trigger.kind}>
                   {o.label}
                 </option>
               ))}
             </select>
+          </Field>
+          <div data-when="cue" class={show('cue')}>
+            <Field label="Moment" hint="la cérémonie joue sur la ligne, puis le compte à rebours ; le coup de pistolet lance le chrono" for={`${p}cueAt`}>
+              <select id={`${p}cueAt`} name="when.cueAt" disabled={off}>
+                {CUE_MOMENTS.map((m) => (
+                  <option value={m} selected={m === when.cueAt}>
+                    {CUE_WORDS[m]}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Ordre" hint="dans ce moment : 1, 2, 3…" for={`${p}cueOrder`}>
+              <input id={`${p}cueOrder`} name="when.cueOrder" type="text" inputmode="numeric" value={when.cueOrder} disabled={off} />
+            </Field>
           </div>
-          <div class={f(kind === 'cue')} data-when="cue">
-            <span>Moment</span>
-            <select name="trigger.at">
-              {CUE_MOMENTS.map((o) => (
-                <option value={o.key} selected={t.kind === 'cue' && o.key === t.at}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+          <div data-when="distance" class={show('distance')}>
+            <Field label="Au kilomètre" hint="par exemple 5,2" for={`${p}km`}>
+              <input id={`${p}km`} name="when.km" type="text" inputmode="decimal" value={when.km} disabled={off} />
+            </Field>
           </div>
-          <div class={f(kind === 'cue')} data-when="cue">
-            <span>Ordre</span>
-            <input name="trigger.order" type="number" min="0" step="1" value={t.kind === 'cue' ? String(t.order) : '1'} />
+          <div data-when="elapsed" class={show('elapsed')}>
+            <Field label="Après combien de minutes" hint="par exemple 90" for={`${p}minutes`}>
+              <input id={`${p}minutes`} name="when.minutes" type="text" inputmode="decimal" value={when.minutes} disabled={off} />
+            </Field>
           </div>
-          <div class={f(kind === 'distance')} data-when="distance">
-            <span>Distance (m)</span>
-            <input name="trigger.meters" type="number" min="0" step="10" value={t.kind === 'distance' ? String(t.meters) : ''} />
+          <div data-when="split" class={show('split')}>
+            <Field label="Tous les combien de km" hint="1 pour chaque km" for={`${p}every`}>
+              <input id={`${p}every`} name="when.everyKm" type="text" inputmode="decimal" value={when.everyKm} disabled={off} />
+            </Field>
           </div>
-          <div class={f(kind === 'elapsed')} data-when="elapsed">
-            <span>Temps (s)</span>
-            <input name="trigger.seconds" type="number" min="0" step="1" value={t.kind === 'elapsed' ? String(t.seconds) : ''} />
+          <div data-when="pace" class={show('pace')}>
+            <Field label="S’il court plus lentement que" hint="en min/km, par exemple 6:30" for={`${p}slower`}>
+              <input id={`${p}slower`} name="when.slowerThan" type="text" inputmode="numeric" value={when.slowerThan} disabled={off} />
+            </Field>
           </div>
-          <div class={f(kind === 'split')} data-when="split">
-            <span>Intervalle (m)</span>
-            <input name="trigger.everyMeters" type="number" min="100" step="100" value={t.kind === 'split' ? String(t.everyMeters) : '1000'} />
+          <div data-when="pace" class={show('pace')}>
+            <Field label="Ou plus vite que" hint="en min/km, facultatif" for={`${p}faster`}>
+              <input id={`${p}faster`} name="when.fasterThan" type="text" inputmode="numeric" value={when.fasterThan} disabled={off} />
+            </Field>
           </div>
-          <div class={f(kind === 'pace')} data-when="pace">
-            <span>Plus lent que (s/km)</span>
-            <input name="trigger.slowerThan" type="number" min="0" step="5" value={t.kind === 'pace' ? num(t.slowerThan) : ''} />
-          </div>
-          <div class={f(kind === 'pace')} data-when="pace">
-            <span>Plus rapide que (s/km)</span>
-            <input name="trigger.fasterThan" type="number" min="0" step="5" value={t.kind === 'pace' ? num(t.fasterThan) : ''} />
-          </div>
-          <div class={f(kind === 'pace')} data-when="pace">
-            <span>À partir de (m)</span>
-            <input name="trigger.afterMeters" type="number" min="0" step="100" value={t.kind === 'pace' ? String(t.afterMeters) : '1000'} />
-          </div>
-        </div>
-        <div class="f">
-          <span>Texte lu par la voix</span>
-          <textarea name="text">{line.text}</textarea>
-        </div>
-        <div class="grid2">
-          <div class="f">
-            <span>Catégorie</span>
-            <select name="category">
-              {CATEGORIES.map((o) => (
-                <option value={o.key} selected={o.key === line.category}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div class="f">
-            <span>Mixage</span>
-            <select name="mix">
-              {MIXES.map((o) => (
-                <option value={o.key} selected={o.key === line.mix}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div class="f">
-            <span>Priorité (0-10)</span>
-            <input name="priority" type="number" min="0" max="10" step="1" value={String(line.priority)} />
-          </div>
-          <div class="f">
-            <span>Fichier</span>
-            <input name="key" type="text" value={line.key} />
-          </div>
-          <div class="f">
-            <span>Variables (modèle)</span>
-            <input name="slots" type="text" value={(line.slots ?? []).join(', ')} placeholder="km, splitTime" />
-          </div>
-          <div class="f">
-            <span>Répétition</span>
-            <label class="check">
-              <input name="once" type="checkbox" checked={line.once} /> une seule fois
-            </label>
+          <div data-when="pace" class={show('pace')}>
+            <Field label="À partir du km" for={`${p}after`}>
+              <input id={`${p}after`} name="when.afterKm" type="text" inputmode="decimal" value={when.afterKm} disabled={off} />
+            </Field>
           </div>
         </div>
-        <div class="row">
-          <button class="btn btn-ghost" type="button" data-role="listen">Écouter</button>
-          <button class="btn btn-ghost" type="button" data-role="render" disabled={!ttsReady}>
-            Générer la voix
+        <p class="ev-err" data-role="when-error" hidden></p>
+        <div class="ev-file" data-role="file" hidden={!line.audio}>
+          <p>
+            <b data-role="file-name">{line.audio?.name || 'Votre fichier'}</b> est joué à la place de la voix. Le texte ci-dessous sert seulement de repère.
+          </p>
+          {canEdit ? (
+            <button type="button" class="btn btn-sm" data-role="unfile">
+              Revenir à la voix
+            </button>
+          ) : null}
+        </div>
+        <Field label="Texte lu" hint="écrivez comme vous parlez" for={`${p}text`}>
+          <textarea id={`${p}text`} name="text" disabled={off}>
+            {line.text}
+          </textarea>
+        </Field>
+        <p class="ev-measure" data-role="measure">
+          {textMeasure(line.text.trim().length, speechSeconds(line.text))}
+        </p>
+        <div class="ev-actions">
+          <button type="button" class="btn btn-sm" data-role="listen">
+            <Icon name="play" /> Écouter
           </button>
-          <button class="btn btn-ghost" type="button" data-role="duplicate">Dupliquer</button>
-          <button class="btn btn-ghost" type="button" data-role="delete">Supprimer</button>
-          <span class="ev-flag" data-role="id">{line.id}</span>
+          {canEdit ? (
+            <>
+              <button type="button" class="btn btn-sm" data-role="render" hidden={status.source !== 'voice'} disabled={!ttsReady || status.rendered}>
+                {status.rendered ? 'Voix enregistrée' : 'Enregistrer la voix'}
+              </button>
+              <label class="btn btn-sm" data-role="upload-label" hidden={Boolean(line.audio)}>
+                <Icon name="upload" /> Utiliser un fichier audio
+                <input class="sr" type="file" data-role="upload" accept={ACCEPT} />
+              </label>
+              <button type="button" class="btn btn-sm btn-quiet" data-role="duplicate">
+                Dupliquer
+              </button>
+              <button type="button" class="btn btn-sm btn-quiet ev-delete" data-role="delete">
+                Supprimer
+              </button>
+            </>
+          ) : null}
         </div>
+        <details class="disclose ev-adv">
+          <summary>Réglages avancés</summary>
+          <div>
+            <Field label="Type d’annonce" hint={ADVANCED_HINTS.category} for={`${p}category`}>
+              <select id={`${p}category`} name="category" disabled={off}>
+                {CATEGORY_OPTIONS.map((o) => (
+                  <option value={o.key} selected={o.key === line.category}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Si une autre annonce joue déjà" hint={ADVANCED_HINTS.mix} for={`${p}mix`}>
+              <select id={`${p}mix`} name="mix" disabled={off}>
+                {/* Queued behind the current one: 'duck' and 'wait' play the same way today, so one choice keeps whichever is stored. */}
+                <option value={line.mix === 'wait' ? 'wait' : 'duck'} selected={line.mix !== 'interrupt'}>
+                  Attendre qu’elle se termine
+                </option>
+                <option value="interrupt" selected={line.mix === 'interrupt'}>
+                  La couper et passer tout de suite
+                </option>
+              </select>
+            </Field>
+            <Field label="Importance" hint={ADVANCED_HINTS.priority} for={`${p}priority`}>
+              <select id={`${p}priority`} name="priority" disabled={off}>
+                {PRIORITY_OPTIONS.map((o) => (
+                  <option value={String(o.value)} selected={o.value === line.priority}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <div data-when="pace" class={show('pace')}>
+              <div class="field">
+                <label class="check">
+                  <input name="repeat" type="checkbox" checked={!line.once} disabled={off} /> Répéter le conseil à chaque km tant que l’allure reste hors limites
+                </label>
+                <span class="hint">{ADVANCED_HINTS.repeat}</span>
+              </div>
+            </div>
+            <Field label="Parties variables" hint={ADVANCED_HINTS.slots} for={`${p}slots`}>
+              <input id={`${p}slots`} name="slots" type="text" value={(line.slots ?? []).join(', ')} placeholder="Aucune" disabled={off} />
+            </Field>
+            <Field label="Nom du fichier" hint={ADVANCED_HINTS.key} for={`${p}key`}>
+              <input id={`${p}key`} name="key" type="text" value={line.key} disabled={off} />
+            </Field>
+          </div>
+        </details>
       </div>
     </div>
   );

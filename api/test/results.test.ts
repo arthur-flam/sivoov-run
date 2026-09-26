@@ -1,6 +1,6 @@
 import { SELF, env } from 'cloudflare:test';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { CourseSchema, EntrantSchema, RaceSchema, RunSchema } from '@sivoov/shared';
+import { CourseSchema, EntrantSchema, RaceSchema, RunSchema, deauvilleMarathonGeometry } from '@sivoov/shared';
 import { db } from '../src/db/queries';
 import { RETRY_AFTER_MS, cardKey, cardPng } from '../src/lib/cards';
 import { rankOf, ranks } from '../src/lib/results';
@@ -26,6 +26,8 @@ const base = `http://run.test/${race.slug}`;
 
 beforeAll(async () => {
   const q = db(env.DB);
+  // The course file the cards draw: a race with none shows no course and gets no card.
+  await env.FILES.put(half.geometryKey!, JSON.stringify(deauvilleMarathonGeometry));
   await q.upsertRace(race);
   await q.upsertCourse(half);
   await q.upsertCourse(marathon);
@@ -191,7 +193,7 @@ describe('share cards', () => {
 describe('the landing page as a shared link', () => {
   it('previews with the race’s promise, and shows a way in for people with no bib yet', async () => {
     const html = await (await SELF.fetch(base)).text();
-    expect(html).toContain('<meta property="og:title" content="Courez Marathon International de Deauville où que vous soyez."/>');
+    expect(html).toContain('<meta property="og:title" content="Marathon International de Deauville, où que vous soyez."/>');
     expect(html).toContain('Pas encore de dossard ?');
   });
 });

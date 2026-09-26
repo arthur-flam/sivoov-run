@@ -1,3 +1,4 @@
+import type { Course } from '@sivoov/shared';
 import type { Bindings } from '../env';
 
 /**
@@ -29,11 +30,15 @@ export const cardsEnabled = (deps: Pick<CardDeps, 'accountId' | 'token'>): boole
  * The picture under a shared link: the card when this deployment renders cards, else the
  * course map, else nothing (the preview then shows the title alone). URLs are absolute.
  */
-export const previewImage = (env: Bindings, cardUrl: string, courseId: string | undefined, base: string): { url: string; width: number; height: number } | undefined => {
-  if (cardsEnabled(cardDeps(env))) return { url: cardUrl, ...CARD_SIZE.og };
-  if (env.MAPBOX_TOKEN && courseId) return { url: `${base}/api/courses/${courseId}/map.png?w=1200&h=630`, ...CARD_SIZE.og };
-  return undefined;
+export const previewImage = (env: Bindings, cardUrl: string, course: Pick<Course, 'id' | 'geometryKey'> | undefined, base: string): { url: string; width: number; height: number } | undefined => {
+  if (cardsEnabled(cardDeps(env)) && course?.geometryKey) return { url: cardUrl, ...CARD_SIZE.og };
+  const map = courseMapUrl(env, course);
+  return map ? { url: `${base}${map}`, ...CARD_SIZE.og } : undefined;
 };
+
+/** The course on a Mapbox picture at link-preview size, when there is a token and a course file. */
+export const courseMapUrl = (env: Bindings, course: Pick<Course, 'id' | 'geometryKey'> | undefined): string | null =>
+  env.MAPBOX_TOKEN && course?.geometryKey ? `/api/courses/${course.id}/map.png?w=1200&h=630` : null;
 
 /** After a failed render, how long before anyone may try again: a failing renderer is not hammered. */
 export const RETRY_AFTER_MS = 10 * 60_000;

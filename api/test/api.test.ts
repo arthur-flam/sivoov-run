@@ -1,5 +1,6 @@
 import { SELF, env } from 'cloudflare:test';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { deauvilleMarathonGeometry } from '@sivoov/shared';
 import { db } from '../src/db/queries';
 import { deauvilleCourses, deauvilleRace, deauvilleTestEntrants } from '../src/seed/deauville';
 import { sha256Hex } from '../src/lib/crypto';
@@ -53,9 +54,13 @@ describe('health and race', () => {
   it('404s an unknown race', async () => {
     expect((await SELF.fetch('http://run.test/api/races/nope')).status).toBe(404);
   });
-  it('serves course geometry from the bundled fixture when R2 is empty', async () => {
-    const res = await SELF.fetch('http://run.test/api/courses/deauville-2026-half/geometry');
-    const body = (await res.json()) as { courseId: string; points: unknown[] };
+  it('serves the course geometry from R2, and a 404 until the GPX is in, never another race’s course', async () => {
+    const key = 'courses/deauville-2026-marathon.json';
+    await env.FILES.delete(key);
+    expect((await SELF.fetch('http://run.test/api/courses/deauville-2026-half/geometry')).status).toBe(404);
+    expect((await SELF.fetch('http://run.test/deauville-2026')).status).toBe(200);
+    await env.FILES.put(key, JSON.stringify({ ...deauvilleMarathonGeometry, courseId: 'deauville-2026-half' }));
+    const body = (await (await SELF.fetch('http://run.test/api/courses/deauville-2026-half/geometry')).json()) as { courseId: string; points: unknown[] };
     expect(body.courseId).toBe('deauville-2026-half');
     expect(body.points.length).toBeGreaterThan(1000);
   });
@@ -205,6 +210,7 @@ describe('runs', () => {
 
 describe('pages', () => {
   it('renders the landing in French by default and in English on request', async () => {
+    await env.FILES.put('courses/deauville-2026-marathon.json', JSON.stringify(deauvilleMarathonGeometry));
     const fr = await (await SELF.fetch('http://run.test/deauville-2026')).text();
     expect(fr).toContain('Course virtuelle officielle');
     expect(fr).toContain('Marathon International de Deauville');

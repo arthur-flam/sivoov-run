@@ -1,10 +1,10 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-import type { Locale, Race } from '@sivoov/shared';
+import type { Course, Locale, Race } from '@sivoov/shared';
 import { distanceLabel, formatOfficialTime, translator } from '@sivoov/shared';
 import type { AppEnv } from '../env';
 import { db } from '../db/queries';
-import { cardDeps, cardFormat, cardPng, cardsEnabled, previewImage } from '../lib/cards';
+import { cardDeps, cardFormat, cardPng, cardsEnabled, courseMapUrl, previewImage } from '../lib/cards';
 import type { CardFormat } from '../lib/cards';
 import { fullName, raceCardId, resultForBib, runCardId, runnerCardFor, shortName } from '../lib/results';
 import { ShareCard } from '../pages/card';
@@ -13,7 +13,8 @@ import { Layout } from '../pages/layout';
 import type { OpenGraph } from '../pages/layout';
 import { ResultPage } from '../pages/result';
 import { ResultsPage } from '../pages/results';
-import { localeOf, trackFor } from './pages';
+import { localeOf } from './locale';
+import { trackFor } from './pages';
 
 /** Results, a runner's certificate, and the share cards behind every link preview. */
 export const results = new Hono<AppEnv>();
@@ -35,8 +36,10 @@ const runnerCardUrl = (page: string, format: CardFormat, locale: Locale, id: str
   `${page}/card.png?format=${format}&lang=${locale}&v=${encodeURIComponent(id)}`;
 
 /** When a card cannot be had, a link preview still gets a picture: the course map. */
-const mapOr404 = (c: Context<AppEnv>, courseId: string | undefined): Response | Promise<Response> =>
-  c.env.MAPBOX_TOKEN && courseId ? c.redirect(`/api/courses/${courseId}/map.png?w=1200&h=630`, 302) : c.notFound();
+const mapOr404 = (c: Context<AppEnv>, course: Course | undefined): Response | Promise<Response> => {
+  const map = courseMapUrl(c.env, course);
+  return map ? c.redirect(map, 302) : c.notFound();
+};
 
 results.get('/:slug/results', async (c) => {
   const locale = localeOf(c);
@@ -76,7 +79,7 @@ results.get('/:slug/results/:bib', async (c) => {
     title,
     description: t('result.og.description', { distance: distanceLabel(locale, result.entrant.distanceKey) }),
     url: page,
-    image: previewImage(c.env, card ? runnerCardUrl(page, 'og', locale, card.id) : `${base}/${race.slug}/og.png?lang=${locale}`, result.course.id, base),
+    image: previewImage(c.env, card ? runnerCardUrl(page, 'og', locale, card.id) : `${base}/${race.slug}/og.png?lang=${locale}`, result.course, base),
   };
   return c.html(
     <Layout title={title} locale={locale} race={race} path={`/${race.slug}/results/${result.entrant.bib}`} og={og}>
@@ -108,10 +111,11 @@ results.get('/:slug/results/:bib/card.png', async (c) => {
   const page = `${origin(c)}/${race.slug}/results/${result.entrant.bib}`;
   // An old URL (the bib card, a slower run) moves on to the current card.
   if (c.req.query('v') !== card.id) return c.redirect(runnerCardUrl(page, format, locale, card.id), 302);
-  const body = await cardPng(cardDeps(c.env), card.id, format, `${page}/card?format=${format}&lang=${locale}`);
+  // No course file yet, no card page: never let the renderer photograph a 404.
+  const body = result.course.geometryKey ? await cardPng(cardDeps(c.env), card.id, format, `${page}/card?format=${format}&lang=${locale}`) : null;
   if (body) return png(body, 31_536_000);
   // The portrait card has no stand-in: the share button then shares the link alone.
-  return format === 'og' ? mapOr404(c, result.course.id) : c.notFound();
+  return format === 'og' ? mapOr404(c, result.course) : c.notFound();
 });
 
 /** The race's own card: the landing page's link preview. */
@@ -128,10 +132,12 @@ results.get('/:slug/card', async (c) => {
 
 results.get('/:slug/og.png', async (c) => {
   const locale = localeOf(c);
-  const race = await db(c.env.DB).raceBySlug(c.req.param('slug'));
+  const q = db(c.env.DB);
+  const race = await q.raceBySlug(c.req.param('slug'));
   if (!race) return c.notFound();
-  const body = await cardPng(cardDeps(c.env), raceCardId(race, locale), 'og', `${origin(c)}/${race.slug}/card?format=og&lang=${locale}`);
-  return body ? png(body, 86_400) : mapOr404(c, (await db(c.env.DB).coursesForRace(race.id))[0]?.id);
+  const course = (await q.coursesForRace(race.id))[0];
+  const body = course?.geometryKey ? await cardPng(cardDeps(c.env), raceCardId(race, locale), 'og', `${origin(c)}/${race.slug}/card?format=og&lang=${locale}`) : null;
+  return body ? png(body, 86_400) : mapOr404(c, course);
 });
 
 /**

@@ -8,7 +8,10 @@ const variant = process.env.APP_VARIANT ?? 'production';
 const suffix = variant === 'development' ? '.dev' : variant === 'preview' ? '.preview' : '';
 const name = variant === 'development' ? 'Sivoov (Dev)' : variant === 'preview' ? 'Sivoov (Preview)' : 'Sivoov';
 // A dev or preview shell must never talk to production, even if Metro was started without
-// EXPO_PUBLIC_API_URL (docs/DEVICE.md).
+// EXPO_PUBLIC_API_URL (docs/DEVICE.md). That holds only when APP_VARIANT is set: unset means
+// production, so every `expo start` script and every `eas update` in CI names its variant.
+// An OTA update carries this config, so an update published without it points the app at
+// production whatever shell loads it.
 const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? (variant === 'production' ? 'https://run.sivoov.app' : 'https://preview.run.sivoov.app');
 // EAS Build stamps the channel from eas.json into the binary; a shell compiled on the laptop
 // (`npm run device:preview`) is not built by EAS and would ask for no channel at all, so it is

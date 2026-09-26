@@ -83,8 +83,12 @@ jobs:
         working-directory: app
         # The message goes through the environment, never pasted into the script: a quote in a
         # commit message broke the command (PR #5), and anything else in it would have run.
+        # The update carries app.config.ts as evaluated here: without APP_VARIANT it is the
+        # production config, and the preview shell would talk to run.sivoov.app.
         env:
           MESSAGE: ${{ github.event.head_commit.message || format('manual from {0}', github.sha) }}
+          APP_VARIANT: preview
+          EXPO_PUBLIC_API_URL: https://preview.run.sivoov.app
         run: eas update --channel preview --message "$MESSAGE" --non-interactive
 
   promote-production:
@@ -116,6 +120,9 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Publish update to the production channel
         working-directory: app
+        env:
+          APP_VARIANT: production
+          EXPO_PUBLIC_API_URL: https://run.sivoov.app
         run: eas update --channel production --message "${{ github.sha }}" --non-interactive
 
   native-build:

@@ -52,6 +52,10 @@ jobs:
         run: echo "text=$(printf '%s' "$TITLE" | tr -d '"\\`$' | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
       - name: Publish update to a branch named after the PR, comment QR on the PR
         uses: expo/expo-github-action/preview@v8
+        # Opened in the dev client: its config, pointed at preview (see deploy.yml).
+        env:
+          APP_VARIANT: development
+          EXPO_PUBLIC_API_URL: https://preview.run.sivoov.app
         with:
           command: eas update --branch pr-${{ github.event.pull_request.number }} --message "${{ steps.message.outputs.text }}" --non-interactive
           working-directory: app

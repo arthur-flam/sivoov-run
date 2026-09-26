@@ -382,3 +382,13 @@
   `run:` step, pass event text through `env:` and quote the variable. The `preview` action runs
   its `command` input itself (no shell, so no `$VAR`), which is why `preview.yml` strips quotes
   from the title in a step before it. Never put `${{ github.event.* }}` text inside a script.
+- 2026-09-26: nobody could sign in with the test accounts in `Sivoov (Preview)` ("on ne trouve
+  pas cette inscription") while curl and the web sign-in on preview worked. The app was asking
+  **production**, which has no entrants. `app.config.ts` treats an unset `APP_VARIANT` as
+  production, and `deploy.yml` ran `eas update --channel preview` without it: an OTA update
+  carries the config as evaluated where it was published (`extra.apiUrl`, the name), so every
+  update since the no-laptop loop began pointed the preview shell at run.sivoov.app. Same for
+  the PR updates opened in the dev client, and for a plain `npm run dev -w app`. Every
+  `eas update` in CI now sets `APP_VARIANT` and `EXPO_PUBLIC_API_URL`, and the app's
+  `dev`/`start`/`web` scripts default to `development`. To check what a channel really serves:
+  `curl -s https://u.expo.dev/<projectId> -H 'expo-channel-name: preview' -H 'expo-platform: android' -H 'expo-runtime-version: 2.0.0' -H 'expo-protocol-version: 1' | grep -ao '"apiUrl":"[^"]*"'`.

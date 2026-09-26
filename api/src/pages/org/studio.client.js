@@ -312,7 +312,7 @@
     const mode = modeOf(card);
     if (mode === 'file' && file) return 'Votre fichier : ' + (file.name || 'son importé');
     if (mode === 'personal') {
-      return checked(card, 'pkind') === 'ai' ? 'IA : ' + value(card, 'personal.prompt') : value(card, 'personal.template');
+      return checked(card, 'pkind') === 'ai' ? 'IA : ' + value(card, 'personal.prompt') : words(value(card, 'personal.template'));
     }
     return words(value(card, 'text'));
   }

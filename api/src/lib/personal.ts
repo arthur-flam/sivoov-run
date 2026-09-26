@@ -72,9 +72,13 @@ export const briefFor = (def: Pick<PersonalDef, 'title' | 'when' | 'fallback' | 
   maxChars: maxCharsFor(def.fallback),
 });
 
-/** An AI line is written once per runner and pack version, then kept half a day (the weather moves on). */
+/**
+ * An AI line is written once per runner and pack version, then kept half a day (the weather
+ * moves on), or until the app first sends where the runner is: the race home asks without a
+ * position, the pre-flight with one, and the runner's own weather is worth a second writing.
+ */
 const WRITTEN_FRESH_MS = 12 * 3600 * 1000;
-type Written = Record<string, { text: string; at: string }>;
+type Written = Record<string, { text: string; at: string; here?: boolean }>;
 const writtenKey = (courseId: string, version: number, entrantId: string) => `personal-texts/${courseId}/${version}/${entrantId}.json`;
 
 const readWritten = async (files: R2Bucket, key: string): Promise<Written> => {
@@ -100,7 +104,7 @@ const mapLimit = async <T, R>(items: T[], limit: number, fn: (item: T) => Promis
 const prepareText = async (deps: PersonalDeps, defs: PersonalDefs, def: PersonalDef, ctx: PersonalContext, written: Written, now: Date): Promise<string | null> => {
   if (def.personal.kind === 'template') return fillTemplate(def.personal.template, spokenValues(ctx.runner));
   const kept = written[def.eventId];
-  if (kept && now.getTime() - Date.parse(kept.at) < WRITTEN_FRESH_MS) return kept.text;
+  if (kept && now.getTime() - Date.parse(kept.at) < WRITTEN_FRESH_MS && (kept.here || ctx.weather.runner === null)) return kept.text;
   if (!deps.llm) return null;
   return writePersonalLine(deps.llm, briefFor(def, ctx, supportsAudioTags(defs.voice.model)));
 };
@@ -120,7 +124,8 @@ export const personalVoices = async (deps: PersonalDeps, ctx: PersonalContext, v
   const texts = await mapLimit(prepare, 2, async (def) => ({ def, text: await prepareText(deps, defs, def, ctx, written, now) }));
   const freshAi = texts.filter((t) => t.def.personal.kind === 'ai' && t.text !== null && written[t.def.eventId]?.text !== t.text);
   if (freshAi.length > 0) {
-    const next = { ...written, ...Object.fromEntries(freshAi.map((t) => [t.def.eventId, { text: t.text!, at: now.toISOString() }])) };
+    const here = ctx.weather.runner !== null;
+    const next = { ...written, ...Object.fromEntries(freshAi.map((t) => [t.def.eventId, { text: t.text!, at: now.toISOString(), here }])) };
     await deps.files.put(key, JSON.stringify(next), { httpMetadata: { contentType: 'application/json' } });
   }
   const tts = deps.tts;

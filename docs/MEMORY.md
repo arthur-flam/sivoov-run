@@ -402,3 +402,15 @@
   or `.mapboxgl-popup`. Popups sit under z-indexed markers unless they get a z-index too
   (`adminStyles`). Moves made by hand carry `event.originalEvent`, eases started in code do
   not: that is how the scroll sync tells the organizer's drag from its own follow.
+- 2026-09-26: ElevenLabs from our key: `eleven_v3` renders French with `language_code: 'fr'`
+  (about 1.6 s for a short line) and reads `[excited]`-style tags; older models would read the
+  brackets aloud, hence `textForVoice`. The key has text-to-speech but not `voices_read` or
+  `user_read`: `GET /v2/voices` answers 401 `missing_permissions`, so the studio's voice list is
+  a checked house list plus "paste an id". Some premade voices answer 402 (Rachel, Charlotte)
+  or 404 (Bella) with v3 on this plan; the house list only holds ones that answered 200.
+- 2026-09-26: vitest treats a function returned from `beforeEach` as that test's cleanup.
+  `beforeEach(() => mock.mockReset())` returns the mock, so vitest calls it after the test:
+  with `mockRejectedValue` set, that call is an unhandled rejection that fails the test with
+  the mock's error. Use a block body.
+- 2026-09-26: the auto-mode sandbox reaches api.elevenlabs.io, registry.npmjs.org and
+  api.mapbox.com directly (unlike the deployed run.sivoov.app hosts).

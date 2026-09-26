@@ -14,7 +14,7 @@ test (see Next, item 1). Production has the race and its courses; no real entran
 | shared domain | Schemas + pure domain logic: course projection, splits, audio triggers, upload replay (`evaluateUpload`). Tracker holds ~1% distance error at 8 m simulated GPS noise. |
 | API / web pages | Cloudflare Worker (Hono), deployed to preview and production. Sign-in by bib + email code (Cloudflare Email Sending). Landing, prepare, install, results, certificate and upload pages are server-rendered. |
 | organizer admin | Rebuilt: one sign-in per email across every race, roles (owner/editor/viewer) plus staff. Race home, Coureurs, Activités, Parcours et annonces, Équipe, Réglages. French only. |
-| audio studio + pack | `/org/{race}/courses/{courseId}`: Leaflet/Mapbox map (SVG diagram fallback), script editor, ElevenLabs voice render (single voice "George", French only), own-file upload, publish. Pack v0 built and heard on a Galaxy S23 (2026-09-13). Studio rework (voice picker, per-runner personal lines, Mapbox GL) is in progress on `claude/audio-studio-voices`. |
+| audio studio + pack | `/org/{race}/courses/{courseId}` (AUDIO.md): Mapbox GL map that zooms on gesture and follows the list, voice picker (ElevenLabs, Eleven v3 with `[tags]` by default), per line « La voix / Personnalisée / Votre fichier », personal lines with fields (`{prenom}`, `{dossard}`, `{temps}`…) or written by Claude per runner, each with an offline version, « Écouter un exemple », « Proposer un texte », the start ceremony shown second by second with where the clock starts, publish. The app downloads each runner's own lines with the pack and asks for live ones as they play. Built on `claude/audio-studio-voices` (2026-09-26), not yet merged or deployed. Pack v0 heard on a Galaxy S23 (2026-09-13). |
 | app run / finish / share | Sign-in, race home, prepare, run (course diagram, start ceremony), finish (share, certificate link), results. Verified on a Galaxy S23: foreground service, audio, finish and upload all real; the tracker itself has never seen a moving runner. |
 | device loop | Loop 2a (cable, `npm run device`) and loop 2b (no laptop: standalone `Sivoov (Preview)` release shell on the `preview` OTA channel, device logbook via Diagnostic) both proven on a phone. See WORKFLOW.md, DEVICE.md. |
 | screenshot rig | `npm run shots` renders every app screen and web page (~70 s) into `docs/shots/`; `npm run shots:store` writes App Store / Play sized files. See SHOTS.md. |
@@ -45,12 +45,14 @@ Anchored to PRD milestones (M2 10 Oct, M3 17 Oct, M4 31 Oct).
    distance and a checkout; a paid checkout creates the entrant and sends the instructions
    email that already exists. Needs the Paddle account, a webhook route, and a decision on
    who is the merchant of record.
-7. **Audio v1 content**: the rewritten Deauville script (double loop, ~38 events); switch
-   preview's draft ceremony lines from `start` / `elapsed: 0` to cues and republish (only
-   once the app update that plays cues is on phones); `interval` trigger and file upload
-   per line; "moins de voix". The studio itself is being reworked on
-   `claude/audio-studio-voices` (voice picker, ElevenLabs v3 tags, per-runner personal
-   lines, Mapbox GL) - do not duplicate that work here.
+7. **Audio v1**: merge `claude/audio-studio-voices`, then on preview: choose the voice (v3),
+   move the ceremony lines to « Avant le départ », add the runner's call by bib and name and
+   the finish call with `{temps}`, write every offline version, record, publish, and listen on
+   the phone (the app update must be on the phone first: older builds play no cue and no
+   personal line, only the offline files). Then the rewritten Deauville script (double loop,
+   ~38 events), "moins de voix", beds (a crowd loop under the voice needs the player to mix),
+   the rehearsal pack, the post-run race report. Not built: `interval` trigger, number
+   fragments (live splits need a network; offline they play the generic line).
 8. **Native Mapbox in the app**: replace the static PNG race-home map with
    `@rnmapbox/maps` (course line, a live runner dot as an option next to the diagram).
    Needs a new build; record it in ARCHITECTURE.md's native module list when it lands.
@@ -58,6 +60,13 @@ Anchored to PRD milestones (M2 10 Oct, M3 17 Oct, M4 31 Oct).
    image, English admin variant.
 
 ## Owner actions
+
+- **Claude for AI lines**: `npx wrangler secret put ANTHROPIC_API_KEY` for production and
+  `--env preview` (and `ANTHROPIC_API_KEY=` in `api/.dev.vars` locally). Optional: create an AI
+  Gateway in the Cloudflare dashboard and set its name as the `AI_GATEWAY` var in
+  `wrangler.jsonc`. Without the key, AI lines play their offline version.
+- **ElevenLabs key**: give it the `voices_read` permission so the studio lists the account's
+  own voices (native French voices added from the Voice Library). Today it can only render.
 
 - **Share cards**: create a Cloudflare API token (Browser Rendering - Edit, account
   `6bd098851f5995454ecdbad6744c567c`), then `npx wrangler secret put
@@ -74,6 +83,19 @@ Anchored to PRD milestones (M2 10 Oct, M3 17 Oct, M4 31 Oct).
 
 Newest to oldest, durable ones only. Rationale already written up elsewhere is not
 repeated here (see ARCHITECTURE.md, AUDIO.md, WORKFLOW.md).
+
+- Every line keeps a sound that works offline, in the pack; a personal line is a bonus on top
+  of it, never a dependency (2026-09-26, AUDIO.md).
+- The AI writes per runner before the start (prepare time) and drafts text in the studio;
+  never during the run. The run's numbers are said live by filling a template and rendering
+  it on the spot, with a 4 s budget and the offline version behind (the owner asked for
+  generation with an offline fallback; this replaces number fragments for now).
+- Claude (`claude-opus-5`, low effort, server-side refusal fallbacks) through the Anthropic
+  SDK, optionally via AI Gateway; weather from Open-Meteo (no key), position rounded, not stored.
+- Eleven v3 is the default voice model (tags, French via `language_code`); older drafts keep
+  their model until the organizer changes it. House voices are ElevenLabs' own, checked with
+  our key; native French voices come from the Voice Library by id.
+- The admin maps are Mapbox GL JS from Mapbox's CDN (Leaflet dropped).
 
 - Race window is enforced for ranking, not for running: a run outside it is stored and
   shown to the runner as a rehearsal (before) or a closed-window run (after), never ranked
@@ -120,8 +142,15 @@ repeated here (see ARCHITECTURE.md, AUDIO.md, WORKFLOW.md).
   marathon.
 - `WARN No task registered for key expo-task-manager` appears on every dev-client start;
   believed benign but not checked against a `preview`-profile build.
-- Voice rendering in the studio has only run against a stubbed ElevenLabs in tests; the
-  first real render from the Worker in preview or production is unverified.
+- The Worker's ElevenLabs render has run for real only from a local Worker (2026-09-26: a v3
+  voice audition and a personal example); never yet from preview or production.
+- Claude has only answered stubbed tests: no `ANTHROPIC_API_KEY` exists anywhere yet, so no
+  AI line has been written for real. Read the first ones before a runner hears them.
+- Live lines (splits, the finish call with `{temps}`) need the phone's network at that moment,
+  in the background with the screen locked: untested on a device. Each is one ElevenLabs
+  render (about 2 s, cached by sentence); budget roughly 10 per runner for splits every 5 km.
+- The organizers page promises the crowd at the finish: it is only possible today as the
+  organizer's own file on a line, not as a bed under the voice.
 - No Android build has been made yet on the `production` channel; only the
   `preview`-channel release shell has run on a phone.
 - The app is scoped to a single race (`deauville-2026`, `RACE_SLUG`) until a second race

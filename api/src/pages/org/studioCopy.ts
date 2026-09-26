@@ -177,7 +177,7 @@ export const CEREMONY_COPY = {
   gun: 'Le chrono démarre à la première seconde de ce son.',
   noGun: 'Pas de coup de pistolet : le chrono démarre à la fin de la dernière annonce du départ.',
   noCountdown: 'Pas de compte à rebours : l’écran n’affiche pas de chiffres avant le départ.',
-  none: 'Pas encore de cérémonie : le coureur voit un compte à rebours silencieux de cinq secondes.',
+  none: 'Pas encore de cérémonie : le coureur voit un compte à rebours silencieux de cinq secondes. Pour la créer, choisissez « Avant le départ (cérémonie) » dans « Quand ».',
   listen: 'Écouter le départ',
   before: 'avant le chrono',
 } as const;

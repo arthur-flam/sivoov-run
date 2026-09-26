@@ -480,6 +480,15 @@ are all inaudible on a desktop and obvious after 40 minutes of running.
 
 # Part 2 — What is missing today (audit of the code, 2026-09-13)
 
+> **Update 2026-09-26.** Since this audit: the start ceremony is sequenced (2.1); the studio
+> picks the voice and model (Eleven v3 tags); a line can be personal, with fields rendered per
+> runner before the start (name, bib, town: 2.3's "name files") or written by Claude per runner
+> with the weather (2.2, prepare time, never live); the run's numbers are said live by
+> rendering a filled template on the spot with the offline version behind (instead of number
+> fragments, at the owner's request); organizers upload their own files per line (2.4); the
+> studio proposes texts with Claude. Still open from 2.6: beds, "moins de voix", a second TTS
+> provider, loudness, `Range` on the audio route, the `interval` trigger. AUDIO.md is current.
+
 Written against the code as of session 7: `shared/src/schemas/audio.ts`, `shared/src/domain/audioTriggers.ts`,
 `app/src/audio/*`, `app/src/stores/run.ts`, `api/tools/audio/*`, `api/src/routes/audio.ts`.
 Effort scale: S = hours, M = a day, L = several days. "JS" = ships over the air, no native build.

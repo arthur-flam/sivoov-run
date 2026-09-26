@@ -262,6 +262,7 @@ describe('what the app gets for its runner', () => {
     claude = [];
     tts = [];
     await app('/me/voices', {});
+    await app('/me/voices', { lat: 49.4432, lng: 1.0999 });
     expect(claude).toEqual([]);
     expect(tts).toEqual([]);
   });

@@ -25,7 +25,7 @@ export const soundModeOf = (line: Pick<ScriptLine, 'audio' | 'personal'>): Sound
 /** What the collapsed row says under the title: the first words everyone hears, the personal sentence, or the file. */
 export const excerptOf = (line: ScriptLine): string => {
   if (line.audio) return `Votre fichier : ${line.audio.name || 'son importé'}`;
-  if (line.personal?.kind === 'template') return line.personal.template;
+  if (line.personal?.kind === 'template') return stripAudioTags(line.personal.template);
   if (line.personal?.kind === 'ai') return `IA : ${line.personal.prompt}`;
   return stripAudioTags(line.text);
 };

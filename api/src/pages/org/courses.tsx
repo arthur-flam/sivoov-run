@@ -32,7 +32,9 @@ const steps = ({ course, measuredM, summary }: CourseAudioCard, timeZone: string
   const announcements: TodoItem =
     summary.lines === 0
       ? { done: false, label: 'Pas encore d’annonce', hint: 'Ce que le coureur entend au départ, sur le parcours et à l’arrivée.' }
-      : summary.toRecord > 0
+      : summary.toFix > 0
+        ? { done: false, label: `${plural(summary.lines, 'annonce', 'annonces')}, ${summary.toFix} à compléter`, hint: 'Un texte à écrire, une version hors ligne ou un champ à corriger.' }
+        : summary.toRecord > 0
         ? { done: false, label: `${plural(summary.lines, 'annonce', 'annonces')}, ${summary.toRecord} à enregistrer`, hint: 'Chaque texte doit avoir sa voix, ou votre fichier audio.' }
         : { done: true, label: `${plural(summary.lines, 'annonce', 'annonces')}, toutes prêtes` };
   const published: TodoItem = !summary.lastPublished
@@ -61,7 +63,7 @@ const NextStep = ({ card, base, canEdit }: { card: CourseAudioCard; base: string
       </>
     );
   }
-  if (summary.publish === 'missing') return <a class="btn btn-primary" href={studio}>Continuer</a>;
+  if (summary.publish === 'missing' || summary.publish === 'fix') return <a class="btn btn-primary" href={studio}>Continuer</a>;
   return <a class="btn" href={studio}>Modifier les annonces</a>;
 };
 

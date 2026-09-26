@@ -25,7 +25,7 @@ export const HOUSE_VOICES: VoiceChoice[] = [
 
 export const MODEL_CHOICES = [
   { id: V3_MODEL, label: 'Expressive (Eleven v3)', note: 'Joue les indications entre crochets : [excited], [whisper]… Recommandée.' },
-  { id: 'eleven_multilingual_v2', label: 'Régulière (Multilingual v2)', note: 'Plus égale d’une annonce à l’autre, sans indications de jeu.' },
+  { id: 'eleven_multilingual_v2', label: 'Classique (Multilingual v2)', note: 'Plus égale d’une annonce à l’autre, sans indications de jeu.' },
 ] as const;
 
 /** v3's three settings, in ElevenLabs' words translated: creative, natural, robust. */

@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { formatKm } from '@sivoov/shared';
-import type { RunVerdict } from '@sivoov/shared';
+import type { Race, RunVerdict } from '@sivoov/shared';
 import type { Exclusion, RunFilter } from '../../db/runQueries';
-import { dateTimeFr } from './format';
+import { dateFr, dateTimeFr, distanceName } from './format';
 import type { Tone } from './ui';
 
 /** The words of the "Activités" screens, in one place. */
@@ -10,6 +10,7 @@ import type { Tone } from './ui';
 export const FILTER_LABELS: Record<RunFilter, string> = {
   all: 'Toutes',
   finished: 'Arrivés',
+  not_ranked: 'Hors classement',
   not_finished: 'Pas arrivés',
   running: 'En course',
   excluded: 'Écartés',
@@ -20,6 +21,10 @@ export const FILTER_LABELS: Record<RunFilter, string> = {
 export const FILTER_EMPTY: Record<RunFilter, { title: string; text: string }> = {
   all: { title: 'Personne n’a encore couru.', text: 'Les courses apparaîtront ici dès qu’un coureur aura terminé ou envoyé son fichier.' },
   finished: { title: 'Aucun coureur arrivé pour le moment.', text: 'Un coureur apparaît ici quand il a parcouru toute la distance.' },
+  not_ranked: {
+    title: 'Aucune course hors classement.',
+    text: 'Une course terminée avant l’ouverture de la course, après sa fermeture ou sur une autre distance que celle du coureur apparaît ici. Elle ne compte pas dans les résultats.',
+  },
   not_finished: { title: 'Aucune course interrompue.', text: 'Les courses arrêtées avant la distance apparaissent ici. Elles ne comptent pas dans les résultats.' },
   running: { title: 'Personne n’est en course en ce moment.', text: 'Une course apparaît ici pendant que le coureur court, si son téléphone a du réseau.' },
   excluded: { title: 'Aucun temps écarté.', text: 'Quand vous écartez un temps depuis le détail d’une activité, il apparaît ici. Vous pouvez le rétablir à tout moment.' },
@@ -64,10 +69,20 @@ export const DONE_MESSAGES: Record<string, string> = {
   restored: 'Temps rétabli.',
 };
 
-type VerdictInput = { verdict: RunVerdict; distanceM: number; courseDistanceM: number; exclusion: Exclusion | null; timezone: string };
+type VerdictInput = {
+  verdict: RunVerdict;
+  distanceM: number;
+  courseDistanceM: number;
+  exclusion: Exclusion | null;
+  race: Pick<Race, 'windowStart' | 'windowEnd' | 'timezone'>;
+  /** The distance of the course run, and the one the runner is entered on. */
+  distanceKey: string;
+  entrantDistanceKey: string;
+};
 
 /** One plain sentence when the time does not count in the results, and why. Null when it counts. */
-export const verdictSentence = ({ verdict, distanceM, courseDistanceM, exclusion, timezone }: VerdictInput): { tone: Tone; text: string } | null => {
+export const verdictSentence = ({ verdict, distanceM, courseDistanceM, exclusion, race, distanceKey, entrantDistanceKey }: VerdictInput): { tone: Tone; text: string } | null => {
+  const timezone = race.timezone;
   const covered = `${km(distanceM, 1)} parcourus sur ${km(courseDistanceM, 1)}`;
   switch (verdict) {
     case 'counts':
@@ -79,6 +94,15 @@ export const verdictSentence = ({ verdict, distanceM, courseDistanceM, exclusion
       };
     case 'simulated':
       return { tone: 'info', text: 'Ce temps ne compte pas dans les résultats : c’est un essai simulé, fait pour tester l’application.' };
+    case 'rehearsal':
+      return { tone: 'info', text: `Ce temps ne compte pas dans les résultats : c’est une répétition, courue avant l’ouverture de la course le ${dateFr(race.windowStart, timezone)}.` };
+    case 'closed':
+      return { tone: 'warn', text: `Ce temps ne compte pas dans les résultats : couru après la fermeture de la course le ${dateFr(race.windowEnd, timezone)}.` };
+    case 'other_distance':
+      return {
+        tone: 'warn',
+        text: `Ce temps ne compte pas dans les résultats : couru sur le parcours ${distanceName(distanceKey)}, alors que le coureur est inscrit sur ${distanceName(entrantDistanceKey)}. Si c’est sa bonne distance, changez-la sur sa fiche.`,
+      };
     case 'stopped':
       return { tone: 'warn', text: `Ce temps ne compte pas dans les résultats : arrêt avant l’arrivée, ${covered}.` };
     case 'running':

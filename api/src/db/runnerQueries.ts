@@ -19,7 +19,7 @@ export type Presence = { sessions: number; appSessions: number; lastSeenAt: stri
 export type RunnerRow = { entrant: Entrant; bestMs: number | null; presence: Presence };
 export type RunnerSession = { client: string | null; device: DeviceInfo | null; lastSeenAt: string; createdAt: string };
 export type RunnerRun = {
-  id: string; status: string; source: string; excluded: boolean; elapsedMs: number; distanceM: number;
+  id: string; status: string; source: string; excluded: boolean; ranked: boolean; elapsedMs: number; distanceM: number;
   at: string; distanceKey: string;
 };
 export type RunnerDetail = { entrant: Entrant; createdAt: string; presence: Presence; sessions: RunnerSession[]; runs: RunnerRun[] };
@@ -141,11 +141,12 @@ export const runnerDb = (d1: D1Database) => ({
         .all<{ client: string | null; device: string | null; last_seen_at: string; created_at: string }>(),
       d1
         .prepare(
-          `SELECT r.id, r.status, r.source, r.excluded_at, r.elapsed_ms, r.distance_m, COALESCE(r.finished_at, r.started_at, r.created_at) AS at, c.distance_key
+          `SELECT r.id, r.status, r.source, r.excluded_at, ${COUNTS_AS_FINISH} AS ranked, r.elapsed_ms, r.distance_m,
+                  COALESCE(r.finished_at, r.started_at, r.created_at) AS at, c.distance_key
            FROM runs r JOIN courses c ON c.id = r.course_id WHERE r.entrant_id = ? ORDER BY at DESC`,
         )
         .bind(entrant.id)
-        .all<{ id: string; status: string; source: string; excluded_at: string | null; elapsed_ms: number; distance_m: number; at: string; distance_key: string }>(),
+        .all<{ id: string; status: string; source: string; excluded_at: string | null; ranked: number; elapsed_ms: number; distance_m: number; at: string; distance_key: string }>(),
     ]);
     const list: RunnerSession[] = sessions.results.map((s) => ({ client: s.client, device: deviceFromJson(s.device), lastSeenAt: s.last_seen_at, createdAt: s.created_at }));
     const app = list.filter((s) => s.client === 'app');
@@ -155,7 +156,7 @@ export const runnerDb = (d1: D1Database) => ({
       sessions: list,
       presence: { sessions: list.length, appSessions: app.length, lastSeenAt: list[0]?.lastSeenAt ?? null, device: app.find((s) => s.device)?.device ?? null },
       runs: runs.results.map((r) => ({
-        id: r.id, status: r.status, source: r.source, excluded: r.excluded_at !== null, elapsedMs: r.elapsed_ms, distanceM: r.distance_m, at: r.at, distanceKey: r.distance_key,
+        id: r.id, status: r.status, source: r.source, excluded: r.excluded_at !== null, ranked: r.ranked === 1, elapsedMs: r.elapsed_ms, distanceM: r.distance_m, at: r.at, distanceKey: r.distance_key,
       })),
     };
   },

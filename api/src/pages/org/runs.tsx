@@ -1,4 +1,4 @@
-import { formatOfficialTime, runVerdict } from '@sivoov/shared';
+import { formatOfficialTime } from '@sivoov/shared';
 import type { Course, Race } from '@sivoov/shared';
 import { RUN_FILTERS } from '../../db/runQueries';
 import type { RunList, RunListItem, RunListQuery } from '../../db/runQueries';
@@ -22,8 +22,6 @@ export const runsHref = (base: string, q: RunListQuery, change: Partial<RunListQ
   return text ? `${base}/runs?${text}` : `${base}/runs`;
 };
 
-const counts = (r: RunListItem) => runVerdict(r, r.excluded) === 'counts';
-
 const Row = ({ r, base, race, now }: { r: RunListItem; base: string; race: Race; now: Date }) => {
   const status = runStatusView(r);
   const when = ago(r.at, now, race.timezone);
@@ -40,7 +38,7 @@ const Row = ({ r, base, race, now }: { r: RunListItem; base: string; race: Race;
         </span>
       </td>
       <td class="wide-only">{distanceName(r.distanceKey)}</td>
-      <td class={counts(r) ? 'num' : 'num muted'}>
+      <td class={r.ranked ? 'num' : 'num muted'}>
         {time}
         <span class="sub narrow-only">{km(r.distanceM)}</span>
       </td>

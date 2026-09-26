@@ -34,6 +34,7 @@ const entrants = [
   entrant('4001', 'Nina', 'Petit', 'half'),
   entrant('4002', 'Hugo', 'Roux', 'marathon'),
   entrant('4003', 'Zoe', 'Blanc', 'half'),
+  entrant('4004', 'Lea', 'Martin', 'half'),
   entrant('9001', 'Theo', 'Ailleurs', 'half', otherRace.id),
 ];
 
@@ -73,6 +74,12 @@ const runs: Array<{ run: Run; traceKey: string | null }> = [
   { run: run({ id: 'run-excl', entrantId: `${SLUG}-4002`, courseId: MARATHON, status: 'finished', finishedAt: at(30), elapsedMs: 1_700_000, distanceM: 42195 }), traceKey: null },
   { run: run({ id: 'run-zoe-fast', entrantId: `${SLUG}-4003`, courseId: HALF, status: 'finished', finishedAt: at(150), elapsedMs: 5_400_000, distanceM: 21097.5 }), traceKey: null },
   { run: run({ id: 'run-zoe-slow', entrantId: `${SLUG}-4003`, courseId: HALF, status: 'finished', finishedAt: at(140), elapsedMs: 6_600_000, distanceM: 21097.5 }), traceKey: null },
+  // Two finishes the results never rank: a rehearsal a month early, and Hugo, entered on the marathon, running the half.
+  {
+    run: run({ id: 'run-rehearsal', entrantId: `${SLUG}-4004`, courseId: HALF, status: 'finished', startedAt: '2026-10-18T09:00:00+02:00', finishedAt: '2026-10-18T10:45:00+02:00', elapsedMs: 6_300_000, distanceM: 21097.5 }),
+    traceKey: null,
+  },
+  { run: run({ id: 'run-wrong', entrantId: `${SLUG}-4002`, courseId: HALF, status: 'finished', finishedAt: at(120), elapsedMs: 7_200_000, distanceM: 21097.5 }), traceKey: null },
   { run: run({ id: 'run-other', entrantId: `${otherRace.id}-9001`, courseId: otherCourse.id, status: 'finished', distanceM: 21097.5 }), traceKey: `traces/${otherRace.id}/run-other.json` },
 ];
 
@@ -128,7 +135,7 @@ describe('the list of activities', () => {
   it('shows every run of the race and only this race, newest first', async () => {
     const cookie = await cookieFor('lecture@example.com');
     const html = await page(`${base}/runs`, cookie);
-    expect(listed(html)).toEqual(['run-live', 'run-zoe-fast', 'run-zoe-slow', 'run-stop', 'run-fin', 'run-excl', 'run-sim']);
+    expect(listed(html)).toEqual(['run-live', 'run-zoe-fast', 'run-zoe-slow', 'run-wrong', 'run-stop', 'run-fin', 'run-excl', 'run-sim', 'run-rehearsal']);
     expect(html).toContain('Nina PETIT');
     expect(html).toContain('Dossard 4001');
     expect(html).toContain('Application Android');
@@ -138,16 +145,18 @@ describe('the list of activities', () => {
   it('filters by outcome, with the count of each filter on its chip', async () => {
     const cookie = await cookieFor('lecture@example.com');
     const all = await page(`${base}/runs`, cookie);
-    expect(all).toContain('Toutes<span class="n">7</span>');
+    expect(all).toContain('Toutes<span class="n">9</span>');
     expect(all).toContain('Arrivés<span class="n">3</span>');
+    expect(all).toContain('Hors classement<span class="n">2</span>');
     expect(all).toContain('Écartés<span class="n">1</span>');
     expect(listed(await page(`${base}/runs?filter=finished`, cookie))).toEqual(['run-zoe-fast', 'run-zoe-slow', 'run-fin']);
+    expect(listed(await page(`${base}/runs?filter=not_ranked`, cookie))).toEqual(['run-wrong', 'run-rehearsal']);
     expect(listed(await page(`${base}/runs?filter=not_finished`, cookie))).toEqual(['run-stop']);
     expect(listed(await page(`${base}/runs?filter=running`, cookie))).toEqual(['run-live']);
     expect(listed(await page(`${base}/runs?filter=excluded`, cookie))).toEqual(['run-excl']);
     expect(listed(await page(`${base}/runs?filter=simulated`, cookie))).toEqual(['run-sim']);
     // An address with a filter that does not exist shows everything.
-    expect(listed(await page(`${base}/runs?filter=nope`, cookie))).toHaveLength(7);
+    expect(listed(await page(`${base}/runs?filter=nope`, cookie))).toHaveLength(9);
   });
   it('filters by distance and finds a runner by bib or name', async () => {
     const cookie = await cookieFor('lecture@example.com');
@@ -201,6 +210,25 @@ describe('one activity', () => {
     expect(await page(`${base}/runs/run-sim`, cookie)).toContain('c’est un essai simulé');
     const excluded = await page(`${base}/runs/run-excl`, cookie);
     expect(excluded).toContain('il a été écarté le 12 nov. à 09:40 par orga@example.com. Motif : Doublon.');
+  });
+  it('never calls a finish the results do not rank "Arrivé", and says why it does not count', async () => {
+    const cookie = await cookieFor('equipe@example.com');
+    const rehearsal = await page(`${base}/runs/run-rehearsal`, cookie);
+    expect(rehearsal).toContain('<span class="badge warn">Hors classement</span>');
+    expect(rehearsal).not.toContain('badge good">Arrivé');
+    expect(rehearsal).toContain('c’est une répétition, courue avant l’ouverture de la course le 9 nov. 2026.');
+    // Nothing to set aside: it does not count anyway.
+    expect(rehearsal).not.toContain('Écarter ce temps');
+    const wrong = await page(`${base}/runs/run-wrong`, cookie);
+    expect(wrong).toContain('<span class="badge warn">Hors classement</span>');
+    expect(wrong).toContain('couru sur le parcours Semi-marathon, alors que le coureur est inscrit sur Marathon.');
+    // The list, the runner's page and the home page read it the same way.
+    expect(await page(`${base}/runs?filter=not_ranked`, cookie)).not.toContain('badge good">Arrivé');
+    expect(await page(`${base}/runners/4004`, cookie)).toContain('<span class="badge warn">Hors classement</span>');
+    expect(await page(base, cookie)).toContain('<span class="badge warn">Hors classement</span>');
+    const results = await (await SELF.fetch(`http://run.test/${SLUG}/results?distance=half`)).text();
+    expect(results).not.toContain('MARTIN');
+    expect(results).not.toContain('ROUX');
   });
   it('is not found from another race’s admin', async () => {
     const cookie = await cookieFor('equipe@example.com');

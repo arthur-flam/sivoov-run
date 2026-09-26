@@ -18,7 +18,7 @@ import {
 import type { EditorWhen } from './audioEditor';
 
 const MARATHON = 42195;
-const when = (over: Partial<EditorWhen>): EditorWhen => ({ kind: 'distance', km: '', minutes: '', everyKm: '1', slowerThan: '', fasterThan: '', afterKm: '1', ...over });
+const when = (over: Partial<EditorWhen>): EditorWhen => ({ kind: 'distance', km: '', minutes: '', everyKm: '1', slowerThan: '', fasterThan: '', afterKm: '1', cueAt: 'armed', cueOrder: '1', ...over });
 
 describe('what the organizer types', () => {
   it('reads decimals with a comma or a point, and refuses anything else', () => {
@@ -143,5 +143,21 @@ describe('speechSeconds', () => {
   it('estimates reading time at about 15 characters a second', () => {
     expect(speechSeconds('Partez !')).toBe(1);
     expect(speechSeconds('a'.repeat(150))).toBe(10);
+  });
+});
+
+describe('the start ceremony in the editor', () => {
+  it('reads a cue back as it was stored', () => {
+    const cue = { kind: 'cue', at: 'countdown', order: 2 } as const;
+    expect(triggerFromEditor(editorFromTrigger(cue))).toEqual(cue);
+  });
+  it('refuses a cue with no order or an unknown moment', () => {
+    const when = editorFromTrigger({ kind: 'cue', at: 'gun', order: 1 });
+    expect(triggerFromEditor({ ...when, cueOrder: '' })).toBeNull();
+    expect(triggerFromEditor({ ...when, cueAt: 'halftime' })).toBeNull();
+  });
+  it('says when it plays, and files it with the start', () => {
+    expect(whenInWords({ kind: 'cue', at: 'armed', order: 1 })).toBe('Avant le départ · Sur la ligne');
+    expect(momentOf({ kind: 'cue', at: 'gun', order: 1 }, 21097.5)).toBe('start');
   });
 });

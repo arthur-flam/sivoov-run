@@ -1,15 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { BackHandler, Platform, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { useEffect, useMemo, useRef } from 'react';
+import { BackHandler, Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useKeepAwake } from 'expo-keep-awake';
 import Constants from 'expo-constants';
-import { buildTrack, constantPace, deauvilleMarathonGeometry, formatClock, formatKm, formatPace, nextLandmark, parsePace, progress } from '@sivoov/shared';
-import type { Course, CourseTrack } from '@sivoov/shared';
-import { api } from '@/api';
+import { constantPace, finishOutcome, formatClock, formatKm, formatPace, nextLandmark, parsePace, progress, readableOn } from '@sivoov/shared';
+import { usePackStore } from '@/audio/packStore';
 import { useAudioPack, useAudioPlayback } from '@/audio/usePlayback';
 import { CourseDiagram } from '@/components/CourseDiagram';
+import { Finish } from '@/components/Finish';
 import { Body, Button, Card, Display, Eyebrow, Num, Screen } from '@/components/ui';
+import { useTrack } from '@/hooks/useTrack';
 import { diag, useDiag } from '@/diag';
 import { locale, t } from '@/i18n';
 import { deviceSource, simulationSource } from '@/services/location';
@@ -17,23 +18,6 @@ import { useRun } from '@/stores/run';
 import { useSession } from '@/stores/session';
 import { newRunId, toUpload, useUploads } from '@/stores/uploads';
 import { colors, fonts, space } from '@/theme';
-
-/** Loads the course geometry once; falls back to the bundled Deauville trace offline. */
-const useTrack = (course: Course | null): CourseTrack | null => {
-  const [track, setTrack] = useState<CourseTrack | null>(null);
-  useEffect(() => {
-    if (!course) return;
-    let cancelled = false;
-    api
-      .geometry(course.id)
-      .then((g) => !cancelled && setTrack(buildTrack(g.points)))
-      .catch(() => !cancelled && setTrack(buildTrack(deauvilleMarathonGeometry.points)));
-    return () => {
-      cancelled = true;
-    };
-  }, [course]);
-  return track;
-};
 
 export default function Run() {
   useKeepAwake();
@@ -78,7 +62,9 @@ export default function Run() {
 
   const source = useMemo(() => {
     if (!track || !course) return null;
-    if (params.sim) {
+    // Simulation is a development tool (web target, dev client): a release build ignores ?sim,
+    // so no deep link can put a made-up finish, with its Share button, on a runner's phone.
+    if (params.sim && __DEV__) {
       const pace = parsePace(params.pace ?? '') ?? 330;
       return simulationSource({ track, targetM: course.distanceM, pace: constantPace(pace), speedFactor: Number(params.speed ?? 1) || 1, noiseM: Number(params.noise ?? 4) });
     }
@@ -93,7 +79,8 @@ export default function Run() {
     );
   }
 
-  const accent = race.theme.primary;
+  // The race colour lifted to read on the night ground: Deauville's navy vanished on black.
+  const accent = readableOn(race.theme.primary, colors.night);
   const { state, phase } = run;
   const next = nextLandmark(course.landmarks, state.distanceM);
   const diagramW = Math.min(width - 2 * space.md, 420);
@@ -112,8 +99,21 @@ export default function Run() {
           <CourseDiagram track={track} officialM={course.distanceM} runM={0} landmarks={course.landmarks} accent={accent} width={diagramW} height={diagramW * 0.8} />
         </View>
         <View style={{ flex: 1 }} />
-        <Button testID="start" label={t('run.start')} color={accent} onColor={race.theme.onPrimary} onPress={() => void run.start(source)} />
+        <Button testID="start" label={t('run.start')} color={race.theme.primary} onColor={race.theme.onPrimary} onPress={() => void run.start(source, { uriFor: usePackStore.getState().uriFor })} />
         <Button label={t('common.back')} ghost dark onPress={() => router.back()} />
+      </Screen>
+    );
+  }
+
+  // The ceremony's first lines: no digits yet, the runner is on the line and listening.
+  if (phase === 'countdown' && run.cue === 'armed') {
+    return (
+      <Screen dark style={[styles.center, { padding: space.lg }]}>
+        <Eyebrow dark>{race.theme.displayName}</Eyebrow>
+        <Display dark style={{ textAlign: 'center' }}>{t('run.armed.title')}</Display>
+        <Body dark muted style={{ textAlign: 'center' }} testID="on-the-line">
+          {t('run.armed.body')}
+        </Body>
       </Screen>
     );
   }
@@ -127,33 +127,21 @@ export default function Run() {
     );
   }
 
-  if (phase === 'finished') {
-    const official = state.distanceM >= course.distanceM;
+  if (phase === 'finished' && me) {
+    const outcome = finishOutcome({ distanceM: state.distanceM, courseDistanceM: course.distanceM, startedAtMs: state.startedAt ?? 0, window: source.kind === 'simulation' ? null : race });
     return (
-      <Screen dark style={{ paddingTop: insets.top + space.xl, paddingBottom: insets.bottom + space.lg }}>
-        <ScrollView contentContainerStyle={{ gap: space.md }}>
-          <Eyebrow dark>{race.theme.displayName}</Eyebrow>
-          <Display dark>{official ? t('run.finished.title') : t('run.abandon')}</Display>
-          <Num dark size={96} testID="final-time">{formatClock(state.elapsedMs)}</Num>
-          <Body dark muted>{official ? t('run.finished.official') : formatKm(state.distanceM, locale)}</Body>
-          <Card dark>
-            <Body dark muted>{t('run.finished.splits')}</Body>
-            {state.splits.map((s) => (
-              <View key={s.km} style={styles.splitRow}>
-                <Body dark style={styles.mono}>km {s.km}</Body>
-                <Body dark style={styles.mono}>{formatClock(s.splitMs)}</Body>
-                <Body dark muted style={styles.mono}>{formatClock(s.elapsedMs)}</Body>
-              </View>
-            ))}
-          </Card>
-          <Body dark muted>
-            {t('run.audioEvents', { count: run.fired.length })} · {t('run.gpsCounts', { accepted: state.accepted, rejected: state.rejected })}
-          </Body>
-          <Body dark muted testID="upload-status">{uploadStatus === 'sent' ? t('upload.sent') : t('upload.pending')}</Body>
-          <Button label={t('home.results')} color={accent} onColor={race.theme.onPrimary} onPress={() => router.replace('/home')} />
-          {/* The walk test is read here, outdoors, with no cable (docs/WORKFLOW.md, loop 2b). */}
-          <Button label={t('debug.open')} ghost dark testID="open-debug" onPress={() => router.push('/debug')} />
-        </ScrollView>
+      <Screen dark style={{ paddingTop: insets.top + space.lg, paddingBottom: insets.bottom }}>
+        <Finish
+          race={race}
+          course={course}
+          entrant={me.entrant}
+          state={state}
+          outcome={outcome}
+          simulation={source.kind === 'simulation'}
+          uploadStatus={uploadStatus}
+          onHome={() => router.dismissTo('/home')}
+          onDiagnostics={() => router.push('/debug')}
+        />
       </Screen>
     );
   }
@@ -200,6 +188,4 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: space.md },
   progressTrack: { height: 4, backgroundColor: colors.nightBorder, borderRadius: 2, overflow: 'hidden', marginBottom: space.md },
   progressFill: { height: 4 },
-  splitRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
-  mono: { fontFamily: fonts.num, fontSize: 20, fontVariant: ['tabular-nums'] },
 });

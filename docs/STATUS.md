@@ -1,6 +1,7 @@
 # Status
 
-Updated: 2026-09-25 (session 9: the organizer admin rebuilt, roles, public pages, see below; session 8: pre-field-test review fixes; session 7: audio experience brief + organizer studio; session 6: the no-laptop loop; session 5: the screenshot rig; session 4: phone testing on Android over USB; session 3: trace storage;
+Updated: 2026-09-26 (session 10: the finish line, results, certificate, share cards, upload
+fallback, start ceremony; session 9: the organizer admin rebuilt, roles, public pages; session 8: pre-field-test review fixes; session 7: audio experience brief + organizer studio; session 6: the no-laptop loop; session 5: the screenshot rig; session 4: phone testing on Android over USB; session 3: trace storage;
 session 2: email, access, map, audio, device, admin; production deployed). Race week: 14-15 November 2026.
 See PRD section 8 for milestones.
 
@@ -68,6 +69,107 @@ with a test that fails on the old code:
 Not done: `tick()` still mixes the wall clock into `elapsedMs` between fixes (small split skew),
 and the persisted upload entry still carries the splits in SecureStore.
 
+## Session 10 — the finish line and the share (the payoff and the only viral loop)
+Before this session a finish ended on a wall of splits, and nothing a runner could show anyone
+existed. Now, end to end (screens: `npm run shots`, scenes `run-finished`, `home`, `result`,
+`result-pending` (the bib page), `card-og`, `card-story`, `card-bib`, `card-race`, `results`):
+- **App finish screen** (`app/src/components/Finish.tsx`): the time, pace, bib, a haptic,
+  **Partager mon arrivée** (RN `Share`: a sentence plus the certificate link, whose preview is
+  the finisher card) and **Mon certificat** (opens the web page). A rehearsal, a late run and a
+  stop each say what they count for. Diagnostic and the GPS counts stay on it for the walk test.
+  Deliberately plain: see DESIGN.md "Until the identity is decided".
+- **Home** knows where the runner stands: the finisher card with the best official time as soon
+  as the run is queued (`useMyResult` merges `/me` and the upload queue through
+  `bestRankedRun`), days until the race opens, **Faire une répétition** before the window,
+  **Courir à nouveau · seul votre meilleur temps compte** during it, results after it. The
+  course map falls back to the diagram when the Mapbox PNG cannot load.
+- **One rule for "counts"** since the merge with the admin rebuild: `COUNTS_AS_FINISH` (admin home,
+  runner list, medal export, results) is `rankedRun('r')`: finished, not set aside by the
+  organizer, started inside the window, on the entrant's own distance. The admin's run *detail*
+  badge (`runVerdict` in `shared/domain/runReview.ts`) does not know the window yet: a rehearsal
+  reads "Arrivé" there while the export says "Hors classement".
+- **Race window enforced** (`shared/domain/raceWindow.ts`, SQL twin `api/src/db/ranked.ts`): a run
+  started outside 9-15 Nov is stored, never ranked — in the public results, the organizer's
+  counts and the results CSV (reported `not_ranked`: that file decides who gets a medal). A run
+  on another distance than the entrant's own (after a re-import) never ranks either, and the API
+  refuses one. Equal times share a rank.
+- **Web**: `/{race}/results/{bib}` is the certificate (name, official time, rank, pace, bib, date,
+  "mesuré par l'app" or "importé"), prints to one A4 landscape page, **Partager** (Web Share
+  with the card image when the browser can share files, else the link, else copy), and a
+  "Courez Deauville, vous aussi" block for every visitor who is not the runner. A bib not yet
+  finished gets a "pas encore" page. Results rows link to it. Landing and result pages carry
+  Open Graph tags; the landing gets "Pas encore de dossard ?" (organizer link) and a results
+  link once the window opens.
+- **Share cards** (`api/src/lib/cards.ts`, `pages/card.tsx`): one Hono JSX page per format
+  (`og` 1200x630 for link previews, `story` 1080x1350 for posts), photographed into PNG by
+  **Cloudflare Browser Rendering's REST API** and cached in R2 (`cards/<runId>-<locale>-<format>.png`);
+  a ranked upload (app or GPX) takes its cards right away. No package added. **Needs a secret to
+  switch on** (below); without it previews fall back to the Mapbox course map.
+- **Night accent**: `readableOn` lifts the race colour to 3:1 on black; Deauville's navy progress
+  line and runner dot were invisible on the run screen.
+- **Pre-race share** (entries sell before race week, so this is the share that can sell one):
+  until the window closes, a runner's page without a time is their **bib page** ("Léa court
+  Marathon International de Deauville.", a bib plate, Share, "Courez avec Léa"), with a bib card
+  as its link preview; the app's bib card has **Partager mon dossard** until the finish.
+- **Upload tolerance decided**: a watch stopped on the line measures ~0.24 % short through the
+  tracker; within 0.5 % an upload is credited the distance and timed to its last point.
+
+To switch the share cards on (one-time, laptop or dashboard): create a Cloudflare API token with
+**Browser Rendering - Edit** on account `6bd098851f5995454ecdbad6744c567c`, then
+`npx wrangler secret put BROWSER_RENDERING_TOKEN` for production and `--env preview`.
+`CF_ACCOUNT_ID` is already a var in `wrangler.jsonc`. Then open
+`https://preview.run.sivoov.app/deauville-2026/og.png` once: a PNG means it works.
+
+## Session 10 — upload fallback
+`/{race}/upload` exists (PRD M2): a signed-in runner sends the GPX from a watch or another app
+and gets a time marked "import" in the results. Local only so far; nothing deployed.
+- `shared/`: `readGpxPoints` reads each point's position and `<time>` (course GPX unchanged);
+  `evaluateUpload` replays the points through the app's own tracker, from the first point to
+  the crossing of the course distance, pauses included. Refusals, each with a French and
+  English message: no track, treadmill (no positions, sent to the organizer), drawn route (no
+  times), started outside the window, short of the distance (says how far, and by how much),
+  an average faster than the world record for the distance (records floored to the minute), a
+  kilometre under 2:10 (a vehicle; the 1000 m record is 2:11.83). 17 new tests.
+- `api/`: `GET`/`POST /{race}/upload` (`routes/upload.tsx`, `pages/upload.tsx`) behind the
+  `sivoov_session` cookie; no session → `/{race}/signin?next=…`, and sign-in now honours a
+  same-site `next`. Accepted: `source: 'upload'`, status through `officialStatus`, every point
+  in R2 as the trace, run id `upload-<entrant>-<start ms>` so a re-upload replaces itself,
+  then a 303 to `/{race}/results/{bib}` (built in parallel by another session). Files over
+  10 MB refused before the body is read. The install page links to it. 6 workerd tests.
+- Screens: `npm run shots -- --web upload` (empty page, a 48 m-short refusal, a treadmill).
+- Decided in review: a 0.5 % tolerance for a watch stopped on the line (see above). Still open
+  for the owner: treadmill runs are refused, where the PRD says the fallback "covers
+  treadmills" (options: an organizer-reviewed declaration with a photo of the treadmill, or
+  trusting TCX `DistanceMeters`); TCX (most watches) is not read — about half a day for files
+  with GPS. Judging a marathon GPX costs 60-110 ms of CPU: fine on Workers Paid, over the Free
+  plan's 10 ms — check the account's plan before race week.
+
+## Session 10 — the start ceremony, in sync
+Pipe item 4 (a), (b) and the first half of (c); `AUDIO_EXPERIENCE.md` §2.6 rows 1, 3, 4.
+- **`cue` trigger** (`at: 'armed' | 'countdown' | 'gun'`, `order`). `ceremonySequence()` in
+  `shared/` orders the lines; `nextEvents` never fires one. The studio edits cues ("Avant le
+  départ") and draws them at the start; the Deauville seed moved its intro, countdown and gun to cues.
+- **The clock starts when the gun file starts.** Pressing Start plays the ceremony back to back
+  (`playSequence` in `app/src/audio/player.ts`, which the event player now uses too): a plain
+  "Sur la ligne" screen during the `armed` lines, then digits read from the countdown file
+  (`ceil(duration - currentTime)`), then `startRun()` dated from the gun file's own position.
+- **Fallbacks:** a pack with no cue (every pack published so far), a missing file or a line that
+  fails before the gun → the silent 5 s countdown; a failing gun file → the race starts at once.
+  Simulation skips the ceremony, so the rig and e2e stay fast.
+- **The pack downloads from the race home and the pre-flight**, whose fifth line reads "Pack audio
+  prêt · N Mo", downloading, no pack yet, or not downloaded (retried by "Relancer les
+  vérifications"). It never blocks the start. `/prepare` no longer announces a count of checks.
+- **Verified on the web target** (Playwright, silent WAVs through `page.route`): digits 4-3-2-1 for
+  a 4 s countdown file, the clock at 0:00 when the gun plays, the fallback on a broken file.
+  **Not verified on a phone:** expo-audio's `playing`/`currentTime` status timing on Android, the
+  gap between files, the ceremony through headphones with music ducked.
+- **Before the next publish:** preview's draft still has the old `start` / `elapsed: 0` triggers
+  (the seed never overwrites a draft): switch the three lines to cues in the studio. Re-render the
+  intro (it now ends with « Coureurs, à vos marques ») and the numbers-only countdown, and check the
+  countdown file lasts about ten seconds. Publish only once this app update is on the phones: an
+  older build plays no cue at all.
+- Not done from §2.5: checking `sha256` of downloaded files, deleting older pack versions.
+
 ## Start here (next session)
 1. Read this file, `docs/WORKFLOW.md` (loop 2b), `docs/MEMORY.md`.
 2. **No laptop?** That is now the supported case. `Sivoov (Preview)` on the phone is standalone;
@@ -80,6 +182,8 @@ and the persisted upload entry still carries the splits in SecureStore.
 3. **Laptop at hand?** `npm run device:doctor`, then `npm run device` is still the fastest loop,
    but `android/` now holds the preview package: the dev client costs one `npm run device:build`.
 4. First task, either way: **the walk test** in item 1. Five minutes, and it unblocks M2.
+   Since session 10 the finish screen still shows "N GPS · N rejetés" and the Diagnostic button;
+   a 200 m walk ends as "Course interrompue", which is expected: read the counts under it.
 
 Note for the next session: Metro's file watcher did not fire during session 4, so edits only
 landed after `adb shell am force-stop com.arthur.flam.sivoov.dev` and a relaunch. Check whether
@@ -130,16 +234,20 @@ dev client", happened on 2026-09-13 on a real Galaxy S23 (see below), minus the 
    the tracker is finally tuned against real GPS instead of simulated noise. Watch: drift while
    stopped at a light, whether audio ducked music or stopped it, gaps while the screen was off,
    battery drop (PRD section 7 budgets half a phone for a marathon, and nothing has measured it).
-3. **Results and certificate**, then the **GPX upload fallback** (`/{race}/upload`). Both are
-   named in M2 and neither exists. The fallback is also the insurance policy if the device run
-   keeps disappointing.
-4. **Audio v1**, in the order of `docs/AUDIO_EXPERIENCE.md` §4 and Part 2 §2.6: (a) the `cue`
-   trigger so intro → countdown → gun play *before* the clock starts and the digits follow the
-   countdown file (today all three fire at the gun); (b) pack download from the race home and
-   *Préparer* with a visible "pack prêt" state; (c) sequence playback (N files back to back),
-   then number fragments for splits and name files per entrant; (d) `interval` trigger and file
-   upload per line in the studio; (e) "moins de voix". JS + pipeline, no native change. The
-   rewritten Deauville script (double loop, ~38 events) is content work in the studio.
+3. **Results, certificate, share cards and the upload fallback are built** (session 10). Left:
+   set `BROWSER_RENDERING_TOKEN` (session 10 notes) and check one real card render on preview;
+   send a real Strava and a real Garmin Connect export through `/{race}/upload`; share a
+   result link into WhatsApp and iMessage and look at the preview.
+4. **Audio v1**: (a) cue trigger, (b) pack download with a visible state and (c, first half)
+   sequence playback are **done** (session 10, start ceremony). Left, in order: switch preview's
+   draft ceremony lines to cues in the studio, re-render and publish (only once the app update
+   is on the phones); number fragments for splits and name files per entrant; (d) `interval`
+   trigger and file upload per line; (e) "moins de voix". The rewritten Deauville script
+   (double loop, ~38 events) is content work in the studio.
+5. **Merge this branch and ship it.** Session 9's work is on `claude/running-app-launch-xopyvv`,
+   not on main, so nothing of it is deployed or published. Merging deploys the preview Worker
+   and publishes the JS update; production still needs `npm run db:migrate:production -w api`
+   (0005) before the studio opens there. No new migration in session 9.
 
 ### M3 (17 Oct): stores — and the real schedule risk
 5. **iOS does not exist yet.** Everything on this page is Android. There is no iOS build, no
@@ -177,6 +285,24 @@ honesty filter behaving.
 Two bugs found in the first twenty minutes, both invisible to the web target and to all 111
 tests: the missing `RECEIVE_BOOT_COMPLETED` (every run crashed seconds after the gun) and
 the near-black ghost labels on the night screens.
+
+## Decisions taken 2026-09-25 (session 10)
+- **The race window is enforced** for ranking, not for running: a run outside it is stored and
+  shown to the runner as a rehearsal (before) or a closed-window run (after). One rule in
+  `shared` (`isRanked`, `finishOutcome`, `bestRankedRun`) and its SQL twin (`db/ranked.ts`).
+- **Re-running is allowed during the window; the best time counts.** The home says so.
+- **Share cards are HTML photographed by Cloudflare Browser Rendering** (REST, no package, a
+  token), not satori/resvg in the Worker (packages outside the stack, a heavy bundle) nor a
+  canvas in the browser (a second copy of the design, no link previews). One design feeds the
+  link previews and the posted image. Cached in R2 per run and language; a better run is a new card.
+- **The app shares a link, not an image**: RN `Share` is core, an image would need
+  expo-sharing/view-shot (native modules). The link's preview is the card, so the picture
+  travels anyway; the web page shares the image file itself where the browser allows.
+- **The certificate is the web page**, printed to PDF by the browser (print CSS). No PDF library.
+- **Upload tolerance 0.5 %** of the course distance for a watch stopped on the line.
+- **No opinionated design until the identity is decided** (owner): new surfaces use the existing
+  tokens and components only; the surfaces waiting for a look are listed in DESIGN.md. A first
+  pass with a gold medal, framed certificate and coloured cards was taken back out.
 
 ## Decisions taken 2026-09-13 (studio slice)
 - The **script is a shared schema** (`shared/schemas/audioScript.ts` + `domain/audioScript.ts`).
@@ -246,6 +372,18 @@ the near-black ghost labels on the night screens.
 - See PRD section 10 and DESIGN.md open decisions.
 
 ## Known gaps
+- Share cards have never been rendered by the real Browser Rendering API: the request shape
+  follows Cloudflare's REST docs and is pinned by a stubbed workerd test, but the first real PNG
+  waits on `BROWSER_RENDERING_TOKEN` (session 9). The container cannot load Google Fonts, so the
+  local screenshots of cards and pages show fallback fonts; the real ones use Fraunces and
+  Barlow Condensed.
+- Nobody has pasted a result link into WhatsApp, iMessage or LinkedIn yet to see the preview.
+- Uploads are trust-based: a GPX's timestamps are believed (a file dated in the future, or
+  edited, is judged like any other). The results mark them "import" and the organizer sees them;
+  a stricter check needs a product decision, not code.
+- Share cards: a runner's PNG URL carries the card's id (`v=`), so a new result never hides behind
+  a cached picture; a failed render is not retried for ten minutes; a failed link-preview card
+  falls back to the course map. Bib cards are taken only when their URL is asked for.
 - The admin is French only. The `/organisateurs` page and the runner pages are FR/EN.
 - Web runner sessions do not update `last_seen_at` (only the app's API calls do), so "last
   visit" on a runner page is the app's.

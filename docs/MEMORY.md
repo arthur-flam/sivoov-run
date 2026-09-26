@@ -297,3 +297,68 @@
   D1 rights; applying migrations does. The token needs Account, D1, Edit for deploy.yml's
   migration step. The failed step stopped the Worker deploy, as intended: preview kept the old
   Worker on the old schema instead of new code on missing tables.
+- 2026-09-25: upload fallback (session 9). Things worth knowing next time:
+  - A parallel-agent worktree can be cut from an older commit than the session branch it will
+    merge into: this one started at `3d9b825` while `claude/running-app-launch-xopyvv` was eight
+    commits ahead (`raceWindow.ts`, `official.ts`, the Chromium launcher all missing). Compare
+    `git log` with the session branch first; with no local commits, `git merge --ff-only` fixes it.
+  - A GPX has no accuracy and no Doppler speed, so the tracker runs on positions alone (default
+    10 m accuracy, no ±15 % step bound, Kalman starts at v = 0). Measured on the simulated
+    Deauville half at 1 Hz: the official time comes out 0.29 % fast at 3 m noise, 1.17 % at 5 m,
+    3.40 % at 8 m (the app, with Doppler, is 0.23 % at 8 m). Watches smooth their output, so 3 m
+    is the realistic row, but a noisy phone-app GPX is judged more generously than the app.
+  - The other way round: on a clean 1 Hz track the 8 m jitter filter cuts Deauville's corners and
+    measures 0.24 % short (21 047 m of 21 097.5). A runner who stops the watch the instant it
+    shows the distance can be refused as tens of metres short. Owner's call: tolerance or override.
+  - A synthetic file that ends exactly on the distance never finishes: the chords sum to
+    9999.9999999 m of 10 000. Synthetic runs in tests go a little past the line, like real ones.
+  - The tracker refuses steps above 10 m/s but keeps its last accepted fix, so a bus ride comes
+    back later as one long step once (distance / time since that fix) drops under 10 m/s. Its
+    kilometres then come out near 1:40. `evaluateUpload` refuses any kilometre under 2:10; the
+    app does not check this at all.
+  - World records moved in 2026 (marathon 1:59:30, half 56:51, 1000 m 2:11.83), so the
+    too-fast thresholds are floors rounded down to the minute, not the records themselves.
+  - A 1 Hz Garmin marathon GPX (heart rate + cadence) is 5.2 MB and ~16 000 points; reading and
+    judging it costs 60-110 ms of CPU in Node. Fine on the Workers paid plan, far over the Free
+    plan's 10 ms; which plan the account is on was not checked.
+  - `api/src/lib/testCode.test.ts` is run by neither api vitest config (`test/**` in workerd,
+    `tools/**` in node), so `npm test` does not run it.
+  - `npm run shots` reuses whatever answers on :8788, which can be another worktree's Worker.
+    With parallel sessions, start `wrangler dev --env local --port <free>` and run Playwright with
+    a throwaway config spreading `playwright.shots.config.ts` with `webServer: undefined` and
+    `use.baseURL` on that port.
+- 2026-09-25: `Agent` with `isolation: worktree` branches from the local `main`, not from the
+  session branch: two subagents started eight commits behind and one could not fast-forward
+  (the auto-mode check refused it). For parallel work on a session branch, create the worktree
+  yourself (`git worktree add .claude/worktrees/<name> -b <name> HEAD`) and point the agent at
+  it; `.claude/worktrees/` is in `.git/info/exclude`.
+- 2026-09-25: SQLite in workerd refuses an outer alias in the ORDER BY of a subquery that sits in
+  a JOIN's ON clause (`no such column: ra.window_end`, then `e.race_id`), while a similar query
+  ran fine through `wrangler d1 execute --local`. Test SQL in the workerd suite, not the CLI.
+  `db/ranked.ts` looks the race window up by id, and `resultRows` binds the id (`?1`).
+- 2026-09-25: the cloud container cannot reach Google Fonts: every page and share-card
+  screenshot there renders in fallback fonts (a wide sans for Barlow Condensed). Judge spacing
+  with that in mind; the real cards are narrower.
+- 2026-09-25: Reanimated 4 is in package.json but `react-native-worklets` is not, so nothing may
+  use Reanimated yet; any motion needs core `Animated` (native driver) until that is sorted.
+- 2026-09-25: the owner has not committed to a visual identity and does not want design
+  opinions shipped meanwhile: build new screens from the existing tokens and components, plain
+  (DESIGN.md, "Until the identity is decided").
+- 2026-09-25: leaving the run for home used `router.replace('/home')`, which stacks a second home
+  over prepare and the first home. `router.dismissTo('/home')` goes back to the one that exists,
+  and `useFocusEffect` there refreshes `/me`.
+- 2026-09-25: start ceremony (session 9). Things worth knowing next time:
+  - A sub-agent's worktree can be cut from `main` while the session branch is commits ahead:
+    compare `git log main..<session branch>` before building on it.
+  - expo-audio on the web: `onended` emits no status; `didJustFinish` arrives with the `pause`
+    event the browser fires just before `ended`. Web statuses always say `isLoaded: true`;
+    `duration` is 0 until the metadata is in. Statuses come from `timeupdate`, throttled to the
+    player's `updateInterval` (500 ms unless `createAudioPlayer(src, { updateInterval })` says
+    otherwise), and now carry an `error` string, set by the web `onerror`.
+  - A status lags the sound by up to one update: the gun is dated `now - currentTime`, not `now`.
+  - Headless Chromium loads and plays a silent WAV served by `page.route`, and reports its
+    duration and position: that is how the rig and the ad-hoc e2e checks drive the ceremony
+    with no rendered voice.
+  - The pack store's retry keeps the pack and files it already has: `me` refreshes while a
+    run is on screen (a flushed upload triggers it), and a reload that emptied the store then
+    silenced the rest of the run. `usePackDownload` is keyed on the course id for the same reason.

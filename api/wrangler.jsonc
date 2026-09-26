@@ -10,7 +10,7 @@
   "rules": [{ "type": "Text", "globs": ["**/*.client.js"] }],
   // Top level is production. `--env preview` and `--env local` override below.
   // STAFF_EMAILS: Sivoov people who reach every race in /org and can create races.
-  "vars": { "ENVIRONMENT": "production", "BASE_URL": "https://run.sivoov.app", "STAFF_EMAILS": "arthur.flam@gmail.com" },
+  "vars": { "ENVIRONMENT": "production", "BASE_URL": "https://run.sivoov.app", "STAFF_EMAILS": "arthur.flam@gmail.com", "CF_ACCOUNT_ID": "6bd098851f5995454ecdbad6744c567c" },
   "d1_databases": [
     { "binding": "DB", "database_name": "sivoov-run", "database_id": "9bb857cd-16b3-4fa6-bd13-c39793b70da3", "migrations_dir": "migrations" }
   ],
@@ -24,7 +24,7 @@
       // TEST_CODE signs in the seeded @example.com test entrants without an email (docs/ACCESS.md).
       // Preview is open to anyone with the test code: no test staff account there, and real email
       // only to MAIL_ALLOWLIST (the rest is logged). staff@example.com is staff on local only.
-      "vars": { "ENVIRONMENT": "preview", "BASE_URL": "https://preview.run.sivoov.app", "TEST_CODE": "000000", "STAFF_EMAILS": "arthur.flam@gmail.com", "MAIL_ALLOWLIST": "arthur.flam@gmail.com" },
+      "vars": { "ENVIRONMENT": "preview", "BASE_URL": "https://preview.run.sivoov.app", "TEST_CODE": "000000", "STAFF_EMAILS": "arthur.flam@gmail.com", "MAIL_ALLOWLIST": "arthur.flam@gmail.com", "CF_ACCOUNT_ID": "6bd098851f5995454ecdbad6744c567c" },
       "d1_databases": [
         { "binding": "DB", "database_name": "sivoov-run-preview", "database_id": "09328ba9-5588-49dd-a8a1-5144c4f874a8", "migrations_dir": "migrations" }
       ],
@@ -33,7 +33,7 @@
       "routes": [{ "pattern": "preview.run.sivoov.app", "custom_domain": true }]
     },
     "local": {
-      "vars": { "ENVIRONMENT": "local", "BASE_URL": "http://localhost:8788", "TEST_CODE": "000000", "STAFF_EMAILS": "arthur.flam@gmail.com,staff@example.com" },
+      "vars": { "ENVIRONMENT": "local", "BASE_URL": "http://localhost:8788", "TEST_CODE": "000000", "STAFF_EMAILS": "arthur.flam@gmail.com,staff@example.com", "CF_ACCOUNT_ID": "6bd098851f5995454ecdbad6744c567c" },
       "routes": [],
       "d1_databases": [
         { "binding": "DB", "database_name": "sivoov-run", "database_id": "9bb857cd-16b3-4fa6-bd13-c39793b70da3", "migrations_dir": "migrations" }

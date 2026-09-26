@@ -77,4 +77,11 @@ describe('audio', () => {
   it('rejects an unknown trigger kind', () => {
     expect(AudioEventSchema.safeParse({ id: 'x', trigger: { kind: 'waypoint' }, source: { kind: 'file', key: 'k' }, category: 'course' }).success).toBe(false);
   });
+  it('takes a start-ceremony cue only at a known moment and with an order', () => {
+    const cue = (trigger: unknown) => AudioEventSchema.safeParse({ id: 'x', trigger, source: { kind: 'file', key: 'k' }, category: 'ceremony' }).success;
+    expect(cue({ kind: 'cue', at: 'countdown', order: 1 })).toBe(true);
+    expect(cue({ kind: 'cue', at: 'halfway', order: 1 })).toBe(false);
+    expect(cue({ kind: 'cue', at: 'gun' })).toBe(false);
+    expect(cue({ kind: 'cue', at: 'gun', order: 1.5 })).toBe(false);
+  });
 });

@@ -1,4 +1,5 @@
-import type { AudioTrigger } from '../schemas/audio';
+import { CueMomentSchema } from '../schemas/audio';
+import type { AudioTrigger, CueMoment } from '../schemas/audio';
 import { formatPace } from './format';
 
 /**
@@ -50,6 +51,9 @@ export type EditorWhen = {
   slowerThan: string;
   fasterThan: string;
   afterKm: string;
+  /** Before the start: which moment of the ceremony, and the play order within it. */
+  cueAt: string;
+  cueOrder: string;
 };
 
 /** What the inputs show for a trigger. Fields of the other kinds get the value they would start with. */
@@ -61,6 +65,8 @@ export const editorFromTrigger = (trigger: AudioTrigger): EditorWhen => ({
   slowerThan: trigger.kind === 'pace' && trigger.slowerThan !== undefined ? formatPace(trigger.slowerThan) : '',
   fasterThan: trigger.kind === 'pace' && trigger.fasterThan !== undefined ? formatPace(trigger.fasterThan) : '',
   afterKm: trigger.kind === 'pace' ? kmInput(trigger.afterMeters) : '1',
+  cueAt: trigger.kind === 'cue' ? trigger.at : 'armed',
+  cueOrder: trigger.kind === 'cue' ? String(trigger.order) : '1',
 });
 
 /**
@@ -69,6 +75,11 @@ export const editorFromTrigger = (trigger: AudioTrigger): EditorWhen => ({
  */
 export const triggerFromEditor = (when: EditorWhen): AudioTrigger | null => {
   switch (when.kind) {
+    case 'cue': {
+      const at = CueMomentSchema.safeParse(when.cueAt);
+      const order = /^\d+$/.test(when.cueOrder.trim()) ? Number(when.cueOrder.trim()) : null;
+      return at.success && order !== null ? { kind: 'cue', at: at.data, order } : null;
+    }
     case 'start':
     case 'finish':
       return { kind: when.kind };
@@ -112,8 +123,17 @@ export const durationFr = (seconds: number): string => {
 };
 
 /** When an announcement plays, in the words a race director uses: "Au km 5,2", "Tous les km". */
+/** The start ceremony's moments, in the order they play, as the studio names them. */
+export const CUE_WORDS: Record<CueMoment, string> = {
+  armed: 'Sur la ligne',
+  countdown: 'Compte à rebours',
+  gun: 'Coup de pistolet',
+};
+
 export const whenInWords = (trigger: AudioTrigger): string => {
   switch (trigger.kind) {
+    case 'cue':
+      return `Avant le départ · ${CUE_WORDS[trigger.at]}`;
     case 'start':
       return 'Au départ';
     case 'finish':
@@ -142,6 +162,7 @@ export type Moment = (typeof MOMENTS)[number];
  */
 export const momentOf = (trigger: AudioTrigger, distanceM: number): Moment => {
   switch (trigger.kind) {
+    case 'cue':
     case 'start':
       return 'start';
     case 'finish':

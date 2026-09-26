@@ -43,6 +43,9 @@ npm run seed:runs -w api -- local >/dev/null 2>&1 || echo "sample runs failed; a
 # The local D1 is disposable, so wipe the codes and start every run from zero.
 ( cd api && npx wrangler d1 execute sivoov-run --local --env local \
     --command "DELETE FROM auth_codes; DELETE FROM admin_codes;" >/dev/null 2>&1 ) || true
+# Two finished half marathons, so the results table and the certificate have something to show.
+( cd api && npx wrangler d1 execute sivoov-run --local --env local --file ../scripts/shots-demo.sql >/dev/null 2>&1 ) \
+  || echo "demo results not loaded; the result scenes will show empty states" >&2
 
 
 if [ "$DO_WEB" = 1 ]; then

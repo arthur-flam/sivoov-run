@@ -1,7 +1,7 @@
 import { SELF, env } from 'cloudflare:test';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AudioPackSchema, buildTrack, deauvilleMarathonGeometry } from '@sivoov/shared';
-import type { AudioScriptInput } from '@sivoov/shared';
+import type { AudioScriptInput, CueMoment } from '@sivoov/shared';
 import { db } from '../src/db/queries';
 import { sha256HexBytes } from '../src/lib/crypto';
 import { adminDb } from '../src/db/adminQueries';
@@ -178,6 +178,41 @@ describe('the script draft', () => {
     expect(meters).toBeGreaterThan(3000);
     expect(meters).toBeLessThan(6000);
     expect(offsetM).toBeLessThan(5);
+  });
+
+  it('draws the start ceremony on the start line, before the gun, and edits it as a cue', async () => {
+    const MARATHON = `${SLUG}-marathon`;
+    const cue = (id: string, at: CueMoment, order: number) =>
+      ({ id, title: id, category: 'ceremony', mix: 'wait', priority: 10, trigger: { kind: 'cue', at, order }, key: id.replace('.', '-'), text: 'Texte.' }) as const;
+    const ceremony = {
+      ...script([
+        { id: 'course.planches', title: 'Les Planches', category: 'course', mix: 'duck', priority: 6, trigger: { kind: 'distance', meters: 200 }, key: 'planches', text: 'Les Planches.' },
+        cue('ceremony.gun', 'gun', 1),
+        cue('ceremony.countdown', 'countdown', 1),
+        cue('ceremony.intro', 'armed', 1),
+      ]),
+      courseId: MARATHON,
+    };
+    const saved = await send(`/courses/${MARATHON}/script`, ceremony, 'PUT');
+    expect(saved.status).toBe(200);
+    const { estimates } = (await saved.json()) as {
+      estimates: { firings: { eventId: string; meters: number; label: string; lat: number }[]; lines: { id: string; when: string; moment: string }[] };
+    };
+    expect(estimates.firings.map((f) => f.eventId)).toEqual(['ceremony.intro', 'ceremony.countdown', 'ceremony.gun', 'course.planches']);
+    const [intro, countdown, gun, planches] = estimates.firings;
+    expect([intro, countdown, gun].map((f) => [f?.meters, f?.label])).toEqual(Array(3).fill([0, 'avant']));
+    expect(gun?.lat).toBe(intro?.lat);
+    expect(planches?.lat).not.toBe(gun?.lat);
+    const countdownLine = estimates.lines.find((l) => l.id === 'ceremony.countdown');
+    expect(countdownLine?.when).toBe('Avant le départ · Compte à rebours');
+    expect(countdownLine?.moment).toBe('start');
+
+    // The editor opens on the cue: the kind, its moment and its order are the stored ones.
+    const html = await (await get(`/courses/${MARATHON}`)).text();
+    const card = html.slice(html.indexOf('data-line="ceremony.countdown"'), html.indexOf('data-line="ceremony.gun"'));
+    expect(card).toMatch(/<option value="cue" selected[^>]*>Avant le départ/);
+    expect(card).toMatch(/<option value="countdown" selected[^>]*>Compte à rebours</);
+    expect(card).toMatch(/name="when.cueOrder"[^>]*value="1"/);
   });
 
   it('estimates elapsed triggers at the requested pace', async () => {

@@ -7,6 +7,7 @@ import {
   EntrantPublicSchema,
   RunSchema,
   RunTraceSchema,
+  isRanked,
   officialStatus,
   staticMapUrl,
 } from '@sivoov/shared';
@@ -15,6 +16,7 @@ import { db } from '../db/queries';
 import { requireEntrant } from '../lib/auth';
 import type { AuthVars } from '../lib/auth';
 import { requestCode, verifyCode } from '../lib/authService';
+import { prewarmCards } from './results';
 
 export const api = new Hono<AppEnv & { Variables: Partial<AuthVars> }>();
 
@@ -126,13 +128,17 @@ api.put('/runs/:id', async (c) => {
   if (run.id !== c.req.param('id') || run.entrantId !== entrant.id) return c.json({ error: 'forbidden' }, 403);
   const q = db(c.env.DB);
   const course = await q.courseById(run.courseId);
-  if (!course || course.raceId !== entrant.raceId) return c.json({ error: 'invalid_course' }, 400);
+  // A run belongs on the entrant's own distance: another course would rank them in the wrong table.
+  if (!course || course.raceId !== entrant.raceId || course.distanceKey !== entrant.distanceKey) return c.json({ error: 'invalid_course' }, 400);
   // Run ids come from the client: one that already belongs to someone else is not theirs to overwrite.
   const existing = await q.runById(run.id);
   if (existing && existing.entrantId !== entrant.id) return c.json({ error: 'forbidden' }, 403);
   const traceKey = trace ? `traces/${entrant.raceId}/${run.id}.json` : null;
   if (trace && traceKey) await c.env.FILES.put(traceKey, JSON.stringify(trace), { httpMetadata: { contentType: 'application/json' } });
-  await q.upsertRun({ ...run, status: officialStatus(run, course.distanceM) }, traceKey);
+  const status = officialStatus(run, course.distanceM);
+  await q.upsertRun({ ...run, status }, traceKey);
+  const race = await q.raceById(entrant.raceId);
+  if (race && isRanked(race, { ...run, status })) c.executionCtx.waitUntil(prewarmCards(c.env, new URL(c.req.url).origin, race, entrant.bib).catch(() => undefined));
   return c.json({ ok: true, run: await q.runById(run.id) });
 });
 

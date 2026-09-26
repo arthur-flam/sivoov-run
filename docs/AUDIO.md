@@ -7,7 +7,8 @@ the app. The event model is ported from the previous repo (see HARVEST.md) and s
 ```
 AudioEvent {
   id: string
-  trigger: { kind: 'start' } | { kind: 'finish' }
+  trigger: { kind: 'cue', at: 'armed' | 'countdown' | 'gun', order: number }   // the start ceremony, before the clock
+         | { kind: 'start' } | { kind: 'finish' }
          | { kind: 'distance', meters: number }          // along the course
          | { kind: 'split', everyMeters: 1000 }          // recurring
          | { kind: 'pace', slowerThan?: secPerKm, fasterThan?: secPerKm, afterMeters: number }
@@ -24,6 +25,21 @@ AudioPack { courseId, version, events: AudioEvent[], files: {key: {url, bytes, s
 Triggering is a pure function `nextEvents(state, pack, fired) -> AudioEvent[]` in
 `shared/domain/audioTriggers.ts`, tested with simulated runs. The app only plays what the
 function returns.
+
+**The start ceremony is not triggered by the run, it is sequenced before it.** `cue` events
+never come out of `nextEvents`. `ceremonySequence(pack)` (same file) returns them in play order
+— every `armed` line (the intro, the call to the line, as soon as the runner presses Start),
+then the `countdown`, then the `gun`, by `order` within a moment — with `gunIndex`, the line
+whose first second starts the clock (`lines.length` when there is no gun: the clock starts as
+the last line ends). The run store plays them back to back, shows the countdown digits from
+the countdown file's own remaining time, and calls `startRun(now)` when the gun file starts, so
+« Partez ! » and 00:00 are the same instant. Sync is at file boundaries, never inside a file.
+An app that predates the sequence plays no cue at all: never publish a pack with cues before
+the app update that plays them is live.
+A pack with no cue (every pack published before them) keeps the silent 5 s visual countdown,
+and its `start` / `elapsed: 0` ceremony lines fire at the gun as before. The countdown line is
+written to last one second per number (« Dix. Neuf. … Un. ») and nothing else, since the
+digits on screen follow it; measure the rendered file before publishing.
 
 ## Layers
 1. **Ceremony** (per race): start ambiance, announcer intro, countdown, gun; finish crowd,
@@ -119,6 +135,11 @@ text never leaves the organizer session.
 ## Playback rules in the app
 - Background audio session, mixes with the runner's music (duck), never steals focus
   permanently.
+- The pack downloads from the race home and the pre-flight, so it is on the phone before the
+  start line; the pre-flight says so ("Pack audio prêt · 1,9 Mo"). A run never waits for it.
+- Files play through `playSequence` (`app/src/audio/player.ts`): N files back to back, all or
+  nothing, with a watchdog because expo-audio reports no load error on Android. The event
+  queue plays each event as a sequence of one; the start ceremony is a sequence of its lines.
 - Interruptions (call) pause; events missed during a pause are dropped, not queued, except
   `finish`.
 - Volume and "less talk" setting: `coaching` and `personal` can be turned down independently

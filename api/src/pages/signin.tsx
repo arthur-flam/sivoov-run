@@ -4,10 +4,12 @@ import type { Locale } from '@sivoov/shared';
 
 type Step1 = { step: 'identify'; error?: 'unknown' | 'too_many' | 'invalid'; bib?: string; email?: string };
 type Step2 = { step: 'code'; bib: string; email: string; error?: 'bad_code'; devCode?: string };
-type Props = { race: Race; locale: Locale; state: Step1 | Step2 };
+/** `next`: a same-site path to return to once signed in, carried through both steps. */
+type Props = { race: Race; locale: Locale; state: Step1 | Step2; next?: string | null };
 
-export const SigninPage = ({ race, locale, state }: Props) => {
+export const SigninPage = ({ race, locale, state, next }: Props) => {
   const t = translator(locale);
+  const nextInput = next ? <input type="hidden" name="next" value={next} /> : null;
   return (
     <section class="form-page">
       <a class="race-chip" href={`/${race.slug}`}>
@@ -23,6 +25,7 @@ export const SigninPage = ({ race, locale, state }: Props) => {
           {state.error === 'invalid' ? <div class="error" role="alert">{t('common.error')}</div> : null}
           <form method="post" action={`/${race.slug}/signin`}>
             <input type="hidden" name="step" value="identify" />
+            {nextInput}
             <div class="field">
               <label for="bib">{t('signin.bib')}</label>
               <input id="bib" name="bib" inputmode="numeric" autocomplete="off" required value={state.bib ?? ''} />
@@ -43,6 +46,7 @@ export const SigninPage = ({ race, locale, state }: Props) => {
           {state.error === 'bad_code' ? <div class="error" role="alert">{t('signin.badCode')}</div> : null}
           <form method="post" action={`/${race.slug}/signin`}>
             <input type="hidden" name="step" value="code" />
+            {nextInput}
             <input type="hidden" name="bib" value={state.bib} />
             <input type="hidden" name="email" value={state.email} />
             <div class="field">
@@ -54,7 +58,7 @@ export const SigninPage = ({ race, locale, state }: Props) => {
             </button>
           </form>
           <p class="hint">
-            <a href={`/${race.slug}/signin`}>{t('common.back')}</a>
+            <a href={`/${race.slug}/signin${next ? `?next=${encodeURIComponent(next)}` : ''}`}>{t('common.back')}</a>
           </p>
         </>
       )}

@@ -8,31 +8,36 @@ import type { Queue, QueueItem } from './queue';
 export const configureAudioSession = (): Promise<void> =>
   setAudioModeAsync({ playsInSilentMode: true, interruptionMode: 'duckOthers', shouldPlayInBackground: true }).catch(() => undefined);
 
-export type EventPlayer = {
-  play: (event: AudioEvent, uri: string) => void;
-  stop: () => void;
+/** A file that has not loaded by then (a remote file offline, a missing file) fails its sequence. */
+const LOAD_TIMEOUT_MS = 8000;
+/** Slack past the file's own end before the file is given up on. */
+const END_SLACK_MS = 3000;
+/** Status updates per file: often enough for countdown digits to turn on the second. */
+const UPDATE_INTERVAL_MS = 200;
+
+export type SequenceHandlers = {
+  /** File `index` started playing: `elapsed` seconds in (the status arrives a little late), `remaining` to go. */
+  onStart?: (index: number, remaining: number, elapsed: number) => void;
+  /** File `index` is playing, `remaining` seconds from its end. */
+  onRemaining?: (index: number, remaining: number) => void;
+  /** Every file played to its end. */
+  onDone?: () => void;
+  /** File `index` never loaded, failed, or overran its length: the sequence stops there. */
+  onFail?: (index: number) => void;
 };
 
-/** An item that has not loaded by then (a remote file offline, a missing file) is skipped. */
-const LOAD_TIMEOUT_MS = 8000;
-/** Slack past the file's own end before the item is given up on. */
-const END_SLACK_MS = 3000;
+export type Sequence = { stop: () => void };
 
 /**
- * Plays queued events one at a time through expo-audio. A new player per item keeps the
- * state machine trivial; the queue module decides order and interruptions.
- * expo-audio reports no load error, so a watchdog moves on from an item that never loads or
- * never finishes: one bad file must not silence the rest of the race.
+ * Plays files back to back, one expo-audio player per file: the start ceremony today, number
+ * fragments tomorrow ("kilomètre" + "vingt et un"). A sequence is all or nothing: a file that
+ * never loads, reports a failure or overruns its own length stops it, because half a sentence
+ * is worse than none. expo-audio reports no load error on Android, hence the watchdog.
  */
-export const createEventPlayer = (onChange: (current: QueueItem | null) => void = () => undefined): EventPlayer => {
-  let queue: Queue = emptyQueue();
+export const playSequence = (uris: string[], handlers: SequenceHandlers = {}): Sequence => {
   let player: AudioPlayer | null = null;
   let watchdog: ReturnType<typeof setTimeout> | null = null;
-
-  const arm = (p: AudioPlayer, ms: number) => {
-    if (watchdog) clearTimeout(watchdog);
-    watchdog = setTimeout(() => player === p && next(), ms);
-  };
+  let stopped = false;
 
   const release = () => {
     if (watchdog) clearTimeout(watchdog);
@@ -42,28 +47,82 @@ export const createEventPlayer = (onChange: (current: QueueItem | null) => void 
     player = null;
   };
 
-  const startCurrent = () => {
+  const fail = (index: number) => {
     release();
-    const item = queue.current;
-    onChange(item);
-    if (!item) return;
+    stopped = true;
+    handlers.onFail?.(index);
+  };
+
+  const arm = (p: AudioPlayer, index: number, ms: number) => {
+    if (watchdog) clearTimeout(watchdog);
+    watchdog = setTimeout(() => player === p && fail(index), ms);
+  };
+
+  const playAt = (index: number) => {
+    release();
+    if (stopped) return;
+    const uri = uris[index];
+    if (uri === undefined) {
+      stopped = true;
+      handlers.onDone?.();
+      return;
+    }
     try {
-      const p = createAudioPlayer({ uri: item.uri });
+      const p = createAudioPlayer({ uri }, { updateInterval: UPDATE_INTERVAL_MS });
       player = p;
-      arm(p, LOAD_TIMEOUT_MS);
+      arm(p, index, LOAD_TIMEOUT_MS);
       let loaded = false;
+      let started = false;
       p.addListener('playbackStatusUpdate', (status) => {
         if (player !== p) return;
-        if (status.didJustFinish || /error|fail/i.test(status.playbackState)) return next();
-        if (!loaded && status.isLoaded && status.duration > 0) {
+        if (status.didJustFinish) return playAt(index + 1);
+        if (/error|fail/i.test(status.playbackState) || status.error) return fail(index);
+        if (!(status.duration > 0)) return;
+        const remaining = Math.max(0, status.duration - status.currentTime);
+        if (!loaded) {
           loaded = true;
-          arm(p, (status.duration - status.currentTime) * 1000 + END_SLACK_MS);
+          arm(p, index, remaining * 1000 + END_SLACK_MS);
         }
+        if (started) return handlers.onRemaining?.(index, remaining);
+        if (!status.playing && status.currentTime <= 0) return;
+        started = true;
+        handlers.onStart?.(index, remaining, status.currentTime);
       });
       p.play();
     } catch {
-      next();
+      fail(index);
     }
+  };
+
+  playAt(0);
+  return {
+    stop() {
+      stopped = true;
+      release();
+    },
+  };
+};
+
+export type EventPlayer = {
+  play: (event: AudioEvent, uri: string) => void;
+  stop: () => void;
+};
+
+/**
+ * Plays queued events one at a time, each as a sequence of one file; the queue module decides
+ * order and interruptions. A file that fails is skipped: one bad file must not silence the
+ * rest of the race.
+ */
+export const createEventPlayer = (onChange: (current: QueueItem | null) => void = () => undefined): EventPlayer => {
+  let queue: Queue = emptyQueue();
+  let playing: Sequence | null = null;
+
+  const startCurrent = () => {
+    playing?.stop();
+    playing = null;
+    const item = queue.current;
+    onChange(item);
+    if (item) playing = playSequence([item.uri], { onDone: next, onFail: next });
   };
 
   const next = () => {
@@ -80,7 +139,8 @@ export const createEventPlayer = (onChange: (current: QueueItem | null) => void 
     },
     stop() {
       queue = emptyQueue();
-      release();
+      playing?.stop();
+      playing = null;
       onChange(null);
     },
   };

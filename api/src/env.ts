@@ -18,6 +18,12 @@ export type Bindings = Env & {
    * everything else is logged. Production leaves it unset.
    */
   MAIL_ALLOWLIST?: string;
+  /**
+   * Cloudflare Browser Rendering, which photographs the share cards into PNGs (lib/cards.ts).
+   * A token with the "Browser Rendering - Edit" permission, `wrangler secret put
+   * BROWSER_RENDERING_TOKEN`. Optional: without it link previews use the course map.
+   */
+  BROWSER_RENDERING_TOKEN?: string;
 };
 
 export type AppEnv = { Bindings: Bindings };

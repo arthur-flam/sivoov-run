@@ -15,7 +15,7 @@
 | Domain | TypeScript, zod 4 | types inferred from schemas, shared by all workspaces |
 | API + web | Cloudflare Worker, Hono, Hono JSX for server-rendered pages | cheap, fast, no build step for pages, local dev with wrangler |
 | DB | Cloudflare D1 (SQLite), plain SQL with typed row schemas | small data, one region is fine |
-| Files | Cloudflare R2: audio packs, GPS traces, certificates | |
+| Files | Cloudflare R2: audio packs, GPS traces, share cards | |
 | Email | Cloudflare Email Sending (`send_email` binding, zone sivoov.app) | no key, no provider account |
 | App | Expo SDK 57, expo-router, React Native StyleSheet, Zustand, zod | current SDK, over-the-air updates via EAS Update |
 | Location | expo-location + expo-task-manager (background) | |
@@ -66,8 +66,16 @@ Rows are validated by zod schemas in `shared/schemas/` on the way in and out of 
   directors, with a contact form stored in `leads`. `/media/races/<raceId>/<sha256>.<ext>`: logos and
   photos uploaded in the admin (PNG, JPEG, WebP, immutable).
 - `/{race}`: landing. `/{race}/signin`: bib + email → code. `/{race}/app`: install.
-- `/{race}/prepare`: course, trailer, instructions. `/{race}/results`, `/{race}/results/{bib}`
-  (certificate, share image). `/{race}/upload`: GPX fallback.
+- `/{race}/prepare`: course, trailer, instructions. `/{race}/results` (ranked runs only: finished
+  and started inside the window), `/{race}/results/{bib}` (the certificate: prints to PDF,
+  shares the card, and invites every other visitor into the race).
+- Share cards: `/{race}/card` and `/{race}/results/{bib}/card?format=og|story` are fixed-size
+  pages; `/{race}/og.png` and `/{race}/results/{bib}/card.png` are those pages photographed by
+  Cloudflare Browser Rendering (REST API, `BROWSER_RENDERING_TOKEN`) and cached in R2 under
+  `cards/`. They are the `og:image` of the landing and result pages; without the token the
+  preview is the Mapbox course map. `/{race}/upload`: GPX fallback behind the web session, judged by
+  the app's tracker (`evaluateUpload` in `shared/`), stored as a run with `source: upload`.
+- `/{race}/signin?next=/…`: returns to a same-site path after the code instead of the install page.
 - `/org`: organizer admin. `/org/signin` (email + code, one session for every race of that
   email), `/org` (the person's races; staff see all, `/org/new` creates one, `/org/leads` lists
   contact requests). Per race, `/org/{race}`: home (numbers, latest activities, what is left

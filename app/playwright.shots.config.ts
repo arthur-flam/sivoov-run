@@ -1,4 +1,5 @@
 import { defineConfig } from '@playwright/test';
+import { chromiumLaunch } from '../scripts/playwright-chromium';
 
 /**
  * The screenshot rig (docs/SHOTS.md), separate from `playwright.config.ts` so the e2e suite
@@ -40,6 +41,7 @@ export default defineConfig({
   workers: 1,
   use: {
     baseURL: 'http://localhost:8081',
+    launchOptions: chromiumLaunch(),
     // A locked-in fix, so the pre-flight GPS check passes on the web target.
     permissions: ['geolocation'],
     geolocation: { latitude: 49.3596, longitude: 0.0733, accuracy: 12 },

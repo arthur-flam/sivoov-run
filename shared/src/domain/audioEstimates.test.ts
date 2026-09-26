@@ -54,6 +54,26 @@ describe('estimateFirings', () => {
     expect(firstFirings(firings).get('split')?.occurrence).toBe(1);
   });
 
+  it('puts the start ceremony on the start line, before the gun, in the order it is played', () => {
+    const firings = estimateFirings(
+      [
+        event('km0', { kind: 'distance', meters: 0 }),
+        event('gun', { kind: 'cue', at: 'gun', order: 1 }),
+        event('welcome', { kind: 'start' }),
+        event('countdown', { kind: 'cue', at: 'countdown', order: 1 }),
+        event('intro', { kind: 'cue', at: 'armed', order: 1 }),
+      ],
+      MARATHON,
+      PACE,
+    );
+    expect(firings.map((f) => f.eventId)).toEqual(['intro', 'countdown', 'gun', 'km0', 'welcome']);
+    expect(firings.slice(0, 3).map((f) => [f.meters, f.label])).toEqual([
+      [0, 'avant'],
+      [0, 'avant'],
+      [0, 'avant'],
+    ]);
+  });
+
   it('labels in English when asked', () => {
     const [f] = estimateFirings([event('km5', { kind: 'distance', meters: 5000 })], MARATHON, PACE, 'en');
     expect(f?.label).toBe('5.0 km');
@@ -69,5 +89,9 @@ describe('describeTrigger', () => {
     expect(describeTrigger({ kind: 'split', everyMeters: 1000 })).toBe('tous les 1000 m');
     expect(describeTrigger({ kind: 'pace', slowerThan: 400, afterMeters: 2000 })).toBe('allure > 400 s/km après 2000 m');
     expect(describeTrigger({ kind: 'distance', meters: 3000 }, 'en')).toBe('at 3000 m');
+    expect(describeTrigger({ kind: 'cue', at: 'armed', order: 1 })).toBe('sur la ligne · ordre 1');
+    expect(describeTrigger({ kind: 'cue', at: 'countdown', order: 1 })).toBe('compte à rebours · ordre 1');
+    expect(describeTrigger({ kind: 'cue', at: 'gun', order: 2 })).toBe('coup de pistolet · ordre 2');
+    expect(describeTrigger({ kind: 'cue', at: 'countdown', order: 1 }, 'en')).toBe('countdown · order 1');
   });
 });

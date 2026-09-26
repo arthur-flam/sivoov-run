@@ -1,4 +1,4 @@
-import { editorFromTrigger, speechSeconds } from '@sivoov/shared';
+import { CUE_WORDS, CueMomentSchema, editorFromTrigger, speechSeconds } from '@sivoov/shared';
 import type { ScriptLine } from '@sivoov/shared';
 import type { LineStatus } from '../../lib/studio';
 import { ADVANCED_HINTS, CATEGORY_OPTIONS, PRIORITY_OPTIONS, WHEN_OPTIONS, textMeasure } from './studioCopy';
@@ -8,6 +8,9 @@ type Props = { line: ScriptLine; status: LineStatus; canEdit: boolean; ttsReady:
 
 /** What the collapsed row says under the title: the first words of the text, or the file played instead. */
 export const excerptOf = (line: ScriptLine): string => (line.audio ? `Votre fichier : ${line.audio.name || 'son importé'}` : line.text);
+
+/** The start ceremony's moments, in the order they play. */
+const CUE_MOMENTS = CueMomentSchema.options;
 
 const ACCEPT = '.mp3,.m4a,.wav,audio/mpeg,audio/mp4,audio/x-m4a,audio/wav';
 
@@ -60,6 +63,20 @@ export const StudioLine = ({ line, status, canEdit, ttsReady }: Props) => {
               ))}
             </select>
           </Field>
+          <div data-when="cue" class={show('cue')}>
+            <Field label="Moment" hint="la cérémonie joue sur la ligne, puis le compte à rebours ; le coup de pistolet lance le chrono" for={`${p}cueAt`}>
+              <select id={`${p}cueAt`} name="when.cueAt" disabled={off}>
+                {CUE_MOMENTS.map((m) => (
+                  <option value={m} selected={m === when.cueAt}>
+                    {CUE_WORDS[m]}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Ordre" hint="dans ce moment : 1, 2, 3…" for={`${p}cueOrder`}>
+              <input id={`${p}cueOrder`} name="when.cueOrder" type="text" inputmode="numeric" value={when.cueOrder} disabled={off} />
+            </Field>
+          </div>
           <div data-when="distance" class={show('distance')}>
             <Field label="Au kilomètre" hint="par exemple 5,2" for={`${p}km`}>
               <input id={`${p}km`} name="when.km" type="text" inputmode="decimal" value={when.km} disabled={off} />

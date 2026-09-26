@@ -1,4 +1,6 @@
-import type { MessageKey, Params } from '@sivoov/shared';
+import { formatMegabytes } from '@sivoov/shared';
+import type { Locale, MessageKey, Params } from '@sivoov/shared';
+import type { PackStatus } from '@/audio/packStore';
 import type { LocationPermission } from '@/services/location/device';
 
 /** One pre-flight check as the screen shows it: a state and a French message key. */
@@ -39,5 +41,13 @@ export const batteryCheck = (level: number | null | undefined): Check => {
 /** Headphones cannot be detected without a native module: it is a hint, never blocking. */
 export const headphonesCheck = (): Check => ({ status: 'ok', key: 'prepare.check.headphones' });
 
-/** The Run button: GPS lock and the permission both ok. Battery and headphones only warn. */
+/** The audio pack is told, never required: a run with no voice still runs, with captions. */
+export const packCheck = ({ status, bytes }: { status: PackStatus; bytes: number }, locale: Locale): Check => {
+  if (status === 'ready') return { status: 'ok', key: 'prepare.check.pack.ok', params: { size: formatMegabytes(bytes, locale) } };
+  if (status === 'none') return { status: 'warn', key: 'prepare.check.pack.none' };
+  if (status === 'error') return { status: 'warn', key: 'prepare.check.pack.error' };
+  return { status: 'pending', key: 'prepare.check.pack.loading' };
+};
+
+/** The Run button: GPS lock and the permission both ok. Battery, headphones and the audio pack only warn. */
 export const canStart = (checks: { permission: Check; gps: Check }): boolean => checks.gps.status === 'ok' && checks.permission.status === 'ok';

@@ -13,7 +13,7 @@ export const CourseDiagram = ({ track, officialM, runM, landmarks, accent, width
   const runner = project(positionForRun(track, officialM, runM).point);
   const dCovered = [...covered.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`), `L${runner.x.toFixed(1)} ${runner.y.toFixed(1)}`].join(' ');
   const end = points[points.length - 1]!;
-  const ground = dark ? colors.nightBorder : colors.border;
+  const ground = dark ? colors.nightLine : colors.border;
   return (
     <Svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
       <Path d={d} fill="none" stroke={ground} strokeWidth={6} strokeLinejoin="round" strokeLinecap="round" />

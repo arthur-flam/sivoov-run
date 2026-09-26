@@ -2,6 +2,7 @@
  * The numbers on the organizer's home page. Simulated runs never count as a start, and a time
  * an organizer set aside never counts as a finish.
  */
+import { rankedRun } from './ranked';
 
 export type Funnel = { entrants: number; signedIn: number; onApp: number; started: number; finished: number };
 export type DistanceCount = { courseId: string; distanceKey: string; entrants: number; finished: number; hasTrace: boolean; published: boolean };
@@ -11,8 +12,11 @@ export type RecentRun = {
 };
 export type Setup = { members: number };
 
-/** A run that counts in the results: finished for real and not set aside. */
-export const COUNTS_AS_FINISH = "r.status IN ('finished', 'uploaded') AND r.excluded_at IS NULL";
+/**
+ * A run that counts in the results, on the alias `r`: finished for real, not set aside, inside
+ * the race window, on the entrant's own distance (`rankedRun`, the one rule everywhere).
+ */
+export const COUNTS_AS_FINISH = rankedRun('r');
 
 export const dashboardDb = (d1: D1Database) => ({
   async funnel(raceId: string): Promise<Funnel> {

@@ -88,6 +88,7 @@ What still needs the laptop, and nothing else does:
 | `EXPO_TOKEN` | GitHub Actions secret (optionally the cloud environment) | EAS Update, EAS Build |
 | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | GitHub Actions secret | `wrangler deploy` |
 | Resend, ElevenLabs, Sentry DSNs | Worker secrets via `wrangler secret put`, `.dev.vars` locally | api |
+| `BROWSER_RENDERING_TOKEN` (Browser Rendering - Edit) | Worker secret, production and preview | api: share cards (`lib/cards.ts`) |
 | Apple / Google credentials | EAS servers | EAS Build |
 Cloud sessions need none of these for loop 1. Adding `EXPO_TOKEN` to the environment lets a
 session publish an update directly (loop 2 without CI).

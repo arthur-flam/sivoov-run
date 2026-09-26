@@ -16,6 +16,7 @@ export const MOMENT_COPY: Record<Moment, { title: string; hint: string; add: str
 };
 
 export const WHEN_OPTIONS: { key: AudioTrigger['kind']; label: string }[] = [
+  { key: 'cue', label: 'Avant le départ (cérémonie)' },
   { key: 'start', label: 'Au départ' },
   { key: 'distance', label: 'À un kilomètre précis' },
   { key: 'elapsed', label: 'Après un temps de course' },

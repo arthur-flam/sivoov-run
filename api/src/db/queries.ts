@@ -1,6 +1,6 @@
 import type { AudioPack, Course, Entrant, Race, Run } from '@sivoov/shared';
 import { audioPackFromRow, courseFromRow, entrantFromRow, raceFromRow, runFromRow } from './rows';
-import { COUNTS_AS_FINISH } from './dashboardQueries';
+import { rankedRun } from './ranked';
 
 /** Typed D1 access. Every read goes through a row schema; every write takes a domain object. */
 export const db = (d1: D1Database) => ({
@@ -59,6 +59,10 @@ export const db = (d1: D1Database) => ({
 
   async entrantByBibEmail(raceId: string, bib: string, email: string): Promise<Entrant | null> {
     const row = await d1.prepare('SELECT * FROM entrants WHERE race_id = ? AND bib = ? AND email = ?').bind(raceId, bib, email).first();
+    return row ? entrantFromRow(row) : null;
+  },
+  async entrantByBib(raceId: string, bib: string): Promise<Entrant | null> {
+    const row = await d1.prepare('SELECT * FROM entrants WHERE race_id = ? AND bib = ?').bind(raceId, bib).first();
     return row ? entrantFromRow(row) : null;
   },
   async entrantById(id: string): Promise<Entrant | null> {
@@ -159,8 +163,9 @@ export const db = (d1: D1Database) => ({
     return row ? runFromRow(row) : null;
   },
   /**
-   * Official results: best finished run per entrant, by time. A time the organizer set aside
-   * never counts, neither as a result nor as someone's best (COUNTS_AS_FINISH, on both aliases).
+   * Official results: best ranked run per entrant, by time (`rankedRun`: finished, not set
+   * aside, started inside the race window, on the entrant's own distance). A faster rehearsal
+   * the week before never hides the real run, and a set-aside time is nobody's best.
    */
   async resultsForCourse(courseId: string): Promise<Array<{ run: Run; entrant: Entrant }>> {
     const { results } = await d1
@@ -168,9 +173,10 @@ export const db = (d1: D1Database) => ({
         `SELECT r.*, e.id AS e_id, e.race_id AS e_race_id, e.bib AS e_bib, e.email AS e_email, e.first_name AS e_first_name,
                 e.last_name AS e_last_name, e.distance_key AS e_distance_key, e.address AS e_address, e.source AS e_source, e.slot_at AS e_slot_at
          FROM runs r JOIN entrants e ON e.id = r.entrant_id
-         WHERE r.course_id = ? AND ${COUNTS_AS_FINISH}
-           AND r.elapsed_ms = (SELECT MIN(elapsed_ms) FROM runs r2 WHERE r2.entrant_id = r.entrant_id AND r2.course_id = r.course_id AND ${COUNTS_AS_FINISH.replaceAll('r.', 'r2.')})
-         ORDER BY r.elapsed_ms ASC`,
+         WHERE r.course_id = ? AND ${rankedRun('r')}
+           AND r.id = (SELECT r2.id FROM runs r2 WHERE r2.entrant_id = r.entrant_id AND r2.course_id = r.course_id AND ${rankedRun('r2')}
+                       ORDER BY r2.elapsed_ms ASC, r2.id ASC LIMIT 1)
+         ORDER BY r.elapsed_ms ASC, r.id ASC`,
       )
       .bind(courseId)
       .all<Record<string, unknown>>();

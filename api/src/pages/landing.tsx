@@ -1,10 +1,10 @@
 import type { Course, CourseTrack, DistanceKey, Race } from '@sivoov/shared';
-import { distanceLabel, formatKm, translator } from '@sivoov/shared';
+import { distanceLabel, formatKm, translator, windowPhase } from '@sivoov/shared';
 import type { Locale } from '@sivoov/shared';
 import { CourseDiagram } from './courseDiagram';
 import { fmtSpan } from './dates';
 
-type Props = { race: Race; courses: Course[]; track: CourseTrack | null; mapUrl: string | null; locale: Locale };
+type Props = { race: Race; courses: Course[]; track: CourseTrack | null; mapUrl: string | null; locale: Locale; now: number };
 
 /** Official distances are written the way runners know them: 42,195 km, 21,1 km, 10 km. */
 const DIGITS: Record<DistanceKey, number> = { marathon: 3, half: 1, '10k': 0, '5k': 0 };
@@ -12,7 +12,7 @@ const DIGITS: Record<DistanceKey, number> = { marathon: 3, half: 1, '10k': 0, '5
 /** "3,9 km", "30 km": a landmark's place on the course. */
 const landmarkKm = (meters: number, locale: Locale) => formatKm(meters, locale, 1).replace(/[.,]0 km$/, ' km');
 
-export const LandingPage = ({ race, courses, track, mapUrl, locale }: Props) => {
+export const LandingPage = ({ race, courses, track, mapUrl, locale, now }: Props) => {
   const t = translator(locale);
   const main = courses[0];
   const [before, after] = t('landing.tagline').split('{race}');
@@ -43,6 +43,10 @@ export const LandingPage = ({ race, courses, track, mapUrl, locale }: Props) => 
           {cta}
           <span class="window">{t('landing.window', fmtSpan(race.windowStart, race.windowEnd, locale, race.timezone))}</span>
         </div>
+        <p class="hero-links">
+          {race.organizerUrl ? <a href={race.organizerUrl}>{t('landing.noBib')}</a> : null}
+          {windowPhase(race, now) !== 'before' ? <a href={`/${race.slug}/results`}>{t('home.results')}</a> : null}
+        </p>
       </section>
 
       <section class="facts" aria-label={t('landing.distances')}>

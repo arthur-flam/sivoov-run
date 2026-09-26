@@ -24,6 +24,26 @@ const orgSignIn = async (page: Page): Promise<void> => {
   await expect(page.getByText('Pour être prêt')).toBeVisible();
 };
 
+/** A runner's web session, taken with TEST_CODE in one form post like `orgSignIn`, landing on `next`. */
+const runnerSignIn = async (page: Page, next: string): Promise<void> => {
+  const res = await page.request.post(`${RACE}/signin`, {
+    form: { step: 'code', bib: '1001', email: 'marc@example.com', code: '000000', next },
+    maxRedirects: 0,
+  });
+  expect(res.status()).toBe(302);
+  await page.goto(next);
+};
+
+/** A straight run due north, one point every 5 s, as a watch exports it. 111 195 m is one degree of latitude. */
+const gpxRun = (meters: number): Buffer => {
+  const t0 = Date.parse('2026-11-11T08:00:00+01:00');
+  const n = Math.round((meters / 1000) * 60);
+  const points = Array.from({ length: n + 1 }, (_, i) =>
+    `<trkpt lat="${(49.36 + (i * meters) / n / 111_195).toFixed(7)}" lon="0.0700000"><time>${new Date(t0 + i * 5000).toISOString()}</time></trkpt>`,
+  );
+  return Buffer.from(`<?xml version="1.0"?><gpx version="1.1"><trk><trkseg>${points.join('')}</trkseg></trk></gpx>`);
+};
+
 export const scenes: Scene[] = [
   {
     id: 'home',
@@ -96,11 +116,90 @@ export const scenes: Scene[] = [
     },
   },
   {
-    id: 'results',
-    title: 'Results — empty before the window opens',
+    id: 'upload',
+    title: 'Upload — the GPX fallback, one file and one button',
     go: async (page, shoot) => {
-      await page.goto(`${RACE}/results`);
+      await runnerSignIn(page, `${RACE}/upload`);
+      await expect(page.getByRole('heading', { level: 1 })).toHaveText('Envoyer ma course');
+      await shoot();
+    },
+  },
+  {
+    id: 'upload-refused',
+    title: 'Upload — refused: a watch that died at 20.4 km, then a treadmill file',
+    go: async (page, shoot) => {
+      await runnerSignIn(page, `${RACE}/upload`);
+      await page.getByLabel('Votre fichier GPX').setInputFiles({ name: 'course.gpx', mimeType: 'application/gpx+xml', buffer: gpxRun(20_400) });
+      await page.getByRole('button', { name: 'Envoyer mon fichier' }).click();
+      await expect(page.getByRole('alert')).toContainText('il manque');
+      await shoot();
+      const treadmill = '<gpx><trk><trkseg><trkpt><time>2026-11-11T08:00:00Z</time></trkpt><trkpt><time>2026-11-11T08:00:01Z</time></trkpt></trkseg></trk></gpx>';
+      await page.getByLabel('Votre fichier GPX').setInputFiles({ name: 'tapis.gpx', mimeType: 'application/gpx+xml', buffer: Buffer.from(treadmill) });
+      await page.getByRole('button', { name: 'Envoyer mon fichier' }).click();
+      await expect(page.getByRole('alert')).toContainText('tapis');
+      await shoot('treadmill');
+    },
+  },
+  {
+    id: 'results',
+    title: 'Results — the half marathon table (demo results, scripts/shots-demo.sql)',
+    go: async (page, shoot) => {
+      await page.goto(`${RACE}/results?distance=half`);
       await expect(page.getByRole('heading', { level: 2 })).toContainText('Résultats');
+      await shoot();
+    },
+  },
+  {
+    id: 'result',
+    title: 'Result — a finisher’s certificate, and the way into the race for everyone else',
+    go: async (page, shoot) => {
+      await page.goto(`${RACE}/results/1003`);
+      await expect(page.getByTestId('result-time')).toBeVisible();
+      await shoot();
+    },
+  },
+  {
+    id: 'result-pending',
+    title: 'Result — before the finish, the bib page a runner shares to bring friends in',
+    go: async (page, shoot) => {
+      await page.goto(`${RACE}/results/1002`);
+      await expect(page.getByTestId('bib-plate')).toBeVisible();
+      await shoot();
+    },
+  },
+  {
+    id: 'card-bib',
+    title: 'Share card — the bib, under a link shared before the race',
+    go: async (page, shoot) => {
+      await page.setViewportSize({ width: 1200, height: 630 });
+      await page.goto(`${RACE}/results/1002/card?format=og`);
+      await shoot();
+    },
+  },
+  {
+    id: 'card-og',
+    title: 'Share card — 1200×630, the picture under a shared link',
+    go: async (page, shoot) => {
+      await page.setViewportSize({ width: 1200, height: 630 });
+      await page.goto(`${RACE}/results/1003/card?format=og`);
+      await shoot();
+    },
+  },
+  {
+    id: 'card-story',
+    title: 'Share card — 1080×1350, the image a finisher posts',
+    go: async (page, shoot) => {
+      await page.setViewportSize({ width: 1080, height: 1350 });
+      await page.goto(`${RACE}/results/1003/card?format=story`);
+      await shoot();
+    },
+  },
+  {
+    id: 'card-race',
+    title: 'Share card — the race’s own, under a shared landing page',
+    go: async (page, shoot) => {
+      await page.setViewportSize({ width: 1200, height: 630 });
+      await page.goto(`${RACE}/card?format=og`);
       await shoot();
     },
   },

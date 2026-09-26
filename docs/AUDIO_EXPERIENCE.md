@@ -618,10 +618,10 @@ What is missing, in order of value:
 
 | # | Gap | Effort | Value | Where |
 |---|---|---|---|---|
-| 1 | Prestart sequence: intro → countdown in sync with the digits → gun starts the clock (2.1) | M | The first 30 seconds are the product's first impression | shared schema, run store, player, script |
+| 1 | **Done (session 9).** Prestart sequence: intro → countdown in sync with the digits → gun starts the clock (2.1) | M | The first 30 seconds are the product's first impression | shared schema, run store, player, script |
 | 2 | Studio: GPX per course, events on the map, listen, render, publish (this session) | L | Content stops needing a laptop | api |
-| 3 | Pack download at home/prepare with a visible "ready" state (2.5) | S | A run with no audio is a refund | app |
-| 4 | Sequence playback (N files back to back) — shared by 1 and 5 | S | | app player |
+| 3 | **Done (session 9).** Pack download at home/prepare with a visible "ready" state (2.5) | S | A run with no audio is a refund | app |
+| 4 | **Done (session 9).** Sequence playback (N files back to back) — shared by 1 and 5 | S | | app player |
 | 5 | Number fragments for km splits; name files per entrant; `/api/me/pack` (2.3) | M | "Kilomètre 21, une heure cinquante-deux" is the line runners remember | pipeline, api, app |
 | 6 | `interval` trigger and file upload per line in the studio (2.4) | S | Hydration reminders, the organizer's own jingle | shared, api |
 | 7 | "Proposer un texte" in the studio through AI Gateway (2.2) | M | Speeds authoring of 40+ landmark lines and the English pack | api |

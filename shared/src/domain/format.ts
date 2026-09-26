@@ -30,9 +30,23 @@ export const formatKm = (meters: number, locale: Locale, digits = 2): string => 
   return `${locale === 'fr' ? km.replace('.', ',') : km} km`;
 };
 
+/** "1,9 Mo" in French, "1.9 MB" in English: a download size, never under 0.1. */
+export const formatMegabytes = (bytes: number, locale: Locale): string => {
+  const mb = Math.max(0.1, bytes / 1_000_000).toFixed(1);
+  return locale === 'fr' ? `${mb.replace('.', ',')} Mo` : `${mb} MB`;
+};
+
 /** Parses "5:30" into seconds per km. Used by the ?pace= dev parameter. */
 export const parsePace = (text: string): number | null => {
   const m = /^(\d{1,2}):(\d{2})$/.exec(text.trim());
   if (!m) return null;
   return Number(m[1]) * 60 + Number(m[2]);
+};
+
+/** "1er", "12e" in French; "1st", "12th" in English. A results table, not a sentence. */
+export const formatRank = (rank: number, locale: Locale): string => {
+  if (locale === 'fr') return rank === 1 ? '1er' : `${rank}e`;
+  const teen = rank % 100 >= 11 && rank % 100 <= 13;
+  const suffix = teen ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[rank % 10] ?? 'th';
+  return `${rank}${suffix}`;
 };

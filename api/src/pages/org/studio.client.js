@@ -88,6 +88,12 @@
   /** The trigger from the "Quand" fields, or the sentence that says which field to fix. */
   function triggerFrom(card) {
     const kind = value(card, 'when.kind');
+    if (kind === 'cue') {
+      const order = value(card, 'when.cueOrder').trim();
+      return /^\d+$/.test(order)
+        ? { trigger: { kind: 'cue', at: value(card, 'when.cueAt'), order: Number(order) } }
+        : { error: 'Indiquez l’ordre dans la cérémonie, par exemple 1.' };
+    }
     if (kind === 'start' || kind === 'finish') return { trigger: { kind: kind } };
     if (kind === 'distance') {
       const meters = metersFromKm(value(card, 'when.km'));

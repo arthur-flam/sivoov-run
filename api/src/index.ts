@@ -6,8 +6,10 @@ import { api } from './routes/api';
 import { audio } from './routes/audio';
 import { media } from './routes/media';
 import { pages } from './routes/pages';
+import { results } from './routes/results';
 import { org } from './routes/org';
 import { organizers } from './routes/organizers';
+import { upload } from './routes/upload';
 
 const app = new Hono<AppEnv>();
 
@@ -18,7 +20,10 @@ app.route('/api', api);
 app.route('/api', audio);
 // Organizer admin is mounted before the pages so that /org/:slug is not taken for a race slug.
 app.route('/org', org);
-// Same for /organisateurs: before the pages, or it would be read as a race slug.
+// Before the pages too, like /org: nothing in them may claim /:slug/results, /:slug/upload
+// or /organisateurs first (it would be read as a race slug).
+app.route('/', results);
+app.route('/', upload);
 app.route('/', organizers);
 app.route('/media', media);
 app.route('/', pages);

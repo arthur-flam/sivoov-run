@@ -1,4 +1,5 @@
 import { defineConfig } from '@playwright/test';
+import { chromiumLaunch } from '../scripts/playwright-chromium';
 
 /** The web half of the screenshot rig (docs/SHOTS.md). Run it with `npm run shots` from the root. */
 export type Preset = { id: string; width: number; height: number; scale: number; locale: string };
@@ -15,12 +16,7 @@ export default defineConfig({
   testDir: './e2e/shots',
   timeout: 60_000,
   workers: 1,
-  use: {
-    baseURL: process.env.BASE_URL ?? 'http://localhost:8788',
-    // Cloud containers ship a Chromium the pinned Playwright does not know (docs/MEMORY.md):
-    // PW_CHROMIUM=/opt/pw-browsers/chromium points the rig at it.
-    ...(process.env.PW_CHROMIUM ? { launchOptions: { executablePath: process.env.PW_CHROMIUM } } : {}),
-  },
+  use: { baseURL: process.env.BASE_URL ?? 'http://localhost:8788', launchOptions: chromiumLaunch() },
   projects: chosen.map((p) => ({
     name: p.id,
     use: { viewport: { width: p.width, height: p.height }, deviceScaleFactor: p.scale, locale: p.locale },

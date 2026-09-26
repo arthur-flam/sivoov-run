@@ -196,6 +196,16 @@ describe('runs', () => {
     });
     expect(res.status).toBe(403);
   });
+  it('refuses a run on another distance than the entrant’s own', async () => {
+    // Marc is entered in the half: a run on the marathon course would rank him in the wrong table.
+    const { token } = await signIn('1001', 'marc@example.com');
+    const res = await SELF.fetch('http://run.test/api/runs/run-wrong-course', {
+      ...json({ run: { id: 'run-wrong-course', entrantId: 'deauville-2026-1001', courseId: 'deauville-2026-marathon', status: 'finished', source: 'app', startedAt: '2026-11-12T09:00:00+01:00', elapsedMs: 9_000_000, distanceM: 42195 } }, { Authorization: `Bearer ${token}` }),
+      method: 'PUT',
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'invalid_course' });
+  });
 });
 
 describe('pages', () => {

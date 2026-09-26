@@ -222,4 +222,16 @@ describe('import and export', () => {
     expect(home).toContain('3:30:00');
     expect(home).toContain('Arrivé');
   });
+  it('never exports a rehearsal as a finish, since the results file decides who gets a medal', async () => {
+    const cookie = await cookieFor('orga@example.com');
+    await db(env.DB).upsertRun(
+      { id: 'run-org-rehearsal', entrantId: `${SLUG}-2001`, courseId: `${SLUG}-half`, status: 'finished', source: 'app', startedAt: '2026-10-18T09:00:00+02:00', finishedAt: '2026-10-18T10:40:00+02:00', elapsedMs: 6_000_000, distanceM: 21097.5, splits: [] },
+      null,
+    );
+    const results = await (await get(`${base}/export/results.csv`, cookie)).text();
+    expect(results).toContain('2001;Anna;Durand;Semi-marathon;1:40:00;6000;21098;Hors classement;');
+    const entrants = await (await get(`${base}/export/entrants.csv`, cookie)).text();
+    // No best time: the rehearsal is nobody's official finish.
+    expect(entrants).toMatch(/^2001;Anna;Durand;.*;$/m);
+  });
 });

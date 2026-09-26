@@ -218,12 +218,17 @@ export const runnerDb = (d1: D1Database) => ({
     return results.map((row) => ({ entrant: entrantFromRow(row), bestMs: row.best_ms }));
   },
 
-  /** One line per runner: the best finished run when there is one, else the latest run, else nothing. */
+  /**
+   * One line per runner: the best finished run when there is one, else the latest run, else
+   * nothing. A finish that does not count (a rehearsal before the window, a late run, a run on
+   * another distance) says `not_ranked`, never `finished`: this file is read for medals.
+   */
   async resultRows(raceId: string): Promise<ResultRow[]> {
     const { results } = await d1
       .prepare(
         `SELECT e.bib, e.first_name, e.last_name, e.distance_key, r.elapsed_ms, r.distance_m,
-                CASE WHEN r.excluded_at IS NOT NULL THEN 'excluded' WHEN r.source = 'simulation' THEN 'simulation' ELSE r.status END AS status, r.finished_at
+                CASE WHEN r.excluded_at IS NOT NULL THEN 'excluded' WHEN r.source = 'simulation' THEN 'simulation'
+                     WHEN r.status IN ('finished', 'uploaded') AND NOT ${COUNTS_AS_FINISH} THEN 'not_ranked' ELSE r.status END AS status, r.finished_at
          FROM entrants e LEFT JOIN runs r ON r.id = (
            SELECT r.id FROM runs r WHERE r.entrant_id = e.id
            ORDER BY CASE WHEN ${COUNTS_AS_FINISH} THEN 0 ELSE 1 END, r.elapsed_ms ASC, r.created_at DESC LIMIT 1)

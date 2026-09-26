@@ -8,8 +8,13 @@ export default defineConfig(async () => {
     plugins: [
       cloudflareTest({
         wrangler: { configPath: './wrangler.jsonc', environment: 'local' },
-        // A fake ElevenLabs key: the studio tests stub fetch, and CI has no .dev.vars.
-        miniflare: { bindings: { TEST_MIGRATIONS: migrations, ELEVENLABS_API_TOKEN: 'test-elevenlabs-key' } },
+        // The pool also reads api/.dev.vars, which CI does not have: every secret a test depends
+        // on is set here, so a laptop's .dev.vars changes nothing. A fake ElevenLabs key (the
+        // studio tests stub fetch); no Mapbox token and no card renderer (the pages fall back to
+        // the SVG trace, the PNGs answer 404). A blank secret counts as no secret in the Worker.
+        miniflare: {
+          bindings: { TEST_MIGRATIONS: migrations, ELEVENLABS_API_TOKEN: 'test-elevenlabs-key', MAPBOX_TOKEN: '', BROWSER_RENDERING_TOKEN: '' },
+        },
       }),
     ],
     test: {

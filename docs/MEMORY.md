@@ -366,7 +366,14 @@
   `MAPBOX_TOKEN`, two workerd tests fail that pass in CI (`api.test.ts` "renders the landing…"
   expects the SVG diagram, `results.test.ts` "answers 404 for the PNG…" expects no map). The
   pool loads `.dev.vars` ("Using secrets defined in .dev.vars"), so a test that needs a binding
-  *absent* has to blank it in `miniflare.bindings` too. Not fixed yet; a red run there is not yours.
+  *absent* has to blank it in `miniflare.bindings` too. Fixed: `api/vitest.config.ts` sets
+  `MAPBOX_TOKEN` and `BROWSER_RENDERING_TOKEN` to `''`, and the suite passes with and without
+  the laptop's `.dev.vars`. The pool has no switch to skip `.dev.vars` (it calls
+  `unstable_getMiniflareWorkerOptions` without `envFiles`), and a key can be overridden but not
+  removed, so a blank value is the way. That makes '' mean "no secret" in the Worker: two reads
+  used `?? null` and passed '' on as a token (the run page drew an empty Leaflet box); they use
+  `|| null` now. Read an optional secret with a truthiness check, never `??`. A test that needs
+  a token sets its own, in the config or in the deps it passes.
 - 2026-09-26: the stored run status says `finished` for a rehearsal too. Anything that shows
   whether a run counts must go through `rankedRun` (SQL) or `runVerdict`/`isRanked` (shared),
   never `status` alone: the admin badge did, and read "Arrivé" for runs the export excluded.

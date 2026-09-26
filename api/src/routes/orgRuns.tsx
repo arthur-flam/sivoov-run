@@ -56,7 +56,7 @@ const runPage = async (c: OrgContext, detail: RunDetail, form?: ReviewForm) => {
   const race = c.get('race');
   const [{ trace, unreadable }, titles] = await Promise.all([readTrace(c.env, detail.traceKey), runDb(c.env.DB).eventTitles(race.id, detail.course.id)]);
   // `?map=svg` draws the trace without tiles or network: the screenshot rig and a bad connection use it.
-  const mapToken = c.req.query('map') === 'svg' ? null : (c.env.MAPBOX_TOKEN ?? null);
+  const mapToken = c.req.query('map') === 'svg' ? null : c.env.MAPBOX_TOKEN || null;
   const name = `${detail.entrant.firstName} ${detail.entrant.lastName.toUpperCase()}`;
   return orgPage(
     c,

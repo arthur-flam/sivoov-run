@@ -266,7 +266,7 @@ export const studioPageData = async (
       return { id: l.id, name: l.name, meters: l.meters, lat: point?.lat ?? null, lng: point?.lng ?? null };
     }),
     packs: ctx.packs,
-    mapboxToken: env.MAPBOX_TOKEN ?? null,
+    mapboxToken: env.MAPBOX_TOKEN || null,
     ttsReady: Boolean(env.ELEVENLABS_API_TOKEN),
     canEdit: view.canEdit,
     script: ctx.script,

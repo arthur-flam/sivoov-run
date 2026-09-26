@@ -202,6 +202,13 @@ describe('one activity', () => {
     expect(html).toContain('200 points retenus, 12 écartés');
     expect(html).toContain('href="/org/deauville-2026/runners/4001"');
   });
+  it('draws the trace without tiles on a deployment with no Mapbox token', async () => {
+    // The test pool sets MAPBOX_TOKEN to a blank value, which counts as no token.
+    const html = await page(`${base}/runs/run-fin`, await cookieFor('lecture@example.com'));
+    expect(html).toMatch(/<div class="map-svg" data-role="run-map-fallback"/);
+    expect(html).not.toMatch(/<div[^>]*data-role="run-map"/);
+    expect(html).not.toContain('id="run-map-data"');
+  });
   it('says in one sentence why a time does not count', async () => {
     const cookie = await cookieFor('lecture@example.com');
     const stopped = await page(`${base}/runs/run-stop`, cookie);

@@ -1,7 +1,7 @@
 import { SELF, env } from 'cloudflare:test';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AudioPackSchema, PersonalDefsSchema, PersonalVoicesSchema, deauvilleMarathonGeometry } from '@sivoov/shared';
-import type { AudioScriptInput } from '@sivoov/shared';
+import type { AudioScriptInput, ScriptLineInput } from '@sivoov/shared';
 import { db } from '../src/db/queries';
 import { adminDb } from '../src/db/adminQueries';
 import { scriptDb } from '../src/db/scriptQueries';
@@ -28,7 +28,9 @@ let elevenStatus = 200;
 let orgCookie = '';
 let runnerToken = '';
 
-const line = (over: Record<string, unknown>) => ({ category: 'course', mix: 'duck', priority: 5, trigger: { kind: 'distance', meters: 1000 }, ...over });
+/** A script line with the defaults filled in; each test says only what matters to it. */
+const line = (over: Record<string, unknown>): ScriptLineInput =>
+  ({ category: 'course', mix: 'duck', priority: 5, trigger: { kind: 'distance', meters: 1000 }, ...over }) as unknown as ScriptLineInput;
 
 const SCRIPT: Omit<AudioScriptInput, 'courseId' | 'version'> = {
   locale: 'fr',

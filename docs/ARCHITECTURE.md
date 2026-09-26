@@ -85,8 +85,12 @@ Rows are validated by zod schemas in `shared/schemas/` on the way in and out of 
   The admin has its own shell and component kit (`api/src/pages/org/adminLayout.tsx`, `ui.tsx`,
   `adminStyles.ts`), styled only through `api/src/pages/tokens.ts`.
   `/org/{race}/courses`: courses, GPX upload, and per course the audio **studio**
-  (`/org/{race}/courses/{courseId}`): the course on a Leaflet/Mapbox map with every audio
-  event placed on it, the script editor, voice rendering and publishing. See AUDIO.md.
+  (`/org/{race}/courses/{courseId}`): the course on a map with every audio event placed on it,
+  the script editor, voice rendering and publishing. See AUDIO.md.
+  The admin's two maps (the studio, a run's trace) are Mapbox GL JS loaded from Mapbox's CDN
+  (`pages/org/mapboxGl.ts`, pinned version; Leaflet dropped 2026-09-26): pinch and wheel zoom,
+  north up, the studio's map follows the announcement list as it scrolls, and `?map=svg` or no
+  WebGL falls back to the server-drawn SVG.
 - `/api/...`: JSON for the app. Auth by bearer session token.
 
 ## App surfaces (Expo)

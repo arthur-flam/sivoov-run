@@ -12,7 +12,7 @@ import { distanceName } from '../pages/org/format';
 import { OrgRunsPage } from '../pages/org/runs';
 import { DONE_MESSAGES, ExcludeReasonSchema, reasonText } from '../pages/org/runsCopy';
 import { OrgRunPage } from '../pages/org/runsDetail';
-import { LEAFLET_CSS } from '../pages/org/runsMap';
+import { MAPBOX_GL_CSS } from '../pages/org/mapboxGl';
 import type { ReviewForm } from '../pages/org/runsReview';
 import { doneMessage, orgPage } from './orgPage';
 import type { OrgContext } from './orgPage';
@@ -73,7 +73,7 @@ const runPage = async (c: OrgContext, detail: RunDetail, form?: ReviewForm) => {
       done={doneMessage(c, DONE_MESSAGES)}
       form={form}
     />,
-    { head: mapToken ? <link rel="stylesheet" href={LEAFLET_CSS} /> : undefined, status: form ? 422 : 200 },
+    { head: mapToken ? <link rel="stylesheet" href={MAPBOX_GL_CSS} /> : undefined, status: form ? 422 : 200 },
   );
 };
 

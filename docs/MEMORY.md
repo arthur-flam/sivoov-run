@@ -392,3 +392,13 @@
   `eas update` in CI now sets `APP_VARIANT` and `EXPO_PUBLIC_API_URL`, and the app's
   `dev`/`start`/`web` scripts default to `development`. To check what a channel really serves:
   `curl -s https://u.expo.dev/<projectId> -H 'expo-channel-name: preview' -H 'expo-platform: android' -H 'expo-runtime-version: 2.0.0' -H 'expo-protocol-version: 1' | grep -ao '"apiUrl":"[^"]*"'`.
+- 2026-09-26: the admin maps moved from Leaflet to Mapbox GL JS 3.31 (CDN). Three things a
+  class cannot do on a `mapboxgl.Marker` element: Mapbox owns its `transform` (centring and
+  placement, so a pin grows with width/height, never `scale()`), writes `style.opacity` inline
+  on every render (a faint pin uses `filter: opacity()`), and writes `style.pointerEvents`
+  inline unless one is already there (set `pointer-events: none` inline *before* `addTo` to
+  let clicks through). Markers live in the canvas container, so a click on a marker also fires
+  the map's `click`: the studio ignores map clicks whose target is inside `.mapboxgl-marker`
+  or `.mapboxgl-popup`. Popups sit under z-indexed markers unless they get a z-index too
+  (`adminStyles`). Moves made by hand carry `event.originalEvent`, eases started in code do
+  not: that is how the scroll sync tells the organizer's drag from its own follow.

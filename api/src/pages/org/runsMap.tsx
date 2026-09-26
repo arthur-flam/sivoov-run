@@ -1,9 +1,7 @@
 import { boundsOf, buildTrack, formatClock, thinPoints, toDiagram } from '@sivoov/shared';
 import type { LatLng } from '@sivoov/shared';
+import { MAPBOX_GL_JS } from './mapboxGl';
 import { runMapClient } from './runMapClient';
-
-export const LEAFLET_CSS = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
-const LEAFLET_JS = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
 
 /** Enough points for a smooth line at any zoom, few enough to keep the page light. */
 const MAP_POINTS = 1500;
@@ -66,16 +64,16 @@ const TraceSvg = ({ points, marks, finished }: Omit<Props, 'token'>) => {
 };
 
 /**
- * Where the runner actually ran: their own GPS trace, not the race course. On a Leaflet map
- * with Mapbox tiles when a token is set (the studio's recipe), otherwise, and whenever the map
- * cannot load, the same trace as a server-drawn SVG.
+ * Where the runner actually ran: their own GPS trace, not the race course. On a Mapbox GL map
+ * when a token is set (the studio's recipe; the page's head loads MAPBOX_GL_CSS), otherwise, and
+ * whenever the map cannot load, the same trace as a server-drawn SVG.
  */
 export const RunTraceMap = ({ points, marks, finished, token }: Props) => {
   const withMap = token !== null && points.length >= 2;
   const island = {
     token,
     points: thinPoints(points, MAP_POINTS).map((p) => [Number(p.lat.toFixed(6)), Number(p.lng.toFixed(6))]),
-    kms: marks.map((m) => ({ lat: Number(m.point.lat.toFixed(6)), lng: Number(m.point.lng.toFixed(6)), label: markLabel(m) })),
+    kms: marks.map((m) => ({ km: m.km, lat: Number(m.point.lat.toFixed(6)), lng: Number(m.point.lng.toFixed(6)), label: markLabel(m) })),
     endLabel: finished ? 'Arrivée' : 'Arrêt',
   };
   return (
@@ -101,7 +99,7 @@ export const RunTraceMap = ({ points, marks, finished, token }: Props) => {
       {withMap ? (
         <>
           <script type="application/json" id="run-map-data" dangerouslySetInnerHTML={{ __html: JSON.stringify(island).replaceAll('<', '\\u003c') }} />
-          <script src={LEAFLET_JS} defer></script>
+          <script src={MAPBOX_GL_JS} defer></script>
           <script dangerouslySetInnerHTML={{ __html: runMapClient }} />
         </>
       ) : null}

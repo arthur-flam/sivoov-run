@@ -12,14 +12,16 @@ describe('deauville 2026 marathon script', () => {
     const landmarks = script.events.filter((e) => e.trigger.kind === 'distance');
     expect(landmarks.length).toBeGreaterThanOrEqual(6);
     expect(landmarks.length).toBeLessThanOrEqual(10);
-    expect(script.events.find((e) => e.id === 'personal.split')?.source).toEqual({ kind: 'template', key: 'split', slots: ['km', 'splitTime'] });
-    expect(script.events.every((e) => e.source.kind === 'template' || e.source.key.endsWith('.mp3'))).toBe(true);
+    // Splits are said live with the runner's time; the file is their offline version.
+    expect(script.events.find((e) => e.id === 'personal.split')).toMatchObject({ source: { kind: 'file', key: 'split.mp3' }, personal: { phase: 'live' } });
+    expect(script.events.find((e) => e.id === 'ceremony.call')?.personal).toEqual({ phase: 'prepare' });
+    expect(script.events.every((e) => e.source.kind === 'file' && e.source.key.endsWith('.mp3'))).toBe(true);
   });
-  it('plays its start ceremony before the clock: intro, countdown, then the gun that starts it', async () => {
+  it('plays its start ceremony before the clock: intro, the runner called, the speaker’s word, countdown, then the gun that starts it', async () => {
     const script = await loadScript('deauville-2026-marathon');
     const ceremony = ceremonySequence(script);
-    expect(ceremony?.lines.map((e) => e.id)).toEqual(['ceremony.intro', 'ceremony.countdown', 'ceremony.gun']);
-    expect(ceremony?.gunIndex).toBe(2);
+    expect(ceremony?.lines.map((e) => e.id)).toEqual(['ceremony.intro', 'ceremony.call', 'ceremony.word', 'ceremony.countdown', 'ceremony.gun']);
+    expect(ceremony?.gunIndex).toBe(4);
     // Nothing of the ceremony is left to fire once the clock runs.
     const atGun = nextEvents({ phase: 'running', distanceM: 0, elapsedMs: 0, paceSecPerKm: null }, script, new Set());
     expect(atGun.filter((f) => f.event.category === 'ceremony')).toEqual([]);

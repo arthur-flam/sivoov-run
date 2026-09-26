@@ -19,6 +19,8 @@ import { space } from '@/theme';
 const useChecks = () => {
   const [permission, setPermission] = useState<LocationPermission | null>(null);
   const [bestAccuracy, setBestAccuracy] = useState<number | null>(null);
+  /** Where the phone is, to a kilometre or so: only for the weather in the runner's own lines. */
+  const [here, setHere] = useState<{ lat: number; lng: number } | null>(null);
   const [waitedMs, setWaitedMs] = useState(0);
   const [battery, setBattery] = useState<number | null | undefined>(undefined);
   const [round, setRound] = useState(0);
@@ -42,6 +44,8 @@ const useChecks = () => {
       sub = await Location.watchPositionAsync({ accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 0 }, (loc) => {
         const accuracy = loc.coords.accuracy;
         if (accuracy !== null && accuracy !== undefined) setBestAccuracy((best) => (best === null ? accuracy : Math.min(best, accuracy)));
+        const rounded = { lat: Math.round(loc.coords.latitude * 100) / 100, lng: Math.round(loc.coords.longitude * 100) / 100 };
+        setHere((known) => known ?? rounded);
       });
     };
     void watch();
@@ -63,6 +67,7 @@ const useChecks = () => {
 
   return {
     checks: { permission: permissionCheck(permission), gps: gpsCheck(bestAccuracy, waitedMs), battery: batteryCheck(battery), headphones: headphonesCheck() },
+    here,
     retry,
   };
 };
@@ -71,9 +76,9 @@ export default function Prepare() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const me = useSession((s) => s.me);
-  const { checks, retry } = useChecks();
-  // The pack comes down here too, so it is on the phone before the start line.
-  const audio = usePackDownload(me?.course ?? null);
+  const { checks, here, retry } = useChecks();
+  // The pack comes down here too, so it is on the phone before the start line, with the runner's own lines.
+  const audio = usePackDownload(me?.course ?? null, here);
   const race = me?.race ?? null;
   const ready = canStart(checks);
 

@@ -392,3 +392,34 @@
   `eas update` in CI now sets `APP_VARIANT` and `EXPO_PUBLIC_API_URL`, and the app's
   `dev`/`start`/`web` scripts default to `development`. To check what a channel really serves:
   `curl -s https://u.expo.dev/<projectId> -H 'expo-channel-name: preview' -H 'expo-platform: android' -H 'expo-runtime-version: 2.0.0' -H 'expo-protocol-version: 1' | grep -ao '"apiUrl":"[^"]*"'`.
+- 2026-09-26: the admin maps moved from Leaflet to Mapbox GL JS 3.31 (CDN). Three things a
+  class cannot do on a `mapboxgl.Marker` element: Mapbox owns its `transform` (centring and
+  placement, so a pin grows with width/height, never `scale()`), writes `style.opacity` inline
+  on every render (a faint pin uses `filter: opacity()`), and writes `style.pointerEvents`
+  inline unless one is already there (set `pointer-events: none` inline *before* `addTo` to
+  let clicks through). Markers live in the canvas container, so a click on a marker also fires
+  the map's `click`: the studio ignores map clicks whose target is inside `.mapboxgl-marker`
+  or `.mapboxgl-popup`. Popups sit under z-indexed markers unless they get a z-index too
+  (`adminStyles`). Moves made by hand carry `event.originalEvent`, eases started in code do
+  not: that is how the scroll sync tells the organizer's drag from its own follow.
+- 2026-09-26: ElevenLabs from our key: `eleven_v3` renders French with `language_code: 'fr'`
+  (about 1.6 s for a short line) and reads `[excited]`-style tags; older models would read the
+  brackets aloud, hence `textForVoice`. The key has text-to-speech but not `voices_read` or
+  `user_read`: `GET /v2/voices` answers 401 `missing_permissions`, so the studio's voice list is
+  a checked house list plus "paste an id". Some premade voices answer 402 (Rachel, Charlotte)
+  or 404 (Bella) with v3 on this plan; the house list only holds ones that answered 200.
+- 2026-09-26: vitest treats a function returned from `beforeEach` as that test's cleanup.
+  `beforeEach(() => mock.mockReset())` returns the mock, so vitest calls it after the test:
+  with `mockRejectedValue` set, that call is an unhandled rejection that fails the test with
+  the mock's error. Use a block body.
+- 2026-09-26: the auto-mode sandbox reaches api.elevenlabs.io, registry.npmjs.org and
+  api.mapbox.com directly (unlike the deployed run.sivoov.app hosts).
+- 2026-09-26: AI Gateway "sivoov" (account 6bd0…): unauthenticated, caching on (an identical
+  request came back in 131 ms), no Anthropic key stored (Anthropic answers 401 "x-api-key
+  header is required" through it). `CLOUDFLARE_AI_TOKEN` in `.env` is valid for Workers AI
+  (`/workers-ai/v1/chat/completions` through the gateway works) but cannot read gateway config
+  (`/ai-gateway/gateways` answers 10000). Reasoning models (kimi, glm-5.3, gemma-4, deepseek-v4,
+  qwen3.8) returned empty `content` with a 1500-token budget; Llama 3.3 70B fast and Mistral
+  Small 3.1 answer in plain French in 2-4 s. The Anthropic SDK skips auth when built with
+  `apiKey: null` and `defaultHeaders: { 'x-api-key': null }`: that is how it talks to a gateway
+  holding the key.

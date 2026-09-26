@@ -1,13 +1,14 @@
 /**
- * Renders script lines to MP3 with ElevenLabs. Cached by sha256(text + voice + model) in
+ * Renders script lines to MP3 with ElevenLabs. Cached by the same key as the Worker
+ * (`voiceCacheInput`: text as the model reads it, voice, model, stability) in
  * `api/.cache/audio/`, so re-running a build only pays for changed lines. Concurrency 2 (the
  * plan's limit; `ELEVENLABS_CONCURRENCY` overrides), with a short retry on 429.
- * Template lines (with slots) are skipped: they are rendered on device for now (AUDIO.md).
+ * A personal line is rendered as its offline version; the runners' own versions are the Worker's job.
  */
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { renderableLines, ttsCacheInput } from '@sivoov/shared';
+import { renderableLines, ttsRequestBody, voiceCacheInput } from '@sivoov/shared';
 import type { BuiltScript } from './script';
 
 const ROOT_ENV = new URL('../../../.env', import.meta.url).pathname;
@@ -28,12 +29,12 @@ export type Rendered = { key: string; path: string; bytes: number; sha256: strin
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const renderOne = async (apiKey: string, voice: BuiltScript['voice'], text: string, attempt = 0): Promise<string> => {
-  const path = join(CACHE, `${sha256(ttsCacheInput(text, voice.id, voice.model))}.mp3`);
+  const path = join(CACHE, `${sha256(voiceCacheInput(voice, text))}.mp3`);
   if (existsSync(path)) return path;
   const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice.id}?output_format=mp3_44100_128`, {
     method: 'POST',
     headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, model_id: voice.model, voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0.3 } }),
+    body: JSON.stringify(ttsRequestBody(voice, text)),
   });
   if (res.status === 429 && attempt < 5) {
     await sleep(1500 * (attempt + 1));

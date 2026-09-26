@@ -1,16 +1,14 @@
-import { MOMENTS, SPEECH_CHARS_PER_SECOND, buildTrack, formatKm, formatPace } from '@sivoov/shared';
+import { MOMENTS, SPEECH_CHARS_PER_SECOND, buildTrack, formatKm, formatPace, supportsAudioTags } from '@sivoov/shared';
 import type { Course, Race, ScriptLine } from '@sivoov/shared';
 import type { LineStatus, PlacedFiring, StudioPageData } from '../../lib/studio';
 import { CourseDiagram } from '../courseDiagram';
 import { distanceName } from './format';
-import { MOMENT_COPY, PUBLISH_CONFIRM } from './studioCopy';
+import { MAPBOX_GL_CSS, MAPBOX_GL_JS } from './mapboxGl';
+import { CEREMONY_COPY, CLIENT_COPY, MOMENT_COPY, PHASE_COPY, PUBLISH_CONFIRM } from './studioCopy';
 import { StudioLine } from './studioLine';
 import { studioStyles } from './studioStyles';
 import { studioClient } from './studioClient';
 import { Icon, PageHead } from './ui';
-
-const LEAFLET_CSS = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
-const LEAFLET_JS = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
 
 type Props = { race: Race; course: Course; data: StudioPageData };
 
@@ -24,22 +22,46 @@ export const blankLine = (courseId: string): ScriptLine => ({
   once: true,
   trigger: { kind: 'distance', meters: 1000 },
   key: `${courseId}-nouveau`,
-  text: '…',
+  text: '',
 });
 
 const blankStatus = (): LineStatus => ({
   id: '__ID__',
   source: 'voice',
+  personal: null,
+  cue: null,
   hash: '',
-  template: false,
   rendered: false,
   bytes: 0,
+  issues: [],
+  problems: [],
   when: '',
   moment: 'course',
   audioPath: null,
-  label: 'À enregistrer',
+  label: 'Texte à écrire',
   tone: 'warn',
 });
+
+/** How the runner hears these announcements, in four sentences, above the list. */
+const HowItWorks = () => (
+  <details class="disclose st-help">
+    <summary>Comment le coureur entend ces annonces</summary>
+    <ul>
+      <li>
+        <b>La voix</b> lit la même phrase à tous. Elle est enregistrée une fois, publiée, puis téléchargée par l’application avant la course : elle joue sans réseau.
+      </li>
+      <li>
+        <b>Personnalisée</b> : une phrase par coureur, avec ses champs ({'{prenom}'}, {'{temps}'}…) ou écrite par l’IA. {PHASE_COPY.prepare} Les champs de la course ({'{temps}'}, {'{allure}'}) sont dits au moment où ils sont connus, s’il y a du réseau. Sinon, la version hors ligne est jouée.
+      </li>
+      <li>
+        <b>Votre fichier</b> : un MP3, M4A ou WAV joué à la place de la voix (le directeur de course, la foule, une cloche).
+      </li>
+      <li>
+        <b>Le départ</b> : les annonces « Avant le départ » s’enchaînent quand le coureur appuie sur Départ. Les chiffres à l’écran suivent le son du compte à rebours, et le chrono démarre à la première seconde du coup de pistolet.
+      </li>
+    </ul>
+  </details>
+);
 
 /** Left offset on the frise, as a percentage of the official distance. */
 const pct = (meters: number, distanceM: number): string => `${((Math.min(meters, distanceM) / Math.max(1, distanceM)) * 100).toFixed(2)}%`;
@@ -84,11 +106,12 @@ export const OrgStudioPage = ({ race, course, data }: Props) => {
   const lineById = (id: string) => script.lines.find((l) => l.id === id);
   const categoryOf = (id: string) => lineById(id)?.category ?? 'course';
   const base = `/org/${race.slug}/courses/${course.id}`;
-  const toRecord = lines.filter((l) => l.source === 'voice' && !l.rendered).length;
+  const toRecord = lines.filter((l) => l.issues.length === 0 && l.source !== 'upload' && !l.rendered).length;
+  const tags = supportsAudioTags(script.voice.model);
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: studioStyles }} />
-      {withMap ? <link rel="stylesheet" href={LEAFLET_CSS} /> : null}
+      {withMap ? <link rel="stylesheet" href={MAPBOX_GL_CSS} /> : null}
       <div class="st-head">
         <PageHead
           back={{ href: `/org/${race.slug}/courses`, label: 'Parcours et annonces' }}
@@ -157,6 +180,18 @@ export const OrgStudioPage = ({ race, course, data }: Props) => {
           </label>
         </div>
         <div class="studio-list">
+          <div class="st-voice">
+            <span>
+              Voix de la course : <b data-role="voice-label">{data.voiceLabel}</b>
+            </span>
+            {canEdit ? (
+              <button class="btn btn-sm" type="button" data-role="voice-open" aria-expanded="false">
+                Changer de voix
+              </button>
+            ) : null}
+          </div>
+          <section class="voice-panel" data-role="voice-panel" hidden aria-label="Choisir la voix"></section>
+          <HowItWorks />
           <div class="st-tools">
             <button class="btn btn-sm" type="button" data-role="listen-all" disabled={lines.length === 0}>
               <Icon name="play" /> Tout écouter
@@ -175,10 +210,24 @@ export const OrgStudioPage = ({ race, course, data }: Props) => {
                   <h2>{MOMENT_COPY[moment].title}</h2>
                   <span>{MOMENT_COPY[moment].hint}</span>
                 </div>
+                {moment === 'start' ? (
+                  <div class="cer" data-role="ceremony">
+                    <div class="cer-h">
+                      <b>{CEREMONY_COPY.title}</b>
+                      <button class="btn btn-sm" type="button" data-role="ceremony-play">
+                        <Icon name="play" /> {CEREMONY_COPY.listen}
+                      </button>
+                    </div>
+                    <p class="cer-intro">{CEREMONY_COPY.intro}</p>
+                    <ol class="cer-steps" data-role="ceremony-steps"></ol>
+                    <p class="cer-note" data-role="ceremony-note"></p>
+                    <div class="cer-screen" data-role="ceremony-screen" hidden aria-live="polite"></div>
+                  </div>
+                ) : null}
                 <div class="ev-list" data-role="list" data-moment={moment}>
                   {rows.map((status) => {
                     const line = lineById(status.id);
-                    return line ? <StudioLine line={line} status={status} canEdit={canEdit} ttsReady={data.ttsReady} /> : null;
+                    return line ? <StudioLine line={line} status={status} canEdit={canEdit} ttsReady={data.ttsReady} aiReady={data.aiReady} tags={tags} /> : null;
                   })}
                 </div>
                 <p class="ev-none" data-role="none" hidden={rows.length > 0}>
@@ -196,17 +245,20 @@ export const OrgStudioPage = ({ race, course, data }: Props) => {
       </div>
       {canEdit ? (
         <template data-role="line-template">
-          <StudioLine line={blankLine(course.id)} status={blankStatus()} canEdit={canEdit} ttsReady={data.ttsReady} />
+          <StudioLine line={blankLine(course.id)} status={blankStatus()} canEdit={canEdit} ttsReady={data.ttsReady} aiReady={data.aiReady} tags={tags} />
         </template>
       ) : null}
       <script
         type="application/json"
         id="studio-data"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify({ ...data, base, perSecond: SPEECH_CHARS_PER_SECOND, confirmPublish: PUBLISH_CONFIRM }).replaceAll('<', '\\u003c'),
+          __html: JSON.stringify({ ...data, base, perSecond: SPEECH_CHARS_PER_SECOND, confirmPublish: PUBLISH_CONFIRM, copy: CLIENT_COPY }).replaceAll(
+            '<',
+            '\\u003c',
+          ),
         }}
       />
-      {withMap ? <script src={LEAFLET_JS} defer></script> : null}
+      {withMap ? <script src={MAPBOX_GL_JS} defer></script> : null}
       <script defer dangerouslySetInnerHTML={{ __html: studioClient }} />
     </>
   );

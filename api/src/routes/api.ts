@@ -5,6 +5,7 @@ import {
   CodeVerifySchema,
   CourseGeometrySchema,
   EntrantPublicSchema,
+  LiveVoiceRequestSchema,
   RunSchema,
   RunTraceSchema,
   isRanked,
@@ -16,6 +17,9 @@ import { db } from '../db/queries';
 import { requireEntrant } from '../lib/auth';
 import type { AuthVars } from '../lib/auth';
 import { requestCode, verifyCode } from '../lib/authService';
+import { liveVoice, personalDeps, personalVoices, runnerFacts } from '../lib/personal';
+import { loadGeometry } from '../lib/studio';
+import { weatherAt } from '../lib/weather';
 import { prewarmCards } from './results';
 
 export const api = new Hono<AppEnv & { Variables: Partial<AuthVars> }>();
@@ -103,6 +107,43 @@ api.get('/me', async (c) => {
   const q = db(c.env.DB);
   const [race, course, runs] = await Promise.all([q.raceById(entrant.raceId), q.courseFor(entrant.raceId, entrant.distanceKey), q.runsForEntrant(entrant.id)]);
   return c.json({ entrant: EntrantPublicSchema.parse(entrant), race, course, runs });
+});
+
+const VoicesBody = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).partial();
+
+/**
+ * The runner's own versions of the personal lines of their course's latest pack, rendered and
+ * ready to download with it (lib/personal.ts). The app asks from the race home and the
+ * pre-flight, with its position when it has one (only for the weather, rounded, not stored).
+ * An empty `files` is a normal answer: every line then plays its offline version.
+ */
+api.post('/me/voices', async (c) => {
+  const entrant = c.get('entrant')!;
+  const q = db(c.env.DB);
+  const [race, course] = await Promise.all([q.raceById(entrant.raceId), q.courseFor(entrant.raceId, entrant.distanceKey)]);
+  const pack = course ? await q.latestAudioPack(course.id) : null;
+  if (!race || !course || !pack) return c.json({ error: 'not_found' }, 404);
+  const body = VoicesBody.safeParse(await c.req.json().catch(() => ({})));
+  const here = body.success && body.data.lat !== undefined && body.data.lng !== undefined ? { lat: body.data.lat, lng: body.data.lng } : null;
+  const deps = personalDeps(c.env);
+  // The weather only matters to lines the AI writes; the calls are skipped otherwise.
+  const start = deps.llm ? (await loadGeometry(c.env.FILES, course))?.points[0] : undefined;
+  const [runnerWeather, raceWeather] = deps.llm ? await Promise.all([here ? weatherAt(here) : null, start ? weatherAt(start) : null]) : [null, null];
+  const voices = await personalVoices(deps, { entrantId: entrant.id, runner: runnerFacts(entrant), race, course, weather: { runner: runnerWeather, race: raceWeather } }, pack.version);
+  return c.json(voices, 200, { 'Cache-Control': 'private, no-store' });
+});
+
+/** One live personal line (a split time, the finish time) rendered now. 422: a value is missing, play the offline version. */
+api.post('/me/voices/live', async (c) => {
+  const parsed = await parseBody(c, LiveVoiceRequestSchema);
+  if (!parsed.success) return c.json({ error: 'invalid' }, 400);
+  const entrant = c.get('entrant')!;
+  const course = await db(c.env.DB).courseFor(entrant.raceId, entrant.distanceKey);
+  if (!course || course.id !== parsed.data.courseId) return c.json({ error: 'not_found' }, 404);
+  const { version, eventId, facts } = parsed.data;
+  const outcome = await liveVoice(personalDeps(c.env), { entrantId: entrant.id, runner: runnerFacts(entrant) }, course.id, version, eventId, facts);
+  if (!outcome.ok) return c.json({ error: outcome.detail }, outcome.status);
+  return c.json({ url: outcome.url, bytes: outcome.bytes }, 200, { 'Cache-Control': 'private, no-store' });
 });
 
 api.post('/me/signout', async (c) => {

@@ -1,34 +1,44 @@
-import { AUDIO_CONTENT_TYPES, buildScript, manifestFor, packFileKey, packPrefix } from '@sivoov/shared';
+import { AUDIO_CONTENT_TYPES, buildScript, lineIssues, manifestFor, packFileKey, packPrefix, personalDefsFor } from '@sivoov/shared';
 import type { AudioScript, RenderedFile, ScriptLine } from '@sivoov/shared';
 import type { Db } from '../db/queries';
 import type { ScriptDb } from '../db/scriptQueries';
 import { sha256HexBytes } from './crypto';
+import { storeDefs } from './personal';
 import { scriptFingerprint } from './studio';
 import { ttsHash, ttsKey } from './tts';
 import { uploadKey } from './uploads';
 
+/** `fix`: a line has nothing to read or something to correct. `missing`: a line's sound is not there yet. */
 export type PublishOutcome =
   | { ok: true; version: number; files: number; bytes: number }
-  | { ok: false; missing: { id: string; title: string }[] };
+  | { ok: false; reason: 'fix' | 'missing'; missing: { id: string; title: string }[] };
+
+/** The sentence the admin shows when a publish is refused. */
+export const refusalText = (outcome: Extract<PublishOutcome, { ok: false }>): string => {
+  const names = outcome.missing.map((m) => m.title || m.id).join(', ');
+  return outcome.reason === 'fix' ? `Annonces à compléter avant de publier : ${names}.` : `Il manque le son de : ${names}.`;
+};
 
 /** Where a line's sound waits before publishing: the organizer's upload, or the voice cache for its text. */
 const sourceKey = async (script: AudioScript, line: ScriptLine): Promise<string> =>
   line.audio ? uploadKey(line.audio) : ttsKey(await ttsHash(script.voice, line.text));
 
 /**
- * Publishing turns the draft into the pack the app downloads: every line with a sound (the
- * rendered voice from the `tts/` cache, or the organizer's own file from `studio-uploads/`) is
- * copied to `packs/<courseId>/<version>/<key>.<ext>`, the manifest lands beside them and in
- * `audio_packs`, and the draft moves on to the next version, remembering what it published.
- * Packs are immutable per version (the audio route caches them for a year), so nothing
- * published is ever touched. Template lines (slots, no file) stay caption-only in the app.
+ * Publishing turns the draft into the pack the app downloads: every line's sound (the rendered
+ * voice from the `tts/` cache, or the organizer's own file from `studio-uploads/`; for a
+ * personal line, its offline version) is copied to `packs/<courseId>/<version>/<key>.<ext>`,
+ * the manifest lands beside them and in `audio_packs`, the personal lines' definitions go to
+ * `personal-defs/` (private: the runners' own versions are made from them), and the draft moves
+ * on to the next version, remembering what it published. Packs are immutable per version (the
+ * audio route caches them for a year), so nothing published is ever touched.
  */
 export const publishScript = async (deps: { db: Db; scripts: ScriptDb; files: R2Bucket }, script: AudioScript, now: Date = new Date()): Promise<PublishOutcome> => {
   const built = buildScript(script);
-  const withSound = script.lines.filter((l) => l.audio || !l.slots);
-  const found = await Promise.all(withSound.map(async (line) => ({ line, object: await deps.files.get(await sourceKey(script, line)) })));
+  const toFix = built.lines.filter((l) => lineIssues(l).length > 0).map((l) => ({ id: l.id, title: l.title }));
+  if (toFix.length > 0) return { ok: false, reason: 'fix', missing: toFix };
+  const found = await Promise.all(built.lines.map(async (line) => ({ line, object: await deps.files.get(await sourceKey(built, line)) })));
   const missing = found.filter((f) => f.object === null).map((f) => ({ id: f.line.id, title: f.line.title }));
-  if (missing.length > 0) return { ok: false, missing };
+  if (missing.length > 0) return { ok: false, reason: 'missing', missing };
 
   const prefix = packPrefix(script.courseId, script.version);
   const rendered: RenderedFile[] = await Promise.all(
@@ -41,6 +51,8 @@ export const publishScript = async (deps: { db: Db; scripts: ScriptDb; files: R2
   );
 
   const pack = manifestFor(built, rendered);
+  const defs = personalDefsFor(built);
+  if (defs.lines.length > 0) await storeDefs(deps.files, defs);
   await deps.files.put(`${prefix}/manifest.json`, JSON.stringify(pack), { httpMetadata: { contentType: 'application/json' } });
   await deps.db.upsertAudioPack(pack);
   const published = { version: pack.version, at: now.toISOString(), fingerprint: await scriptFingerprint(script) };

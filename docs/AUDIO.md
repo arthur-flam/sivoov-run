@@ -1,147 +1,190 @@
 # Audio
 
 The audio is the product. This document is the contract between content, the pipeline and
-the app. The event model is ported from the previous repo (see HARVEST.md) and simplified.
+the app. `AUDIO_EXPERIENCE.md` is the content brief (what makes race audio good, the Deauville
+rundown); this one says how a sound gets from the organizer's studio into a runner's ears.
+
+## Three kinds of line, one rule
+Every line of a script has a sound that works with no network: the voice reading its text, or
+the organizer's own file. That sound is in the pack, downloaded before the start. On top of it,
+a line can be **personal**: said differently to each runner. The personal version is a bonus,
+never a dependency; whenever it cannot be made (no network, no town on file, no AI key, an AI
+refusal, the voice provider down), the offline version plays.
+
+| In the studio | What the runner hears | Made when | Without network |
+|---|---|---|---|
+| **La voix** | the same sentence for everyone | publishing | plays (in the pack) |
+| **Personnalisée**, fields known before the start (`{prenom}`, `{dossard}`, `{ville}`…) | "Dossard mille deux cent quarante-sept, Camille Martin" | when the app opens the race home or the pre-flight | plays if downloaded, else offline version |
+| **Personnalisée**, written by the AI | a sentence Claude wrote for this runner (name, town, weather there and at the race) | same, before the start | same |
+| **Personnalisée**, fields of the run (`{temps}`, `{km}`, `{allure}`…) | "Kilomètre vingt et un, une heure cinquante-deux" | the moment it plays | offline version |
+| **Votre fichier** | the organizer's MP3/M4A/WAV (the race director, a crowd, a bell) | uploading | plays (in the pack) |
 
 ## Event model (`shared/schemas/audio.ts`)
 ```
 AudioEvent {
-  id: string
-  trigger: { kind: 'cue', at: 'armed' | 'countdown' | 'gun', order: number }   // the start ceremony, before the clock
+  id, title, category: 'ceremony' | 'course' | 'coaching' | 'personal' | 'safety'
+  trigger: { kind: 'cue', at: 'armed' | 'countdown' | 'gun', order }   // the start ceremony, before the clock
          | { kind: 'start' } | { kind: 'finish' }
-         | { kind: 'distance', meters: number }          // along the course
-         | { kind: 'split', everyMeters: 1000 }          // recurring
-         | { kind: 'pace', slowerThan?: secPerKm, fasterThan?: secPerKm, afterMeters: number }
-         | { kind: 'elapsed', seconds: number }
-  source: { kind: 'file', key: string }                  // R2 object in the pack
-        | { kind: 'template', key: string, slots: string[] }   // pre-rendered per slot value or TTS on device
-  mix: 'duck' | 'wait' | 'interrupt'                     // versus music / other events
-  priority: 0..10
-  category: 'ceremony' | 'course' | 'coaching' | 'personal' | 'safety'
-  once: boolean
+         | { kind: 'distance', meters } | { kind: 'split', everyMeters }
+         | { kind: 'pace', slowerThan?, fasterThan?, afterMeters } | { kind: 'elapsed', seconds }
+  source: { kind: 'file', key }                 // the offline sound, always a file in the pack
+  personal?: { phase: 'prepare' | 'live' }      // the runner's own version exists (see below)
+  mix: 'duck' | 'wait' | 'interrupt', priority: 0..10, once
 }
-AudioPack { courseId, version, events: AudioEvent[], files: {key: {url, bytes, sha256}} }
+AudioPack { courseId, version, locale, events, files: { key: { url, bytes, sha256 } } }
 ```
-Triggering is a pure function `nextEvents(state, pack, fired) -> AudioEvent[]` in
-`shared/domain/audioTriggers.ts`, tested with simulated runs. The app only plays what the
-function returns.
+`source.kind: 'template'` still parses (the app's caption-only v0 list uses it) but the studio
+no longer produces it. An app that predates `personal` ignores the field and plays the file.
+Triggering is a pure function `nextEvents(state, pack, fired)` in `shared/domain/audioTriggers.ts`.
 
-**The start ceremony is not triggered by the run, it is sequenced before it.** `cue` events
-never come out of `nextEvents`. `ceremonySequence(pack)` (same file) returns them in play order
-— every `armed` line (the intro, the call to the line, as soon as the runner presses Start),
-then the `countdown`, then the `gun`, by `order` within a moment — with `gunIndex`, the line
-whose first second starts the clock (`lines.length` when there is no gun: the clock starts as
-the last line ends). The run store plays them back to back, shows the countdown digits from
-the countdown file's own remaining time, and calls `startRun(now)` when the gun file starts, so
-« Partez ! » and 00:00 are the same instant. Sync is at file boundaries, never inside a file.
-An app that predates the sequence plays no cue at all: never publish a pack with cues before
-the app update that plays them is live.
-A pack with no cue (every pack published before them) keeps the silent 5 s visual countdown,
-and its `start` / `elapsed: 0` ceremony lines fire at the gun as before. The countdown line is
-written to last one second per number (« Dix. Neuf. … Un. ») and nothing else, since the
-digits on screen follow it; measure the rendered file before publishing.
+**The start ceremony is sequenced, not triggered.** `cue` events never come out of
+`nextEvents`. `ceremonySequence(pack)` returns them in play order (every `armed` line, then the
+`countdown`, then the `gun`, by `order`) with `gunIndex`. The app plays them back to back when
+the runner presses Start, shows the countdown digits from the countdown file's own remaining
+time, and starts the clock when the gun file starts: « Partez ! » and 00:00 are the same
+instant. Sync is at file boundaries, never inside a file. A pack with no cue keeps the silent
+5 s countdown. The countdown line is written one number per second (« Dix. Neuf. … Un. »).
+A personal line can be part of the ceremony (the runner called by bib and name) as long as it
+only uses fields known before the start (`live_before_start` otherwise).
 
-## Layers
-1. **Ceremony** (per race): start ambiance, announcer intro, countdown, gun; finish crowd,
-   announcer with name and time. Produced once, mixed to files.
-2. **Course** (per course): landmarks at distances from the organizer's brief. Script written
-   with Claude from the brief plus the GPX (landmarks are placed by distance along the
-   course), reviewed by a human, read by ElevenLabs (French; English variant), stored as MP3.
-3. **Personal**: templates with slots (`{firstName}`, `{splitTime}`, `{pace}`, `{ghostRank}`).
-   Names are rendered per entrant at pack build time (one short file per entrant, cheap).
-   Numbers use pre-rendered fragments or on-device TTS as fallback, so the run never needs
-   the network.
+## The script (`shared/schemas/audioScript.ts`, `shared/domain/audioScript.ts`)
+One draft per `(course, locale)` in `audio_scripts`; its `version` is what the next publish
+produces. A line is an event plus:
+- `text`: what the voice reads, the same for everyone. For a personal line it is the offline
+  version. May be empty while unwritten (publishing waits). Eleven v3 tags allowed.
+- `personal?: { kind: 'template', template } | { kind: 'ai', prompt }`.
+- `audio?`: the organizer's upload (`{ kind: 'upload', hash, format, bytes, name }`), played
+  instead of the voice.
+- `slots`: legacy. Older drafts had caption-only templates; `upgradeLine` turns them into
+  personal templates whose offline version is still to write (applied when a draft is loaded).
 
-## Where a script lives (`shared/schemas/audioScript.ts`)
-A **script** is the event list plus the French text each line is read with, and the voice that
-reads it. One draft per `(course, locale)` in `audio_scripts`; its `version` is the version the
-next publish will produce. `shared/domain/audioScript.ts` derives the events (`buildScript`,
-`eventFor`) and the pack manifest (`manifestFor`), so the studio and the CLI build the same pack.
+`lineIssues(line)` says what blocks a line: `no_text`, `placeholder_in_text` (braces in the
+text everyone hears), `unknown_placeholder`, `live_before_start`. The studio words them
+(`studioCopy.issueText`); publishing refuses a script with any.
 
-A line may carry `audio: { kind: 'upload', hash, format: 'mp3'|'m4a'|'wav', bytes, name }`: the
-organizer's own sound (the race director's voice, a crowd, a bell), which plays instead of the
-voice. Such a line is always a file event (`<key>.<format>` in the pack), even if it has slots,
-and the TTS never reads it (`renderableLines` leaves it out). The draft also keeps `published:
-{ version, at, fingerprint }`, written by publishing only: the fingerprint is the sha256 of
-`publishedContent(script)` (voice + lines), so the admin can say whether anything changed since.
+**The voice** is `script.voice = { id, name, model, stability? }`, one per script. New scripts
+start on George, `eleven_v3`. The TTS body is `ttsRequestBody(voice, text, locale)` and the
+render cache key `voiceCacheInput(voice, text)`, shared by the Worker and the CLI: the text as
+the model takes it (v3 keeps `[tags]`, older models get them stripped by `textForVoice`), the
+voice id, the model, and the stability when one was chosen (so renders made before voices had
+settings keep their keys).
 
-## Pipeline: the studio is the primary path
-Written for race directors, not engineers: every sentence on these screens comes from
-`api/src/pages/org/studioCopy.ts`, and the JSON answers carry the same words, so the browser only
-paints what the Worker wrote.
+## Placeholders (`shared/domain/placeholders.ts`, `spokenFr.ts`)
+| Field | Known | The runner hears |
+|---|---|---|
+| `{prenom}` `{nom}` | before | as registered |
+| `{dossard}` | before | « mille deux cent quarante-sept » |
+| `{ville}` | before | the town of their address; none on file → offline version |
+| `{epreuve}` | before | « marathon », « semi-marathon », « dix kilomètres » |
+| `{km}` | during | kilometres done: « douze » |
+| `{temps}` | during | « une heure cinquante-deux »; at the finish, « trois heures, quarante-six minutes et dix-neuf secondes » |
+| `{temps_km}` | during | the last kilometre: « cinq minutes vingt-huit » |
+| `{allure}` | during | average pace: « cinq minutes trente au kilomètre » |
+| `{arrivee_prevue}` | during | finish time at this pace |
 
-1. **`/org/{race}/courses`**: one card per distance, three steps in plain words. The trace (GPX
-   → geometry JSON in R2 at `courses/<courseId>/geometry.json`; a measured length more than 3%
-   off the official distance is flagged "Tracé à vérifier"), the announcements (how many, how
-   many still need their voice), the publication (never, since when, or changes not published).
-   One primary button: "Écrire les annonces", "Continuer", or "Publier les changements" (a
-   confirmed form post to `/courses/{id}/publish`). "Ajouter une distance" takes km. "Les lieux
-   du parcours" (`course.landmarks`: name, km, a short line) is a plain list on each card
-   (`POST /courses/{id}/landmarks`, rules in `shared/domain/landmarks.ts`): the public race page
-   lists them and the studio map shows them.
-2. **The studio**, `/org/{race}/courses/{courseId}`: the course on a Leaflet/Mapbox map (or the
-   SVG diagram with `?map=svg`, no token or no network), the distance frise, and the list grouped
-   by moment in running order: "Au départ", "Sur le parcours", "Pendant toute la course" (every
-   km, pace coaching), "À l'arrivée" (`momentOf`, `whenInWords` in `shared/domain/audioEditor.ts`).
-   Each row says when ("Au km 5,2", "Tous les km", "À 1 h 30 de course"), the title, the first
-   words and a status: "Voix prête", "À enregistrer", "Fichier audio", or "À l'écran" (a line with
-   slots: the app shows it as a caption and does not voice it yet). A click on the map proposes
-   an announcement at that distance (projection is authoring-time: the stored trigger is
-   `{kind:'distance', meters}`). A target pace (5:30/km by default) places `elapsed` and `split`
-   triggers through `estimateFirings`. The header (sticky from 900px) holds the summary line and
-   the publish button with what publishing does. Viewers get the same page read-only.
-3. **The editor**, simple first: "Quand" (distance in km with a decimal comma, time in minutes,
-   every N km, pace in min/km: the browser converts to the meters and seconds the schema stores,
-   mirroring `triggerFromEditor`), "Texte lu" with a character count and an estimate at 15
-   characters a second, then Écouter / Enregistrer la voix / Utiliser un fichier audio / Dupliquer
-   / Supprimer. Category, how it meets another announcement, importance, repetition (pace only),
-   slots and file name sit under "Réglages avancés". Every edit autosaves (debounced, one write
-   at a time, a local copy until the Worker has it).
-4. **The voice**: "Enregistrer la voix" per line, or "Enregistrer les voix manquantes": ElevenLabs
-   from the Worker (`api/src/lib/tts.ts`), cached in R2 at `tts/<sha256(text|voiceId|model)>.mp3`,
-   so an unchanged line is never paid for twice. Needs `ELEVENLABS_API_TOKEN` (`wrangler secret
-   put`, `.dev.vars` locally); without it the endpoint answers 503 in French and "Écouter" uses
-   the browser voice.
-5. **Your own file**: "Utiliser un fichier audio" posts one MP3, M4A or WAV (5 MB max, recognised
-   by its bytes, not its name) to `POST .../script/lines/{lineId}/audio`. The Worker stores it at
-   `studio-uploads/<sha256>.<format>` (once per content) and records it on the line; "Écouter"
-   plays it from `.../uploads/<hash>.<format>`; "Revenir à la voix" is `DELETE` on the same path
-   (the file stays stored). Saving the whole script keeps the file, and refuses a hash the Worker
-   never stored. Rendering the voice for such a line is refused (409).
-6. **Publishing** copies each line's sound (the upload, or the cached voice for its text) to
-   `packs/<courseId>/<version>/<key>.<ext>`, writes `manifest.json` beside them and the
-   `audio_packs` row, records `published` on the draft and bumps it to `N+1`. Packs are immutable
-   per version (the audio route caches them for a year), and publishing requires every line with
-   a sound to have one: it names the missing ones. The pack format is unchanged by uploads: the
-   app sees file events and file entries with their sha256, as before.
+Every number is written out in French words before it reaches the voice (`frenchNumber`,
+`spokenClock`, `spokenDuration`): a misread number discredits the whole pack. The old English
+names (`{firstName}`, `{splitTime}`…) are read as aliases. `fillTemplate` returns null when a
+value is missing; that line then plays its offline version, never a sentence with a hole.
+`liveFactsFor(runState)` is what the app sends for a live line, with glitch values left out.
 
-JSON routes, all under `/org/{race}/courses/{courseId}` on the organizer cookie; writes need the
-`edit_audio` right (viewers get 403): `GET|PUT script`, `POST script/render`, `POST|DELETE
-script/lines/{lineId}/audio`, `POST script/project`, `POST script/publish`; reads for anyone on
-the team: `GET audio/{hash}`, `GET uploads/{hash}.{format}` (both `Cache-Control: private`).
+## ElevenLabs v3 tags
+`[excited]`, `[whisper]`, `[laughs]`… before the words they colour; ellipses make pauses. The
+studio offers the ones a race speaker needs (`AUDIO_TAGS`, French labels) as chips, only when
+the script's model is v3. Captions, the browser voice and v2 get the text without them.
 
-**The CLI** (`api/tools/audio/`, the laptop path) still works and shares the schemas:
-`npm run audio:build -w api -- <local|preview|production> [courseId]` runs fixture script →
-ElevenLabs (cached in `api/.cache/audio/`) → R2 + `audio_packs` through wrangler. The Deauville
-fixture lives in `api/src/seed/deauvilleScript.ts` and is seeded as the studio's draft at
-(latest published version + 1), so a re-seed never overwrites what an organizer wrote.
+## The AI (`api/src/lib/llm.ts`, `lib/prompts/`)
+Every LLM call goes through Cloudflare AI Gateway **"sivoov"** (`AI_GATEWAY` var), never to a
+provider directly. The Worker holds one secret, `CLOUDFLARE_AI_TOKEN`, and no provider key:
+- **Claude first** (`claude-opus-5`, low effort, server-side refusal fallbacks) through the
+  Anthropic SDK pointed at the gateway's Anthropic route, with `x-api-key` omitted and
+  `cf-aig-authorization`: the gateway adds the Anthropic key it holds (a provider key stored in
+  the gateway, or Cloudflare's unified billing).
+- **Workers AI as the stand-in** (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`, OpenAI-compatible
+  chat on the same gateway) when the gateway cannot reach Claude: no key stored yet (it answers
+  401 today), an outage. A Claude refusal is not handed to Llama. The studio says who wrote each
+  text (« Écrit par Claude » or the Llama note).
+Two uses, never during the run:
+1. **A personal `ai` line**, written per runner when the app asks for its voices: the
+   organizer's instructions, the offline version as the example of tone and length, when it
+   plays, the race, the runner (name, bib, town) and the weather there and at the race
+   (Open-Meteo, position rounded to about a kilometre, nothing stored). The rules in the system
+   prompt are the craft rules of AUDIO_EXPERIENCE §1. What comes back is cleaned (quotes,
+   braces, runaway length, tags for a non-v3 voice) and kept per runner and pack version for
+   12 hours in `personal-texts/` (rewritten once when a position first arrives).
+2. **« Proposer un texte »** in the studio: a draft of the text everyone hears, from the race,
+   its places and the neighbouring lines. The organizer edits it before recording.
+No token: AI lines play their offline version and the studio says so.
 
-R2 layout: `courses/<courseId>/geometry.json`, `tts/<hash>.mp3` (the render cache, private),
-`studio-uploads/<hash>.<format>` (the organizers' own files, private),
-`packs/<courseId>/<version>/<key>.<ext>` + `manifest.json` (what the app downloads).
-The JSON the app gets from `/api/courses/:id/pack` carries titles and file keys only: script
-text never leaves the organizer session.
+## The studio (`/org/{race}/courses/{courseId}`)
+Written for race directors: every sentence comes from `api/src/pages/org/studioCopy.ts`, and the
+JSON answers carry the same words.
+1. **The courses page** (`/org/{race}/courses`): one card per distance, trace, announcements
+   (to complete, to record), publication; "Les lieux du parcours" per card.
+2. **The map** (Mapbox GL, see ARCHITECTURE.md) with every announcement placed, pinch and wheel
+   zoom, following the list as it scrolls; a click on the course proposes an announcement
+   there (projection is authoring-time: stored as `{kind:'distance', meters}`). The frise
+   below; a target pace places time-based lines.
+3. **The voice**, above the list: « Voix de la course : George · Expressive (Eleven v3) ·
+   Naturelle » and « Changer de voix »: the house voices (ElevenLabs voices checked with our
+   key, `lib/voices.ts`), the account's own voices when the key has `voices_read`, any voice id
+   pasted in, the model (v3 / Multilingual v2), v3's creative/natural/steady setting, and an
+   audition on a sentence with the race's name. Changing it means recording every line again.
+4. **« Comment le coureur entend ces annonces »**: the table above in four sentences.
+5. **Le départ, seconde par seconde**: the cue lines in play order with their durations (the
+   file's own once recorded, an estimate before), which line drives the digits, the line whose
+   first second starts the clock, the total before the clock, and « Écouter le départ », which
+   plays it back beside the runner's screen (« Sur la ligne », the digits, then « Chrono 0:00 »).
+6. **Each line**: Quand (km, minutes, every N km, pace, or « Avant le départ »), then « Ce que
+   le coureur entend »: La voix / Personnalisée (a sentence with fields, or « Écrite par l’IA »)
+   / Votre fichier. Field chips (before / during the run) and tag chips insert at the caret.
+   A personal line shows when it is made, « Écouter un exemple » (Camille Martin, dossard 1247,
+   de Lyon, at km 12, rendered by the real voice) and the offline version. Problems are listed
+   under the text. « Proposer un texte », Écouter, Enregistrer la voix, Dupliquer, Supprimer;
+   category, mix, priority, repetition and file name under « Réglages avancés ». Autosave.
+7. **Publishing** copies each line's sound (upload, or the rendered voice of its text) to
+   `packs/<courseId>/<version>/<key>.<ext>`, writes `manifest.json` and the `audio_packs` row,
+   writes the personal lines' definitions to `personal-defs/<courseId>/<version>.json`
+   (private), records `published` and bumps the draft. Refused while a line has an issue or a
+   missing sound, naming them. Packs are immutable per version.
 
-## Playback rules in the app
-- Background audio session, mixes with the runner's music (duck), never steals focus
-  permanently.
-- The pack downloads from the race home and the pre-flight, so it is on the phone before the
-  start line; the pre-flight says so ("Pack audio prêt · 1,9 Mo"). A run never waits for it.
-- Files play through `playSequence` (`app/src/audio/player.ts`): N files back to back, all or
-  nothing, with a watchdog because expo-audio reports no load error on Android. The event
-  queue plays each event as a sequence of one; the start ceremony is a sequence of its lines.
-- Interruptions (call) pause; events missed during a pause are dropped, not queued, except
-  `finish`.
-- Volume and "less talk" setting: `coaching` and `personal` can be turned down independently
-  of `ceremony` and `course`.
-- Each fired event is logged with distance, time, and position for the run trace.
+Studio JSON routes, under `/org/{race}/courses/{courseId}` on the organizer cookie; writes need
+`edit_audio`: `GET|PUT script`, `POST script/render`, `POST|DELETE script/lines/{id}/audio`,
+`POST script/project`, `POST script/publish`, `GET voices`, `POST voice/sample`,
+`POST script/sample` (a personal line as the sample runner hears it), `POST script/suggest`;
+reads: `GET audio/{hash}`, `GET uploads/{hash}.{format}` (private). Test accounts may not spend
+ElevenLabs credit outside local (`maySpendCredit`).
+
+## What the app gets
+- `GET /api/courses/:id/pack`: the manifest (titles and file keys, never script text) and
+  `GET /api/packs/:course/:version/:key` the files (immutable, a year).
+- `POST /api/me/voices` (bearer, optional `{lat, lng}`): the runner's own versions of the
+  pack's `prepare` lines, rendered now: `{ courseId, version, files: { eventId: { url, bytes,
+  sha256 } } }`. Absent lines play their offline file.
+- `POST /api/me/voices/live` (bearer) `{ courseId, version, eventId, facts }`: one `live` line
+  rendered now, `{ url, bytes }`; 422 when a value is missing, 429 past 150 new renders a day
+  per runner (renders already cached are free).
+- `GET /api/voices/:hash.mp3`: personal renders, public by the hash of what they say.
+
+R2 layout: `courses/<id>/geometry.json`; `tts/<hash>.mp3` (studio renders, private);
+`studio-uploads/<hash>.<format>`; `packs/<course>/<version>/…` (public); `personal-defs/`,
+`personal-texts/`, `voice-quota/` (private); `voices/<hash>.mp3` (runners' renders, by hash).
+
+## Playback rules in the app (`app/src/audio/`)
+- Background audio session, ducks the runner's music, never steals focus permanently.
+- The pack downloads from the race home and the pre-flight (« Pack audio prêt · 1,9 Mo »), then
+  the runner's own lines (`packStore.loadPersonal`), the pre-flight sending its first GPS fix
+  rounded for the weather. A run never waits for either.
+- `soundFor(event)`: the runner's own version of a `prepare` line when it came down, the pack
+  file otherwise. The ceremony uses it too. A `live` line fires, the app asks
+  `/api/me/voices/live` with `liveFactsFor(state)`, waits at most 4 s, and plays the answer or
+  the offline file.
+- Files play through `playSequence` (all or nothing, with a watchdog). Interruptions drop the
+  backlog except `finish`. "Moins de voix" (by category) is not built yet.
+- Each fired event is logged with distance and time for the run trace.
+
+## The CLI (laptop path)
+`npm run audio:build -w api -- <local|preview|production> [courseId]` renders the fixture script
+(`api/src/seed/deauvilleScript.ts`) with the same body and cache key as the Worker, then R2 +
+`audio_packs` through wrangler. The seed is the studio's first draft (insert-only: a re-seed
+never overwrites an organizer's work), and shows each kind of line once.

@@ -353,10 +353,33 @@ export const scenes: Scene[] = [
       await orgSignIn(page);
       await page.goto('/org/deauville-2026/courses/deauville-2026-marathon?map=svg');
       await page.locator('.ev-name').filter({ hasText: /^Les Planches$/ }).click();
-      await expect(page.locator('.ev.open textarea')).toBeVisible();
+      await expect(page.locator('.ev.open textarea[name="text"]')).toBeVisible();
       await expect(page.locator('.ev.open').getByText('Réglages avancés')).toBeVisible();
       // Clicking scrolled the row into view; a full-page picture is taken from the top (sticky header).
       await page.mouse.wheel(0, -10_000);
+      await shoot();
+    },
+  },
+  {
+    id: 'org-studio-personal',
+    title: 'Organizer — a personal line: the runner called by bib and name, its fields, its offline version',
+    go: async (page, shoot) => {
+      await orgSignIn(page);
+      await page.goto('/org/deauville-2026/courses/deauville-2026-marathon?map=svg');
+      await page.locator('.ev-name').filter({ hasText: /^L’appel sur la ligne$/ }).click();
+      await expect(page.locator('.ev.open [data-role="fields"]')).toBeVisible();
+      await page.mouse.wheel(0, -10_000);
+      await shoot();
+    },
+  },
+  {
+    id: 'org-studio-voice',
+    title: 'Organizer — choosing the voice of the course',
+    go: async (page, shoot) => {
+      await orgSignIn(page);
+      await page.goto('/org/deauville-2026/courses/deauville-2026-marathon?map=svg');
+      await page.getByRole('button', { name: 'Changer de voix' }).click();
+      await expect(page.getByRole('heading', { name: 'La voix de la course' })).toBeVisible();
       await shoot();
     },
   },

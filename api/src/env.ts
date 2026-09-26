@@ -11,6 +11,15 @@ export type Bindings = Env & {
    * it the studio still writes, plays back with the browser voice and refuses to render.
    */
   ELEVENLABS_API_TOKEN?: string;
+  /**
+   * Cloudflare API token with Workers AI (and AI Gateway run) rights, for every LLM call: the AI
+   * personal lines and the studio's « Proposer un texte » go through the AI Gateway below, never
+   * to a provider directly (lib/llm.ts). `wrangler secret put CLOUDFLARE_AI_TOKEN`. Optional:
+   * without it those lines play their offline version and the studio says why.
+   */
+  CLOUDFLARE_AI_TOKEN?: string;
+  /** The Cloudflare AI Gateway every LLM call goes through ("sivoov"). A wrangler var. */
+  AI_GATEWAY?: string;
   /** Comma-separated emails of Sivoov staff: every race in /org, and race creation. A wrangler var. */
   STAFF_EMAILS?: string;
   /**

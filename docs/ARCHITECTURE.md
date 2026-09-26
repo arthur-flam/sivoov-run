@@ -20,7 +20,7 @@
 | App | Expo SDK 57, expo-router, React Native StyleSheet, Zustand, zod | current SDK, over-the-air updates via EAS Update |
 | Location | expo-location + expo-task-manager (background) | |
 | Audio | expo-audio with background mode | |
-| Content | Claude (script writing, one-off), ElevenLabs TTS (French), cached MP3 in R2 | pre-produced per race |
+| Content | ElevenLabs TTS (Eleven v3 by default, French), cached MP3 in R2; LLM calls only through Cloudflare AI Gateway "sivoov" (Claude via `@anthropic-ai/sdk` on the gateway's Anthropic route with the key held by the gateway, Workers AI Llama 3.3 on the same gateway as the stand-in) for per-runner personal lines and the studio's suggestions; Open-Meteo (no key) for the weather in those lines | pre-produced per race; personal lines rendered per runner before the start or live, always with an offline version (AUDIO.md) |
 | Maps | Mapbox Static Images, rendered by the Worker at `/api/courses/:id/map.png` (token stays server-side) | one PNG for the web pages and the app, no native map module |
 | Errors | Sentry (app + worker) | crash visibility without a laptop |
 | Builds | EAS Build (cloud), EAS Update (OTA), GitHub Actions | no Mac, no laptop |
@@ -85,8 +85,12 @@ Rows are validated by zod schemas in `shared/schemas/` on the way in and out of 
   The admin has its own shell and component kit (`api/src/pages/org/adminLayout.tsx`, `ui.tsx`,
   `adminStyles.ts`), styled only through `api/src/pages/tokens.ts`.
   `/org/{race}/courses`: courses, GPX upload, and per course the audio **studio**
-  (`/org/{race}/courses/{courseId}`): the course on a Leaflet/Mapbox map with every audio
-  event placed on it, the script editor, voice rendering and publishing. See AUDIO.md.
+  (`/org/{race}/courses/{courseId}`): the course on a map with every audio event placed on it,
+  the script editor, voice rendering and publishing. See AUDIO.md.
+  The admin's two maps (the studio, a run's trace) are Mapbox GL JS loaded from Mapbox's CDN
+  (`pages/org/mapboxGl.ts`, pinned version; Leaflet dropped 2026-09-26): pinch and wheel zoom,
+  north up, the studio's map follows the announcement list as it scrolls, and `?map=svg` or no
+  WebGL falls back to the server-drawn SVG.
 - `/api/...`: JSON for the app. Auth by bearer session token.
 
 ## App surfaces (Expo)

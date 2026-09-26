@@ -31,7 +31,8 @@ type RunStore = {
   /** Sets the run up. A no-op once the countdown has begun: a late pack never wipes a run. */
   prepare: (course: Course, track: CourseTrack, pack: AudioPack) => void;
   /**
-   * The start ceremony when the pack has one and every file of it resolves through `uriFor`,
+   * The start ceremony when the pack has one and every line of it has a sound (`soundFor`, or
+   * the pack file by key through `uriFor`),
    * the silent visual countdown otherwise; then the gun. Simulation always takes the short
    * visual countdown, so accelerated runs stay fast.
    */
@@ -40,7 +41,7 @@ type RunStore = {
   reset: () => void;
 };
 
-type StartOptions = { uriFor?: (key: string) => string | null; countdownSeconds?: number };
+type StartOptions = { uriFor?: (key: string) => string | null; soundFor?: (event: AudioEvent) => string | null; countdownSeconds?: number };
 
 const SIM_COUNTDOWN_MS = 1000;
 
@@ -111,12 +112,13 @@ export const useRun = create<RunStore>((set, get) => {
       set({ course, track, pack, state: idleRun(course.distanceM), phase: 'idle', samples: [], fired: [], nowPlaying: null, cue: null });
     },
 
-    async start(source, { uriFor = () => null, countdownSeconds = 5 } = {}) {
+    async start(source, { uriFor = () => null, soundFor, countdownSeconds = 5 } = {}) {
       const { course, pack } = get();
       if (!course) throw new Error('prepare() first');
       const mine = ++generation;
       const current = () => generation === mine;
-      const plan = source.kind === 'simulation' ? null : ceremonyPlan(pack, uriFor);
+      const resolve = soundFor ?? ((event: AudioEvent) => (event.source.kind === 'file' ? uriFor(event.source.key) : null));
+      const plan = source.kind === 'simulation' ? null : ceremonyPlan(pack, resolve);
       set({ source, phase: 'countdown', countdown: countdownSeconds, cue: plan ? 'armed' : null, startError: null });
       // The clock starts when the gun file starts playing, not when a timer ends.
       const gunAt = plan ? await playPlan(plan, source) : null;

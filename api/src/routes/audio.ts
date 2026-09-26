@@ -41,3 +41,24 @@ audio.get('/packs/:courseId/:version/:key', async (c) => {
     },
   });
 });
+
+/**
+ * A runner's personal line (lib/personal.ts), by the hash of what it says. Public like the pack:
+ * the name is the sha256 of the sentence and the voice, so it cannot be listed or guessed
+ * without knowing the sentence. Immutable.
+ */
+audio.get('/voices/:file', async (c) => {
+  const file = c.req.param('file');
+  if (!/^[0-9a-f]{64}\.mp3$/.test(file)) return c.json({ error: 'invalid' }, 400);
+  const object = await c.env.FILES.get(`voices/${file}`);
+  if (!object) return c.json({ error: 'not_found' }, 404);
+  return new Response(object.body, {
+    headers: {
+      'Content-Type': 'audio/mpeg',
+      'Content-Length': String(object.size),
+      ETag: object.httpEtag,
+      'Cache-Control': 'public, max-age=31536000, immutable',
+      'Accept-Ranges': 'bytes',
+    },
+  });
+});

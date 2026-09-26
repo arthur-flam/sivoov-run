@@ -1,4 +1,4 @@
-import type { AudioCategory, AudioTrigger, Moment } from '@sivoov/shared';
+import type { AudioCategory, AudioTrigger, LineIssue, Moment, PlaceholderPhase } from '@sivoov/shared';
 import { plural } from './format';
 import type { Tone } from './ui';
 
@@ -38,8 +38,45 @@ export const ADVANCED_HINTS = {
   mix: 'La musique du coureur baisse toujours pendant une annonce. Couper est fait pour le départ et l’arrivée.',
   priority: 'Quand deux annonces tombent au même moment, la plus importante passe d’abord.',
   repeat: 'Sinon, le conseil n’est donné qu’une fois dans la course.',
-  slots: 'Des mots entre accolades, comme {km}, remplacés pour chaque coureur. Une annonce qui en contient s’affiche sur l’écran du coureur, sans voix pour l’instant.',
   key: 'Le nom du son dans l’application. Deux annonces ne peuvent pas porter le même.',
+};
+
+/** The three answers to "what does the runner hear?", in the order the editor offers them. */
+export const SOUND_OPTIONS = [
+  { key: 'voice', label: 'La voix', hint: 'La même phrase pour tous, lue par la voix de la course.' },
+  { key: 'personal', label: 'Personnalisée', hint: 'Une phrase différente pour chaque coureur, avec une version hors ligne.' },
+  { key: 'file', label: 'Votre fichier', hint: 'Votre enregistrement : le directeur de course, la foule, une cloche.' },
+] as const;
+
+export const PERSONAL_OPTIONS = [
+  { key: 'template', label: 'Une phrase avec des champs', hint: 'Vous écrivez la phrase, les champs entre accolades sont remplis pour chaque coureur.' },
+  { key: 'ai', label: 'Écrite par l’IA', hint: 'Vous donnez la consigne, l’IA écrit une phrase pour chaque coureur avant son départ.' },
+] as const;
+
+/** When a personal line is made, and what happens without a network. */
+export const PHASE_COPY: Record<PlaceholderPhase | 'ai', string> = {
+  prepare: 'Préparée pour chaque coureur avant son départ et téléchargée avec les annonces : elle joue même sans réseau.',
+  live: 'Dite au moment où elle joue, si le téléphone a du réseau. Sinon, la version hors ligne est jouée.',
+  ai: 'L’IA écrit la phrase de chaque coureur quand il prépare sa course (prénom, ville, météo chez lui et à la course). Sans réseau ou sans réponse, la version hors ligne est jouée.',
+};
+
+export const FALLBACK_HINT = 'Jouée pour tous quand la version personnalisée n’est pas disponible : pas de réseau, pas de ville connue.';
+export const AI_PROMPT_PLACEHOLDER = 'Accueillez le coureur par son prénom et dites-lui le temps qu’il fait chez lui et à la course. Deux phrases, ton de speaker.';
+export const TEMPLATE_PLACEHOLDER = 'Dossard {dossard}, {prenom} {nom} : vous êtes attendu sur la ligne.';
+
+/** What stops a line from going out, as the editor says it under the text. */
+export const issueText = (issue: LineIssue, personal: boolean): string => {
+  const names = 'names' in issue ? issue.names.map((n) => `{${n}}`).join(', ') : '';
+  switch (issue.code) {
+    case 'no_text':
+      return personal ? 'Écrivez la version hors ligne : elle est jouée quand la version personnalisée ne peut pas l’être.' : 'Écrivez le texte lu.';
+    case 'placeholder_in_text':
+      return `${names} dans le texte lu : la voix le lirait tel quel. Les champs vont dans la version personnalisée.`;
+    case 'unknown_placeholder':
+      return `${names} n’existe pas. Choisissez un champ dans la liste.`;
+    case 'live_before_start':
+      return `${names} n’est connu que pendant la course : pas avant le départ.`;
+  }
 };
 
 /** 0 to 10, with words on the three values a race director needs. */
@@ -48,27 +85,32 @@ export const PRIORITY_OPTIONS: { value: number; label: string }[] = Array.from({
   label: value === 10 ? '10, la plus haute' : value === 5 ? '5, normale' : value === 0 ? '0, la plus basse' : String(value),
 }));
 
-/** Where a line's sound comes from: the rendered voice, the organizer's file, or the screen only (slots). */
-export type LineSource = 'voice' | 'upload' | 'template';
+/** Where a line's sound comes from: the voice, the organizer's file, or the voice said to each runner (with its offline version). */
+export type LineSource = 'voice' | 'upload' | 'personal';
 
-export const lineStatusView = (source: LineSource, ready: boolean): { label: string; tone: Tone } => {
-  if (source === 'template') return { label: 'À l’écran', tone: 'neutral' };
-  if (source === 'upload') return ready ? { label: 'Fichier audio', tone: 'info' } : { label: 'Fichier introuvable', tone: 'bad' };
-  return ready ? { label: 'Voix prête', tone: 'good' } : { label: 'À enregistrer', tone: 'warn' };
+/** The badge on a line: what it still needs, most urgent first. */
+export const lineStatusView = (source: LineSource, state: { ready: boolean; toWrite: boolean; toFix: boolean }): { label: string; tone: Tone } => {
+  if (state.toFix) return { label: 'À corriger', tone: 'bad' };
+  if (source === 'upload') return state.ready ? { label: 'Fichier audio', tone: 'info' } : { label: 'Fichier introuvable', tone: 'bad' };
+  if (state.toWrite) return { label: source === 'personal' ? 'Version hors ligne à écrire' : 'Texte à écrire', tone: 'warn' };
+  if (!state.ready) return { label: 'À enregistrer', tone: 'warn' };
+  return source === 'personal' ? { label: 'Personnalisée', tone: 'info' } : { label: 'Voix prête', tone: 'good' };
 };
 
 /** "12 sept." in the race's timezone. */
 export const dayFr = (iso: string, timeZone = 'Europe/Paris'): string =>
   new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', timeZone }).format(new Date(iso));
 
-export type PublishState = 'empty' | 'missing' | 'ready' | 'current';
+export type PublishState = 'empty' | 'fix' | 'missing' | 'ready' | 'current';
 
 export type AudioSummary = {
   lines: number;
-  /** Voice lines whose current text has no rendered voice yet (and uploads whose file is gone). */
+  /** Lines with text whose voice is not rendered yet (and uploads whose file is gone). */
   toRecord: number;
+  /** Lines with nothing to read yet, or something to correct: publishing waits for them. */
+  toFix: number;
   uploads: number;
-  onScreen: number;
+  personal: number;
   lastPublished: { version: number; at: string } | null;
   /** The draft differs from what runners have. */
   changed: boolean;
@@ -81,6 +123,8 @@ export const summaryText = (s: AudioSummary, timeZone?: string): string =>
     ? 'Pas encore d’annonce'
     : [
         plural(s.lines, 'annonce', 'annonces'),
+        s.personal > 0 ? `${s.personal} personnalisée${s.personal > 1 ? 's' : ''}` : null,
+        s.toFix > 0 ? `${s.toFix} à compléter` : null,
         s.toRecord > 0 ? `${s.toRecord} à enregistrer` : null,
         s.lastPublished ? `dernière publication le ${dayFr(s.lastPublished.at, timeZone)}` : 'pas encore publiées',
       ]
@@ -92,6 +136,13 @@ export const publishView = (s: AudioSummary, timeZone?: string): { label: string
   switch (s.publish) {
     case 'empty':
       return { label: 'Publier', note: 'Ajoutez une annonce pour pouvoir publier.', enabled: false, tone: 'neutral' };
+    case 'fix':
+      return {
+        label: 'Publier',
+        note: `${s.toFix === 1 ? 'Une annonce est à compléter' : `${s.toFix} annonces sont à compléter`} avant de publier.`,
+        enabled: false,
+        tone: 'warn',
+      };
     case 'missing':
       return {
         label: 'Publier',
@@ -118,6 +169,19 @@ export const publishView = (s: AudioSummary, timeZone?: string): { label: string
 
 export const PUBLISH_CONFIRM = 'Publier ces annonces ? Les coureurs les reçoivent la prochaine fois qu’ils ouvrent l’application.';
 
+/** The start ceremony, explained where it is edited. */
+export const CEREMONY_COPY = {
+  title: 'Le départ, seconde par seconde',
+  intro: 'Quand le coureur appuie sur « Départ », ces sons s’enchaînent sans pause, dans cet ordre.',
+  countdown: 'Les chiffres à l’écran suivent ce son : écrivez un chiffre par seconde (« Dix. Neuf. … Un. »).',
+  gun: 'Le chrono démarre à la première seconde de ce son.',
+  noGun: 'Pas de coup de pistolet : le chrono démarre à la fin de la dernière annonce du départ.',
+  noCountdown: 'Pas de compte à rebours : l’écran n’affiche pas de chiffres avant le départ.',
+  none: 'Pas encore de cérémonie : le coureur voit un compte à rebours silencieux de cinq secondes. Pour la créer, choisissez « Avant le départ (cérémonie) » dans « Quand ».',
+  listen: 'Écouter le départ',
+  before: 'avant le chrono',
+} as const;
+
 /** "142 caractères · environ 9 s" under the text. */
 export const textMeasure = (length: number, seconds: number): string => `${plural(length, 'caractère', 'caractères')} · environ ${seconds} s`;
 
@@ -126,3 +190,18 @@ export const UPLOAD_ERRORS = {
   too_big: 'Le fichier dépasse 5 Mo. Envoyez un MP3 plus court ou plus compressé.',
   not_audio: 'Ce fichier n’est pas un son MP3, M4A ou WAV.',
 } as const;
+
+/** The sentences the studio's browser script paints itself (it never writes its own copy). */
+export const CLIENT_COPY = {
+  sound: SOUND_OPTIONS,
+  fallbackHint: FALLBACK_HINT,
+  voiceHint: 'écrivez comme vous parlez',
+  phase: PHASE_COPY,
+  ceremony: CEREMONY_COPY,
+} as const;
+
+/** Who wrote an AI text, said to the organizer: Claude, or the stand-in while the gateway has no Anthropic key. */
+export const WRITER_NOTE: Record<'claude' | 'workers-ai', string> = {
+  claude: 'Écrit par Claude.',
+  'workers-ai': 'Écrit par Llama 3.3 (Workers AI) : Claude n’est pas encore branché sur la passerelle IA.',
+};

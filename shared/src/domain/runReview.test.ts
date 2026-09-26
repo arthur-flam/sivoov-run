@@ -5,21 +5,44 @@ import { buildTrack, positionAtDistance } from './course';
 import { haversineM } from './geo';
 import { constantPace, simulateRun } from './simulate';
 import { applySample, idleRun, startRun } from './tracker';
+import { isRanked } from './raceWindow';
 import { fixTally, heardRows, kmMarks, lastStretch, readableEventId, runVerdict, splitRows } from './runReview';
 
 const split = (km: number, splitMs: number, elapsedMs: number) => SplitSchema.parse({ km, splitMs, elapsedMs });
 
 describe('runVerdict', () => {
-  it('counts a real run that reached the finish, sent by the app or as a file', () => {
-    expect(runVerdict({ status: 'finished', source: 'app' }, false)).toBe('counts');
-    expect(runVerdict({ status: 'uploaded', source: 'upload' }, false)).toBe('counts');
+  // Deauville 2026: the window is the week of the race, Paris time.
+  const race = { windowStart: '2026-11-09T00:00:00+01:00', windowEnd: '2026-11-15T23:59:59+01:00' };
+  const own = { window: race, ownDistance: true };
+  const inWindow = '2026-11-12T09:00:00+01:00';
+  it('counts a real run that reached the finish inside the window, sent by the app or as a file', () => {
+    expect(runVerdict({ status: 'finished', source: 'app', startedAt: inWindow }, false, own)).toBe('counts');
+    expect(runVerdict({ status: 'uploaded', source: 'upload', startedAt: inWindow }, false, own)).toBe('counts');
   });
   it('says why anything else does not count, the organizer’s decision first', () => {
-    expect(runVerdict({ status: 'finished', source: 'app' }, true)).toBe('excluded');
-    expect(runVerdict({ status: 'abandoned', source: 'simulation' }, false)).toBe('simulated');
-    expect(runVerdict({ status: 'abandoned', source: 'app' }, false)).toBe('stopped');
-    expect(runVerdict({ status: 'running', source: 'app' }, false)).toBe('running');
-    expect(runVerdict({ status: 'planned', source: 'app' }, false)).toBe('planned');
+    expect(runVerdict({ status: 'finished', source: 'app', startedAt: inWindow }, true, own)).toBe('excluded');
+    expect(runVerdict({ status: 'abandoned', source: 'simulation', startedAt: inWindow }, false, own)).toBe('simulated');
+    expect(runVerdict({ status: 'abandoned', source: 'app', startedAt: inWindow }, false, own)).toBe('stopped');
+    expect(runVerdict({ status: 'running', source: 'app', startedAt: inWindow }, false, own)).toBe('running');
+    expect(runVerdict({ status: 'planned', source: 'app' }, false, own)).toBe('planned');
+  });
+  it('calls a finish before the window a rehearsal and one after it too late, whatever the distance', () => {
+    expect(runVerdict({ status: 'finished', source: 'app', startedAt: '2026-10-18T09:00:00+02:00' }, false, own)).toBe('rehearsal');
+    expect(runVerdict({ status: 'uploaded', source: 'upload', startedAt: '2026-11-20T09:00:00+01:00' }, false, own)).toBe('closed');
+    expect(runVerdict({ status: 'finished', source: 'app', startedAt: '2026-10-18T09:00:00+02:00' }, false, { ...own, ownDistance: false })).toBe('rehearsal');
+    expect(runVerdict({ status: 'finished', source: 'app' }, false, own)).toBe('rehearsal');
+  });
+  it('never counts a finish on another distance than the runner’s own, as the results do not', () => {
+    const run = { status: 'finished', source: 'app', startedAt: inWindow } as const;
+    expect(runVerdict(run, false, { ...own, ownDistance: false })).toBe('other_distance');
+    expect(isRanked(race, run)).toBe(true); // the window alone would rank it: the distance is what stops it
+  });
+  it('agrees with isRanked on the window, to the second', () => {
+    const edges = [race.windowStart, race.windowEnd].flatMap((iso) => [-1000, 0, 1000].map((d) => new Date(Date.parse(iso) + d).toISOString()));
+    edges.forEach((startedAt) => {
+      const run = { status: 'finished', source: 'app', startedAt } as const;
+      expect(runVerdict(run, false, own) === 'counts').toBe(isRanked(race, run));
+    });
   });
 });
 

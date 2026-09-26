@@ -26,8 +26,12 @@ export const entrantsCsv = (rows: RunnerRow[]): string =>
     ]),
   ]);
 
-const statusLabel = (status: string | null): string =>
-  status === null ? 'Pas encore couru' : runStatusView({ status, source: status === 'simulation' ? 'simulation' : 'app', excluded: status === 'excluded' }).label;
+/** The file's status as `resultRows` folds it: set aside, a test and a finish that does not rank are words of their own. */
+const statusLabel = (status: string | null): string => {
+  if (status === null) return 'Pas encore couru';
+  const ranked = status !== 'not_ranked';
+  return runStatusView({ status: ranked ? status : 'finished', source: status === 'simulation' ? 'simulation' : 'app', excluded: status === 'excluded', ranked }).label;
+};
 
 /** Only a finish has an arrival time; a run that stopped early keeps it to itself. */
 const FINISHED = ['finished', 'uploaded'];

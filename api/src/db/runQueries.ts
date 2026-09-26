@@ -9,7 +9,7 @@ import { courseFromRow, entrantFromRow, runFromRow } from './rows';
  * runs the same way the status badge reads them: set aside first, then simulated, then by status.
  */
 
-export const RUN_FILTERS = ['all', 'finished', 'not_finished', 'running', 'excluded', 'simulated'] as const;
+export const RUN_FILTERS = ['all', 'finished', 'not_ranked', 'not_finished', 'running', 'excluded', 'simulated'] as const;
 export const RunFilterSchema = z.enum(RUN_FILTERS).catch('all');
 export type RunFilter = z.infer<typeof RunFilterSchema>;
 
@@ -17,6 +17,7 @@ const REAL = "r.excluded_at IS NULL AND r.source != 'simulation'";
 const FILTER_SQL: Record<RunFilter, string> = {
   all: '1 = 1',
   finished: `${COUNTS_AS_FINISH} AND r.source != 'simulation'`,
+  not_ranked: `${REAL} AND r.status IN ('finished', 'uploaded') AND NOT ${COUNTS_AS_FINISH}`,
   not_finished: `${REAL} AND r.status NOT IN ('finished', 'uploaded', 'running')`,
   running: `${REAL} AND r.status = 'running'`,
   excluded: 'r.excluded_at IS NOT NULL',
@@ -41,10 +42,12 @@ const RunListRowSchema = z.object({
   last_name: z.string(),
   distance_key: z.string(),
   course_distance_m: z.number(),
+  ranked: z.number(),
 });
 
 export type RunListItem = {
-  id: string; status: RunStatus; source: RunSource; elapsedMs: number; distanceM: number; at: string; excluded: boolean;
+  /** `ranked`: listed under "Arrivés", the time the results show. */
+  id: string; status: RunStatus; source: RunSource; elapsedMs: number; distanceM: number; at: string; excluded: boolean; ranked: boolean;
   platform: string | null; bib: string; firstName: string; lastName: string; distanceKey: string; courseDistanceM: number;
 };
 
@@ -115,7 +118,8 @@ export const runDb = (d1: D1Database) => ({
       d1
         .prepare(
           `SELECT r.id, r.status, r.source, r.elapsed_ms, r.distance_m, r.excluded_at, json_extract(r.device, '$.platform') AS platform,
-                  COALESCE(r.finished_at, r.started_at, r.created_at) AS at, e.bib, e.first_name, e.last_name, c.distance_key, c.distance_m AS course_distance_m
+                  COALESCE(r.finished_at, r.started_at, r.created_at) AS at, e.bib, e.first_name, e.last_name, c.distance_key, c.distance_m AS course_distance_m,
+                  (${FILTER_SQL.finished}) AS ranked
            ${FROM} WHERE ${listed.sql} ORDER BY at DESC, r.id DESC LIMIT ? OFFSET ?`,
         )
         .bind(...listed.params, RUNS_PER_PAGE + 1, offset)
@@ -132,7 +136,7 @@ export const runDb = (d1: D1Database) => ({
     const items = rows.results.slice(0, RUNS_PER_PAGE).map((raw) => {
       const r = RunListRowSchema.parse(raw);
       return {
-        id: r.id, status: r.status, source: r.source, elapsedMs: r.elapsed_ms, distanceM: r.distance_m, at: r.at, excluded: r.excluded_at !== null,
+        id: r.id, status: r.status, source: r.source, elapsedMs: r.elapsed_ms, distanceM: r.distance_m, at: r.at, excluded: r.excluded_at !== null, ranked: r.ranked === 1,
         platform: r.platform, bib: r.bib, firstName: r.first_name, lastName: r.last_name, distanceKey: r.distance_key, courseDistanceM: r.course_distance_m,
       };
     });

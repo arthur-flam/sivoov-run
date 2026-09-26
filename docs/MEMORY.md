@@ -362,3 +362,11 @@
   - The pack store's retry keeps the pack and files it already has: `me` refreshes while a
     run is on screen (a flushed upload triggers it), and a reload that emptied the store then
     silenced the rest of the run. `usePackDownload` is keyed on the course id for the same reason.
+- 2026-09-26: the reverse of the `.dev.vars` trap: on a laptop whose `api/.dev.vars` sets
+  `MAPBOX_TOKEN`, two workerd tests fail that pass in CI (`api.test.ts` "renders the landing…"
+  expects the SVG diagram, `results.test.ts` "answers 404 for the PNG…" expects no map). The
+  pool loads `.dev.vars` ("Using secrets defined in .dev.vars"), so a test that needs a binding
+  *absent* has to blank it in `miniflare.bindings` too. Not fixed yet; a red run there is not yours.
+- 2026-09-26: the stored run status says `finished` for a rehearsal too. Anything that shows
+  whether a run counts must go through `rankedRun` (SQL) or `runVerdict`/`isRanked` (shared),
+  never `status` alone: the admin badge did, and read "Arrivé" for runs the export excluded.

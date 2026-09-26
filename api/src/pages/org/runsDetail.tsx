@@ -30,10 +30,15 @@ export const OrgRunPage = ({ race, access, detail, trace, traceUnreadable, title
   const { run, entrant, course, exclusion } = detail;
   const base = `/org/${race.slug}`;
   const href = `${base}/runs/${encodeURIComponent(run.id)}`;
-  const verdict = runVerdict(run, exclusion !== null);
+  const judged = { window: race, ownDistance: course.distanceKey === entrant.distanceKey };
+  const verdict = runVerdict(run, exclusion !== null, judged);
   const counts = verdict === 'counts';
-  const status = runStatusView({ status: run.status, source: run.source, excluded: exclusion !== null });
-  const why = verdictSentence({ verdict, distanceM: run.distanceM, courseDistanceM: course.distanceM, exclusion, timezone: race.timezone });
+  /** Whether the results would show it, the organizer's own decision left aside. */
+  const countsIfRestored = runVerdict(run, false, judged) === 'counts';
+  const status = runStatusView({ status: run.status, source: run.source, excluded: exclusion !== null, ranked: countsIfRestored });
+  const why = verdictSentence({
+    verdict, distanceM: run.distanceM, courseDistanceM: course.distanceM, exclusion, race, distanceKey: course.distanceKey, entrantDistanceKey: entrant.distanceKey,
+  });
   const samples = trace?.samples ?? [];
   const startMs = run.startedAt ? new Date(run.startedAt).getTime() : (samples[0]?.timestamp ?? 0);
   const marks: KmMark[] = kmMarks(samples, run.splits, startMs).map((m) => ({ ...m, elapsedMs: run.splits.find((s) => s.km === m.km)?.elapsedMs ?? null }));
@@ -117,7 +122,7 @@ export const OrgRunPage = ({ race, access, detail, trace, traceUnreadable, title
           <HeardCard rows={heard} hasTrace={trace !== null} />
         </div>
         <div>
-          {reviewable ? <ReviewCard action={href} verdict={verdict} exclusion={exclusion} countsIfRestored={runVerdict(run, false) === 'counts'} timezone={race.timezone} form={form} /> : null}
+          {reviewable ? <ReviewCard action={href} verdict={verdict} exclusion={exclusion} countsIfRestored={countsIfRestored} timezone={race.timezone} form={form} /> : null}
           <PhoneCard run={run} />
           <DownloadsCard href={href} gpx={samples.length > 0} raw={trace !== null || traceUnreadable} />
           <TechCard run={run} receivedAt={detail.receivedAt} trace={trace} traceUnreadable={traceUnreadable} timezone={race.timezone} />

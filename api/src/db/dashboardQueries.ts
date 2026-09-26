@@ -7,7 +7,7 @@ import { rankedRun } from './ranked';
 export type Funnel = { entrants: number; signedIn: number; onApp: number; started: number; finished: number };
 export type DistanceCount = { courseId: string; distanceKey: string; entrants: number; finished: number; hasTrace: boolean; published: boolean };
 export type RecentRun = {
-  id: string; status: string; source: string; elapsedMs: number; distanceM: number; at: string; excluded: boolean;
+  id: string; status: string; source: string; elapsedMs: number; distanceM: number; at: string; excluded: boolean; ranked: boolean;
   bib: string; firstName: string; lastName: string; distanceKey: string;
 };
 export type Setup = { members: number };
@@ -56,15 +56,15 @@ export const dashboardDb = (d1: D1Database) => ({
   async recentRuns(raceId: string, limit = 8): Promise<RecentRun[]> {
     const { results } = await d1
       .prepare(
-        `SELECT r.id, r.status, r.source, r.elapsed_ms, r.distance_m, r.excluded_at,
+        `SELECT r.id, r.status, r.source, r.elapsed_ms, r.distance_m, r.excluded_at, ${COUNTS_AS_FINISH} AS ranked,
                 COALESCE(r.finished_at, r.started_at, r.created_at) AS at, e.bib, e.first_name, e.last_name, c.distance_key
          FROM runs r JOIN entrants e ON e.id = r.entrant_id JOIN courses c ON c.id = r.course_id
          WHERE e.race_id = ? ORDER BY at DESC LIMIT ?`,
       )
       .bind(raceId, limit)
-      .all<{ id: string; status: string; source: string; elapsed_ms: number; distance_m: number; excluded_at: string | null; at: string; bib: string; first_name: string; last_name: string; distance_key: string }>();
+      .all<{ id: string; status: string; source: string; elapsed_ms: number; distance_m: number; excluded_at: string | null; ranked: number; at: string; bib: string; first_name: string; last_name: string; distance_key: string }>();
     return results.map((r) => ({
-      id: r.id, status: r.status, source: r.source, elapsedMs: r.elapsed_ms, distanceM: r.distance_m, at: r.at, excluded: r.excluded_at !== null,
+      id: r.id, status: r.status, source: r.source, elapsedMs: r.elapsed_ms, distanceM: r.distance_m, at: r.at, excluded: r.excluded_at !== null, ranked: r.ranked === 1,
       bib: r.bib, firstName: r.first_name, lastName: r.last_name, distanceKey: r.distance_key,
     }));
   },

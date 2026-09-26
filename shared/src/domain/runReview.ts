@@ -1,7 +1,9 @@
 import type { LatLng } from '../schemas/course';
 import type { RunDiagnostics } from '../schemas/diagnostics';
+import type { Race } from '../schemas/race';
 import type { LocationSample, Run, RunTrace, Split } from '../schemas/run';
 import { haversineM, interpolate } from './geo';
+import { windowPhase } from './raceWindow';
 
 /**
  * What the organizer needs to review one run: does it count and why not, how each kilometre
@@ -9,12 +11,26 @@ import { haversineM, interpolate } from './geo';
  */
 
 /** Why a run does or does not count in the results. Same precedence as the admin's status badge. */
-export type RunVerdict = 'counts' | 'excluded' | 'simulated' | 'stopped' | 'running' | 'planned';
+export type RunVerdict = 'counts' | 'excluded' | 'simulated' | 'rehearsal' | 'closed' | 'other_distance' | 'stopped' | 'running' | 'planned';
 
-export const runVerdict = (run: Pick<Run, 'status' | 'source'>, excluded: boolean): RunVerdict => {
+/** What judging a finish needs besides the run: the race window, and whether it was run on the entrant's own distance. */
+export type VerdictContext = { window: Pick<Race, 'windowStart' | 'windowEnd'>; ownDistance: boolean };
+
+/**
+ * The rule of `isRanked` and of its SQL twin `rankedRun`, with the reason spelled out: a finish
+ * started before the window is a rehearsal, one started after it came too late, and one on
+ * another distance than the entrant's (after a re-import) never ranks. A finish with no start
+ * time, which the app never sends, cannot be placed in the window and reads as a rehearsal.
+ */
+export const runVerdict = (run: Pick<Run, 'status' | 'source' | 'startedAt'>, excluded: boolean, { window, ownDistance }: VerdictContext): RunVerdict => {
   if (excluded) return 'excluded';
   if (run.source === 'simulation') return 'simulated';
-  if (run.status === 'finished' || run.status === 'uploaded') return 'counts';
+  if (run.status === 'finished' || run.status === 'uploaded') {
+    const phase = run.startedAt === undefined ? 'before' : windowPhase(window, Date.parse(run.startedAt));
+    if (phase === 'before') return 'rehearsal';
+    if (phase === 'after') return 'closed';
+    return ownDistance ? 'counts' : 'other_distance';
+  }
   if (run.status === 'running') return 'running';
   if (run.status === 'planned') return 'planned';
   return 'stopped';

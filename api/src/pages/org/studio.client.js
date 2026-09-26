@@ -1,7 +1,7 @@
 /*
  * The studio's browser half: no framework, no build step. It reads the page's JSON island,
- * draws the announcements on a Leaflet map (or leaves the server-rendered SVG fallback in
- * place), keeps the editor in sync, and talks to the organizer JSON endpoints. Every position,
+ * draws the announcements on the map (studioMap.client.js, or the server-rendered SVG fallback
+ * when there is no map), keeps the editor in sync, and talks to the organizer JSON endpoints. Every position,
  * status and sentence it paints comes from the Worker (shared estimates, studioCopy.ts); the
  * only arithmetic here is turning what the organizer types (km, minutes, 6:30) into the meters
  * and seconds the script stores, which mirrors shared/src/domain/audioEditor.ts.
@@ -22,7 +22,6 @@
   let saveTimer = null;
   let dirty = false;
   let writes = Promise.resolve();
-  let markers = [];
   let map = null;
   let audio = null;
   let listenRun = 0;
@@ -54,11 +53,6 @@
     if (!node) return;
     node.textContent = text;
     node.className = 'st-state' + (tone ? ' ' + tone : '');
-  }
-
-  function cssVar(name, fallback) {
-    const v = window.getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-    return v || fallback;
   }
 
   /* ---------- what the organizer types -> what the script stores (mirrors audioEditor.ts) ---------- */
@@ -368,22 +362,7 @@
   }
 
   function paintMarkers() {
-    if (!map || !window.L) return;
-    markers.forEach((m) => map.removeLayer(m));
-    markers = (data.firings || [])
-      .filter((f) => f.lat !== null && f.lng !== null)
-      .map((f) => {
-        const classes = 'ev-pin cat-' + categoryOf(f.eventId) + (f.recurring ? ' faint' : '') + (selected === f.eventId ? ' on' : '');
-        const marker = window.L.marker([f.lat, f.lng], {
-          icon: window.L.divIcon({ className: '', html: '<i class="' + classes + '"></i>', iconSize: [16, 16] }),
-          title: titleOf(f.eventId) + ' · ' + f.label,
-          zIndexOffset: f.recurring ? 0 : 200,
-          // Repeated occurrences are decoration: they must not eat a click meant for the course.
-          interactive: !f.recurring,
-        }).addTo(map);
-        if (!f.recurring) marker.on('click', () => select(f.eventId, { fromMap: true }));
-        return marker;
-      });
+    if (map) map.paint(data.firings || [], { selected: selected, categoryOf: categoryOf, titleOf: titleOf });
   }
 
   function paintFallbackMarkers() {
@@ -414,8 +393,7 @@
     });
     const card = cardFor(id);
     if (card && !options.fromList) card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    const firing = (data.firings || []).find((f) => f.eventId === id && f.lat !== null);
-    if (firing && map) map.panTo([firing.lat, firing.lng]);
+    if (map) map.focus(id);
     paintTimeline();
     paintMarkers();
     paintFallbackMarkers();
@@ -752,51 +730,22 @@
   function initMap() {
     const host = q('[data-role="map"]');
     const fallback = q('[data-role="fallback"]');
-    if (!host || !window.L || !data.mapboxToken || !data.points || data.points.length < 2) {
+    map = window.SivoovStudioMap
+      ? window.SivoovStudioMap.create({
+          host: host,
+          points: data.points,
+          ticks: data.ticks,
+          landmarks: data.landmarks,
+          token: data.mapboxToken,
+          canEdit: canEdit,
+          onPick: (id) => select(id, { fromMap: true }),
+          onProject: (lat, lng) => call('POST', '/script/project', { lat: lat, lng: lng }).then((out) => (out.status === 200 ? out.json : null)),
+        })
+      : null;
+    if (!map) {
       if (host) host.classList.add('hide');
       if (fallback) fallback.classList.remove('hide');
       return;
-    }
-    const ink = cssVar('--ink', 'black');
-    map = window.L.map(host, { scrollWheelZoom: false });
-    window.L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/outdoors-v12/tiles/{z}/{x}/{y}?access_token=' + data.mapboxToken, {
-      tileSize: 512,
-      zoomOffset: -1,
-      maxZoom: 18,
-      attribution: '© Mapbox © OpenStreetMap',
-    }).addTo(map);
-    const latlngs = data.points.map((p) => [p.lat, p.lng]);
-    // Non-interactive: a click on the course must reach the map handler below.
-    const line = window.L.polyline(latlngs, { color: ink, weight: 4, opacity: 0.85, interactive: false }).addTo(map);
-    map.fitBounds(line.getBounds(), { padding: [18, 18] });
-    const good = cssVar('--good', ink);
-    const finish = cssVar('--accent-ink', ink);
-    window.L.circleMarker(latlngs[0], { radius: 7, color: good, fillColor: good, fillOpacity: 1 }).addTo(map).bindTooltip('Départ');
-    window.L.circleMarker(latlngs[latlngs.length - 1], { radius: 7, color: finish, fillColor: finish, fillOpacity: 1 }).addTo(map).bindTooltip('Arrivée');
-    const tick = cssVar('--ink-2', ink);
-    (data.ticks || []).forEach((t) => {
-      window.L.circleMarker([t.lat, t.lng], { radius: 2, color: tick, opacity: 0.6, fillOpacity: 0.6, interactive: false }).addTo(map);
-    });
-    const place = cssVar('--info', ink);
-    const paper = cssVar('--surface', 'white');
-    (data.landmarks || []).forEach((mark) => {
-      if (mark.lat === null) return;
-      window.L.circleMarker([mark.lat, mark.lng], { radius: 5, color: place, weight: 2, fillColor: paper, fillOpacity: 1 }).addTo(map).bindTooltip(document.createTextNode(mark.name));
-    });
-    if (canEdit) {
-      // A click near the line proposes an announcement at that distance along the course.
-      map.on('click', (event) => {
-        call('POST', '/script/project', { lat: event.latlng.lat, lng: event.latlng.lng }).then((out) => {
-          if (out.status !== 200) return;
-          window.L.popup()
-            .setLatLng(event.latlng)
-            .setContent(
-              '<div style="text-align:center">' + out.json.when +
-                '<br><button type="button" class="btn btn-sm" data-role="place" data-meters="' + out.json.meters + '" style="margin-top:8px">Ajouter une annonce ici</button></div>',
-            )
-            .openOn(map);
-        });
-      });
     }
     paintMarkers();
   }

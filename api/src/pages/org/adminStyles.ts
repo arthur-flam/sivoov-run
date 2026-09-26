@@ -248,6 +248,13 @@ table.a-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .legend i.start { background: transparent; border: 3px solid var(--good); }
 .legend i.end { background: var(--ink); }
 .legend i.km { background: var(--surface); border: 2px solid var(--race-primary); }
+/* Mapbox GL maps (the studio, a run's trace): popups and hover labels in the admin's type and colours. */
+.mapboxgl-map { font: inherit; }
+.mapboxgl-popup { z-index: 3; }
+.mapboxgl-popup-content { font: inherit; font-size: 14px; color: var(--ink); background: var(--surface); border-radius: var(--radius-sm); box-shadow: var(--shadow); padding: 10px 12px; }
+.mapboxgl-popup-close-button { font-size: 18px; width: 26px; height: 26px; color: var(--ink-2); }
+.map-tip, .map-tip .mapboxgl-popup-content { pointer-events: none; }
+.map-tip .mapboxgl-popup-content { padding: 4px 8px; font-size: 13px; }
 /* race */
 /* A card reached by #anchor after a save lands below the sticky top bar. */
 .card[id] { scroll-margin-top: 72px; }

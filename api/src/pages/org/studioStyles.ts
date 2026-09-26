@@ -31,19 +31,26 @@ export const studioStyles = `
   .studio-map { position: sticky; top: calc(53px + var(--st-head-h, 150px) + 16px); }
 }
 
-/* The map, or the SVG diagram when there are no tiles */
+/* The map (Mapbox GL), or the SVG diagram when there is no map */
 .map-card { border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; background: var(--surface); isolation: isolate; }
-#studio-map { height: 280px; width: 100%; background: var(--surface-2); }
-@media (min-width: 1100px) { #studio-map { height: 400px; } }
-.leaflet-container { font: inherit; }
+#studio-map { height: 300px; width: 100%; background: var(--surface-2); }
+/* Beside the list the map is how the organizer finds their way: as tall as the window leaves room for. */
+@media (min-width: 1100px) { #studio-map { height: clamp(320px, calc(100vh - 470px), 480px); } }
+/* The popup of a click on the course (Mapbox's own popup rules are in adminStyles). */
+.map-place { text-align: center; padding-right: 10px; }
+.map-place p { font-family: var(--font-num); font-weight: 600; font-size: 16px; margin-bottom: 8px; }
 .map-fallback { padding: 12px; }
 .map-fallback svg { width: 100%; height: auto; max-height: 380px; }
 .map-fallback .empty { padding: 20px 8px; }
 .map-fallback .note, .map-help { font-size: 13px; color: var(--muted); margin-top: 8px; }
 .ev-dot { cursor: pointer; }
-.ev-pin { display: block; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; border: 2px solid var(--surface); background: var(--cat, var(--accent-ink)); box-shadow: var(--shadow); }
-.ev-pin.faint { width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; opacity: 0.45; border-width: 1px; }
-.ev-pin.on { outline: 3px solid var(--ink); outline-offset: 1px; }
+/* Announcement pins are Mapbox markers: centred on their point by the library, which also owns
+   their transform, opacity and pointer-events. Hence sizes instead of scale, and a filter for the faint ones. */
+.ev-pin { display: block; width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--surface); background: var(--cat, var(--accent-ink)); box-shadow: var(--shadow); cursor: pointer; z-index: 1; }
+.ev-pin.faint { width: 9px; height: 9px; filter: opacity(0.45); border-width: 1px; cursor: default; z-index: 0; }
+.ev-pin.on { outline: 3px solid var(--ink); outline-offset: 1px; z-index: 2; }
+/* The card being read in the list: bigger, ringed in its own colour. */
+.ev-pin.follow { width: 22px; height: 22px; box-shadow: 0 0 0 3px var(--surface), 0 0 0 6px var(--cat, var(--accent-ink)); z-index: 2; }
 
 /* The frise: every announcement along the distance */
 .timeline { margin-top: 10px; padding: 12px 14px 6px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }

@@ -3,14 +3,12 @@ import type { Course, Race, ScriptLine } from '@sivoov/shared';
 import type { LineStatus, PlacedFiring, StudioPageData } from '../../lib/studio';
 import { CourseDiagram } from '../courseDiagram';
 import { distanceName } from './format';
+import { MAPBOX_GL_CSS, MAPBOX_GL_JS } from './mapboxGl';
 import { MOMENT_COPY, PUBLISH_CONFIRM } from './studioCopy';
 import { StudioLine } from './studioLine';
 import { studioStyles } from './studioStyles';
 import { studioClient } from './studioClient';
 import { Icon, PageHead } from './ui';
-
-const LEAFLET_CSS = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
-const LEAFLET_JS = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
 
 type Props = { race: Race; course: Course; data: StudioPageData };
 
@@ -88,7 +86,7 @@ export const OrgStudioPage = ({ race, course, data }: Props) => {
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: studioStyles }} />
-      {withMap ? <link rel="stylesheet" href={LEAFLET_CSS} /> : null}
+      {withMap ? <link rel="stylesheet" href={MAPBOX_GL_CSS} /> : null}
       <div class="st-head">
         <PageHead
           back={{ href: `/org/${race.slug}/courses`, label: 'Parcours et annonces' }}
@@ -206,7 +204,7 @@ export const OrgStudioPage = ({ race, course, data }: Props) => {
           __html: JSON.stringify({ ...data, base, perSecond: SPEECH_CHARS_PER_SECOND, confirmPublish: PUBLISH_CONFIRM }).replaceAll('<', '\\u003c'),
         }}
       />
-      {withMap ? <script src={LEAFLET_JS} defer></script> : null}
+      {withMap ? <script src={MAPBOX_GL_JS} defer></script> : null}
       <script defer dangerouslySetInnerHTML={{ __html: studioClient }} />
     </>
   );

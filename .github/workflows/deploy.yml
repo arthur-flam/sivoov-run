@@ -81,7 +81,11 @@ jobs:
       - run: npm ci
       - name: Publish update to the preview channel
         working-directory: app
-        run: eas update --channel preview --message "${{ github.event.head_commit.message || format('manual from {0}', github.sha) }}" --non-interactive
+        # The message goes through the environment, never pasted into the script: a quote in a
+        # commit message broke the command (PR #5), and anything else in it would have run.
+        env:
+          MESSAGE: ${{ github.event.head_commit.message || format('manual from {0}', github.sha) }}
+        run: eas update --channel preview --message "$MESSAGE" --non-interactive
 
   promote-production:
     needs: secrets-check

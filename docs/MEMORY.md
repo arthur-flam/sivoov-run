@@ -370,3 +370,8 @@
 - 2026-09-26: the stored run status says `finished` for a rehearsal too. Anything that shows
   whether a run counts must go through `rankedRun` (SQL) or `runVerdict`/`isRanked` (shared),
   never `status` alone: the admin badge did, and read "Arrivé" for runs the export excluded.
+- 2026-09-26: a PR title with double quotes failed both EAS publishes (`Unexpected argument`):
+  the workflows pasted `head_commit.message` and `pull_request.title` into the command. In a
+  `run:` step, pass event text through `env:` and quote the variable. The `preview` action runs
+  its `command` input itself (no shell, so no `$VAR`), which is why `preview.yml` strips quotes
+  from the title in a step before it. Never put `${{ github.event.* }}` text inside a script.

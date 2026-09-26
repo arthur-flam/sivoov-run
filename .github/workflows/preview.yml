@@ -42,10 +42,18 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
       - run: npm ci
+      # The action runs `command` itself, where an environment variable would not expand, so the
+      # title is cleaned first: without quotes it cannot end the argument early (a quote in PR #5's
+      # title broke the command) or pass eas an option of its own.
+      - name: The PR title as an update message
+        id: message
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: echo "text=$(printf '%s' "$TITLE" | tr -d '"\\`$' | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
       - name: Publish update to a branch named after the PR, comment QR on the PR
         uses: expo/expo-github-action/preview@v8
         with:
-          command: eas update --branch pr-${{ github.event.pull_request.number }} --message "${{ github.event.pull_request.title }}" --non-interactive
+          command: eas update --branch pr-${{ github.event.pull_request.number }} --message "${{ steps.message.outputs.text }}" --non-interactive
           working-directory: app
           # v8 validates against "dev-client" only, despite documenting "dev-build"; both mean a dev build.
           qr-target: dev-client

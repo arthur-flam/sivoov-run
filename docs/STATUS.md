@@ -243,11 +243,10 @@ dev client", happened on 2026-09-13 on a real Galaxy S23 (see below), minus the 
    is on the phones); number fragments for splits and name files per entrant; (d) `interval`
    trigger and file upload per line; (e) "moins de voix". The rewritten Deauville script
    (double loop, ~38 events) is content work in the studio.
-5. **Promote production.** Sessions 9 and 10 are merged (PR #4, 2026-09-26), and that merge
-   deployed the preview Worker and published the JS update. Production has not been promoted
-   since: `gh workflow run deploy.yml -f action=promote-production` applies the pending D1
-   migrations (0005 onward, whichever have not run) and then deploys the Worker. 0006 drops the old
-   organizer sessions, so every organizer signs in again once. Look at preview first.
+5. **Production is promoted**, 2026-09-26 at `a763f78` (sessions 9 and 10): migration 0006 applied
+   (0005 already was), Worker deployed, production update published. PR #5 (the admin's
+   "Hors classement" badge) merged seconds later, so production lacks it until the next
+   `gh workflow run deploy.yml -f action=promote-production`. Organizers sign in again once (0006).
 
 ### M3 (17 Oct): stores — and the real schedule risk
 5. **iOS does not exist yet.** Everything on this page is Android. There is no iOS build, no

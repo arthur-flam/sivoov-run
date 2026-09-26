@@ -85,9 +85,11 @@ existed. Now, end to end (screens: `npm run shots`, scenes `run-finished`, `home
   course map falls back to the diagram when the Mapbox PNG cannot load.
 - **One rule for "counts"** since the merge with the admin rebuild: `COUNTS_AS_FINISH` (admin home,
   runner list, medal export, results) is `rankedRun('r')`: finished, not set aside by the
-  organizer, started inside the window, on the entrant's own distance. The admin's run *detail*
-  badge (`runVerdict` in `shared/domain/runReview.ts`) does not know the window yet: a rehearsal
-  reads "Arrivé" there while the export says "Hors classement".
+  organizer, started inside the window, on the entrant's own distance. The admin's badges read it
+  too: every list row carries `ranked` from that SQL, and the run page's `runVerdict` (shared,
+  `runReview.ts`) takes the window and the entrant's distance, so a rehearsal, a late run and a
+  run on another distance read "Hors classement" with one sentence saying which. Activités has a
+  "Hors classement" filter for them.
 - **Race window enforced** (`shared/domain/raceWindow.ts`, SQL twin `api/src/db/ranked.ts`): a run
   started outside 9-15 Nov is stored, never ranked — in the public results, the organizer's
   counts and the results CSV (reported `not_ranked`: that file decides who gets a medal). A run
@@ -190,11 +192,8 @@ landed after `adb shell am force-stop com.arthur.flam.sivoov.dev` and a relaunch
 that reproduces before assuming an edit had no effect.
 
 ## Next after session 9
-0. **Preview deploy**: the first Deploy run after PR #2 stopped at the new migration step
-   because the `CLOUDFLARE_API_TOKEN` GitHub secret had no D1 rights (`code 7403`). Arthur
-   added Account, D1, Edit on 2026-09-26. The session's GitHub integration cannot re-run
-   workflows (403), so the next push to main is what deploys; verify with
-   `curl https://preview.run.sivoov.app/organisateurs` (200 once the new Worker is live).
+0. **Preview deploy**: fixed. The token got D1 rights on 2026-09-26 and the Deploy runs for the
+   merges of PR #3 and PR #4 both went green: preview runs sessions 9 and 10.
 1. **Selling entries (Paddle)**: replace the "Vente en ligne" card with a price per distance
    and a checkout on the race page; a paid checkout creates the entrant (`source` gains a value,
    the bib is allocated) and sends the instructions email that already exists
@@ -244,10 +243,11 @@ dev client", happened on 2026-09-13 on a real Galaxy S23 (see below), minus the 
    is on the phones); number fragments for splits and name files per entrant; (d) `interval`
    trigger and file upload per line; (e) "moins de voix". The rewritten Deauville script
    (double loop, ~38 events) is content work in the studio.
-5. **Merge this branch and ship it.** Session 9's work is on `claude/running-app-launch-xopyvv`,
-   not on main, so nothing of it is deployed or published. Merging deploys the preview Worker
-   and publishes the JS update; production still needs `npm run db:migrate:production -w api`
-   (0005) before the studio opens there. No new migration in session 9.
+5. **Promote production.** Sessions 9 and 10 are merged (PR #4, 2026-09-26), and that merge
+   deployed the preview Worker and published the JS update. Production has not been promoted
+   since: `gh workflow run deploy.yml -f action=promote-production` applies the pending D1
+   migrations (0005 onward, whichever have not run) and then deploys the Worker. 0006 drops the old
+   organizer sessions, so every organizer signs in again once. Look at preview first.
 
 ### M3 (17 Oct): stores — and the real schedule risk
 5. **iOS does not exist yet.** Everything on this page is Android. There is no iOS build, no

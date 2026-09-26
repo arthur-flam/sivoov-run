@@ -28,7 +28,8 @@ export const SplitsCard = ({ run }: { run: Run }) => {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr>
+                // `data-km`: pointing at a row lights that kilometre on the map (runMap.client.js).
+                <tr data-km={String(r.km)}>
                   <td class="bib">{r.km}</td>
                   <td>
                     <span class="num">{formatPace(r.paceSecPerKm)}</span>

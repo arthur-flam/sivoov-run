@@ -17,6 +17,8 @@ import type { Run, RunTrace } from '@sivoov/shared';
 import { db } from '../src/db/queries';
 import { adminDb } from '../src/db/adminQueries';
 import { deauvilleCourses, deauvilleOrganizers, deauvilleRace } from '../src/seed/deauville';
+import { MAPBOX_GL_JS } from '../src/pages/org/mapboxGl';
+import { RunTraceMap } from '../src/pages/org/runsMap';
 
 const SLUG = 'deauville-2026';
 const ORG = 'http://run.test/org';
@@ -187,7 +189,9 @@ describe('one activity', () => {
     expect(html).toContain('Nina PETIT');
     expect(html).toContain('Temps officiel');
     expect(html).toContain('1:45:30');
-    // Splits: one row per kilometre, the fastest (km 3) and the slowest (km 7) marked.
+    // Splits: one row per kilometre, the fastest (km 3) and the slowest (km 7) marked. Each row
+    // names its kilometre, so pointing at it lights that kilometre on the map.
+    expect(html).toContain('<tr data-km="3">');
     expect(html).toContain('Le plus rapide');
     expect(html).toContain('Le plus lent');
     expect(html).toContain('5:30');
@@ -208,6 +212,17 @@ describe('one activity', () => {
     expect(html).toMatch(/<div class="map-svg" data-role="run-map-fallback"/);
     expect(html).not.toMatch(/<div[^>]*data-role="run-map"/);
     expect(html).not.toContain('id="run-map-data"');
+  });
+  it('draws the trace on a Mapbox GL map, from Mapbox’s CDN, when there is a token', async () => {
+    const at = (lat: number, lng: number) => ({ lat, lng });
+    const html = String(
+      await RunTraceMap({ points: [at(49.35, 0.07), at(49.36, 0.08)], marks: [{ km: 1, point: at(49.355, 0.075), elapsedMs: 300_000 }], finished: true, token: 'pk.test' }),
+    );
+    expect(html).toContain(`<script src="${MAPBOX_GL_JS}" defer="">`);
+    expect(MAPBOX_GL_JS).toMatch(/^https:\/\/api\.mapbox\.com\/mapbox-gl-js\/v[\d.]+\/mapbox-gl\.js$/);
+    // The kilometre marks carry their number, the key the table's rows light them by.
+    expect(html).toContain('"kms":[{"km":1,"lat":49.355,"lng":0.075,"label":"Km 1 · 5:00"}]');
+    expect(html).toContain('<div class="map-svg hide" data-role="run-map-fallback">');
   });
   it('says in one sentence why a time does not count', async () => {
     const cookie = await cookieFor('lecture@example.com');

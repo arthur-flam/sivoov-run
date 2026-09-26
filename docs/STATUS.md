@@ -243,10 +243,9 @@ dev client", happened on 2026-09-13 on a real Galaxy S23 (see below), minus the 
    is on the phones); number fragments for splits and name files per entrant; (d) `interval`
    trigger and file upload per line; (e) "moins de voix". The rewritten Deauville script
    (double loop, ~38 events) is content work in the studio.
-5. **Production is promoted**, 2026-09-26 at `a763f78` (sessions 9 and 10): migration 0006 applied
-   (0005 already was), Worker deployed, production update published. PR #5 (the admin's
-   "Hors classement" badge) merged seconds later, so production lacks it until the next
-   `gh workflow run deploy.yml -f action=promote-production`. Organizers sign in again once (0006).
+5. **Production is current**, promoted 2026-09-26 at `1068349`: sessions 9 and 10, the admin's
+   "Hors classement" badge (PR #5) and the workflow fix (PR #6). Migration 0006 applied on the
+   first promote (0005 already was), so organizers sign in again once. Preview is at the same commit.
 
 ### M3 (17 Oct): stores — and the real schedule risk
 5. **iOS does not exist yet.** Everything on this page is Android. There is no iOS build, no

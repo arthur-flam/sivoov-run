@@ -22,6 +22,7 @@
     "trace:pull": "tsx tools/trace-pull.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
     "@sivoov/shared": "*",
     "hono": "^4.13.7",
     "zod": "^4.6.2"

@@ -1,19 +1,36 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { z } from 'zod';
-import { AudioScriptSchema, duplicateFileKeys, whenInWords } from '@sivoov/shared';
+import {
+  AudioScriptSchema,
+  SAMPLE_LIVE,
+  SAMPLE_RUNNER,
+  ScriptVoiceSchema,
+  duplicateFileKeys,
+  estimateFirings,
+  fillTemplate,
+  formatKm,
+  spokenValues,
+  supportsAudioTags,
+  whenInWords,
+} from '@sivoov/shared';
 import type { AudioScript, ScriptLine } from '@sivoov/shared';
 import type { AppEnv } from '../env';
 import { db } from '../db/queries';
 import { scriptDb } from '../db/scriptQueries';
 import { requireCan, requireCourse, requireOrganizer } from '../lib/orgAuth';
 import type { CourseVars } from '../lib/orgAuth';
-import { publishScript } from '../lib/publish';
-import { distanceForClick, estimatesFor, loadStudioContext, paceFromQuery } from '../lib/studio';
+import { suggestLine, writePersonalLine } from '../lib/llm';
+import { briefFor, personalDeps, raceDays } from '../lib/personal';
+import { publishScript, refusalText } from '../lib/publish';
+import { DEFAULT_PACE_SEC_PER_KM, distanceForClick, estimatesFor, loadStudioContext, paceFromQuery } from '../lib/studio';
 import type { StudioContext } from '../lib/studio';
 import { renderLine, ttsKey } from '../lib/tts';
 import { maySpendCredit } from '../lib/testCode';
 import { UPLOAD_PREFIX, missingUploads, storeUpload } from '../lib/uploads';
+import { HOUSE_VOICES, MODEL_CHOICES, STABILITY_CHOICES, accountVoices, voiceSample, voiceSummary } from '../lib/voices';
+import { weatherAt } from '../lib/weather';
+import { distanceName } from '../pages/org/format';
 import { UPLOAD_ERRORS } from '../pages/org/studioCopy';
 
 /**
@@ -32,6 +49,10 @@ const PATH = '/:slug/courses/:courseId';
 
 const LatLngBody = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) });
 const RenderBody = z.object({ lineId: z.string().min(1) });
+/** ElevenLabs ids are 20 letters and digits; anything else would only fail at render time. */
+const VoiceBody = z.object({ voice: ScriptVoiceSchema.extend({ id: z.string().regex(/^[A-Za-z0-9]{10,40}$/) }) });
+/** Where the studio's sample runner is, for the weather in « Écouter un exemple »: Lyon. */
+const SAMPLE_POSITION = { lat: 45.76, lng: 4.84 };
 
 type ScriptContext = Context<AppEnv & { Variables: CourseVars }>;
 
@@ -72,6 +93,7 @@ orgScript.put(`${PATH}/script`, ...edit, async (c) => {
   if (!parsed.success) return c.json({ error: 'invalid', detail: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(' ; ') }, 400);
   const ids = parsed.data.lines.map((l) => l.id);
   if (new Set(ids).size !== ids.length) return c.json({ error: 'invalid', detail: 'Deux annonces portent le même identifiant.' }, 400);
+  if (!VoiceBody.safeParse({ voice: parsed.data.voice }).success) return c.json({ error: 'invalid', detail: 'Cet identifiant de voix ne ressemble pas à un identifiant ElevenLabs.' }, 400);
   const keys = duplicateFileKeys(parsed.data.lines);
   if (keys.length > 0) return c.json({ error: 'duplicate_key', detail: `Deux annonces portent le même nom de fichier : ${keys.join(', ')}.` }, 400);
   const lost = await missingUploads(c.env.FILES, parsed.data.lines);
@@ -93,8 +115,8 @@ orgScript.post(`${PATH}/script/render`, ...edit, async (c) => {
   const line = ctx.script.lines.find((l) => l.id === parsed.data.lineId);
   if (!line) return c.json({ error: 'not_found', detail: 'Cette annonce n’existe plus. Rechargez la page.' }, 404);
   if (line.audio) return c.json({ error: 'uses_file', detail: 'Cette annonce utilise votre fichier audio. Revenez à la voix pour l’enregistrer.' }, 409);
-  if (line.slots) return c.json({ error: 'template', detail: 'Une annonce avec une partie variable s’affiche à l’écran : elle n’est pas enregistrée.' }, 400);
-  const outcome = await renderLine({ files: c.env.FILES, apiKey: c.env.ELEVENLABS_API_TOKEN }, ctx.script.voice, line.text);
+  if (line.text.trim().length === 0) return c.json({ error: 'no_text', detail: line.personal ? 'Écrivez d’abord la version hors ligne.' : 'Écrivez d’abord le texte lu.' }, 400);
+  const outcome = await renderLine({ files: c.env.FILES, apiKey: c.env.ELEVENLABS_API_TOKEN }, ctx.script.voice, line.text, ctx.script.locale);
   if (!outcome.ok) return c.json({ error: 'tts_failed', detail: `La voix n’a pas pu être enregistrée (ElevenLabs ${outcome.status}). Réessayez dans un instant.` }, 502);
   return c.json({ ...outcome.rendered, ...(await answer(c, ctx, ctx.script)) });
 });
@@ -173,6 +195,110 @@ orgScript.post(`${PATH}/script/publish`, ...edit, async (c) => {
   const ctx = await loadStudioContext(c.env, c.get('course'));
   if (ctx.script.lines.length === 0) return c.json({ error: 'empty', detail: 'Ajoutez une annonce pour pouvoir publier.' }, 400);
   const outcome = await publishScript({ db: db(c.env.DB), scripts: scriptDb(c.env.DB), files: c.env.FILES }, ctx.script);
-  if (!outcome.ok) return c.json({ error: 'missing_audio', detail: `Il manque le son de : ${outcome.missing.map((m) => m.title || m.id).join(', ')}.`, missing: outcome.missing }, 409);
+  if (!outcome.ok) return c.json({ error: outcome.reason === 'fix' ? 'to_fix' : 'missing_audio', detail: refusalText(outcome), missing: outcome.missing }, 409);
   return c.json(outcome);
+});
+
+const ttsUnavailable = { error: 'tts_unavailable', detail: 'La voix de l’annonceur n’est pas disponible ici.' } as const;
+const testAccount = { error: 'test_account', detail: 'Un compte de test ne peut pas enregistrer la voix ici. Connectez-vous avec votre adresse.' } as const;
+
+/**
+ * The voices on offer: the house list (checked with our key), the account's own voices when the
+ * key may read them, and the models and settings, with the current choice. Changing the voice is
+ * a script save (`PUT script` with `voice`): every line then needs its voice recorded again.
+ */
+orgScript.get(`${PATH}/voices`, ...guard, async (c) => {
+  const ctx = await loadStudioContext(c.env, c.get('course'));
+  const account = await accountVoices(c.env.ELEVENLABS_API_TOKEN);
+  return c.json({
+    current: ctx.script.voice,
+    label: voiceSummary(ctx.script.voice),
+    house: HOUSE_VOICES,
+    account: account.voices,
+    accountNote:
+      account.voices !== null
+        ? null
+        : account.reason === 'no_permission'
+          ? 'Pour voir ici les voix de votre compte ElevenLabs (dont les voix françaises ajoutées depuis la Voice Library), donnez à la clé la permission « Voices : read ».'
+          : null,
+    models: MODEL_CHOICES,
+    stabilities: STABILITY_CHOICES,
+  });
+});
+
+/** Auditions a voice on one sentence with the race's name, without changing the script. Cached like any render. */
+orgScript.post(`${PATH}/voice/sample`, ...edit, async (c) => {
+  if (!maySpendCredit(c.env, c.get('admin').email)) return c.json(testAccount, 403);
+  if (!c.env.ELEVENLABS_API_TOKEN) return c.json(ttsUnavailable, 503);
+  const parsed = VoiceBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: 'invalid', detail: 'Cet identifiant de voix ne ressemble pas à un identifiant ElevenLabs.' }, 400);
+  const voice = parsed.data.voice;
+  const text = voiceSample(c.get('race').name, voice);
+  const outcome = await renderLine({ files: c.env.FILES, apiKey: c.env.ELEVENLABS_API_TOKEN }, voice, text);
+  if (!outcome.ok) {
+    const unknown = outcome.status === 404 || outcome.status === 400 || outcome.status === 402;
+    return c.json({ error: 'tts_failed', detail: unknown ? 'ElevenLabs ne connaît pas cette voix pour ce compte. Ajoutez-la à « My Voices » sur ElevenLabs, puis réessayez.' : `La voix n’a pas pu être enregistrée (ElevenLabs ${outcome.status}).` }, 502);
+  }
+  return c.json({ text, audioPath: `/audio/${outcome.rendered.hash}` });
+});
+
+/**
+ * « Écouter un exemple » for a personal line: the sentence as Camille Martin, dossard 1247, from
+ * Lyon, would hear it (at km 12 for a live line), written by the AI for an `ai` line, and read by
+ * the voice when it is available. The text always comes back, so the browser can read it otherwise.
+ */
+orgScript.post(`${PATH}/script/sample`, ...edit, async (c) => {
+  const ctx = await loadStudioContext(c.env, c.get('course'));
+  const parsed = RenderBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: 'invalid', detail: 'Annonce manquante.' }, 400);
+  const line = ctx.script.lines.find((l) => l.id === parsed.data.lineId);
+  if (!line) return c.json({ error: 'not_found', detail: 'Cette annonce n’existe plus. Rechargez la page.' }, 404);
+  if (!line.personal) return c.json({ error: 'not_personal', detail: 'Cette annonce est la même pour tous.' }, 400);
+  const race = c.get('race');
+  const deps = personalDeps(c.env);
+  const text =
+    line.personal.kind === 'template'
+      ? fillTemplate(line.personal.template, spokenValues(SAMPLE_RUNNER, { ...SAMPLE_LIVE, finish: line.trigger.kind === 'finish', elapsedS: line.trigger.kind === 'finish' ? 13579 : SAMPLE_LIVE.elapsedS }))
+      : deps.llm
+        ? await (async () => {
+            const start = ctx.geometry?.points[0];
+            const [here, there] = await Promise.all([weatherAt(SAMPLE_POSITION), start ? weatherAt(start) : null]);
+            const def = { title: line.title, when: whenInWords(line.trigger), fallback: line.text, personal: line.personal! };
+            return writePersonalLine(deps.llm!, briefFor(def, { runner: SAMPLE_RUNNER, race, weather: { runner: here, race: there } }, supportsAudioTags(ctx.script.voice.model)));
+          })()
+        : null;
+  if (text === null) {
+    const detail = line.personal.kind === 'ai' && !deps.llm ? 'L’IA n’est pas configurée ici : la version hors ligne serait jouée.' : 'Cet exemple ne peut pas être dit : la version hors ligne serait jouée.';
+    return c.json({ error: 'no_sample', detail }, line.personal.kind === 'ai' && !deps.llm ? 503 : 422);
+  }
+  if (!c.env.ELEVENLABS_API_TOKEN || !maySpendCredit(c.env, c.get('admin').email)) return c.json({ text, audioPath: null });
+  const outcome = await renderLine({ files: c.env.FILES, apiKey: c.env.ELEVENLABS_API_TOKEN }, ctx.script.voice, text, ctx.script.locale);
+  return c.json({ text, audioPath: outcome.ok ? `/audio/${outcome.rendered.hash}` : null });
+});
+
+/** « Proposer un texte »: Claude drafts the sentence everyone hears, from the race, its places and the neighbouring lines. */
+orgScript.post(`${PATH}/script/suggest`, ...edit, async (c) => {
+  const deps = personalDeps(c.env);
+  if (!deps.llm) return c.json({ error: 'ai_unavailable', detail: 'L’IA n’est pas configurée ici.' }, 503);
+  const course = c.get('course');
+  const race = c.get('race');
+  const ctx = await loadStudioContext(c.env, course);
+  const parsed = RenderBody.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: 'invalid', detail: 'Annonce manquante.' }, 400);
+  const line = ctx.script.lines.find((l) => l.id === parsed.data.lineId);
+  if (!line) return c.json({ error: 'not_found', detail: 'Cette annonce n’existe plus. Rechargez la page.' }, 404);
+  const order = [...new Set(estimateFirings(ctx.script.lines, course.distanceM, DEFAULT_PACE_SEC_PER_KM).map((f) => f.eventId))];
+  const at = order.indexOf(line.id);
+  const textOf = (id: string) => ctx.script.lines.find((l) => l.id === id);
+  const around = (ids: string[]) => ids.map(textOf).flatMap((l) => (l && l.text.trim() ? [`${whenInWords(l.trigger)} : ${l.text.trim()}`] : []));
+  const text = await suggestLine(deps.llm, {
+    race: { name: race.name, city: race.city, date: raceDays(race), distance: distanceName(course.distanceKey), distanceKm: formatKm(course.distanceM, 'fr', 3) },
+    landmarks: course.landmarks.map((l) => ({ name: l.name, km: formatKm(l.meters, 'fr', 1), note: l.description ?? '' })),
+    line: { title: line.title, when: whenInWords(line.trigger), category: line.category, current: line.text, personal: Boolean(line.personal) },
+    before: around(order.slice(Math.max(0, at - 2), Math.max(0, at))),
+    after: around(order.slice(at + 1, at + 3)),
+    tags: supportsAudioTags(ctx.script.voice.model),
+  });
+  if (text === null) return c.json({ error: 'no_suggestion', detail: 'Pas de proposition cette fois. Réessayez dans un instant.' }, 502);
+  return c.json({ text });
 });

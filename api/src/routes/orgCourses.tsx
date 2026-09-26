@@ -6,7 +6,7 @@ import { db } from '../db/queries';
 import { scriptDb } from '../db/scriptQueries';
 import { requireCan, requireCourse, requireOrganizer } from '../lib/orgAuth';
 import type { CourseVars } from '../lib/orgAuth';
-import { publishScript } from '../lib/publish';
+import { publishScript, refusalText } from '../lib/publish';
 import { DEFAULT_PACE_SEC_PER_KM, courseAudioCard, geometryKeyFor, loadStudioContext, paceFromQuery, studioPageData } from '../lib/studio';
 import { OrgCoursesPage } from '../pages/org/courses';
 import type { NewCourseForm } from '../pages/org/courses';
@@ -111,7 +111,7 @@ orgCourses.post('/:slug/courses/:courseId/publish', requireOrganizer, requireCan
   const ctx = await loadStudioContext(c.env, c.get('course'));
   if (ctx.script.lines.length === 0) return coursesPage(c, { error: 'Ajoutez une annonce avant de publier.', status: 409 });
   const outcome = await publishScript({ db: db(c.env.DB), scripts: scriptDb(c.env.DB), files: c.env.FILES }, ctx.script);
-  if (!outcome.ok) return coursesPage(c, { error: `Publication impossible : il manque le son de ${outcome.missing.map((m) => m.title || m.id).join(', ')}.`, status: 409 });
+  if (!outcome.ok) return coursesPage(c, { error: `Publication impossible. ${refusalText(outcome)}`, status: 409 });
   return c.redirect(`/org/${race.slug}/courses?done=published#${c.get('course').id}`);
 });
 

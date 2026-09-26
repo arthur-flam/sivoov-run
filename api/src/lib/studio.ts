@@ -3,6 +3,9 @@ import {
   CourseGeometrySchema,
   MOMENTS,
   buildTrack,
+  lineIssues,
+  personalPhase,
+  upgradeScript,
   decimate,
   estimateFirings,
   momentOf,
@@ -12,16 +15,17 @@ import {
   runMetersForTrack,
   whenInWords,
 } from '@sivoov/shared';
-import type { AudioScript, Course, CourseGeometry, CourseTrack, EstimatedFiring, LatLng, Moment, ScriptLine } from '@sivoov/shared';
+import type { AudioScript, Course, CourseGeometry, CourseTrack, CueMoment, EstimatedFiring, LatLng, LineIssue, Moment, PlaceholderPhase, ScriptLine } from '@sivoov/shared';
 import type { Bindings } from '../env';
 import { scriptDb } from '../db/scriptQueries';
 import type { PackSummary } from '../db/scriptQueries';
-import { lineStatusView, publishView, summaryText } from '../pages/org/studioCopy';
+import { issueText, lineStatusView, publishView, summaryText } from '../pages/org/studioCopy';
 import type { AudioSummary, LineSource } from '../pages/org/studioCopy';
 import type { Tone } from '../pages/org/ui';
 import { sha256Hex } from './crypto';
 import { ttsHash, ttsKey } from './tts';
 import { uploadKey } from './uploads';
+import { DEFAULT_VOICE, voiceSummary } from './voices';
 
 export const DEFAULT_PACE_SEC_PER_KM = 330; // 5:30 /km, the reference runner of the PRD
 /** Enough points for a faithful line on a phone without shipping the whole GPX to the page. */
@@ -62,19 +66,26 @@ export const kmTicks = (track: CourseTrack, officialM: number): Tick[] =>
   });
 
 /**
- * Per line: where its sound comes from, whether that sound is ready for the current text, when
- * it plays in plain words and under which moment the studio lists it. `audioPath` is where
- * "Écouter" fetches it, relative to the course's studio URL; null means the browser reads the text.
+ * Per line: where its sound comes from, whether that sound is ready for the current text, what
+ * still stops it from going out, when it plays in plain words and under which moment the
+ * studio lists it. `audioPath` is where "Écouter" fetches it, relative to the course's studio
+ * URL; null means the browser reads the text. A personal line's sound is its offline version.
  */
 export type LineStatus = {
   id: string;
   source: LineSource;
+  /** Personal lines: how the runner's version is made and when. */
+  personal: { kind: 'template' | 'ai'; phase: PlaceholderPhase } | null;
+  /** The start ceremony's moment and order, for the départ strip. */
+  cue: { at: CueMoment; order: number } | null;
   /** Voice: the TTS cache hash of the current text. Upload: the file's sha256. */
   hash: string;
-  template: boolean;
   /** The sound is ready: the voice rendered for this exact text, or the uploaded file stored. */
   rendered: boolean;
   bytes: number;
+  issues: LineIssue[];
+  /** The issues in the organizer's words (studioCopy `issueText`). */
+  problems: string[];
   when: string;
   moment: Moment;
   audioPath: string | null;
@@ -82,24 +93,37 @@ export type LineStatus = {
   tone: Tone;
 };
 
-const sourceOf = (line: ScriptLine): LineSource => (line.audio ? 'upload' : line.slots ? 'template' : 'voice');
+const sourceOf = (line: ScriptLine): LineSource => (line.audio ? 'upload' : line.personal ? 'personal' : 'voice');
 
-export const lineStatuses = async (files: R2Bucket, script: AudioScript, officialM: number): Promise<LineStatus[]> =>
-  Promise.all(
-    script.lines.map(async (line: ScriptLine): Promise<LineStatus> => {
-      const source = sourceOf(line);
-      const common = { id: line.id, source, template: source === 'template', when: whenInWords(line.trigger), moment: momentOf(line.trigger, officialM) };
-      if (line.audio) {
-        const head = await files.head(uploadKey(line.audio));
-        const view = lineStatusView(source, head !== null);
-        return { ...common, ...view, hash: line.audio.hash, rendered: head !== null, bytes: line.audio.bytes, audioPath: head ? `/uploads/${line.audio.hash}.${line.audio.format}` : null };
-      }
-      const hash = await ttsHash(script.voice, line.text);
-      if (source === 'template') return { ...common, ...lineStatusView(source, false), hash, rendered: false, bytes: 0, audioPath: null };
-      const head = await files.head(ttsKey(hash));
-      return { ...common, ...lineStatusView(source, head !== null), hash, rendered: head !== null, bytes: head?.size ?? 0, audioPath: head ? `/audio/${hash}` : null };
-    }),
-  );
+const lineStatus = async (files: R2Bucket, script: AudioScript, line: ScriptLine, officialM: number): Promise<LineStatus> => {
+  const source = sourceOf(line);
+  const issues = lineIssues(line);
+  const toWrite = issues.some((i) => i.code === 'no_text');
+  const toFix = issues.some((i) => i.code !== 'no_text');
+  const phase = personalPhase(line);
+  const common = {
+    id: line.id,
+    source,
+    personal: line.personal && phase ? { kind: line.personal.kind, phase } : null,
+    cue: line.trigger.kind === 'cue' ? { at: line.trigger.at, order: line.trigger.order } : null,
+    issues,
+    problems: issues.map((i) => issueText(i, source === 'personal')),
+    when: whenInWords(line.trigger),
+    moment: momentOf(line.trigger, officialM),
+  };
+  if (line.audio) {
+    const head = await files.head(uploadKey(line.audio));
+    const view = lineStatusView(source, { ready: head !== null, toWrite: false, toFix });
+    return { ...common, ...view, hash: line.audio.hash, rendered: head !== null, bytes: line.audio.bytes, audioPath: head ? `/uploads/${line.audio.hash}.${line.audio.format}` : null };
+  }
+  const hash = await ttsHash(script.voice, line.text);
+  const head = toWrite ? null : await files.head(ttsKey(hash));
+  const view = lineStatusView(source, { ready: head !== null, toWrite, toFix });
+  return { ...common, ...view, hash, rendered: head !== null, bytes: head?.size ?? 0, audioPath: head ? `/audio/${hash}` : null };
+};
+
+export const lineStatuses = (files: R2Bucket, script: AudioScript, officialM: number): Promise<LineStatus[]> =>
+  Promise.all(script.lines.map((line) => lineStatus(files, script, line, officialM)));
 
 /** The studio's order: by moment, then by where each line first plays (pace ones last, as written). */
 export const inRunningOrder = (lines: LineStatus[], firings: EstimatedFiring[]): LineStatus[] => {
@@ -120,7 +144,8 @@ export const audioSummary = async (
   lastPack: PackSummary | null,
   updatedAt: string | null,
 ): Promise<AudioSummary> => {
-  const toRecord = lines.filter((l) => l.source !== 'template' && !l.rendered).length;
+  const toFix = lines.filter((l) => l.issues.length > 0).length;
+  const toRecord = lines.filter((l) => l.issues.length === 0 && !l.rendered).length;
   const fingerprint = await scriptFingerprint(script);
   const changed =
     script.lines.length > 0 &&
@@ -128,11 +153,12 @@ export const audioSummary = async (
   return {
     lines: lines.length,
     toRecord,
+    toFix,
     uploads: lines.filter((l) => l.source === 'upload').length,
-    onScreen: lines.filter((l) => l.source === 'template').length,
+    personal: lines.filter((l) => l.source === 'personal').length,
     lastPublished: lastPack ? { version: lastPack.version, at: lastPack.createdAt } : null,
     changed,
-    publish: script.lines.length === 0 ? 'empty' : toRecord > 0 ? 'missing' : changed ? 'ready' : 'current',
+    publish: script.lines.length === 0 ? 'empty' : toFix > 0 ? 'fix' : toRecord > 0 ? 'missing' : changed ? 'ready' : 'current',
   };
 };
 
@@ -179,6 +205,10 @@ export type StudioPageData = StudioEstimates & {
   packs: PackSummary[];
   mapboxToken: string | null;
   ttsReady: boolean;
+  /** Claude is configured: AI personal lines get written, "Proposer un texte" works. */
+  aiReady: boolean;
+  /** "George · Expressive (Eleven v3) · Naturelle". */
+  voiceLabel: string;
   /** Viewers get the studio read-only: they listen, they do not edit. */
   canEdit: boolean;
   script: AudioScript;
@@ -194,9 +224,6 @@ export const distanceForClick = (track: CourseTrack, officialM: number, p: LatLn
 };
 
 export const trackFor = (geometry: CourseGeometry | null): CourseTrack | null => (geometry ? buildTrack(geometry.points) : null);
-
-/** The voice of the house (a recorded decision, AUDIO.md): every new script starts with it. */
-export const DEFAULT_VOICE = { id: 'JBFqnCBsd6RMkjVDRZzb', name: 'George', model: 'eleven_multilingual_v2' };
 
 export const emptyScript = (courseId: string, locale: 'fr' | 'en', version: number): AudioScript =>
   AudioScriptSchema.parse({ courseId, locale, version, voice: DEFAULT_VOICE, lines: [] });
@@ -221,7 +248,8 @@ export const loadStudioContext = async (env: Bindings, course: Course, locale: '
   const latest = packs.filter((p) => p.locale === locale).reduce((max, p) => Math.max(max, p.version), 0);
   const version = draft?.version ?? latest + 1;
   return {
-    script: draft?.script ?? emptyScript(course.id, locale, version),
+    // Scripts written before personal lines are read in today's shape (upgradeScript).
+    script: draft ? upgradeScript(draft.script) : emptyScript(course.id, locale, version),
     version,
     updatedAt: draft?.updatedAt ?? null,
     geometry,
@@ -268,6 +296,8 @@ export const studioPageData = async (
     packs: ctx.packs,
     mapboxToken: env.MAPBOX_TOKEN || null,
     ttsReady: Boolean(env.ELEVENLABS_API_TOKEN),
+    aiReady: Boolean(env.ANTHROPIC_API_KEY),
+    voiceLabel: voiceSummary(ctx.script.voice),
     canEdit: view.canEdit,
     script: ctx.script,
   };

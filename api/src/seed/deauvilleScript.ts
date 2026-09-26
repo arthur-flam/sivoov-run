@@ -2,10 +2,13 @@ import { deauvilleMarathonLandmarks } from '@sivoov/shared';
 import type { AudioScriptInput } from '@sivoov/shared';
 
 /**
- * v0 French script for the Deauville 2026 marathon. Written by hand (the Claude-from-brief
- * pass is a one-off later); reviewed copy replaces it here, the pipeline stays the same.
- * The start ceremony is three cue lines played before the clock starts (intro, countdown,
- * gun); landmark positions come from the course fixture, one line per landmark.
+ * v0 French script for the Deauville 2026 marathon, the seed of the studio's draft. Written by
+ * hand; the organizer rewrites it in the studio. It shows each kind of line once: the start
+ * ceremony as cue lines (intro, the runner called by bib and name, the speaker's word written
+ * by the AI for each runner, countdown, gun), one line per landmark from the course fixture,
+ * a split every five kilometres said live with the runner's time, and the finish call with the
+ * name and the official time. Every personal line has its offline version in `text`.
+ * Voice: George on Eleven v3, which reads the `[tags]`.
  */
 const landmarkLines: Record<string, string> = {
   planches: 'Vous êtes sur les Planches. Deux cents mètres de bois sous vos pieds, la mer à votre gauche, quarante-deux kilomètres devant vous. Profitez de la vue, la course commence maintenant.',
@@ -22,12 +25,27 @@ export const deauville2026MarathonScript: AudioScriptInput = {
   courseId: 'deauville-2026-marathon',
   version: 1,
   locale: 'fr',
-  voice: { id: 'JBFqnCBsd6RMkjVDRZzb', name: 'George', model: 'eleven_multilingual_v2' },
+  voice: { id: 'JBFqnCBsd6RMkjVDRZzb', name: 'George', model: 'eleven_v3' },
   lines: [
     {
       id: 'ceremony.intro', title: 'Présentation', category: 'ceremony', mix: 'interrupt', priority: 10,
       trigger: { kind: 'cue', at: 'armed', order: 1 }, key: 'ceremony-intro',
-      text: 'Bienvenue au Marathon International de Deauville. Vous êtes sur la ligne de départ, face à la mer, avec des milliers de coureurs. Le parcours fait le tour de la côte fleurie, par Touques, Saint-Arnoult et Tourgéville, avant de revenir vers les Planches. Nous serons dans vos oreilles tout le long. Coureurs, à vos marques.',
+      text: '[excited] Bienvenue au Marathon International de Deauville ! Vous êtes sur la ligne de départ, face à la mer, avec des milliers de coureurs. Le parcours fait le tour de la côte fleurie, par Touques, Saint-Arnoult et Tourgéville, avant de revenir vers les Planches. Nous serons dans vos oreilles tout le long.',
+    },
+    {
+      id: 'ceremony.call', title: 'L’appel sur la ligne', category: 'personal', mix: 'wait', priority: 10,
+      trigger: { kind: 'cue', at: 'armed', order: 2 }, key: 'ceremony-call',
+      text: 'Coureurs du marathon, vous êtes attendus sur la ligne.',
+      personal: { kind: 'template', template: 'Dossard {dossard}. {prenom} {nom} : [excited] vous êtes attendu sur la ligne !' },
+    },
+    {
+      id: 'ceremony.word', title: 'Le mot du speaker', category: 'personal', mix: 'wait', priority: 10,
+      trigger: { kind: 'cue', at: 'armed', order: 3 }, key: 'ceremony-word',
+      text: 'Où que vous soyez ce matin, vous courez avec Deauville. Vous êtes sur des routes ouvertes : la course ne vous protège pas, regardez pour deux. Coureurs… à vos marques.',
+      personal: {
+        kind: 'ai',
+        prompt: 'Saluez le coureur par son prénom et sa ville. Dites-lui en une phrase le temps qu’il fait chez lui et à Deauville. Rappelez qu’il court sur des routes ouvertes. Finissez exactement par « Coureurs… à vos marques. » Trois phrases courtes au plus.',
+      },
     },
     {
       id: 'ceremony.countdown', title: 'Compte à rebours', category: 'ceremony', mix: 'wait', priority: 10,
@@ -50,13 +68,15 @@ export const deauville2026MarathonScript: AudioScriptInput = {
       })),
     {
       id: 'personal.split', title: 'Passage', category: 'personal', mix: 'duck', priority: 4, once: false,
-      trigger: { kind: 'split', everyMeters: 1000 }, key: 'split', slots: ['km', 'splitTime'],
-      text: 'Kilomètre {km}, {splitTime}.',
+      trigger: { kind: 'split', everyMeters: 5000 }, key: 'split',
+      text: 'Encore une borne de cinq kilomètres derrière vous.',
+      personal: { kind: 'template', template: 'Kilomètre {km}. {temps}. Vous tenez {allure}.' },
     },
     {
       id: 'ceremony.finish', title: 'L’arrivée', category: 'ceremony', mix: 'interrupt', priority: 10,
       trigger: { kind: 'finish' }, key: 'ceremony-finish',
-      text: 'Vous franchissez la ligne d’arrivée sur les Planches de Deauville ! Quarante-deux kilomètres cent quatre-vingt-quinze mètres, face à la mer. Votre temps est officiel. Bravo, marathonien.',
+      text: '[excited] Vous franchissez la ligne d’arrivée sur les Planches de Deauville ! Quarante-deux kilomètres cent quatre-vingt-quinze mètres, face à la mer. Votre temps est officiel. Bravo, marathonien.',
+      personal: { kind: 'template', template: '[excited] {prenom} {nom} ! {temps} ! Vous franchissez la ligne sur les Planches de Deauville. Votre temps est officiel. Bravo !' },
     },
   ],
 };

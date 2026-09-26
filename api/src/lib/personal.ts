@@ -1,0 +1,182 @@
+import { PersonalDefsSchema, fillTemplate, spokenValues, supportsAudioTags } from '@sivoov/shared';
+import type { Course, LiveFacts, PersonalDef, PersonalDefs, PersonalVoices, Race, RunnerFacts } from '@sivoov/shared';
+import { distanceName } from '../pages/org/format';
+import { maxCharsFor, writePersonalLine } from './llm';
+import type { LlmDeps } from './llm';
+import type { PersonalLineBrief } from './prompts/personalLine';
+import { VOICES_PREFIX, renderText, ttsHash, ttsKey } from './tts';
+import type { TtsDeps } from './tts';
+
+/**
+ * A runner's own versions of the personal lines of a published pack (AUDIO.md, "Personal
+ * lines"). Everything here degrades to the line's offline version, which is in the pack: no
+ * voice key, no AI key, no town on file, an AI refusal, a network error, each only means that
+ * line is said the way everyone hears it.
+ * - `prepare` lines (runner facts, AI) are rendered when the app asks, before the start, while
+ *   the phone has a network: the app downloads them with the pack.
+ * - `live` lines (the run's numbers) are rendered when they play, if the phone has a network.
+ * Renders land in `voices/<hash>.mp3`, served by hash (`/api/voices/<hash>.mp3`).
+ */
+export const DEFS_PREFIX = 'personal-defs/';
+export const defsKey = (courseId: string, version: number): string => `${DEFS_PREFIX}${courseId}/${version}.json`;
+
+/** Written next to the pack at publishing: private, the public audio route never serves it. */
+export const storeDefs = (files: R2Bucket, defs: PersonalDefs): Promise<R2Object> =>
+  files.put(defsKey(defs.courseId, defs.version), JSON.stringify(defs), { httpMetadata: { contentType: 'application/json' } });
+
+export const loadDefs = async (files: R2Bucket, courseId: string, version: number): Promise<PersonalDefs | null> => {
+  const object = await files.get(defsKey(courseId, version));
+  if (!object) return null;
+  const parsed = PersonalDefsSchema.safeParse(await object.json().catch(() => null));
+  return parsed.success ? parsed.data : null;
+};
+
+export const voiceUrl = (baseUrl: string, hash: string): string => `${baseUrl}/api/voices/${hash}.mp3`;
+
+export type PersonalDeps = { files: R2Bucket; tts: TtsDeps | null; llm: LlmDeps | null; baseUrl: string };
+
+/** Who the lines are for and where: the AI's facts, and the weather when the app sent a position. */
+export type PersonalContext = {
+  entrantId: string;
+  runner: RunnerFacts;
+  race: Race;
+  course: Course;
+  weather: { runner: string | null; race: string | null };
+};
+
+export const runnerFacts = (entrant: { firstName: string; lastName: string; bib: string; distanceKey: RunnerFacts['distanceKey']; address?: { city: string } }): RunnerFacts => ({
+  firstName: entrant.firstName,
+  lastName: entrant.lastName,
+  bib: entrant.bib,
+  city: entrant.address?.city ?? null,
+  distanceKey: entrant.distanceKey,
+});
+
+/** "14 et 15 novembre 2026", or one day. */
+export const raceDays = (race: Pick<Race, 'dateStart' | 'dateEnd'>): string => {
+  const day = (iso: string, parts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat('fr-FR', { ...parts, timeZone: 'UTC' }).format(new Date(`${iso}T12:00:00Z`));
+  if (race.dateStart === race.dateEnd) return day(race.dateStart, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  return `${day(race.dateStart, { day: 'numeric' })} et ${day(race.dateEnd, { day: 'numeric', month: 'long', year: 'numeric' })}`;
+};
+
+/** What the AI knows when it writes one line. */
+export const briefFor = (def: Pick<PersonalDef, 'title' | 'when' | 'fallback' | 'personal'>, ctx: Omit<PersonalContext, 'entrantId' | 'course'>, tags: boolean): PersonalLineBrief => ({
+  prompt: def.personal.kind === 'ai' ? def.personal.prompt : '',
+  fallback: def.fallback,
+  title: def.title,
+  when: def.when,
+  race: { name: ctx.race.name, city: ctx.race.city, date: raceDays(ctx.race), distance: distanceName(ctx.runner.distanceKey) },
+  runner: { firstName: ctx.runner.firstName, lastName: ctx.runner.lastName, bib: ctx.runner.bib, city: ctx.runner.city },
+  weather: ctx.weather,
+  tags,
+  maxChars: maxCharsFor(def.fallback),
+});
+
+/** An AI line is written once per runner and pack version, then kept half a day (the weather moves on). */
+const WRITTEN_FRESH_MS = 12 * 3600 * 1000;
+type Written = Record<string, { text: string; at: string }>;
+const writtenKey = (courseId: string, version: number, entrantId: string) => `personal-texts/${courseId}/${version}/${entrantId}.json`;
+
+const readWritten = async (files: R2Bucket, key: string): Promise<Written> => {
+  const object = await files.get(key);
+  return object ? ((await object.json().catch(() => ({}))) as Written) : {};
+};
+
+/** Runs `fn` over `items` with at most `limit` in flight (ElevenLabs allows two at a time), keeping order. */
+const mapLimit = async <T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> => {
+  const results: R[] = new Array<R>(items.length);
+  const cursor = { i: 0 };
+  const worker = async (): Promise<void> => {
+    const i = cursor.i++;
+    if (i >= items.length) return;
+    results[i] = await fn(items[i]!);
+    return worker();
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+};
+
+/** The sentence one prepare line becomes for this runner, or null: the offline version plays. */
+const prepareText = async (deps: PersonalDeps, defs: PersonalDefs, def: PersonalDef, ctx: PersonalContext, written: Written, now: Date): Promise<string | null> => {
+  if (def.personal.kind === 'template') return fillTemplate(def.personal.template, spokenValues(ctx.runner));
+  const kept = written[def.eventId];
+  if (kept && now.getTime() - Date.parse(kept.at) < WRITTEN_FRESH_MS) return kept.text;
+  if (!deps.llm) return null;
+  return writePersonalLine(deps.llm, briefFor(def, ctx, supportsAudioTags(defs.voice.model)));
+};
+
+/**
+ * The runner's own versions of every `prepare` line of this pack version, rendered and ready
+ * to download. Lines that cannot be said to this runner are simply absent.
+ */
+export const personalVoices = async (deps: PersonalDeps, ctx: PersonalContext, version: number, now: Date = new Date()): Promise<PersonalVoices> => {
+  const empty = { courseId: ctx.course.id, version, files: {} };
+  const defs = await loadDefs(deps.files, ctx.course.id, version);
+  if (!defs || !deps.tts) return empty;
+  const prepare = defs.lines.filter((d) => d.phase === 'prepare');
+  if (prepare.length === 0) return empty;
+  const key = writtenKey(ctx.course.id, version, ctx.entrantId);
+  const written = await readWritten(deps.files, key);
+  const texts = await mapLimit(prepare, 2, async (def) => ({ def, text: await prepareText(deps, defs, def, ctx, written, now) }));
+  const freshAi = texts.filter((t) => t.def.personal.kind === 'ai' && t.text !== null && written[t.def.eventId]?.text !== t.text);
+  if (freshAi.length > 0) {
+    const next = { ...written, ...Object.fromEntries(freshAi.map((t) => [t.def.eventId, { text: t.text!, at: now.toISOString() }])) };
+    await deps.files.put(key, JSON.stringify(next), { httpMetadata: { contentType: 'application/json' } });
+  }
+  const tts = deps.tts;
+  const rendered = await mapLimit(
+    texts.filter((t): t is { def: PersonalDef; text: string } => t.text !== null),
+    2,
+    async ({ def, text }) => ({ def, outcome: await renderText(tts, defs.voice, text, { prefix: VOICES_PREFIX, locale: defs.locale }) }),
+  );
+  const files = Object.fromEntries(
+    rendered.flatMap(({ def, outcome }) =>
+      outcome.ok ? [[def.eventId, { url: voiceUrl(deps.baseUrl, outcome.rendered.hash), bytes: outcome.rendered.bytes, sha256: outcome.rendered.sha256 }]] : [],
+    ),
+  );
+  return { ...empty, files };
+};
+
+/** Live renders a runner may cause in a day, past the ones already cached: a marathon's splits and a finish, twice over. */
+export const LIVE_DAILY_LIMIT = 150;
+const quotaKey = (entrantId: string, now: Date) => `voice-quota/${now.toISOString().slice(0, 10)}/${entrantId}.json`;
+
+export type LiveOutcome = { ok: true; url: string; bytes: number } | { ok: false; status: 404 | 422 | 429 | 502 | 503; detail: string };
+
+/**
+ * One `live` line for this runner at this moment of their run. 422 when a value it needs is
+ * missing (the app plays the offline version), 429 past the daily allowance.
+ */
+export const liveVoice = async (deps: PersonalDeps, ctx: Pick<PersonalContext, 'entrantId' | 'runner'>, courseId: string, version: number, eventId: string, facts: LiveFacts, now: Date = new Date()): Promise<LiveOutcome> => {
+  if (!deps.tts) return { ok: false, status: 503, detail: 'voice unavailable' };
+  const defs = await loadDefs(deps.files, courseId, version);
+  const def = defs?.lines.find((d) => d.eventId === eventId && d.phase === 'live');
+  if (!defs || !def || def.personal.kind !== 'template') return { ok: false, status: 404, detail: 'no such live line' };
+  const text = fillTemplate(def.personal.template, spokenValues(ctx.runner, { ...facts, finish: facts.finish ?? def.finish }));
+  if (text === null) return { ok: false, status: 422, detail: 'a value is missing' };
+  const hash = await ttsHash(defs.voice, text);
+  const cached = await deps.files.head(ttsKey(hash, VOICES_PREFIX));
+  if (cached) return { ok: true, url: voiceUrl(deps.baseUrl, hash), bytes: cached.size };
+  const qKey = quotaKey(ctx.entrantId, now);
+  const used = ((await (await deps.files.get(qKey))?.json().catch(() => null)) as { n?: number } | null)?.n ?? 0;
+  if (used >= LIVE_DAILY_LIMIT) return { ok: false, status: 429, detail: 'daily allowance used' };
+  const outcome = await renderText(deps.tts, defs.voice, text, { prefix: VOICES_PREFIX, locale: defs.locale });
+  if (!outcome.ok) return { ok: false, status: 502, detail: `tts ${outcome.status}` };
+  await deps.files.put(qKey, JSON.stringify({ n: used + 1 }), { httpMetadata: { contentType: 'application/json' } });
+  return { ok: true, url: voiceUrl(deps.baseUrl, outcome.rendered.hash), bytes: outcome.rendered.bytes };
+};
+
+/** The dependencies as this environment has them: no key, no voice or no AI, never an error. */
+export const personalDeps = (env: {
+  FILES: R2Bucket;
+  BASE_URL: string;
+  ELEVENLABS_API_TOKEN?: string;
+  ANTHROPIC_API_KEY?: string;
+  AI_GATEWAY?: string;
+  CF_ACCOUNT_ID?: string;
+}): PersonalDeps => ({
+  files: env.FILES,
+  baseUrl: env.BASE_URL,
+  tts: env.ELEVENLABS_API_TOKEN ? { files: env.FILES, apiKey: env.ELEVENLABS_API_TOKEN } : null,
+  llm: env.ANTHROPIC_API_KEY ? { apiKey: env.ANTHROPIC_API_KEY, accountId: env.CF_ACCOUNT_ID, gateway: env.AI_GATEWAY } : null,
+});

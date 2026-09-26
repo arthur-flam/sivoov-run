@@ -11,6 +11,14 @@ export type Bindings = Env & {
    * it the studio still writes, plays back with the browser voice and refuses to render.
    */
   ELEVENLABS_API_TOKEN?: string;
+  /**
+   * Anthropic key for the lines Claude writes per runner (`ai` personal lines) and the studio's
+   * "Proposer un texte" (`wrangler secret put ANTHROPIC_API_KEY`). Optional: without it those
+   * lines play their offline version and the studio says why.
+   */
+  ANTHROPIC_API_KEY?: string;
+  /** Cloudflare AI Gateway name: when set, Claude is called through it (logs, limits). A wrangler var. */
+  AI_GATEWAY?: string;
   /** Comma-separated emails of Sivoov staff: every race in /org, and race creation. A wrangler var. */
   STAFF_EMAILS?: string;
   /**

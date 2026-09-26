@@ -99,7 +99,7 @@ export default function Run() {
           <CourseDiagram track={track} officialM={course.distanceM} runM={0} landmarks={course.landmarks} accent={accent} width={diagramW} height={diagramW * 0.8} />
         </View>
         <View style={{ flex: 1 }} />
-        <Button testID="start" label={t('run.start')} color={race.theme.primary} onColor={race.theme.onPrimary} onPress={() => void run.start(source, { uriFor: usePackStore.getState().uriFor })} />
+        <Button testID="start" label={t('run.start')} color={race.theme.primary} onColor={race.theme.onPrimary} onPress={() => void run.start(source, { soundFor: usePackStore.getState().soundFor })} />
         <Button label={t('common.back')} ghost dark onPress={() => router.back()} />
       </Screen>
     );

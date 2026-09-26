@@ -1,8 +1,20 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { z } from 'zod';
-import { AudioPackSchema, CLIENT_HEADER, CourseGeometrySchema, CourseSchema, EntrantPublicSchema, RaceSchema, RunSchema, RunTraceSchema, formatClientHeader } from '@sivoov/shared';
-import type { Run, RunTrace } from '@sivoov/shared';
+import {
+  AudioPackSchema,
+  CLIENT_HEADER,
+  CourseGeometrySchema,
+  CourseSchema,
+  EntrantPublicSchema,
+  LiveVoiceSchema,
+  PersonalVoicesSchema,
+  RaceSchema,
+  RunSchema,
+  RunTraceSchema,
+  formatClientHeader,
+} from '@sivoov/shared';
+import type { LiveVoiceRequest, Run, RunTrace } from '@sivoov/shared';
 
 export const API_URL: string = (Constants.expoConfig?.extra as { apiUrl?: string } | undefined)?.apiUrl ?? 'https://run.sivoov.app';
 
@@ -32,6 +44,10 @@ export class ApiError extends Error {
 const TIMEOUT_MS = 20_000;
 /** A marathon trace is about 1 MB: give it longer, but never forever. */
 const UPLOAD_TIMEOUT_MS = 120_000;
+/** The runner's own lines are written (AI) and recorded on the spot: a few seconds each. */
+const VOICES_TIMEOUT_MS = 60_000;
+/** A live line is worth waiting for only while it is still news: past this, the offline version plays. */
+export const LIVE_VOICE_TIMEOUT_MS = 4_000;
 
 const request = async <T extends z.ZodType>(path: string, schema: T, init: RequestInit = {}, token?: string, timeoutMs = TIMEOUT_MS): Promise<z.infer<T>> => {
   // fetch has no timeout of its own and React Native's has no read timeout: a stalled
@@ -68,6 +84,10 @@ export const api = {
   signOut: (token: string) => request('/me/signout', z.object({ ok: z.boolean() }), { method: 'POST' }, token),
   geometry: (courseId: string) => request(`/courses/${courseId}/geometry`, CourseGeometrySchema),
   pack: (courseId: string) => request(`/courses/${courseId}/pack`, AudioPackSchema),
+  /** The runner's own versions of the pack's personal lines; the position only picks the weather. */
+  myVoices: (token: string, here?: { lat: number; lng: number }) =>
+    request('/me/voices', PersonalVoicesSchema, { method: 'POST', body: JSON.stringify(here ?? {}) }, token, VOICES_TIMEOUT_MS),
+  liveVoice: (token: string, req: LiveVoiceRequest) => request('/me/voices/live', LiveVoiceSchema, { method: 'POST', body: JSON.stringify(req) }, token, LIVE_VOICE_TIMEOUT_MS),
   uploadRun: (token: string, run: Run, trace?: RunTrace) =>
     request(`/runs/${run.id}`, z.object({ ok: z.boolean() }), { method: 'PUT', body: JSON.stringify({ run, trace: trace ? RunTraceSchema.parse(trace) : undefined }) }, token, UPLOAD_TIMEOUT_MS),
 };

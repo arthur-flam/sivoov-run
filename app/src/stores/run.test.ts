@@ -191,6 +191,16 @@ describe('the start ceremony', () => {
     expect(useRun.getState().fired).toEqual([]);
   });
 
+  it('calls the runner by name on the line when their own version came down with the pack', async () => {
+    const { source } = fakeSource();
+    const own = (event: { id: string; source: { kind: string; key?: string } }) => (event.id === 'intro' ? 'file://voices/lea-intro.mp3' : event.source.kind === 'file' ? uriFor(event.source.key!) : null);
+    const started = useRun.getState().start(source, { soundFor: own });
+    expect(playing('file://voices/lea-intro.mp3')).toBeDefined();
+    expect(playing('file://intro.mp3')).toBeUndefined();
+    useRun.getState().reset();
+    await started;
+  });
+
   it('keeps the silent countdown when a ceremony file is missing: never half a ceremony', async () => {
     const { source } = fakeSource();
     const started = useRun.getState().start(source, { uriFor: (key) => (key === 'countdown.mp3' ? null : uriFor(key)) });

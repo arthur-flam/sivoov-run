@@ -1,5 +1,5 @@
 import { ceremonySequence } from '@sivoov/shared';
-import type { AudioPack, CueMoment } from '@sivoov/shared';
+import type { AudioEvent, AudioPack, CueMoment } from '@sivoov/shared';
 import { playSequence } from './player';
 
 /** The start ceremony ready to play: every line with a playable file, and which one is the gun. */
@@ -7,12 +7,14 @@ export type CeremonyPlan = { lines: { at: CueMoment; uri: string }[]; gunIndex: 
 
 /**
  * The pack's start ceremony, or null when the run keeps the silent visual countdown: the pack
- * has no cue, or one of its lines has no file. Never half a ceremony.
+ * has no cue, or one of its lines has no sound. Never half a ceremony. `soundFor` picks each
+ * line's sound: the runner's own version of a personal line ("Dossard 1247, Camille Martin")
+ * when it came down with the pack, the pack's offline file otherwise.
  */
-export const ceremonyPlan = (pack: Pick<AudioPack, 'events'> | null, uriFor: (key: string) => string | null): CeremonyPlan | null => {
+export const ceremonyPlan = (pack: Pick<AudioPack, 'events'> | null, soundFor: (event: AudioEvent) => string | null): CeremonyPlan | null => {
   const ceremony = pack ? ceremonySequence(pack) : null;
   if (!ceremony) return null;
-  const lines = ceremony.lines.map((line) => ({ at: line.trigger.at, uri: line.source.kind === 'file' ? uriFor(line.source.key) : null }));
+  const lines = ceremony.lines.map((line) => ({ at: line.trigger.at, uri: soundFor(line) }));
   return lines.every((l): l is CeremonyPlan['lines'][number] => l.uri !== null) ? { lines, gunIndex: ceremony.gunIndex } : null;
 };
 

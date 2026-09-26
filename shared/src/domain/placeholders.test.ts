@@ -3,6 +3,7 @@ import {
   SAMPLE_LIVE,
   SAMPLE_RUNNER,
   fillTemplate,
+  liveFactsFor,
   livePlaceholders,
   placeholderNamed,
   placeholdersIn,
@@ -42,6 +43,21 @@ describe('placeholders', () => {
     const values = spokenValues({ ...SAMPLE_RUNNER, city: null });
     expect(fillTemplate('Bienvenue à {prenom}, venu de {ville}.', values)).toBeNull();
     expect(fillTemplate('Kilomètre {km}.', values)).toBeNull();
+  });
+});
+
+describe('liveFactsFor', () => {
+  const state = { phase: 'running' as const, distanceM: 21_300, targetM: 42_195, elapsedMs: 6_720_000, splits: [{ km: 21, elapsedMs: 6_650_000, splitMs: 318_000 }], avgPaceSecPerKm: 315.4 };
+  it('gives a live line what the run knows now', () => {
+    expect(liveFactsFor(state)).toEqual({ km: 21, elapsedS: 6720, lastKmS: 318, paceSecPerKm: 315, projectedS: 13312 });
+    expect(fillTemplate('Kilomètre {km}, {temps}. Arrivée prévue en {arrivee_prevue}.', spokenValues(SAMPLE_RUNNER, liveFactsFor(state)))).toBe(
+      'Kilomètre vingt et un, une heure cinquante-deux. Arrivée prévue en trois heures quarante et une.',
+    );
+  });
+  it('says the finish is the finish, and leaves out a glitch rather than say it', () => {
+    expect(liveFactsFor({ ...state, phase: 'finished', distanceM: 42_195, elapsedMs: 13_579_000 })).toMatchObject({ finish: true, elapsedS: 13_579 });
+    expect(liveFactsFor({ ...state, splits: [{ km: 21, elapsedMs: 1, splitMs: 4_000 }] }).lastKmS).toBeUndefined();
+    expect(liveFactsFor({ ...state, distanceM: 400, splits: [], avgPaceSecPerKm: null })).toEqual({ km: 0, elapsedS: 6720 });
   });
 });
 

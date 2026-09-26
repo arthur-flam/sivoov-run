@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AudioPackSchema, CourseSchema, deauvilleMarathonLandmarks } from '@sivoov/shared';
-import type { AudioPack } from '@sivoov/shared';
+import type { AudioPack, PersonalVoices } from '@sivoov/shared';
 
 /** The phone's cache dir: file uri -> size. `offline` urls fail to download. */
 const disk = new Map<string, number>();
@@ -51,7 +51,8 @@ class ApiError extends Error {
   }
 }
 const pack = vi.fn<() => Promise<AudioPack>>();
-vi.mock('@/api', () => ({ ApiError, api: { pack: () => pack() } }));
+const myVoices = vi.fn<(token: string, here?: { lat: number; lng: number }) => Promise<PersonalVoices>>();
+vi.mock('@/api', () => ({ ApiError, api: { pack: () => pack(), myVoices: (token: string, here?: { lat: number; lng: number }) => myVoices(token, here) } }));
 
 const { usePackStore } = await import('./packStore');
 
@@ -76,7 +77,8 @@ describe('the audio pack on the phone', () => {
     offline.clear();
     pack.mockReset();
     platform.OS = 'android';
-    usePackStore.setState({ courseId: null, pack: null, status: 'idle', bytes: 0, uris: {} });
+    myVoices.mockReset();
+    usePackStore.setState({ courseId: null, pack: null, status: 'idle', bytes: 0, uris: {}, personal: {}, personalFor: null });
   });
 
   it('downloads every file ahead of the run and says how much it weighs', async () => {
@@ -132,5 +134,65 @@ describe('the audio pack on the phone', () => {
     expect(usePackStore.getState().status).toBe('ready');
     expect(usePackStore.getState().uriFor('intro.mp3')).toBe('https://run.test/api/packs/m/2/intro.mp3');
     expect(disk.size).toBe(0);
+  });
+});
+
+describe('the runner’s own lines', () => {
+  const personalPack = AudioPackSchema.parse({
+    ...published,
+    events: [
+      ...published.events,
+      { id: 'call', trigger: { kind: 'cue', at: 'armed', order: 2 }, source: { kind: 'file', key: 'intro.mp3' }, category: 'personal', personal: { phase: 'prepare' } },
+      { id: 'split', trigger: { kind: 'split', everyMeters: 5000 }, source: { kind: 'file', key: 'gun.mp3' }, category: 'personal', personal: { phase: 'live' } },
+    ],
+  });
+  const lea: PersonalVoices = { courseId: course.id, version: 2, files: { call: { url: 'https://run.test/api/voices/abc.mp3', bytes: 9_000, sha256: 'a'.repeat(64) } } };
+  const call = personalPack.events.find((e) => e.id === 'call')!;
+  const split = personalPack.events.find((e) => e.id === 'split')!;
+
+  beforeEach(() => {
+    disk.clear();
+    offline.clear();
+    pack.mockReset();
+    myVoices.mockReset();
+    platform.OS = 'android';
+    usePackStore.setState({ courseId: null, pack: null, status: 'idle', bytes: 0, uris: {}, personal: {}, personalFor: null });
+    sizes.set('https://run.test/api/voices/abc.mp3', 9_000);
+  });
+
+  it('come down with the pack and play instead of the offline file, before the start', async () => {
+    pack.mockResolvedValue(personalPack);
+    myVoices.mockResolvedValue(lea);
+    await usePackStore.getState().load(course);
+    await usePackStore.getState().loadPersonal('token');
+    expect(usePackStore.getState().soundFor(call)).toBe(`file://cache/voices/${course.id}/2/${'a'.repeat(32)}.mp3`);
+    // A live line is said when it plays: before that, its sound is the offline file.
+    expect(usePackStore.getState().soundFor(split)).toBe('file://cache/packs/deauville-2026-marathon/2/gun.mp3');
+  });
+
+  it('leave the offline files in place when the server cannot say them, and never throw', async () => {
+    pack.mockResolvedValue(personalPack);
+    myVoices.mockRejectedValue(new Error('timeout'));
+    await usePackStore.getState().load(course);
+    await usePackStore.getState().loadPersonal('token');
+    expect(usePackStore.getState().soundFor(call)).toBe('file://cache/packs/deauville-2026-marathon/2/intro.mp3');
+  });
+
+  it('are asked for once, and again only when the pre-flight brings a position for the weather', async () => {
+    pack.mockResolvedValue(personalPack);
+    myVoices.mockResolvedValue(lea);
+    await usePackStore.getState().load(course);
+    await usePackStore.getState().loadPersonal('token');
+    await usePackStore.getState().loadPersonal('token');
+    await usePackStore.getState().loadPersonal('token', { lat: 49.44, lng: 1.1 });
+    await usePackStore.getState().loadPersonal('token', { lat: 49.44, lng: 1.1 });
+    expect(myVoices.mock.calls).toEqual([['token', undefined], ['token', { lat: 49.44, lng: 1.1 }]]);
+  });
+
+  it('are not asked for when the pack has none', async () => {
+    pack.mockResolvedValue(published);
+    await usePackStore.getState().load(course);
+    await usePackStore.getState().loadPersonal('token');
+    expect(myVoices).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,6 @@
 import type { LiveFacts } from '../schemas/audio';
 import type { DistanceKey } from '../schemas/race';
+import type { RunState } from './tracker';
 import { frenchNumber, spokenBib, spokenClock, spokenDuration, spokenPace } from './spokenFr';
 
 /**
@@ -82,6 +83,27 @@ export const fillTemplate = (template: string, values: Record<string, string | n
   const resolved = names.map((name) => ({ name, value: values[placeholderNamed(name)?.key ?? ''] ?? null }));
   if (resolved.some((r) => r.value === null)) return null;
   return template.replace(PLACEHOLDER, (_, name: string) => resolved.find((r) => r.name === name)!.value!);
+};
+
+const within = (n: number | null | undefined, min: number, max: number): number | undefined =>
+  n === null || n === undefined || !Number.isFinite(n) || n < min || n > max ? undefined : Math.round(n);
+
+/**
+ * What the run knows right now, for a live line: kilometres done, time, the last kilometre,
+ * the average pace, the finish time at that pace, and whether this is the finish. A value out
+ * of any plausible range (a GPS glitch) is left out: the line then plays its offline version.
+ */
+export const liveFactsFor = (state: Pick<RunState, 'phase' | 'distanceM' | 'targetM' | 'elapsedMs' | 'splits' | 'avgPaceSecPerKm'>): LiveFacts => {
+  const elapsedS = state.elapsedMs / 1000;
+  const facts: LiveFacts = {
+    km: within(Math.floor(state.distanceM / 1000), 0, 250),
+    elapsedS: within(elapsedS, 0, 172_800),
+    lastKmS: within((state.splits[state.splits.length - 1]?.splitMs ?? NaN) / 1000, 30, 7200),
+    paceSecPerKm: within(state.avgPaceSecPerKm, 60, 3600),
+    projectedS: state.phase === 'running' && state.distanceM >= 1000 ? within((elapsedS * state.targetM) / state.distanceM, 0, 172_800) : undefined,
+    finish: state.phase === 'finished' ? true : undefined,
+  };
+  return Object.fromEntries(Object.entries(facts).filter(([, v]) => v !== undefined)) as LiveFacts;
 };
 
 /** The runner the studio uses for « Écouter un exemple ». */

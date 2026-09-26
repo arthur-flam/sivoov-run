@@ -94,8 +94,17 @@ studio offers the ones a race speaker needs (`AUDIO_TAGS`, French labels) as chi
 the script's model is v3. Captions, the browser voice and v2 get the text without them.
 
 ## The AI (`api/src/lib/llm.ts`, `lib/prompts/`)
-Claude (`claude-opus-5`, low effort, server-side refusal fallbacks) through `@anthropic-ai/sdk`,
-via Cloudflare AI Gateway when the `AI_GATEWAY` var names one. Two uses, never during the run:
+Every LLM call goes through Cloudflare AI Gateway **"sivoov"** (`AI_GATEWAY` var), never to a
+provider directly. The Worker holds one secret, `CLOUDFLARE_AI_TOKEN`, and no provider key:
+- **Claude first** (`claude-opus-5`, low effort, server-side refusal fallbacks) through the
+  Anthropic SDK pointed at the gateway's Anthropic route, with `x-api-key` omitted and
+  `cf-aig-authorization`: the gateway adds the Anthropic key it holds (a provider key stored in
+  the gateway, or Cloudflare's unified billing).
+- **Workers AI as the stand-in** (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`, OpenAI-compatible
+  chat on the same gateway) when the gateway cannot reach Claude: no key stored yet (it answers
+  401 today), an outage. A Claude refusal is not handed to Llama. The studio says who wrote each
+  text (« Écrit par Claude » or the Llama note).
+Two uses, never during the run:
 1. **A personal `ai` line**, written per runner when the app asks for its voices: the
    organizer's instructions, the offline version as the example of tone and length, when it
    plays, the race, the runner (name, bib, town) and the weather there and at the race
@@ -105,7 +114,7 @@ via Cloudflare AI Gateway when the `AI_GATEWAY` var names one. Two uses, never d
    12 hours in `personal-texts/` (rewritten once when a position first arrives).
 2. **« Proposer un texte »** in the studio: a draft of the text everyone hears, from the race,
    its places and the neighbouring lines. The organizer edits it before recording.
-No `ANTHROPIC_API_KEY` secret: AI lines play their offline version and the studio says so.
+No token: AI lines play their offline version and the studio says so.
 
 ## The studio (`/org/{race}/courses/{courseId}`)
 Written for race directors: every sentence comes from `api/src/pages/org/studioCopy.ts`, and the

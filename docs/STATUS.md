@@ -61,10 +61,11 @@ Anchored to PRD milestones (M2 10 Oct, M3 17 Oct, M4 31 Oct).
 
 ## Owner actions
 
-- **Claude for AI lines**: `npx wrangler secret put ANTHROPIC_API_KEY` for production and
-  `--env preview` (and `ANTHROPIC_API_KEY=` in `api/.dev.vars` locally). Optional: create an AI
-  Gateway in the Cloudflare dashboard and set its name as the `AI_GATEWAY` var in
-  `wrangler.jsonc`. Without the key, AI lines play their offline version.
+- **Claude for AI lines**: in the Cloudflare dashboard, AI Gateway "sivoov" → Provider keys, add
+  the Anthropic key (or turn on unified billing for Anthropic). Nothing to change in the Worker:
+  until then, AI lines are written by Llama 3.3 on Workers AI through the same gateway, and the
+  studio says so. If the gateway is made authenticated, `CLOUDFLARE_AI_TOKEN` also needs the
+  "AI Gateway: Run" permission.
 - **ElevenLabs key**: give it the `voices_read` permission so the studio lists the account's
   own voices (native French voices added from the Voice Library). Today it can only render.
 
@@ -90,8 +91,11 @@ repeated here (see ARCHITECTURE.md, AUDIO.md, WORKFLOW.md).
   never during the run. The run's numbers are said live by filling a template and rendering
   it on the spot, with a 4 s budget and the offline version behind (the owner asked for
   generation with an offline fallback; this replaces number fragments for now).
-- Claude (`claude-opus-5`, low effort, server-side refusal fallbacks) through the Anthropic
-  SDK, optionally via AI Gateway; weather from Open-Meteo (no key), position rounded, not stored.
+- Every LLM call goes through Cloudflare AI Gateway "sivoov", never to a provider directly (the
+  owner's call, 2026-09-26). The Worker holds only `CLOUDFLARE_AI_TOKEN`; the gateway holds the
+  Anthropic key. Claude (`claude-opus-5`, low effort, server-side refusal fallbacks) first,
+  Workers AI Llama 3.3 70B on the same gateway when Claude is unreachable. Weather from
+  Open-Meteo (no key), position rounded, not stored.
 - Eleven v3 is the default voice model (tags, French via `language_code`); older drafts keep
   their model until the organizer changes it. House voices are ElevenLabs' own, checked with
   our key; native French voices come from the Voice Library by id.
@@ -144,8 +148,9 @@ repeated here (see ARCHITECTURE.md, AUDIO.md, WORKFLOW.md).
   believed benign but not checked against a `preview`-profile build.
 - The Worker's ElevenLabs render has run for real only from a local Worker (2026-09-26: a v3
   voice audition and a personal example); never yet from preview or production.
-- Claude has only answered stubbed tests: no `ANTHROPIC_API_KEY` exists anywhere yet, so no
-  AI line has been written for real. Read the first ones before a runner hears them.
+- Claude has only answered stubbed tests: the "sivoov" gateway holds no Anthropic key yet (it
+  answers 401), so real AI lines are written by Llama 3.3 today (checked from a local Worker
+  through the gateway, 2026-09-26). Read the first ones before a runner hears them.
 - Live lines (splits, the finish call with `{temps}`) need the phone's network at that moment,
   in the background with the screen locked: untested on a device. Each is one ElevenLabs
   render (about 2 s, cached by sentence); budget roughly 10 per runner for splits every 5 km.

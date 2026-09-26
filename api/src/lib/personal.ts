@@ -106,7 +106,7 @@ const prepareText = async (deps: PersonalDeps, defs: PersonalDefs, def: Personal
   const kept = written[def.eventId];
   if (kept && now.getTime() - Date.parse(kept.at) < WRITTEN_FRESH_MS && (kept.here || ctx.weather.runner === null)) return kept.text;
   if (!deps.llm) return null;
-  return writePersonalLine(deps.llm, briefFor(def, ctx, supportsAudioTags(defs.voice.model)));
+  return (await writePersonalLine(deps.llm, briefFor(def, ctx, supportsAudioTags(defs.voice.model))))?.text ?? null;
 };
 
 /**
@@ -176,12 +176,12 @@ export const personalDeps = (env: {
   FILES: R2Bucket;
   BASE_URL: string;
   ELEVENLABS_API_TOKEN?: string;
-  ANTHROPIC_API_KEY?: string;
+  CLOUDFLARE_AI_TOKEN?: string;
   AI_GATEWAY?: string;
   CF_ACCOUNT_ID?: string;
 }): PersonalDeps => ({
   files: env.FILES,
   baseUrl: env.BASE_URL,
   tts: env.ELEVENLABS_API_TOKEN ? { files: env.FILES, apiKey: env.ELEVENLABS_API_TOKEN } : null,
-  llm: env.ANTHROPIC_API_KEY ? { apiKey: env.ANTHROPIC_API_KEY, accountId: env.CF_ACCOUNT_ID, gateway: env.AI_GATEWAY } : null,
+  llm: env.CLOUDFLARE_AI_TOKEN && env.AI_GATEWAY && env.CF_ACCOUNT_ID ? { token: env.CLOUDFLARE_AI_TOKEN, gateway: env.AI_GATEWAY, accountId: env.CF_ACCOUNT_ID } : null,
 });

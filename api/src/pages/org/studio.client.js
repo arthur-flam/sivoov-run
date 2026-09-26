@@ -721,6 +721,7 @@
         const box = q('[data-role="sample"]', card);
         if (box) box.hidden = false;
         setText(card, 'sample-text', words(out.json.text));
+        setText(card, 'sample-note', out.json.note || '');
         say('Exemple : ' + (value(card, 'title') || 'annonce'));
         return out.json.audioPath ? playPath(out.json.audioPath, out.json.text) : speak(out.json.text);
       });
@@ -868,6 +869,7 @@
         box.hidden = false;
         box.setAttribute('data-text', out.json.text);
         setText(card, 'suggestion-text', out.json.text);
+        setText(card, 'suggestion-note', out.json.note || '');
         say('Proposition prête : relisez-la avant de l’utiliser.');
       });
     });

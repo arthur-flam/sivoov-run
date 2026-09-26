@@ -212,6 +212,7 @@ export const StudioLine = ({ line, status, canEdit, ttsReady, aiReady, tags }: P
           <div class="ev-sample" data-role="sample" hidden>
             <span class="ev-sample-h">Camille Martin, dossard 1247, de Lyon, entend :</span>
             <q data-role="sample-text"></q>
+            <span class="ev-sample-h" data-role="sample-note"></span>
           </div>
           <div class="ev-actions">
             <button type="button" class="btn btn-sm" data-role="sample-play">
@@ -260,6 +261,7 @@ export const StudioLine = ({ line, status, canEdit, ttsReady, aiReady, tags }: P
         <div class="ev-suggest" data-role="suggestion" hidden>
           <span class="ev-sample-h">Proposition de l’IA, à relire :</span>
           <p data-role="suggestion-text"></p>
+          <span class="ev-sample-h" data-role="suggestion-note"></span>
           <div class="ev-actions">
             <button type="button" class="btn btn-sm btn-primary" data-role="suggestion-use">
               Utiliser ce texte

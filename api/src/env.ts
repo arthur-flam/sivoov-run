@@ -12,12 +12,13 @@ export type Bindings = Env & {
    */
   ELEVENLABS_API_TOKEN?: string;
   /**
-   * Anthropic key for the lines Claude writes per runner (`ai` personal lines) and the studio's
-   * "Proposer un texte" (`wrangler secret put ANTHROPIC_API_KEY`). Optional: without it those
-   * lines play their offline version and the studio says why.
+   * Cloudflare API token with Workers AI (and AI Gateway run) rights, for every LLM call: the AI
+   * personal lines and the studio's « Proposer un texte » go through the AI Gateway below, never
+   * to a provider directly (lib/llm.ts). `wrangler secret put CLOUDFLARE_AI_TOKEN`. Optional:
+   * without it those lines play their offline version and the studio says why.
    */
-  ANTHROPIC_API_KEY?: string;
-  /** Cloudflare AI Gateway name: when set, Claude is called through it (logs, limits). A wrangler var. */
+  CLOUDFLARE_AI_TOKEN?: string;
+  /** The Cloudflare AI Gateway every LLM call goes through ("sivoov"). A wrangler var. */
   AI_GATEWAY?: string;
   /** Comma-separated emails of Sivoov staff: every race in /org, and race creation. A wrangler var. */
   STAFF_EMAILS?: string;

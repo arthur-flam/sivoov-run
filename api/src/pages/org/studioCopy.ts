@@ -199,3 +199,9 @@ export const CLIENT_COPY = {
   phase: PHASE_COPY,
   ceremony: CEREMONY_COPY,
 } as const;
+
+/** Who wrote an AI text, said to the organizer: Claude, or the stand-in while the gateway has no Anthropic key. */
+export const WRITER_NOTE: Record<'claude' | 'workers-ai', string> = {
+  claude: 'Écrit par Claude.',
+  'workers-ai': 'Écrit par Llama 3.3 (Workers AI) : Claude n’est pas encore branché sur la passerelle IA.',
+};

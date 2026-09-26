@@ -24,6 +24,10 @@ let tts: { voice: string; body: { text: string; model_id: string; language_code?
 let claude: { headers: Headers; body: { model: string; fallbacks?: unknown; system: string; messages: { content: string }[] } }[] = [];
 let claudeAnswer = 'Camille… non : Léa ! De Rouen jusqu’ici, neuf degrés et de la pluie. Coureurs… à vos marques.';
 let elevenStatus = 200;
+/** 401: the gateway holds no Anthropic key yet, as when the "sivoov" gateway was first created. */
+let claudeStatus = 200;
+let workersAi: { url: string; headers: Headers; body: { model: string; messages: { role: string; content: string }[] } }[] = [];
+const GATEWAY = 'https://gateway.ai.cloudflare.com/v1/6bd098851f5995454ecdbad6744c567c/sivoov';
 
 let orgCookie = '';
 let runnerToken = '';
@@ -80,9 +84,16 @@ beforeAll(async () => {
       tts = [...tts, { voice: url.split('/').pop()!.split('?')[0]!, body }];
       return elevenStatus === 200 ? new Response(mp3, { headers: { 'Content-Type': 'audio/mpeg' } }) : Response.json({ detail: 'voice_not_found' }, { status: elevenStatus });
     }
-    if (url.startsWith('https://api.anthropic.com/')) {
+    if (url.startsWith('https://api.anthropic.com/')) throw new Error('Anthropic must only be reached through the AI Gateway');
+    if (url.startsWith(`${GATEWAY}/workers-ai/`)) {
+      const request = input instanceof Request ? input : new Request(url, init);
+      workersAi = [...workersAi, { url, headers: request.headers, body: await request.clone().json() }];
+      return Response.json({ choices: [{ message: { role: 'assistant', content: 'Léa, de Rouen : il pleut chez vous. Coureurs… à vos marques.' } }] });
+    }
+    if (url.startsWith(`${GATEWAY}/anthropic/`)) {
       const request = input instanceof Request ? input : new Request(url, init);
       claude = [...claude, { headers: request.headers, body: await request.clone().json() }];
+      if (claudeStatus !== 200) return Response.json({ type: 'error', error: { type: 'authentication_error', message: 'x-api-key header is required' } }, { status: claudeStatus });
       return Response.json({
         id: 'msg_test',
         type: 'message',
@@ -201,6 +212,10 @@ describe('personal lines in the studio', () => {
     expect(claude[0]!.body.model).toBe('claude-opus-5');
     expect(claude[0]!.body.fallbacks).toBe('default');
     expect(claude[0]!.headers.get('anthropic-beta')).toContain('server-side-fallback-2026-07-01');
+    // Through the gateway only, with no Anthropic key: the gateway holds it.
+    expect(claude[0]!.headers.get('x-api-key')).toBeNull();
+    expect(claude[0]!.headers.get('cf-aig-authorization')).toBe('Bearer test-cf-ai-token');
+    expect(((await ai.clone().json()) as { writer: string; note: string }).note).toBe('Écrit par Claude.');
     const asked = claude[0]!.body.messages[0]!.content;
     expect(asked).toContain('Prénom : Camille');
     expect(asked).toContain('neuf degrés, vent de vingt et un kilomètres heure, pluie');
@@ -208,12 +223,27 @@ describe('personal lines in the studio', () => {
     expect(claude[0]!.body.system).toMatch(/\[excited\]/);
   });
 
+  it('has Workers AI write on the same gateway while the gateway cannot reach Claude, and says so', async () => {
+    claudeStatus = 401;
+    workersAi = [];
+    const res = await org('/script/sample', { lineId: 'ceremony.word' });
+    claudeStatus = 200;
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { text: string; writer: string; note: string };
+    expect(body).toMatchObject({ text: 'Léa, de Rouen : il pleut chez vous. Coureurs… à vos marques.', writer: 'workers-ai' });
+    expect(body.note).toMatch(/Claude n’est pas encore branché sur la passerelle/);
+    expect(workersAi[0]!.url).toBe(`${GATEWAY}/workers-ai/v1/chat/completions`);
+    expect(workersAi[0]!.body.model).toBe('@cf/meta/llama-3.3-70b-instruct-fp8-fast');
+    expect(workersAi[0]!.headers.get('authorization')).toBe('Bearer test-cf-ai-token');
+    expect(workersAi[0]!.body.messages[1]!.content).toContain('Saluez le coureur et dites la météo.');
+  });
+
   it('proposes a text for a line from the race and its neighbours, for the organizer to review', async () => {
     claude = [];
     claudeAnswer = '« [thoughtful] Le Normandy, sur votre droite. »';
     const res = await org('/script/suggest', { lineId: 'personal.split' });
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { text: string }).text).toBe('[thoughtful] Le Normandy, sur votre droite.');
+    expect(await res.json()).toMatchObject({ text: '[thoughtful] Le Normandy, sur votre droite.', writer: 'claude' });
     expect(claude[0]!.body.messages[0]!.content).toContain('version hors ligne d’une annonce personnalisée');
     claudeAnswer = 'Léa, de Rouen : neuf degrés et de la pluie chez vous. Coureurs… à vos marques.';
   });

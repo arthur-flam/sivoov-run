@@ -88,7 +88,8 @@ What still needs the laptop, and nothing else does:
 | `EXPO_TOKEN` | GitHub Actions secret (optionally the cloud environment) | EAS Update, EAS Build |
 | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | GitHub Actions secret | `wrangler deploy` |
 | ElevenLabs, Sentry DSNs | Worker secrets via `wrangler secret put`, `.dev.vars` locally | api |
-| `ANTHROPIC_API_KEY` (optional `AI_GATEWAY` var) | Worker secret, production and preview | api: AI personal lines, « Proposer un texte » (`lib/llm.ts`) |
+| `CLOUDFLARE_AI_TOKEN` (Workers AI, AI Gateway run) | Worker secret, production and preview; `.env` and `api/.dev.vars` locally | api: every LLM call, through the AI Gateway named in the `AI_GATEWAY` var (`lib/llm.ts`) |
+| Anthropic key | stored in the AI Gateway "sivoov" (provider keys), never in the Worker | Claude through the gateway |
 | `BROWSER_RENDERING_TOKEN` (Browser Rendering - Edit) | Worker secret, production and preview | api: share cards (`lib/cards.ts`) |
 | Apple / Google credentials | EAS servers | EAS Build |
 Cloud sessions need none of these for loop 1. Adding `EXPO_TOKEN` to the environment lets a

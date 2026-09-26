@@ -414,3 +414,12 @@
   the mock's error. Use a block body.
 - 2026-09-26: the auto-mode sandbox reaches api.elevenlabs.io, registry.npmjs.org and
   api.mapbox.com directly (unlike the deployed run.sivoov.app hosts).
+- 2026-09-26: AI Gateway "sivoov" (account 6bd0…): unauthenticated, caching on (an identical
+  request came back in 131 ms), no Anthropic key stored (Anthropic answers 401 "x-api-key
+  header is required" through it). `CLOUDFLARE_AI_TOKEN` in `.env` is valid for Workers AI
+  (`/workers-ai/v1/chat/completions` through the gateway works) but cannot read gateway config
+  (`/ai-gateway/gateways` answers 10000). Reasoning models (kimi, glm-5.3, gemma-4, deepseek-v4,
+  qwen3.8) returned empty `content` with a 1500-token budget; Llama 3.3 70B fast and Mistral
+  Small 3.1 answer in plain French in 2-4 s. The Anthropic SDK skips auth when built with
+  `apiKey: null` and `defaultHeaders: { 'x-api-key': null }`: that is how it talks to a gateway
+  holding the key.

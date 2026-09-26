@@ -205,7 +205,7 @@ export type StudioPageData = StudioEstimates & {
   packs: PackSummary[];
   mapboxToken: string | null;
   ttsReady: boolean;
-  /** Claude is configured: AI personal lines get written, "Proposer un texte" works. */
+  /** The AI Gateway is configured: AI personal lines get written, « Proposer un texte » works. */
   aiReady: boolean;
   /** "George · Expressive (Eleven v3) · Naturelle". */
   voiceLabel: string;
@@ -296,7 +296,7 @@ export const studioPageData = async (
     packs: ctx.packs,
     mapboxToken: env.MAPBOX_TOKEN || null,
     ttsReady: Boolean(env.ELEVENLABS_API_TOKEN),
-    aiReady: Boolean(env.ANTHROPIC_API_KEY),
+    aiReady: Boolean(env.CLOUDFLARE_AI_TOKEN && env.AI_GATEWAY),
     voiceLabel: voiceSummary(ctx.script.voice),
     canEdit: view.canEdit,
     script: ctx.script,

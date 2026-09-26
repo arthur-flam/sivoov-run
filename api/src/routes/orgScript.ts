@@ -31,7 +31,7 @@ import { UPLOAD_PREFIX, missingUploads, storeUpload } from '../lib/uploads';
 import { HOUSE_VOICES, MODEL_CHOICES, STABILITY_CHOICES, accountVoices, voiceSample, voiceSummary } from '../lib/voices';
 import { weatherAt } from '../lib/weather';
 import { distanceName } from '../pages/org/format';
-import { UPLOAD_ERRORS } from '../pages/org/studioCopy';
+import { UPLOAD_ERRORS, WRITER_NOTE } from '../pages/org/studioCopy';
 
 /**
  * The studio's JSON half, on the organizer cookie (no bearer, no public exposure): read and
@@ -256,7 +256,7 @@ orgScript.post(`${PATH}/script/sample`, ...edit, async (c) => {
   if (!line.personal) return c.json({ error: 'not_personal', detail: 'Cette annonce est la même pour tous.' }, 400);
   const race = c.get('race');
   const deps = personalDeps(c.env);
-  const text =
+  const written =
     line.personal.kind === 'template'
       ? fillTemplate(line.personal.template, spokenValues(SAMPLE_RUNNER, { ...SAMPLE_LIVE, finish: line.trigger.kind === 'finish', elapsedS: line.trigger.kind === 'finish' ? 13579 : SAMPLE_LIVE.elapsedS }))
       : deps.llm
@@ -267,16 +267,19 @@ orgScript.post(`${PATH}/script/sample`, ...edit, async (c) => {
             return writePersonalLine(deps.llm!, briefFor(def, { runner: SAMPLE_RUNNER, race, weather: { runner: here, race: there } }, supportsAudioTags(ctx.script.voice.model)));
           })()
         : null;
+  const text = typeof written === 'string' ? written : (written?.text ?? null);
+  const writer = typeof written === 'string' || written === null ? null : written.writer;
   if (text === null) {
     const detail = line.personal.kind === 'ai' && !deps.llm ? 'L’IA n’est pas configurée ici : la version hors ligne serait jouée.' : 'Cet exemple ne peut pas être dit : la version hors ligne serait jouée.';
     return c.json({ error: 'no_sample', detail }, line.personal.kind === 'ai' && !deps.llm ? 503 : 422);
   }
-  if (!c.env.ELEVENLABS_API_TOKEN || !maySpendCredit(c.env, c.get('admin').email)) return c.json({ text, audioPath: null });
+  const note = writer ? WRITER_NOTE[writer] : null;
+  if (!c.env.ELEVENLABS_API_TOKEN || !maySpendCredit(c.env, c.get('admin').email)) return c.json({ text, writer, note, audioPath: null });
   const outcome = await renderLine({ files: c.env.FILES, apiKey: c.env.ELEVENLABS_API_TOKEN }, ctx.script.voice, text, ctx.script.locale);
-  return c.json({ text, audioPath: outcome.ok ? `/audio/${outcome.rendered.hash}` : null });
+  return c.json({ text, writer, note, audioPath: outcome.ok ? `/audio/${outcome.rendered.hash}` : null });
 });
 
-/** « Proposer un texte »: Claude drafts the sentence everyone hears, from the race, its places and the neighbouring lines. */
+/** « Proposer un texte »: the AI (Claude through the gateway) drafts the sentence everyone hears, from the race, its places and the neighbouring lines. */
 orgScript.post(`${PATH}/script/suggest`, ...edit, async (c) => {
   const deps = personalDeps(c.env);
   if (!deps.llm) return c.json({ error: 'ai_unavailable', detail: 'L’IA n’est pas configurée ici.' }, 503);
@@ -291,7 +294,7 @@ orgScript.post(`${PATH}/script/suggest`, ...edit, async (c) => {
   const at = order.indexOf(line.id);
   const textOf = (id: string) => ctx.script.lines.find((l) => l.id === id);
   const around = (ids: string[]) => ids.map(textOf).flatMap((l) => (l && l.text.trim() ? [`${whenInWords(l.trigger)} : ${l.text.trim()}`] : []));
-  const text = await suggestLine(deps.llm, {
+  const written = await suggestLine(deps.llm, {
     race: { name: race.name, city: race.city, date: raceDays(race), distance: distanceName(course.distanceKey), distanceKm: formatKm(course.distanceM, 'fr', 3) },
     landmarks: course.landmarks.map((l) => ({ name: l.name, km: formatKm(l.meters, 'fr', 1), note: l.description ?? '' })),
     line: { title: line.title, when: whenInWords(line.trigger), category: line.category, current: line.text, personal: Boolean(line.personal) },
@@ -299,6 +302,6 @@ orgScript.post(`${PATH}/script/suggest`, ...edit, async (c) => {
     after: around(order.slice(at + 1, at + 3)),
     tags: supportsAudioTags(ctx.script.voice.model),
   });
-  if (text === null) return c.json({ error: 'no_suggestion', detail: 'Pas de proposition cette fois. Réessayez dans un instant.' }, 502);
-  return c.json({ text });
+  if (written === null) return c.json({ error: 'no_suggestion', detail: 'Pas de proposition cette fois. Réessayez dans un instant.' }, 502);
+  return c.json({ text: written.text, writer: written.writer, note: WRITER_NOTE[written.writer] });
 });

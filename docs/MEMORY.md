@@ -449,3 +449,14 @@
     accepted. Keep fixtures at 0.01 m and check the replay against the original trace.
   - The admin shows a run's times in the race's time zone (Europe/Paris): a 07:38 start in
     Israel reads 06:38.
+- 2026-09-27: the owner's Garmin Fenix 8 is the distance reference: runners will compare the app
+  with their Garmin, not with a map. Compare over the app's own window (the Garmin usually starts
+  earlier and stops at a different second); Strava's `distance` stream is the Garmin's.
+- 2026-09-27: km calls cannot be checked by ear against a watch started at a different moment:
+  on the first run the Garmin led by 524 m, so its beeps fell about 2:30 away from the app's calls
+  by construction. Start the watch on the app's gun.
+- 2026-09-27: the run store has two finish paths with different ordering. Stopping by hand
+  (`stop()`) awaits the location source's `stop()` before the phase turns `finished`, so lines
+  written while stopping reach the upload. Reaching the distance sets `finished` first and calls
+  `stop()` without waiting, and `run.tsx` snapshots the logbook on that phase change: anything
+  logged while stopping (`background updates stopped`, the `stop` battery line) misses the upload.

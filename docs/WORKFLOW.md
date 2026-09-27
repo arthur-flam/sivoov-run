@@ -38,7 +38,8 @@ once over USB with `npm run device:preview`; after that the chain is phone plus 
    button.)
 3. **Read what the phone saw.** There is no `adb logcat` out there, so the app keeps its own
    logbook: the background task's batches, the fixes it received, the fixes it dropped for
-   want of a listener, permissions, uploads. Two ways back:
+   want of a listener, permissions, uploads, and the battery (at the start, every 5 min, at the
+   stop). Two ways back:
    - on the spot, the **Diagnostic** screen, with *Partager* to paste the whole thing into a
      Claude session from the phone;
    - afterwards, it rides to R2 inside the run's trace —

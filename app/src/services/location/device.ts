@@ -1,8 +1,11 @@
 import { Platform } from 'react-native';
+import * as Battery from 'expo-battery';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import type { LocationSample } from '@sivoov/shared';
 import { diag, diagCount } from '@/diag';
+import { createBatteryLog } from '@/services/batteryLog';
+import type { PowerReading } from '@/services/batteryLog';
 import { t } from '@/i18n';
 import type { LocationSource } from './types';
 
@@ -17,6 +20,18 @@ export type LocationPermission = 'undetermined' | 'denied' | 'foreground' | 'alw
 
 /** The background task runs outside React: it fans out to whichever source is active. */
 let activeListener: ((sample: LocationSample) => void) | null = null;
+
+const readPower = async (): Promise<PowerReading> => {
+  const [power, optimized] = await Promise.all([
+    Battery.getPowerStateAsync(),
+    Platform.OS === 'android' ? Battery.isBatteryOptimizationEnabledAsync().catch(() => undefined) : Promise.resolve(undefined),
+  ]);
+  const charging = power.batteryState === Battery.BatteryState.CHARGING || power.batteryState === Battery.BatteryState.FULL;
+  return { level: power.batteryLevel, charging, lowPower: power.lowPowerMode, optimized };
+};
+
+/** Battery lines in the logbook for the whole run (the web target has no battery to read). */
+const battery = Platform.OS === 'web' ? null : createBatteryLog({ read: readPower, log: (m) => diag('battery', m), now: () => Date.now() });
 
 export const toSample = (loc: Location.LocationObject): LocationSample => ({
   lat: loc.coords.latitude,
@@ -52,6 +67,7 @@ if (Platform.OS !== 'web') {
     }
     diagCount('task.fixes', locations.length);
     locations.map(toSample).forEach((sample) => activeListener?.(sample));
+    battery?.due();
   });
   diag('location', `background task ${LOCATION_TASK} defined`);
 }
@@ -114,6 +130,7 @@ export const deviceSource = (): DeviceLocationSource => {
       permission = await requestLocationPermission();
       diag('location', `permission: ${permission}`);
       if (permission === 'denied') throw new Error('location_denied');
+      void battery?.start();
       if (permission !== 'always') {
         diag('location', 'foreground watch only: fixes stop when the screen locks');
         return watchForeground(onSample);
@@ -134,6 +151,7 @@ export const deviceSource = (): DeviceLocationSource => {
       diag('location', 'background updates started');
     },
     async stop() {
+      await battery?.stop();
       subscription?.remove();
       subscription = null;
       if (background) {

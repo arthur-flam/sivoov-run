@@ -1,9 +1,11 @@
 import { t } from '@sivoov/shared';
 import type { Locale } from '@sivoov/shared';
 
-/** Dates shown to runners are in the race's timezone, never the server's. */
-export const fmtDate = (iso: string, locale: Locale, timeZone: string, opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long' }): string =>
-  new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', { ...opts, timeZone }).format(new Date(iso));
+/** Dates shown to runners are in the race's timezone, never the server's. French writes the first of the month "1er". */
+export const fmtDate = (iso: string, locale: Locale, timeZone: string, opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long' }): string => {
+  const text = new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', { ...opts, timeZone }).format(new Date(iso));
+  return locale === 'fr' && opts.day ? text.replace(/^1(?=\s|$)/, '1er') : text;
+};
 
 const DAY_MONTH: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long' };
 const FULL: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' };

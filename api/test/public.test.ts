@@ -62,13 +62,16 @@ describe('race landing', () => {
     await db(env.DB).upsertRace(deauvilleRace);
   });
   it('shows the logo and the header photo the organizer chose in the settings, and nothing when there are none', async () => {
-    expect((await page('/deauville-2026')).html).not.toContain('class="race-logo"');
+    const plain = (await page('/deauville-2026')).html;
+    expect(plain).not.toContain('class="rl-logo"');
+    expect(plain).not.toContain('--hero:');
     const logo = 'https://run.test/media/races/deauville-2026/logo.png';
     const hero = 'https://run.test/media/races/deauville-2026/hero.jpg';
     await db(env.DB).upsertRace({ ...deauvilleRace, theme: { ...deauvilleRace.theme, logo, hero } });
     const { html } = await page('/deauville-2026');
-    expect(html).toContain(`class="race-logo" src="${logo}"`);
-    expect(html).toContain(`class="race-banner" src="${hero}"`);
+    expect(html).toContain(`class="rl-logo" src="${logo}"`);
+    // The photo is the hero's background, under the race's colour.
+    expect(html).toContain(`class="rl-hero has-photo" style="--hero:url(&#39;${hero}&#39;)"`);
     await db(env.DB).upsertRace(deauvilleRace);
   });
 });

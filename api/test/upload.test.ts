@@ -127,7 +127,7 @@ describe('an uploaded GPX', () => {
     await refused(treadmill, 422, 'course sur tapis');
     // Léa's course is the marathon: a half is short, and the page says by how much.
     await refused(goodHalf(), 422, 'Nous avons mesuré 21,30 km sur les 42,2 km du parcours : il manque 20,90 km');
-    await refused(gpx({ start: '2026-11-01T09:00:00+01:00', meters: 42_300, secPerKm: 330 }), 422, 'Cette course est partie le 1 novembre à 09:00, avant l’ouverture de la fenêtre');
+    await refused(gpx({ start: '2026-11-01T09:00:00+01:00', meters: 42_300, secPerKm: 330 }), 422, 'Cette course est partie le 1er novembre à 09:00, avant l’ouverture de la fenêtre');
     await refused(gpx({ start: '2026-11-12T09:00:00+01:00', meters: 42_300, secPerKm: 150 }), 422, 'plus rapide que le record du monde');
     expect(await db(env.DB).runsForEntrant('deauville-2026-1002')).toEqual([]);
   });

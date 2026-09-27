@@ -35,6 +35,7 @@ describe('the race page of the 10 km des Champs-Élysées', () => {
     const html = await (await SELF.fetch(`http://run.test/${champsElyseesRace.slug}`)).text();
     expect(html).toContain('10 km des Champs-Élysées, où que vous soyez.');
     expect(html).toContain('--race-accent:#ea5b1a');
+    expect(html).toContain('Du 1er au 7 février');
     expect(html).toContain('id="ecouter"');
     expect(html).toContain(`src="/api/courses/${COURSE}/reel.mp3"`);
     // The chapters ride along as JSON the page's script reads; nothing in them can close the tag.

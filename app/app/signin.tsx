@@ -1,11 +1,12 @@
-import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import type { Race } from '@sivoov/shared';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ApiError } from '@/api';
+import { ApiError, api } from '@/api';
 import { Body, Button, Display, ErrorBox, Eyebrow, Screen } from '@/components/ui';
 import { t } from '@/i18n';
-import { useSession } from '@/stores/session';
+import { DEFAULT_RACE_SLUG, useSession } from '@/stores/session';
 import { colors, fonts, radius, space } from '@/theme';
 
 export default function SignIn() {
@@ -19,12 +20,30 @@ export default function SignIn() {
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [races, setRaces] = useState<Race[]>([]);
+  const [slug, setSlug] = useState(DEFAULT_RACE_SLUG);
+
+  // With more than one race open, the runner says which one their bib belongs to.
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .races()
+      .then((open) => {
+        if (cancelled || open.length === 0) return;
+        setRaces(open);
+        setSlug((current) => (open.some((r) => r.slug === current) ? current : open[0]!.slug));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const send = async () => {
     setBusy(true);
     setError(null);
     try {
-      const { devCode } = await requestCode(bib.trim(), email.trim());
+      const { devCode } = await requestCode(slug, bib.trim(), email.trim());
       if (devCode) setCode(devCode);
       setStep('code');
     } catch (e) {
@@ -38,7 +57,7 @@ export default function SignIn() {
     setBusy(true);
     setError(null);
     try {
-      await verifyCode(bib.trim(), email.trim(), code.trim());
+      await verifyCode(slug, bib.trim(), email.trim(), code.trim());
       router.replace('/home');
     } catch (e) {
       setError(e instanceof ApiError && e.status === 401 ? t('signin.badCode') : t('common.error'));
@@ -57,6 +76,23 @@ export default function SignIn() {
               <Display>{t('signin.title')}</Display>
               <Body muted>{t('signin.lede')}</Body>
               {error ? <ErrorBox>{error}</ErrorBox> : null}
+              {races.length > 1 ? (
+                <View style={styles.field}>
+                  <Body style={styles.label}>{t('signin.race')}</Body>
+                  {races.map((race) => (
+                    <Pressable
+                      key={race.slug}
+                      testID={`race-${race.slug}`}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: race.slug === slug }}
+                      onPress={() => setSlug(race.slug)}
+                      style={[styles.input, styles.race, race.slug === slug ? styles.raceOn : null]}
+                    >
+                      <Body style={race.slug === slug ? styles.raceNameOn : undefined}>{race.theme.displayName}</Body>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
               <View style={styles.field}>
                 <Body style={styles.label}>{t('signin.bib')}</Body>
                 <TextInput testID="bib" style={styles.input} value={bib} onChangeText={setBib} keyboardType="number-pad" autoCapitalize="none" autoCorrect={false} />
@@ -91,4 +127,7 @@ const styles = StyleSheet.create({
   label: { fontFamily: fonts.bodyBold, fontSize: 14 },
   input: { fontFamily: fonts.body, fontSize: 18, paddingHorizontal: space.md, paddingVertical: 14, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, backgroundColor: colors.card, color: colors.ink },
   code: { fontFamily: fonts.numBold, fontSize: 36, letterSpacing: 8, textAlign: 'center' },
+  race: { justifyContent: 'center' },
+  raceOn: { borderColor: colors.ink, borderWidth: 2 },
+  raceNameOn: { fontFamily: fonts.bodyBold },
 });

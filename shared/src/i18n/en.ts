@@ -142,6 +142,7 @@ export const en: Record<keyof typeof fr, string> = {
 
   'signin.title': 'Sign in',
   'signin.lede': 'The bib number and email from your registration.',
+  'signin.race': 'Your race',
   'signin.bib': 'Bib number',
   'signin.email': 'Email',
   'signin.send': 'Send my code',

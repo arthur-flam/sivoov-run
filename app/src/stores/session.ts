@@ -6,8 +6,8 @@ import { meCache } from '@/stores/meCache';
 
 const TOKEN_KEY = 'sivoov.session';
 
-/** The first race is the only race: the app is scoped to it until the race picker exists. */
-export const RACE_SLUG = 'deauville-2026';
+/** The race asked for when the list of races cannot be read (and the first one ever). */
+export const DEFAULT_RACE_SLUG = 'deauville-2026';
 
 type SessionState = {
   status: 'loading' | 'signedOut' | 'signedIn';
@@ -15,8 +15,8 @@ type SessionState = {
   me: Me | null;
   error: string | null;
   restore: () => Promise<void>;
-  requestCode: (bib: string, email: string) => Promise<{ devCode?: string }>;
-  verifyCode: (bib: string, email: string, code: string) => Promise<void>;
+  requestCode: (raceSlug: string, bib: string, email: string) => Promise<{ devCode?: string }>;
+  verifyCode: (raceSlug: string, bib: string, email: string, code: string) => Promise<void>;
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -45,13 +45,13 @@ export const useSession = create<SessionState>((set, get) => ({
     }
   },
 
-  async requestCode(bib, email) {
-    const res = await api.requestCode(RACE_SLUG, bib, email);
+  async requestCode(raceSlug, bib, email) {
+    const res = await api.requestCode(raceSlug, bib, email);
     return { devCode: res.devCode };
   },
 
-  async verifyCode(bib, email, code) {
-    const { token } = await api.verifyCode(RACE_SLUG, bib, email, code);
+  async verifyCode(raceSlug, bib, email, code) {
+    const { token } = await api.verifyCode(raceSlug, bib, email, code);
     await storage.set(TOKEN_KEY, token);
     const me = await api.me(token);
     await meCache.write(me);

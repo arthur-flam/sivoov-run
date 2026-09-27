@@ -148,6 +148,7 @@ export const fr = {
   // Sign-in
   'signin.title': 'Identifiez-vous',
   'signin.lede': 'Le numéro de dossard et l’email de votre inscription.',
+  'signin.race': 'Votre course',
   'signin.bib': 'Numéro de dossard',
   'signin.email': 'Email',
   'signin.send': 'Recevoir mon code',

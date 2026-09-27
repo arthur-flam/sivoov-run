@@ -76,6 +76,8 @@ export const MeSchema = z.object({ entrant: EntrantPublicSchema, race: RaceSchem
 export type Me = z.infer<typeof MeSchema>;
 
 export const api = {
+  /** The races open to sign-in, soonest first. */
+  races: () => request('/races', z.object({ races: z.array(RaceSchema) })).then((r) => r.races.filter((race) => race.status === 'open' || race.status === 'live')),
   requestCode: (raceSlug: string, bib: string, email: string) =>
     request('/auth/code', z.object({ sent: z.boolean(), devCode: z.string().optional() }), { method: 'POST', body: JSON.stringify({ raceSlug, bib, email }) }),
   verifyCode: (raceSlug: string, bib: string, email: string, code: string) =>

@@ -487,3 +487,12 @@
     passes (measure, then `linear=true`) keep one gain.
   - BBC Sound Effects (sound-effects.bbcrewind.co.uk) has a search API and direct MP3s, with
     real London Marathon crowds; licence RemArc (not for selling).
+  - Gemini's TTS quota on our key is 100 requests a day per model (free tier), and retakes eat
+    it: the 429 body names `GenerateRequestsPerDayPerProjectPerModel`. `gemini-3.8-flash-lite-tts`
+    has its own 100 and the same Sadachbia voice (the fallback); it reads its prompt aloud more
+    often. The gateway also caches identical requests: retakes must send `cf-aig-skip-cache`.
+  - A Worker holds at most six open connections, R2 bodies included: `Promise.all` over 28
+    `FILES.get` failed in production-like preview ("Response closed due to connection limit")
+    while `wrangler dev` did not care. Bound it (`lib/mapLimit.ts`).
+  - Right after `wrangler deploy`, a request can still reach the previous version for a few
+    seconds: a failure just after a deploy is worth one retry before debugging.

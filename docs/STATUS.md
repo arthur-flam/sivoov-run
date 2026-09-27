@@ -25,8 +25,10 @@ selling a self-declared "connecté" entry) that a virtual race can be amazing wi
   ambiances under the big moments, heard back by an AI listener. Published on preview.
 - **Ambiances under lines** and **Gemini voices** in the pipeline and the app (JS only, OTA),
   and the app's sign-in asks which race when two are open.
-Production runs main's Worker: the draft and the reel are in production R2/D1, but the new
-page, the ambiances and Gemini renders need this branch merged, then « Publier » in the studio.
+Preview is complete (pack v1 published, 28 files, 16.5 MB; the page plays the reel). Production
+runs main's Worker: the race, the produced draft and the reel are in production D1/R2, but the
+new page, the ambiances and Gemini renders need this branch merged, then « Publier » in the
+studio. Gemini's free tier allows 100 TTS renders a day per model (MEMORY.md).
 
 ### First real run (2026-09-27)
 The owner ran 9.2 km in 46 min with `Sivoov (Preview)` on a Galaxy S23 (SM-S911B, Android 16),

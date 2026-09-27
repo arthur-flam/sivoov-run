@@ -41,6 +41,11 @@ export type SimulationOptions = {
   intervalMs?: number;
   /** Std deviation of the GPS noise, meters. 0 for a perfect trace. */
   noiseM?: number;
+  /**
+   * Reported speed as a fraction of the true one. 1 by default; the first real phone (Galaxy
+   * S23) reported 0.84 to 0.92 of what a watch measured on the same run.
+   */
+  speedScale?: number;
   seed?: number;
 };
 
@@ -67,8 +72,9 @@ export function* simulateSamples(opts: SimulationOptions): Generator<LocationSam
     const noisy = noiseM > 0 ? destination(destination(point, 90, offset.x), 0, offset.y) : point;
     const accuracy = noiseM > 0 ? Math.max(3, noiseM * (1 + 0.3 * gaussian(rand))) : 3;
     const speed = 1000 / opts.pace(runM);
-    // Doppler speed is good to a few tenths of a m/s on a phone; scale its error with the noise.
-    const reportedSpeed = noiseM > 0 ? Math.max(0, speed + gaussian(rand) * 0.04 * noiseM) : speed;
+    // Reported speed: a few tenths of a m/s of noise, scaled with the GPS noise, and possibly biased.
+    const scaled = speed * (opts.speedScale ?? 1);
+    const reportedSpeed = noiseM > 0 ? Math.max(0, scaled + gaussian(rand) * 0.04 * noiseM) : scaled;
     yield { lat: noisy.lat, lng: noisy.lng, accuracy, speed: reportedSpeed, timestamp: t, altitude: 0 };
     if (runM >= opts.targetM) return;
     runM = Math.min(opts.targetM, runM + speed * (intervalMs / 1000));

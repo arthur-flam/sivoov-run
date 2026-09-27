@@ -33,14 +33,33 @@ describe('sample filter', () => {
     expect(judgeSample(prev, at(49.01, 0, 2000))).toMatchObject({ ok: false, reason: 'speed' });
     expect(judgeSample(prev, at(49.00003, 0, 2000))).toMatchObject({ ok: false, reason: 'jitter' });
   });
-  it('accepts a normal stride', () => {
-    const v = judgeSample(at(49, 0, 1000), at(49.0001, 0, 4000));
+  it('accepts a normal stride, and waits for a longer one when the fix is vague', () => {
+    const v = judgeSample(at(49, 0, 1000), at(49.0001, 0, 4000, 3));
+    expect(v.ok).toBe(true);
+    if (v.ok) expect(v.stepM).toBeCloseTo(11.1, 0);
+    // At 5 m accuracy the step must reach 15 m (three times the accuracy) before it counts.
+    expect(judgeSample(at(49, 0, 1000), at(49.0001, 0, 4000, 5))).toMatchObject({ ok: false, reason: 'jitter' });
+  });
+  it('caps a step at one and a half times what the reported speed allows', () => {
+    const v = judgeSample({ ...at(49, 0, 1000), speed: 3 }, { ...at(49.0002, 0, 4000), speed: 3 });
+    expect(v.ok).toBe(true);
+    if (v.ok) expect(v.stepM).toBeCloseTo(9 * 1.5, 1);
+  });
+  it('keeps a step that a phone reporting its speed low undersells', () => {
+    // 11.1 m in 3 s while the phone says 3 m/s (9 m): the S23 read 8-16 % low on its first run.
+    const v = judgeSample({ ...at(49, 0, 1000, 3), speed: 3 }, { ...at(49.0001, 0, 4000, 3), speed: 3 });
     expect(v.ok).toBe(true);
     if (v.ok) expect(v.stepM).toBeCloseTo(11.1, 0);
   });
-  it('bounds a step by the Doppler speed when both fixes report one', () => {
-    const v = judgeSample({ ...at(49, 0, 1000), speed: 3 }, { ...at(49.0002, 0, 4000), speed: 3 });
+  it('counts next to nothing for a standing phone whose position drifts', () => {
+    const v = judgeSample({ ...at(49, 0, 1000, 3), speed: 0.1 }, { ...at(49.0001, 0, 4000, 3), speed: 0.1 });
     expect(v.ok).toBe(true);
-    if (v.ok) expect(v.stepM).toBeCloseTo(9 * 1.15, 1);
+    if (v.ok) expect(v.stepM).toBeLessThan(0.5);
+  });
+  it('lifts a step through a hairpin, where the fixes stall while the phone keeps running', () => {
+    // 7 s at 3.3 m/s is 23 m of running, but a U-turn leaves the fix 11 m from the last one.
+    const v = judgeSample({ ...at(49, 0, 1000, 3), speed: 3.3 }, { ...at(49.0001, 0, 8000, 3), speed: 3.3 });
+    expect(v.ok).toBe(true);
+    if (v.ok) expect(v.stepM).toBeCloseTo((3.3 * 7) / 1.15, 1);
   });
 });

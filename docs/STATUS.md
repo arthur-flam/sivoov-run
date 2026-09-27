@@ -1,21 +1,46 @@
 # Status
 
-Updated: 2026-09-26. Race week: 14-15 November 2026 (Marathon International de Deauville).
+Updated: 2026-09-27. Race week: 14-15 November 2026 (Marathon International de Deauville).
 Milestones: PRD.md section 8 (M1 26 Sep, M2 10 Oct, M3 17 Oct, M4 31 Oct, freeze 7 Nov).
 
 ## Where we are
 
 Live: https://run.sivoov.app/deauville-2026 (production), https://preview.run.sivoov.app
-(preview). Test sign-in and roles: docs/ACCESS.md. M1 is done bar the moving-tracker walk
-test (see Next, item 1). Production has the race and its courses; no real entrants yet.
+(preview). Test sign-in and roles: docs/ACCESS.md. M1 is done. The first real run happened
+on 2026-09-27 (below); M2 still needs a real finish. Production has the race and its courses;
+no real entrants yet.
+
+### First real run (2026-09-27)
+The owner ran 9.2 km in 46 min with `Sivoov (Preview)` on a Galaxy S23 (SM-S911B, Android 16),
+signed in as test bib 1002, screen locked, phone carried, with the owner's Garmin Fenix 8 recording
+the same run (read through Strava). Preview run `mujbwasn-hwxict1f`.
+- **Background GPS works.** 1 998 batches, 2 774 fixes at a steady 1 Hz (longest gap 3 s), none
+  dropped, accuracy 3.3 m median (worst 9.8 m). The "0 GPS" indoor readings were stationary
+  throttling, as suspected. 16 announcements fired in order (ceremony, 4 landmarks, 9 km calls)
+  and the upload landed with its trace and logbook.
+- **Distance read 1.9 % short.** The app said 9.03 km; the watch covered 9.20 km over the same
+  46 min (the watch started 3 min and 524 m earlier). The phone's positions alone summed to within
+  0.3 % of the watch; the loss came from the tracker's +-15 % clamp to the phone's reported speed,
+  which read 8-16 % under the watch all run. Km calls drifted late against the Garmin's distance:
+  2 s at km 2, 21 s at km 4, 49 s at km 9. By ear they could not be compared: the Garmin was
+  started 524 m earlier, so its km beeps and the app's km calls were never meant to coincide.
+- **Battery: not measured.** The owner's recollection is 60 → 30 %, not read off the phone, and
+  the app had been open about 44 min before the start. If 30 % really went on the 46 min run, a
+  4-hour marathon would need about 1.5 phones against the PRD's half. The logbook now records the
+  battery itself (below).
+- **Fixed on this branch** (`shared/src/domain/smoothing.ts`): the reported speed is now a loose
+  ceiling (x1.5), used as a floor only when the fixes stall (a hairpin), and the minimum step grows
+  with the fix's accuracy. Replaying the same run: 9 225 m, +0.23 % against the watch, every km
+  within 4-7 s of it. The run is a test fixture now (`shared/src/fixtures/firstRealRun.ts`, moved
+  to Deauville so the repo does not hold the route). Not yet on the phone.
 
 | Area | State |
 |---|---|
-| shared domain | Schemas + pure domain logic: course projection, splits, audio triggers, upload replay (`evaluateUpload`). Tracker holds ~1% distance error at 8 m simulated GPS noise. |
+| shared domain | Schemas + pure domain logic: course projection, splits, audio triggers, upload replay (`evaluateUpload`). Tracker: +0.23 % against a watch on the first real run (9.2 km, S23); about 1 % at 8 m simulated GPS noise. |
 | API / web pages | Cloudflare Worker (Hono), deployed to preview and production. Sign-in by bib + email code (Cloudflare Email Sending). Landing, prepare, install, results, certificate and upload pages are server-rendered. |
 | organizer admin | Rebuilt: one sign-in per email across every race, roles (owner/editor/viewer) plus staff. Race home, Coureurs, Activités, Parcours et annonces, Équipe, Réglages. French only. |
 | audio studio + pack | `/org/{race}/courses/{courseId}` (AUDIO.md): Mapbox GL map that zooms on gesture and follows the list, voice picker (ElevenLabs, Eleven v3 with `[tags]` by default), per line « La voix / Personnalisée / Votre fichier », personal lines with fields (`{prenom}`, `{dossard}`, `{temps}`…) or written by Claude per runner, each with an offline version, « Écouter un exemple », « Proposer un texte », the start ceremony shown second by second with where the clock starts, publish. The app downloads each runner's own lines with the pack and asks for live ones as they play. Built on `claude/audio-studio-voices` (2026-09-26), not yet merged or deployed. Pack v0 heard on a Galaxy S23 (2026-09-13). |
-| app run / finish / share | Sign-in, race home, prepare, run (course diagram, start ceremony), finish (share, certificate link), results. Verified on a Galaxy S23: foreground service, audio, finish and upload all real; the tracker itself has never seen a moving runner. |
+| app run / finish / share | Sign-in, race home, prepare, run (course diagram, start ceremony), finish (share, certificate link), results. Verified on a Galaxy S23: foreground service, audio, finish and upload all real, and a 9.2 km real run with the screen locked (2026-09-27, above). |
 | device loop | Loop 2a (cable, `npm run device`) and loop 2b (no laptop: standalone `Sivoov (Preview)` release shell on the `preview` OTA channel, device logbook via Diagnostic) both proven on a phone. See WORKFLOW.md, DEVICE.md. |
 | screenshot rig | `npm run shots` renders every app screen and web page (~70 s) into `docs/shots/`; `npm run shots:store` writes App Store / Play sized files. See SHOTS.md. |
 | results / certificate / cards | `/{race}/results/{bib}` is the certificate (prints to A4, shares). Share cards (og/story) are HTML pages photographed by Cloudflare Browser Rendering, cached in R2; real rendering needs `BROWSER_RENDERING_TOKEN` (not set yet). A runner without a time yet gets a shareable bib page/card instead. |
@@ -25,12 +50,16 @@ test (see Next, item 1). Production has the race and its courses; no real entran
 
 Anchored to PRD milestones (M2 10 Oct, M3 17 Oct, M4 31 Oct).
 
-1. **The walk test, then the acceptance run.** The tracker has never seen a moving runner:
-   two indoor tests read "0 GPS - 0 rejetés", most likely stationary throttling but still
-   unverified. Walk 200 m and read the finish screen's counts; non-zero clears it, zero
-   means the background task never reaches JS. Then a 1-2 km run, screen locked, phone in
-   a pocket, and pull the trace (`npm run trace:pull`) to tune the tracker against real
-   GPS. See WORKFLOW.md loop 2b for the device-logbook counters that tell the two apart.
+1. **Put the tracker fix on the phone and run with the Garmin again.** Merge this branch (the
+   OTA reaches `Sivoov (Preview)` through Diagnostic → *Chercher une mise à jour*), then one more
+   run with the Garmin, ideally somewhere harder: a U-turn, tall buildings or trees. Start the
+   Garmin when the app's gun fires, so its km beeps and the app's km calls should land within a
+   few seconds of each other. The logbook now records the battery (at the start, every 5 min,
+   at the stop, with power saving and battery optimization), so the drain comes back with the
+   trace. Pull it (the admin's `trace.json`, see MEMORY.md) and compare with the Garmin. One phone and one route in good GPS conditions is all
+   the tracker has seen; a phone that reports its speed more than ~25 % low would still lose distance.
+   For M2, a real finish: nobody has covered a course's full distance with the app yet. A test
+   entrant on a short course on preview (a 5 or 10 km course) would make that a normal run.
 2. **iOS does not exist yet.** No Apple Developer Program step done, no `eas credentials`,
    no build. Highest schedule risk on this page (PRD calls App Store review the critical
    path, submission due mid-October): start it before anything cosmetic.
@@ -121,8 +150,13 @@ repeated here (see ARCHITECTURE.md, AUDIO.md, WORKFLOW.md).
   server (`estimateFirings`); saving refetches the estimates.
 - Progress on the virtual course is proportional to the official distance, not the GPX's
   own measured length.
-- Distance honesty filter: fixes filtered (accuracy <=30 m, <=10 m/s, >=8 m steps), each
-  step bounded by Doppler speed +-15%, constant-velocity Kalman on cumulative distance.
+- Distance is judged against the runner's Garmin over the app's own window: that is what runners
+  will compare with. The owner's Fenix 8 is the reference (2026-09-27).
+- Distance honesty filter: fixes filtered (accuracy <=30 m, <=10 m/s, a step of at least
+  max(8 m, 3 x accuracy)), each step capped at 1.5 x the reported-speed distance and lifted to
+  it (/1.15) only when the fixes stall by more than twice their accuracy, constant-velocity
+  Kalman on cumulative distance. Changed 2026-09-27 from a +-15 % clamp, after the first real run
+  showed the S23's reported speed reads 8-16 % low (MEMORY.md).
 
 ## Known gaps
 
@@ -140,10 +174,15 @@ repeated here (see ARCHITECTURE.md, AUDIO.md, WORKFLOW.md).
 - iOS phones show as "iPhone" / "iPad" without the model (needs expo-device, a native
   module).
 - No production entrants yet: seeded or imported by hand only.
-- The tracker has never recorded a moving runner: indoor tests read zero samples, most
-  likely stationary throttling, but it stays unverified until someone walks with it.
+- The tracker has seen one real run, on one phone (S23), in good GPS conditions (3.3 m median
+  accuracy) and with no U-turn. No iPhone yet. The +0.23 % is against a watch, which has its
+  own error; the hairpin floor has only been exercised on simulated runs.
+- Which live lines played at each km on the first run (the rendered number or the offline
+  version) is not in the trace: the logbook has no audio lines.
 - Battery over a long run is unmeasured, against a PRD budget of half a phone for a
-  marathon.
+  marathon. The first run's "60 → 30 %" is a guess; the logbook records it from the next run on.
+  A run that reaches its finish line uploads before the `stop` battery line is written, so its
+  last reading is the latest 5-minute one.
 - `WARN No task registered for key expo-task-manager` appears on every dev-client start;
   believed benign but not checked against a `preview`-profile build.
 - The Worker's ElevenLabs render has run for real only from a local Worker (2026-09-26: a v3

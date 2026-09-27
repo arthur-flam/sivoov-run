@@ -1,3 +1,4 @@
+import { champsElysees10kPairs } from './champs-elysees-10k';
 import { deauvilleMarathonPairs } from './deauville-marathon';
 import { CourseGeometrySchema } from '../schemas/course';
 import type { Landmark } from '../schemas/course';
@@ -19,4 +20,31 @@ export const deauvilleMarathonLandmarks: Landmark[] = [
   { id: 'hippodrome', name: 'Hippodrome de la Touques', meters: 30000, description: 'Tradition équestre de Deauville.' },
   { id: 'sunset', name: 'Sunset Beach', meters: 38000, description: 'Vue sur la Manche.' },
   { id: 'finish-planches', name: 'Arrivée sur les Planches', meters: 42195, description: 'La ligne, face à la mer.' },
+];
+
+/** The official 10 km des Champs-Élysées course (2025 onwards), for seeds, tests and the simulator. */
+export const champsElysees10kGeometry = CourseGeometrySchema.parse({
+  courseId: '10km-champs-elysees-2027-10k',
+  points: champsElysees10kPairs.map(([lat, lng]) => ({ lat, lng })),
+});
+
+/**
+ * Its places by official distance, measured on the GPX (2026-09-27): the loop runs Concorde,
+ * Madeleine, Malesherbes, Parc Monceau, Haussmann, the Champs-Élysées up to a U-turn below the
+ * Arc de Triomphe and back, Avenue Montaigne, the Seine, and up to the line by the Ledoyen.
+ */
+export const champsElysees10kLandmarks: Landmark[] = [
+  { id: 'depart', name: 'Départ, bas des Champs-Élysées', meters: 0, description: 'Devant le Pavillon Ledoyen, entre le Petit Palais et la Concorde.' },
+  { id: 'concorde', name: 'Place de la Concorde', meters: 250, description: 'L’Obélisque de Louxor, trois mille ans, sur les pavés.' },
+  { id: 'madeleine', name: 'La Madeleine', meters: 650, description: 'Cinquante-deux colonnes, puis le boulevard Malesherbes.' },
+  { id: 'monceau', name: 'Parc Monceau', meters: 2100, description: 'Grilles dorées, la Rotonde, le premier saut en parachute (1797).' },
+  { id: 'lisbonne', name: 'Rue de Lisbonne', meters: 3300, description: 'Le point haut de la première boucle, puis la descente.' },
+  { id: 'haussmann', name: 'Boulevard Haussmann', meters: 4150, description: 'Saint-Augustin, puis le musée Jacquemart-André.' },
+  { id: 'rond-point', name: 'Rond-Point des Champs-Élysées', meters: 5950, description: 'La montée des Champs sur les pavés, l’Arc en face.' },
+  { id: 'arc', name: 'Demi-tour sous l’Arc de Triomphe', meters: 6900, description: 'Le point le plus haut, et toute la descente des Champs.' },
+  { id: 'montaigne', name: 'Avenue Montaigne', meters: 7950, description: 'Les maisons de couture, le Théâtre des Champs-Élysées.' },
+  { id: 'alma', name: 'Place de l’Alma et la Seine', meters: 8600, description: 'La tour Eiffel de l’autre côté de l’eau.' },
+  { id: 'golden', name: 'Le Golden km', meters: 9000, description: 'Le dernier kilomètre, chronométré à part.' },
+  { id: 'alexandre-iii', name: 'Pont Alexandre-III', meters: 9450, description: 'Les Renommées dorées, le Grand Palais au-dessus.' },
+  { id: 'arrivee', name: 'Arrivée, bas des Champs-Élysées', meters: 10000, description: 'La ligne, là où tout a commencé.' },
 ];

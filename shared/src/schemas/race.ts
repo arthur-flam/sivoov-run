@@ -20,6 +20,29 @@ export type RaceStatus = z.infer<typeof RaceStatusSchema>;
  */
 export const WebUrlSchema = z.url({ protocol: /^https?$/ });
 
+/**
+ * A circuit the race belongs to (the Paris Masters Circuit): its stages, in order, and what
+ * finishing all of them earns. Shown on the race page; `current` marks this race.
+ */
+export const RaceSeriesSchema = z.object({
+  name: z.string().min(1),
+  url: WebUrlSchema.optional(),
+  stages: z
+    .array(
+      z.object({
+        name: z.string().min(1),
+        date: z.iso.date(),
+        place: z.string().min(1),
+        logo: WebUrlSchema.optional(),
+        current: z.boolean().default(false),
+      }),
+    )
+    .min(1),
+  /** What completing every stage earns, in a sentence ("Le support collector pour les trois médailles"). */
+  reward: z.string().optional(),
+});
+export type RaceSeries = z.infer<typeof RaceSeriesSchema>;
+
 /** The race layer of the design: what the organizer brings. Everything else is Sivoov. */
 export const RaceThemeSchema = z.object({
   displayName: z.string().min(1),
@@ -29,6 +52,7 @@ export const RaceThemeSchema = z.object({
   hero: WebUrlSchema.optional(),
   medal: WebUrlSchema.optional(),
   partnerLogos: z.array(WebUrlSchema).default([]),
+  series: RaceSeriesSchema.optional(),
 });
 export type RaceTheme = z.infer<typeof RaceThemeSchema>;
 

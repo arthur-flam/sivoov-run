@@ -57,8 +57,8 @@ export const RaceRadio = ({ reel, track, officialM, courseId, locale }: Props) =
           <div class="radio-numbers">
             <div>
               <span class="radio-k">{t('radio.clock')}</span>
-              <span class="radio-v" data-role="clock">
-                0:00
+              <span class="radio-v is-words" data-role="clock">
+                {t('radio.onTheLine')}
               </span>
             </div>
             <div>

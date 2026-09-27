@@ -123,7 +123,7 @@ export const champsElysees2027Script: AudioScriptInput = {
     line({
       id: 'course.final', title: 'Remontée vers la ligne', category: 'course', mix: 'duck', priority: 7,
       trigger: { kind: 'distance', meters: 9800 }, key: 'course-final',
-      text: 'Cours la Reine. Remontez vers les Champs… la ligne est là !',
+      text: 'Dernier virage, le long de la Seine. Remontez vers les Champs… la ligne est là !',
     }),
 
     // The finish: the roar at once, then the runner's name and time as soon as it is rendered.
@@ -135,8 +135,8 @@ export const champsElysees2027Script: AudioScriptInput = {
     line({
       id: 'ceremony.finish', title: 'L’arrivée', category: 'personal', mix: 'wait', priority: 10,
       trigger: { kind: 'finish' }, key: 'ceremony-finish',
-      text: 'Vous êtes finisher du 10 km des Champs-Élysées ! Votre temps est officiel.',
-      personal: { kind: 'template', template: '{prenom} {nom} ! {temps} ! Vous êtes finisher du 10 km des Champs-Élysées !' },
+      text: 'Vous avez bouclé le 10 km des Champs-Élysées ! Votre temps est officiel.',
+      personal: { kind: 'template', template: '{prenom} {nom} ! {temps} ! Vous avez bouclé le 10 km des Champs-Élysées !' },
     }),
   ],
 };

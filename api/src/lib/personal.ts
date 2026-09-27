@@ -6,6 +6,7 @@ import type { LlmDeps } from './llm';
 import type { PersonalLineBrief } from './prompts/personalLine';
 import { VOICES_PREFIX, renderKey, renderText, ttsDepsFor, ttsHash } from './tts';
 import type { TtsDeps } from './tts';
+import { mapLimit } from './mapLimit';
 
 /**
  * A runner's own versions of the personal lines of a published pack (AUDIO.md, "Personal
@@ -84,20 +85,6 @@ const writtenKey = (courseId: string, version: number, entrantId: string) => `pe
 const readWritten = async (files: R2Bucket, key: string): Promise<Written> => {
   const object = await files.get(key);
   return object ? ((await object.json().catch(() => ({}))) as Written) : {};
-};
-
-/** Runs `fn` over `items` with at most `limit` in flight (ElevenLabs allows two at a time), keeping order. */
-const mapLimit = async <T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> => {
-  const results: R[] = new Array<R>(items.length);
-  const cursor = { i: 0 };
-  const worker = async (): Promise<void> => {
-    const i = cursor.i++;
-    if (i >= items.length) return;
-    results[i] = await fn(items[i]!);
-    return worker();
-  };
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
-  return results;
 };
 
 /** The sentence one prepare line becomes for this runner, or null: the offline version plays. */

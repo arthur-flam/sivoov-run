@@ -7,6 +7,7 @@ import { storeDefs } from './personal';
 import { scriptFingerprint } from './studio';
 import { renderKey, ttsHash } from './tts';
 import { uploadKey } from './uploads';
+import { mapLimit } from './mapLimit';
 
 /** `fix`: a line has nothing to read or something to correct. `missing`: a line's sound is not there yet. */
 export type PublishOutcome =
@@ -36,26 +37,26 @@ export const publishScript = async (deps: { db: Db; scripts: ScriptDb; files: R2
   const built = buildScript(script);
   const toFix = built.lines.filter((l) => lineIssues(l).length > 0).map((l) => ({ id: l.id, title: l.title }));
   if (toFix.length > 0) return { ok: false, reason: 'fix', missing: toFix };
-  const found = await Promise.all(built.lines.map(async (line) => ({ line, object: await deps.files.get(await sourceKey(built, line)) })));
-  const unders = await Promise.all(
-    built.lines.filter((l) => l.under).map(async (line) => ({ line, object: await deps.files.get(uploadKey(line.under!)) })),
-  );
-  const missing = [...found, ...unders].filter((f) => f.object === null).map((f) => ({ id: f.line.id, title: f.line.title }));
+  // Heads first (no bodies held open), then the copies a few at a time: a Worker may keep only
+  // six connections open, and a pack has dozens of files.
+  const sources = [
+    ...(await Promise.all(built.lines.map(async (line) => ({ line, key: await sourceKey(built, line), under: false })))),
+    ...built.lines.filter((l) => l.under).map((line) => ({ line, key: uploadKey(line.under!), under: true })),
+  ];
+  const heads = await mapLimit(sources, 6, async (src) => ({ ...src, found: (await deps.files.head(src.key)) !== null }));
+  const missing = heads.filter((h) => !h.found).map((h) => ({ id: h.line.id, title: h.line.title }));
   if (missing.length > 0) return { ok: false, reason: 'missing', missing };
 
   const prefix = packPrefix(script.courseId, script.version);
-  const copy = async (key: string, object: R2ObjectBody, contentType: string): Promise<RenderedFile> => {
+  const rendered: RenderedFile[] = await mapLimit(sources, 4, async ({ line, key, under }): Promise<RenderedFile> => {
+    const format = under ? line.under!.format : (line.audio?.format ?? voiceFormat(built.voice));
+    const fileKey = under ? underFileKey(line)! : packFileKey(line, format);
+    const object = await deps.files.get(key);
+    if (!object) throw new Error(`${key} vanished while publishing`);
     const body = await object.arrayBuffer();
-    await deps.files.put(`${prefix}/${key}`, body, { httpMetadata: { contentType } });
-    return { key, bytes: body.byteLength, sha256: await sha256HexBytes(body) };
-  };
-  const rendered: RenderedFile[] = await Promise.all([
-    ...found.map(({ line, object }) => {
-      const format = line.audio?.format ?? voiceFormat(built.voice);
-      return copy(packFileKey(line, format), object!, AUDIO_CONTENT_TYPES[format]);
-    }),
-    ...unders.map(({ line, object }) => copy(underFileKey(line)!, object!, AUDIO_CONTENT_TYPES[line.under!.format])),
-  ]);
+    await deps.files.put(`${prefix}/${fileKey}`, body, { httpMetadata: { contentType: AUDIO_CONTENT_TYPES[format] } });
+    return { key: fileKey, bytes: body.byteLength, sha256: await sha256HexBytes(body) };
+  });
 
   const pack = manifestFor(built, rendered);
   const defs = personalDefsFor(built);

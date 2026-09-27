@@ -109,11 +109,15 @@ export const LandingPage = ({ race, courses, track, mapUrl, reel, locale, now }:
         <section class="section" aria-labelledby="course-title">
           <h2 id="course-title">{t('landing.course.title')}</h2>
           <div class="rl-distances">
-            {courses.map((c) => (
-              <p>
-                <span class="rl-dist">{formatKm(c.distanceM, locale, DIGITS[c.distanceKey])}</span> {distanceLabel(locale, c.distanceKey)}
-              </p>
-            ))}
+            {courses.map((c) => {
+              const km = formatKm(c.distanceM, locale, DIGITS[c.distanceKey]);
+              const name = distanceLabel(locale, c.distanceKey);
+              return (
+                <p>
+                  <span class="rl-dist">{km}</span> {name === km ? null : name}
+                </p>
+              );
+            })}
           </div>
           <div class="course">
             {mapUrl ? (

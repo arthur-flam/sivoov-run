@@ -45,6 +45,8 @@ export const SOURCES = {
   pigeons: bbc('07037493', 'Pigeons cooing'),
   fountain: bbc('07012133', 'Large fountain'),
   'church-bells': bbc('07049100', 'St. Gervais church bells, Sunday morning, Paris'),
+  // A stand-in for the runner's own playlist, only in the demo reel (Kevin MacLeod, CC BY 4.0).
+  playlist: { kind: 'url', url: 'https://incompetech.com/music/royalty-free/mp3-royaltyfree/Raving%20Energy.mp3', credit: 'Kevin MacLeod, "Raving Energy", CC BY 4.0' },
   // Music composed for the race.
   'lyria-village': lyria(
     'village',

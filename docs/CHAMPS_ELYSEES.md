@@ -94,9 +94,9 @@ Around the voice there are three kinds of sound:
 | 7.95 km | Avenue Montaigne | Dior's New Look, 80 years ago: « la tenue qu'on regarde sur cette avenue… c'est la vôtre. » |
 | 8.6 km | L'Alma et la Seine | A Paris church bell. The Eiffel Tower, and the last stage of the circuit in December |
 | 9 km | Le Golden km | « Tout ce qui vous reste… c'est maintenant. » Under: a 3-minute piece that never stops rising (climax at 2:35) and the crowd building |
-| 9.8 km | Remontée vers la ligne | « La ligne est là ! » Under: the finish crowd, from here to the line |
+| 9.8 km | Remontée vers la ligne | « Dernier virage, le long de la Seine… la ligne est là ! » Under: the finish crowd, from here to the line |
 | Finish | La ligne | Air horn and a roar, instantly: « Voilà la ligne d'arrivée ! » |
-| | L'arrivée | Personal, live: « Camille Martin ! Quarante-sept minutes et douze secondes ! Vous êtes finisher du 10 km des Champs-Élysées ! » Under: the finish fanfare (Lyria) and applause, then the speaker on the PA: the medal is the first of three, see you at the Trocadéro in September and at the Eiffel Tower in December |
+| | L'arrivée | Personal, live: « Camille Martin ! Quarante-sept minutes et douze secondes ! Vous avez bouclé le 10 km des Champs-Élysées ! » Under: the finish fanfare (Lyria) and applause, then the speaker on the PA: the medal is the first of three, see you at the Trocadéro in September and at the Eiffel Tower in December |
 
 A 50-minute run hears about 4 minutes of voice. The rest is the runner's own music, ducked
 only while a line or an ambiance plays.

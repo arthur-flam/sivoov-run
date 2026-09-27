@@ -114,6 +114,7 @@ p { text-wrap: pretty; }
 .radio-k { display: block; font-size: 14px; color: var(--rl-soft); }
 .radio-v { display: block; font-family: var(--font-num); font-weight: 700; font-size: clamp(44px, 7vw, 64px); line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .radio-v.is-count { color: var(--race-accent); }
+.radio-v.is-words { font-size: clamp(30px, 4.4vw, 40px); line-height: 1.6; }
 .radio-chapter { margin-top: 24px; font-family: var(--font-num); font-weight: 700; font-size: 24px; line-height: 1.15; }
 .radio-caption { margin-top: 8px; min-height: 5.6em; padding-left: 14px; border-left: 3px solid var(--race-accent); font-size: 17px; line-height: 1.55; color: var(--rl-soft); }
 .radio-controls { display: none; align-items: center; gap: 16px; margin-top: 22px; }

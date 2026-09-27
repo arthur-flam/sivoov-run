@@ -92,7 +92,9 @@ const fromGemini = async (deps: TtsDeps, voice: ScriptVoice, text: string): Prom
   const second = await take();
   if (!second.ok || plausibleSeconds(text, wavSeconds(second.body) ?? 0)) return second.ok ? second : first;
   const third = await take();
-  return third.ok ? third : first;
+  if (third.ok && plausibleSeconds(text, wavSeconds(third.body) ?? 0)) return third;
+  // Three takes that all read their notes: better the offline version than any of them.
+  return { ok: false, status: 502, detail: 'every take read its direction aloud' };
 };
 
 /** The rendered file for a text, from the R2 cache when it is there. */

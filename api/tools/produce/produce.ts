@@ -47,7 +47,12 @@ const direction = script.voice.direction ?? '';
 const OUT = join(CACHE, 'out', script.courseId);
 mkdirSync(OUT, { recursive: true });
 
-const say = (text: string, mood: Mood, take = 1) => voice(voiceEnv, script.voice, text, `${direction} ${MOODS[mood].style}`, MOODS[mood].scene, take);
+/**
+ * The speaker in a mood. In the runner's ears (`ear`) the prompt is exactly the Worker's for a
+ * personal line, so the produced lines and the runner's own ones sound like one voice.
+ */
+const say = (text: string, mood: Mood, take = 1) =>
+  mood === 'ear' ? voice(voiceEnv, script.voice, text, direction, undefined, take) : voice(voiceEnv, script.voice, text, `${direction} ${MOODS[mood].style}`, MOODS[mood].scene, take);
 /** What the Worker would say to a runner: the script's own direction, no mood. */
 const sayPersonal = (text: string) => voice(voiceEnv, script.voice, text, direction);
 
@@ -91,7 +96,7 @@ const steps: Step[] = [
   { file: await personal('ceremony.call'), chapter: at('ceremony.call', 0, 'Dossard mille deux cent quarante-sept… Camille Martin ! Bienvenue sur les Champs-Élysées. On vous attend dans le sas !') },
   { file: await sayPersonal(WORD), chapter: at('ceremony.word', 0, WORD) },
   { file: mixed['ceremony.countdown']!.file, under: mixed['ceremony.countdown']!.under, gap: 0, chapter: at('ceremony.countdown', 0, undefined, 'countdown') },
-  { file: mixed['ceremony.gun']!.file, under: mixed['ceremony.gun']!.under, hold: 20, chapter: at('ceremony.gun', 0, 'Partez ! Le chrono part au coup de corne.', 'gun') },
+  { file: mixed['ceremony.gun']!.file, under: mixed['ceremony.gun']!.under, hold: 14, chapter: at('ceremony.gun', 0, 'Partez ! Le chrono part au coup de corne.', 'gun') },
   { under: 'stop', hold: 1.2 },
   { file: mixed['course.concorde']!.file, gap: 2, chapter: at('course.concorde', 0.3) },
   { file: await personal('personal.split', { km: 1, elapsedS: 298 }), gap: 2, chapter: { title: 'Kilomètre 1', km: 1, caption: 'Kilomètre un. Quatre minutes cinquante-huit.' } },
@@ -99,7 +104,7 @@ const steps: Step[] = [
   { file: mixed['course.half']!.file, gap: 0.3, chapter: at('course.half', 5) },
   { file: await personal('personal.split', { km: 5, elapsedS: 1432 }), gap: 2, chapter: { title: 'Kilomètre 5', km: 5, caption: 'Kilomètre cinq. Vingt-trois minutes cinquante-deux.' } },
   { file: mixed['course.rond-point']!.file, under: mixed['course.rond-point']!.under, hold: 12, chapter: at('course.rond-point', 5.95) },
-  { file: mixed['course.arc']!.file, under: mixed['course.arc']!.under, hold: 24, chapter: at('course.arc', 6.9) },
+  { file: mixed['course.arc']!.file, under: mixed['course.arc']!.under, hold: 16, chapter: at('course.arc', 6.9) },
   { under: 'stop', hold: 1.5 },
   { file: mixed['course.alma']!.file, gap: 2, chapter: at('course.alma', 8.6) },
   { file: mixed['course.golden']!.file, under: mixed['course.golden']!.under, hold: 14, chapter: at('course.golden', 9) },
@@ -109,7 +114,7 @@ const steps: Step[] = [
     file: await personal('ceremony.finish', { elapsedS: 2832, finish: true }),
     under: mixed['ceremony.finish']!.under,
     hold: 30,
-    chapter: at('ceremony.finish', 10, 'Camille Martin ! Quarante-sept minutes et douze secondes ! Vous êtes finisher du 10 km des Champs-Élysées !'),
+    chapter: at('ceremony.finish', 10, 'Camille Martin ! Quarante-sept minutes et douze secondes ! Vous avez bouclé le 10 km des Champs-Élysées !'),
   },
 ];
 
@@ -137,6 +142,24 @@ steps.forEach((step) => {
   t += step.hold ?? 0;
 });
 closeUnder(t);
+
+/**
+ * Between the moments a runner hears their own music, ducked while the race speaks. The reel
+ * plays a stand-in playlist the same way, from the end of the gun's ambiance to the finish, so
+ * the demo sounds like a run and not like a string of cues with silence between them.
+ */
+const busy = reelLayers.map((l) => [l.at ?? 0, (l.at ?? 0) + (l.dur ?? durationOf(l.path))] as const);
+const gunChapter = chapters.find((c) => c.mark === 'gun')!.t;
+const finishChapter = chapters.find((c) => c.mark === 'finish')!.t;
+const musicFrom = gunChapter + 15;
+const ducked = busy
+  .filter(([a, b]) => b > musicFrom && a < finishChapter)
+  .map(([a, b]) => `clip((t-${(a - musicFrom - 0.8).toFixed(2)})/0.8,0,1)*clip((${(b - musicFrom + 1.8).toFixed(2)}-t)/1.5,0,1)`)
+  .reduce((acc, term) => `max(${acc},${term})`, '0');
+const playlist = await source('playlist');
+const playlistPath = join(OUT, 'reel-playlist.wav');
+execFileSync('ffmpeg', ['-y', '-v', 'error', '-i', playlist, '-ss', '20', '-t', String(finishChapter - musicFrom + 1), '-af', `volume='1-0.65*${ducked}':eval=frame,afade=t=in:d=2,afade=t=out:st=${(finishChapter - musicFrom - 0.5).toFixed(2)}:d=1.5`, playlistPath]);
+reelLayers.push({ path: playlistPath, at: musicFrom, gain: -9 });
 const reel: Cut = { layers: reelLayers, length: t + 1, lufs: -16 };
 const reelPath = join(OUT, 'reel.mp3');
 render(reel, reelPath);

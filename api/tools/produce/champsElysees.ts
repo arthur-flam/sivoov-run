@@ -87,7 +87,7 @@ const over = (path: string, fx: Layer['fx'], bed: Omit<Layer, 'at' | 'dur' | 'fa
   const v = durationOf(path);
   return {
     layers: [
-      { ...bed, at: 0, dur: lead + v + tail, fadeIn: 0.8, fadeOut: tail },
+      { ...bed, at: 0, dur: lead + v + tail, fadeIn: Math.min(lead, 1.5), fadeOut: tail },
       { path, at: lead, fx },
     ],
     lufs: VOICE_LUFS,
@@ -199,7 +199,7 @@ export const produceChampsElysees = async (lines: ScriptLine[], t: Tools): Promi
     layers: [
       { path: await s('lyria-finish'), fadeOut: 4 },
       { path: await s('london-cheers'), from: 30, dur: 66, gain: -2, fadeIn: 0.5, fadeOut: 10 },
-      { path: medal, at: 17, fx: 'pa', gain: 9 },
+      { path: medal, at: 17, fx: 'ear', gain: 9 },
     ],
     lufs: -19,
   };
@@ -218,10 +218,11 @@ export const produceChampsElysees = async (lines: ScriptLine[], t: Tools): Promi
   };
 
   return {
-    'ceremony.welcome': { file: spoken(await say('ceremony.welcome'), 'pa', -14), under: village },
-    'ceremony.safety': { file: spoken(await say('ceremony.safety'), 'pa', -14) },
-    'ceremony.call': { file: spoken(await say('ceremony.call'), 'pa', -14) },
-    'ceremony.word': { file: spoken(await say('ceremony.word'), 'pa', -14) },
+    // The same voice in the produced lines and in the runner's own (raw) ones: no PA effect on speech.
+    'ceremony.welcome': { file: spoken(await say('ceremony.welcome'), 'ear', -14), under: village },
+    'ceremony.safety': { file: spoken(await say('ceremony.safety'), 'ear', -14) },
+    'ceremony.call': { file: spoken(await say('ceremony.call'), 'ear', -14) },
+    'ceremony.word': { file: spoken(await say('ceremony.word'), 'ear', -14) },
     'ceremony.countdown': { file: countdown, under: build },
     'ceremony.gun': { file: gun, under: drop },
     'course.concorde': { file: over(await say('course.concorde'), 'ear', { path: await s('french-crowd'), from: 40, gain: -14 }) },
@@ -237,7 +238,7 @@ export const produceChampsElysees = async (lines: ScriptLine[], t: Tools): Promi
     'course.golden': { file: spoken(await say('course.golden'), 'ear', -14), under: under(golden, await say('course.golden'), -10) },
     'course.final': { file: spoken(await say('course.final'), 'ear', -14), under: under(home, await say('course.final'), -6) },
     'ceremony.line': { file: theLine },
-    'ceremony.finish': { file: spoken(await say('ceremony.finish'), 'pa', -14), under: { ...fanfare, duck: { until: CALL_S, db: -8, ramp: 2 } } },
+    'ceremony.finish': { file: spoken(await say('ceremony.finish'), 'ear', -14), under: { ...fanfare, duck: { until: CALL_S, db: -8, ramp: 2 } } },
   };
 };
 

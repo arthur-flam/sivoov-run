@@ -47,7 +47,8 @@ export type Cut = {
 const FX: Record<Fx, string> = {
   pa: 'highpass=f=140,lowpass=f=7500,equalizer=f=3200:t=q:w=1.2:g=-3,equalizer=f=450:t=q:w=1:g=-2,acompressor=threshold=-20dB:ratio=2.5:attack=8:release=150:makeup=2,aecho=0.85:0.5:38|95:0.2|0.09',
   far: 'highpass=f=110,lowpass=f=2600,aecho=0.8:0.7:140|290:0.32|0.18',
-  ear: 'highpass=f=70,acompressor=threshold=-22dB:ratio=2.5:attack=5:release=120:makeup=2',
+  // Nearly nothing: the runner's own lines come raw from the Worker and must sound the same.
+  ear: 'highpass=f=70',
 };
 
 const durations = new Map<string, number>();
@@ -102,6 +103,8 @@ const graph = (cut: Cut, tail: string): string => {
   const mix = [
     `${cut.layers.map((_, i) => `[l${i}]`).join('')}amix=inputs=${cut.layers.length}:normalize=0:duration=longest`,
     ...duck,
+    // Pad, then cut: a cut is exactly its length (the countdown's ten seconds drive the digits).
+    `apad=whole_dur=${n(cutLength(cut))}`,
     `atrim=duration=${n(cutLength(cut))}`,
     tail,
   ].join(',');
@@ -116,7 +119,7 @@ export const ffmpegArgs = (cut: Cut, out: string, measured?: Record<string, stri
   const loud = measured
     ? `loudnorm=${target}:measured_I=${measured.input_i}:measured_TP=${measured.input_tp}:measured_LRA=${measured.input_lra}:measured_thresh=${measured.input_thresh}:offset=${measured.target_offset}:linear=true`
     : `loudnorm=${target}`;
-  return ['-y', '-v', 'error', ...inputs(cut), '-filter_complex', graph(cut, loud), '-map', '[out]', '-ar', '44100', '-ac', '2', '-c:a', 'libmp3lame', '-b:a', '160k', out];
+  return ['-y', '-v', 'error', ...inputs(cut), '-filter_complex', graph(cut, loud), '-map', '[out]', '-ar', '44100', '-ac', '2', '-c:a', 'libmp3lame', '-b:a', '128k', out];
 };
 
 /** Two passes: measure the mix's loudness, then bring it to the target with one constant gain. */

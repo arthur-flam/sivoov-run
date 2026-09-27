@@ -83,13 +83,15 @@
     if (gun && t >= gun.t) {
       const raceKm = finish && t >= finish.t ? officialKm : km;
       clockNode.textContent = fmtClock(raceKm * pace);
-      clockNode.classList.remove('is-count');
+      clockNode.classList.remove('is-count', 'is-words');
     } else if (countdown && t >= countdown.t) {
       clockNode.textContent = String(Math.max(1, 10 - Math.floor(t - countdown.t)));
+      clockNode.classList.remove('is-words');
       clockNode.classList.add('is-count');
     } else {
       clockNode.textContent = data.words.onTheLine;
       clockNode.classList.remove('is-count');
+      clockNode.classList.add('is-words');
     }
     bar.style.width = `${Math.min(100, (100 * t) / (audio.duration || data.duration))}%`;
   };

@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { GEMINI_TTS_FALLBACK, geminiAudioOf, geminiTtsBody, geminiWav, plausibleSeconds, wavSeconds } from '@sivoov/shared';
+import { GEMINI_TTS_FALLBACK, frenchNumber, geminiAudioOf, geminiTtsBody, geminiWav, plausibleSeconds, wavSeconds } from '@sivoov/shared';
 import type { ScriptVoice } from '@sivoov/shared';
 import { SOURCES } from './sources';
 import type { SourceId } from './sources';
@@ -72,18 +72,20 @@ const transcribe = async (env: VoiceEnv, wav: Buffer): Promise<string | null> =>
   return body.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join(' ') ?? null;
 };
 
-/** A take says its words and not much else: at most a fifth of what is heard is not in the text. */
+/**
+ * A take says its words and not much else: at most a fifth of what is heard is not in the text.
+ * Digits and "km" in the text count as said in words (the transcript writes « dix kilomètres »),
+ * and a heard word matches a written one on its first five letters (« finisseur », « finisher »).
+ */
 export const saysItsWords = (text: string, heard: string): boolean => {
-  const expected = new Set(norm(text));
+  const written = norm(text.replace(/\d+/g, (d) => frenchNumber(Number(d))).replace(/\bkm\b/g, 'kilomètres'));
+  const expected = new Set(written);
+  const stems = new Set(written.filter((w) => w.length >= 5).map((w) => w.slice(0, 5)));
   const words = norm(heard);
-  const extra = words.filter((w) => !expected.has(w)).length;
+  const extra = words.filter((w) => !expected.has(w) && !(w.length >= 5 && stems.has(w.slice(0, 5)))).length;
   return words.length > 0 && extra / words.length <= 0.2;
 };
 
-/**
- * The voice reading `text` with `direction`, as a trimmed WAV. Cached by what was asked, so a
- * line is paid for once; `take` asks for another reading of the same words.
- */
 /** Models whose daily quota ran out in this run: their fallback is used from then on. */
 const spent = new Set<string>();
 
@@ -137,13 +139,13 @@ export const voice = async (env: VoiceEnv, v0: ScriptVoice, text: string, direct
   const seconds = wavSeconds(wav) ?? 0;
   // The model read its notes aloud: ask for another take (another cache key).
   if (!plausibleSeconds(text, seconds)) {
-    if (take >= 4) throw new Error(`voice: every take of "${text}" is too long (${seconds.toFixed(1)} s)`);
+    if (take >= 6) throw new Error(`voice: every take of "${text}" is too long (${seconds.toFixed(1)} s)`);
     console.log(`  voice: take ${take} of "${text.slice(0, 40)}" lasts ${seconds.toFixed(1)} s, again`);
     return voice(env, v0, text, direction, scene, take + 1);
   }
   const heard = await transcribe(env, Buffer.from(wav));
   if (heard !== null && !saysItsWords(text, heard)) {
-    if (take >= 4) throw new Error(`voice: every take of "${text}" says something else ("${heard}")`);
+    if (take >= 6) throw new Error(`voice: every take of "${text}" says something else ("${heard}")`);
     console.log(`  voice: take ${take} of "${text.slice(0, 40)}" says "${heard.slice(0, 80)}", again`);
     return voice(env, v0, text, direction, scene, take + 1);
   }

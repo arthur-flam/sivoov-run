@@ -108,7 +108,7 @@ export const usePackStore = create<PackStore>((set, get) => ({
     if (!voices || voices.version !== pack.version || get().pack?.version !== pack.version) return;
     const { uris } = await download(
       ['voices', pack.courseId, String(pack.version)],
-      Object.entries(voices.files).map(([eventId, f]) => [eventId, f, `${f.sha256.slice(0, 32)}.mp3`]),
+      Object.entries(voices.files).map(([eventId, f]) => [eventId, f, `${f.sha256.slice(0, 32)}.${f.url.endsWith('.wav') ? 'wav' : 'mp3'}`]),
     ).catch(() => ({ uris: {} as Record<string, string> }));
     if (get().pack?.version !== pack.version) return;
     set({ personal: { ...get().personal, ...uris }, personalFor: { version: pack.version, here: Boolean(here), at: Date.now() } });

@@ -13,6 +13,7 @@ export * from './audioEditor';
 export * from './landmarks';
 export * from './audioEstimates';
 export * from './audioTags';
+export * from './geminiVoice';
 export * from './placeholders';
 export * from './spokenFr';
 export * from './format';

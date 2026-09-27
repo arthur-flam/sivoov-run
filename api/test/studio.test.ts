@@ -40,6 +40,8 @@ let cookie = '';
  */
 const realFetch = globalThis.fetch;
 let ttsCalls: string[] = [];
+/** Two samples of 16-bit PCM, as Gemini answers: the Worker wraps them in a WAV header. */
+const pcm = new Uint8Array([0x01, 0x00, 0xff, 0x7f]);
 
 beforeAll(async () => {
   const q = db(env.DB);
@@ -63,6 +65,11 @@ beforeAll(async () => {
     if (url.startsWith('https://api.elevenlabs.io/')) {
       ttsCalls = [...ttsCalls, url];
       return new Response(mp3, { headers: { 'Content-Type': 'audio/mpeg' } });
+    }
+    if (url.includes('/google-ai-studio/') && url.includes('tts:generateContent')) {
+      ttsCalls = [...ttsCalls, url];
+      const data = btoa(String.fromCharCode(...pcm));
+      return Response.json({ candidates: [{ content: { parts: [{ inlineData: { mimeType: 'audio/L16;codec=pcm;rate=24000', data } }] } }] });
     }
     return realFetch(input, init);
   }) as typeof fetch;
@@ -251,6 +258,29 @@ describe('rendering a line', () => {
 
   it('refuses an unknown line', async () => {
     expect((await send(`/courses/${COURSE}/script/render`, { lineId: 'nope' })).status).toBe(404);
+  });
+
+  it('renders a Gemini voice through the AI Gateway as WAV, and publishes it as a .wav file', async () => {
+    const HALF = `${SLUG}-half`;
+    const at = (path: string) => `/courses/${HALF}${path}`;
+    const gemini = { id: 'Sadachbia', name: 'Le speaker', model: 'gemini-3.8-flash-tts', direction: 'Le speaker de la course, enthousiaste.' };
+    const lines = [{ id: 'course.arc', title: 'L’Arc', category: 'course', mix: 'duck', priority: 6, trigger: { kind: 'distance', meters: 6900 }, key: 'arc', text: 'Demi-tour sous l’Arc !' }];
+    expect((await send(at('/script'), { voice: gemini, lines }, 'PUT')).status).toBe(200);
+    ttsCalls = [];
+    const rendered = (await (await send(at('/script/render'), { lineId: 'course.arc' })).json()) as { hash: string; key: string; bytes: number };
+    expect(ttsCalls).toEqual([expect.stringMatching(/^https:\/\/gateway\.ai\.cloudflare\.com\/v1\/[^/]+\/sivoov\/google-ai-studio\/v1beta\/models\/gemini-3\.8-flash-tts:generateContent$/)]);
+    expect(rendered.key).toBe(`tts/${rendered.hash}.wav`);
+    expect(rendered.bytes).toBe(44 + pcm.length);
+    const audio = await get(at(`/audio/${rendered.hash}`));
+    expect(audio.headers.get('Content-Type')).toBe('audio/wav');
+    const wav = new Uint8Array(await audio.arrayBuffer());
+    expect(String.fromCharCode(...wav.slice(0, 4))).toBe('RIFF');
+    expect(wav.slice(44)).toEqual(pcm);
+
+    expect((await send(at('/script/publish'), {})).status).toBe(200);
+    const pack = await db(env.DB).latestAudioPack(HALF);
+    expect(pack!.events[0]!.source).toEqual({ kind: 'file', key: 'arc.wav' });
+    expect((await env.FILES.get(`packs/${HALF}/${pack!.version}/arc.wav`))?.httpMetadata?.contentType).toBe('audio/wav');
   });
 });
 

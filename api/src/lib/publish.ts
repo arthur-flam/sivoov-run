@@ -1,11 +1,11 @@
-import { AUDIO_CONTENT_TYPES, buildScript, lineIssues, manifestFor, packFileKey, packPrefix, personalDefsFor, underFileKey } from '@sivoov/shared';
+import { AUDIO_CONTENT_TYPES, buildScript, lineIssues, manifestFor, packFileKey, packPrefix, personalDefsFor, underFileKey, voiceFormat } from '@sivoov/shared';
 import type { AudioScript, RenderedFile, ScriptLine } from '@sivoov/shared';
 import type { Db } from '../db/queries';
 import type { ScriptDb } from '../db/scriptQueries';
 import { sha256HexBytes } from './crypto';
 import { storeDefs } from './personal';
 import { scriptFingerprint } from './studio';
-import { ttsHash, ttsKey } from './tts';
+import { renderKey, ttsHash } from './tts';
 import { uploadKey } from './uploads';
 
 /** `fix`: a line has nothing to read or something to correct. `missing`: a line's sound is not there yet. */
@@ -21,7 +21,7 @@ export const refusalText = (outcome: Extract<PublishOutcome, { ok: false }>): st
 
 /** Where a line's sound waits before publishing: the organizer's upload, or the voice cache for its text. */
 const sourceKey = async (script: AudioScript, line: ScriptLine): Promise<string> =>
-  line.audio ? uploadKey(line.audio) : ttsKey(await ttsHash(script.voice, line.text));
+  line.audio ? uploadKey(line.audio) : renderKey(script.voice, await ttsHash(script.voice, line.text));
 
 /**
  * Publishing turns the draft into the pack the app downloads: every line's sound (the rendered
@@ -50,7 +50,10 @@ export const publishScript = async (deps: { db: Db; scripts: ScriptDb; files: R2
     return { key, bytes: body.byteLength, sha256: await sha256HexBytes(body) };
   };
   const rendered: RenderedFile[] = await Promise.all([
-    ...found.map(({ line, object }) => copy(packFileKey(line), object!, AUDIO_CONTENT_TYPES[line.audio?.format ?? 'mp3'])),
+    ...found.map(({ line, object }) => {
+      const format = line.audio?.format ?? voiceFormat(built.voice);
+      return copy(packFileKey(line, format), object!, AUDIO_CONTENT_TYPES[format]);
+    }),
     ...unders.map(({ line, object }) => copy(underFileKey(line)!, object!, AUDIO_CONTENT_TYPES[line.under!.format])),
   ]);
 

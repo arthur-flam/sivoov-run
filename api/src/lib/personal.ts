@@ -1,10 +1,10 @@
-import { PersonalDefsSchema, fillTemplate, spokenValues, supportsAudioTags } from '@sivoov/shared';
-import type { Course, LiveFacts, PersonalDef, PersonalDefs, PersonalVoices, Race, RunnerFacts } from '@sivoov/shared';
+import { PersonalDefsSchema, fillTemplate, spokenValues, supportsAudioTags, voiceFormat } from '@sivoov/shared';
+import type { AudioUploadFormat, Course, LiveFacts, PersonalDef, PersonalDefs, PersonalVoices, Race, RunnerFacts } from '@sivoov/shared';
 import { distanceName } from '../pages/org/format';
 import { maxCharsFor, writePersonalLine } from './llm';
 import type { LlmDeps } from './llm';
 import type { PersonalLineBrief } from './prompts/personalLine';
-import { VOICES_PREFIX, renderText, ttsHash, ttsKey } from './tts';
+import { VOICES_PREFIX, renderKey, renderText, ttsDepsFor, ttsHash } from './tts';
 import type { TtsDeps } from './tts';
 
 /**
@@ -31,7 +31,7 @@ export const loadDefs = async (files: R2Bucket, courseId: string, version: numbe
   return parsed.success ? parsed.data : null;
 };
 
-export const voiceUrl = (baseUrl: string, hash: string): string => `${baseUrl}/api/voices/${hash}.mp3`;
+export const voiceUrl = (baseUrl: string, hash: string, format: AudioUploadFormat = 'mp3'): string => `${baseUrl}/api/voices/${hash}.${format}`;
 
 export type PersonalDeps = { files: R2Bucket; tts: TtsDeps | null; llm: LlmDeps | null; baseUrl: string };
 
@@ -136,7 +136,7 @@ export const personalVoices = async (deps: PersonalDeps, ctx: PersonalContext, v
   );
   const files = Object.fromEntries(
     rendered.flatMap(({ def, outcome }) =>
-      outcome.ok ? [[def.eventId, { url: voiceUrl(deps.baseUrl, outcome.rendered.hash), bytes: outcome.rendered.bytes, sha256: outcome.rendered.sha256 }]] : [],
+      outcome.ok ? [[def.eventId, { url: voiceUrl(deps.baseUrl, outcome.rendered.hash, outcome.rendered.format), bytes: outcome.rendered.bytes, sha256: outcome.rendered.sha256 }]] : [],
     ),
   );
   return { ...empty, files };
@@ -160,15 +160,16 @@ export const liveVoice = async (deps: PersonalDeps, ctx: Pick<PersonalContext, '
   const text = fillTemplate(def.personal.template, spokenValues(ctx.runner, { ...facts, finish: facts.finish ?? def.finish }));
   if (text === null) return { ok: false, status: 422, detail: 'a value is missing' };
   const hash = await ttsHash(defs.voice, text);
-  const cached = await deps.files.head(ttsKey(hash, VOICES_PREFIX));
-  if (cached) return { ok: true, url: voiceUrl(deps.baseUrl, hash), bytes: cached.size };
+  const format = voiceFormat(defs.voice);
+  const cached = await deps.files.head(renderKey(defs.voice, hash, VOICES_PREFIX));
+  if (cached) return { ok: true, url: voiceUrl(deps.baseUrl, hash, format), bytes: cached.size };
   const qKey = quotaKey(ctx.entrantId, now);
   const used = ((await (await deps.files.get(qKey))?.json().catch(() => null)) as { n?: number } | null)?.n ?? 0;
   if (used >= LIVE_DAILY_LIMIT) return { ok: false, status: 429, detail: 'daily allowance used' };
   const outcome = await renderText(deps.tts, defs.voice, text, { prefix: VOICES_PREFIX, locale: defs.locale });
   if (!outcome.ok) return { ok: false, status: 502, detail: `tts ${outcome.status}` };
   await deps.files.put(qKey, JSON.stringify({ n: used + 1 }), { httpMetadata: { contentType: 'application/json' } });
-  return { ok: true, url: voiceUrl(deps.baseUrl, outcome.rendered.hash), bytes: outcome.rendered.bytes };
+  return { ok: true, url: voiceUrl(deps.baseUrl, outcome.rendered.hash, format), bytes: outcome.rendered.bytes };
 };
 
 /** The dependencies as this environment has them: no key, no voice or no AI, never an error. */
@@ -176,12 +177,16 @@ export const personalDeps = (env: {
   FILES: R2Bucket;
   BASE_URL: string;
   ELEVENLABS_API_TOKEN?: string;
+  GEMINI_API_KEY?: string;
   CLOUDFLARE_AI_TOKEN?: string;
   AI_GATEWAY?: string;
   CF_ACCOUNT_ID?: string;
-}): PersonalDeps => ({
+}): PersonalDeps => {
+  const tts = ttsDepsFor(env);
+  return {
   files: env.FILES,
   baseUrl: env.BASE_URL,
-  tts: env.ELEVENLABS_API_TOKEN ? { files: env.FILES, apiKey: env.ELEVENLABS_API_TOKEN } : null,
+  tts: tts.elevenlabs || tts.gemini ? tts : null,
   llm: env.CLOUDFLARE_AI_TOKEN && env.AI_GATEWAY && env.CF_ACCOUNT_ID ? { token: env.CLOUDFLARE_AI_TOKEN, gateway: env.AI_GATEWAY, accountId: env.CF_ACCOUNT_ID } : null,
-});
+  };
+};

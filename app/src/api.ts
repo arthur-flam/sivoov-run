@@ -46,8 +46,11 @@ const TIMEOUT_MS = 20_000;
 const UPLOAD_TIMEOUT_MS = 120_000;
 /** The runner's own lines are written (AI) and recorded on the spot: a few seconds each. */
 const VOICES_TIMEOUT_MS = 60_000;
-/** A live line is worth waiting for only while it is still news: past this, the offline version plays. */
-export const LIVE_VOICE_TIMEOUT_MS = 4_000;
+/**
+ * A live line is worth waiting for only while it is still news: past this, the offline version
+ * plays. A Gemini voice takes about 3 s to render a split, so 4 s was too tight (2026-09-27).
+ */
+export const LIVE_VOICE_TIMEOUT_MS = 7_000;
 
 const request = async <T extends z.ZodType>(path: string, schema: T, init: RequestInit = {}, token?: string, timeoutMs = TIMEOUT_MS): Promise<z.infer<T>> => {
   // fetch has no timeout of its own and React Native's has no read timeout: a stalled

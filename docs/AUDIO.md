@@ -177,7 +177,7 @@ R2 layout: `courses/<id>/geometry.json`; `tts/<hash>.mp3` (studio renders, priva
   rounded for the weather. A run never waits for either.
 - `soundFor(event)`: the runner's own version of a `prepare` line when it came down, the pack
   file otherwise. The ceremony uses it too. A `live` line fires, the app asks
-  `/api/me/voices/live` with `liveFactsFor(state)`, waits at most 4 s, and plays the answer or
+  `/api/me/voices/live` with `liveFactsFor(state)`, waits at most 7 s, and plays the answer or
   the offline file.
 - Files play through `playSequence` (all or nothing, with a watchdog). Interruptions drop the
   backlog except `finish`. "Moins de voix" (by category) is not built yet.

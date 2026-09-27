@@ -49,12 +49,12 @@ audio.get('/packs/:courseId/:version/:key', async (c) => {
  */
 audio.get('/voices/:file', async (c) => {
   const file = c.req.param('file');
-  if (!/^[0-9a-f]{64}\.mp3$/.test(file)) return c.json({ error: 'invalid' }, 400);
+  if (!/^[0-9a-f]{64}\.(mp3|wav)$/.test(file)) return c.json({ error: 'invalid' }, 400);
   const object = await c.env.FILES.get(`voices/${file}`);
   if (!object) return c.json({ error: 'not_found' }, 404);
   return new Response(object.body, {
     headers: {
-      'Content-Type': 'audio/mpeg',
+      'Content-Type': file.endsWith('.wav') ? 'audio/wav' : 'audio/mpeg',
       'Content-Length': String(object.size),
       ETag: object.httpEtag,
       'Cache-Control': 'public, max-age=31536000, immutable',

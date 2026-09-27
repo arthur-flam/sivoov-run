@@ -12,6 +12,12 @@ export type Bindings = Env & {
    */
   ELEVENLABS_API_TOKEN?: string;
   /**
+   * Google Gemini API key, for Gemini voices (native French TTS), called through the AI Gateway
+   * like every model (`wrangler secret put GEMINI_API_KEY`). Optional: without it a script on a
+   * Gemini voice plays its recorded files and the offline versions of personal lines.
+   */
+  GEMINI_API_KEY?: string;
+  /**
    * Cloudflare API token with Workers AI (and AI Gateway run) rights, for every LLM call: the AI
    * personal lines and the studio's « Proposer un texte » go through the AI Gateway below, never
    * to a provider directly (lib/llm.ts). `wrangler secret put CLOUDFLARE_AI_TOKEN`. Optional:

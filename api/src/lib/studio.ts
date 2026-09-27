@@ -23,7 +23,7 @@ import { issueText, lineStatusView, publishView, summaryText } from '../pages/or
 import type { AudioSummary, LineSource } from '../pages/org/studioCopy';
 import type { Tone } from '../pages/org/ui';
 import { sha256Hex } from './crypto';
-import { ttsHash, ttsKey } from './tts';
+import { canRender, renderKey, ttsDepsFor, ttsHash } from './tts';
 import { uploadKey } from './uploads';
 import { DEFAULT_VOICE, voiceSummary } from './voices';
 
@@ -117,7 +117,7 @@ const lineStatus = async (files: R2Bucket, script: AudioScript, line: ScriptLine
     return { ...common, ...view, hash: line.audio.hash, rendered: head !== null, bytes: line.audio.bytes, audioPath: head ? `/uploads/${line.audio.hash}.${line.audio.format}` : null };
   }
   const hash = await ttsHash(script.voice, line.text);
-  const head = toWrite ? null : await files.head(ttsKey(hash));
+  const head = toWrite ? null : await files.head(renderKey(script.voice, hash));
   const view = lineStatusView(source, { ready: head !== null, toWrite, toFix });
   return { ...common, ...view, hash, rendered: head !== null, bytes: head?.size ?? 0, audioPath: head ? `/audio/${hash}` : null };
 };
@@ -295,7 +295,7 @@ export const studioPageData = async (
     }),
     packs: ctx.packs,
     mapboxToken: env.MAPBOX_TOKEN || null,
-    ttsReady: Boolean(env.ELEVENLABS_API_TOKEN),
+    ttsReady: canRender(ttsDepsFor(env), ctx.script.voice),
     aiReady: Boolean(env.CLOUDFLARE_AI_TOKEN && env.AI_GATEWAY),
     voiceLabel: voiceSummary(ctx.script.voice),
     canEdit: view.canEdit,

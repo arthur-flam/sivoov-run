@@ -4,11 +4,12 @@ import { AudioScriptSchema, PersonalDefsSchema } from '../schemas/audioScript';
 import type { AudioScript, AudioScriptInput, AudioUploadFormat, PersonalDefs, ScriptLine, ScriptVoice } from '../schemas/audioScript';
 import { whenInWords } from './audioEditor';
 import { supportsAudioTags, textForVoice } from './audioTags';
+import { isGeminiVoice, voiceFormat } from './geminiVoice';
 import { livePlaceholders, placeholdersIn, templatePhase, unknownPlaceholders } from './placeholders';
 import type { PlaceholderPhase } from './placeholders';
 
-/** The file a line becomes in the pack: `<key>.mp3` for the voice, the upload's own format otherwise. */
-export const packFileKey = (line: Pick<ScriptLine, 'key' | 'audio'>): string => `${line.key}.${line.audio?.format ?? 'mp3'}`;
+/** The file a line becomes in the pack: the upload's own format, else the voice's (`.mp3`, `.wav` for a Gemini voice). */
+export const packFileKey = (line: Pick<ScriptLine, 'key' | 'audio'>, voice: AudioUploadFormat = 'mp3'): string => `${line.key}.${line.audio?.format ?? voice}`;
 
 /** The file of a line's ambiance in the pack, beside the line's own: `<key>-under.<format>`. */
 export const underFileKey = (line: Pick<ScriptLine, 'key' | 'under'>): string | null => (line.under ? `${line.key}-under.${line.under.format}` : null);
@@ -35,7 +36,7 @@ export const personalPhase = (line: Pick<ScriptLine, 'personal'>): PlaceholderPh
  * personal line is the same file event (its offline version) marked `personal`, so an app that
  * predates personal lines still plays something.
  */
-export const eventFor = (line: ScriptLine): AudioEvent => {
+export const eventFor = (line: ScriptLine, voice: AudioUploadFormat = 'mp3'): AudioEvent => {
   const phase = personalPhase(line);
   return AudioEventSchema.parse({
     id: line.id,
@@ -45,7 +46,7 @@ export const eventFor = (line: ScriptLine): AudioEvent => {
     priority: line.priority,
     once: line.once,
     trigger: line.trigger,
-    source: { kind: 'file', key: packFileKey(line) },
+    source: { kind: 'file', key: packFileKey(line, voice) },
     ...(phase ? { personal: { phase } } : {}),
     ...(line.under ? { under: underFileKey(line) } : {}),
   });
@@ -58,7 +59,7 @@ export const buildScript = (script: AudioScriptInput): BuiltScript => {
   const parsed = upgradeScript(AudioScriptSchema.parse(script));
   const ids = parsed.lines.map((l) => l.id);
   if (new Set(ids).size !== ids.length) throw new Error('duplicate event ids in script');
-  return { ...parsed, events: parsed.lines.map(eventFor) };
+  return { ...parsed, events: parsed.lines.map((l) => eventFor(l, voiceFormat(parsed.voice))) };
 };
 
 /** Lines the voice reads the same to everyone (a personal line's offline version included): not the organizer's own files, not unwritten ones. */
@@ -69,7 +70,7 @@ export const uploadedLines = (script: AudioScript): ScriptLine[] => script.lines
 
 /** Pack file keys used by more than one line: publishing would write one over the other. */
 export const duplicateFileKeys = (lines: ScriptLine[]): string[] => {
-  const keys = lines.map(packFileKey);
+  const keys = lines.map((l) => packFileKey(l));
   return [...new Set(keys.filter((k, i) => keys.indexOf(k) !== i))];
 };
 
@@ -147,7 +148,9 @@ export const ttsCacheInput = (text: string, voiceId: string, model: string): str
  * A script without a stability keeps the keys of every render made before voices had settings.
  */
 export const voiceCacheInput = (voice: ScriptVoice, text: string): string =>
-  `${ttsCacheInput(textForVoice(voice, text), voice.id, voice.model)}${voice.stability === undefined ? '' : `|s${voice.stability}`}`;
+  `${ttsCacheInput(textForVoice(voice, text), voice.id, voice.model)}${voice.stability === undefined ? '' : `|s${voice.stability}`}${
+    isGeminiVoice(voice) && voice.direction ? `|d${voice.direction}` : ''
+  }`;
 
 /**
  * The ElevenLabs text-to-speech body for a line, the same from the Worker and the CLI. v3 gets

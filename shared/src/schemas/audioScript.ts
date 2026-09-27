@@ -3,13 +3,15 @@ import { AudioCategorySchema, AudioTriggerSchema, MixModeSchema } from './audio'
 
 /** The voice that reads the script. One voice per script (AUDIO.md), chosen in the studio. */
 export const ScriptVoiceSchema = z.object({
-  /** ElevenLabs voice id. */
+  /** ElevenLabs voice id, or a Gemini voice name ("Sadachbia") when the model is a Gemini one. */
   id: z.string().min(1),
   name: z.string(),
-  /** ElevenLabs model: `eleven_v3` reads `[tags]`, older models get the text without them. */
+  /** ElevenLabs model (`eleven_v3` reads `[tags]`, older models get the text without them), or a Gemini TTS model. */
   model: z.string().min(1),
   /** 0 expressive … 1 steady. Absent: the provider's default for the model (the render cache key ignores it then). */
   stability: z.number().min(0).max(1).optional(),
+  /** A Gemini voice's direction: who is speaking and how, played and never read (domain/geminiVoice.ts). */
+  direction: z.string().max(1000).optional(),
 });
 export type ScriptVoice = z.infer<typeof ScriptVoiceSchema>;
 

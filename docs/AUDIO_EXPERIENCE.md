@@ -2,7 +2,8 @@
 
 What the runner hears, why, and what to build for Deauville 2026. `AUDIO.md` is the contract
 (event model, pipeline, playback rules). This is the content brief: principles, a ranked idea
-list, a proposed rundown for Deauville, and a v1 cut.
+list, a proposed rundown for Deauville, and a v1 cut. The same rules applied to the 10 km des
+Champs-Élysées, produced and heard: `CHAMPS_ELYSEES.md`.
 
 Vocabulary used below: **bed** = a non-verbal ambience loop (crowd, sea, PA bleed) under
 everything else; **beat** = one scripted moment; **pocket** = a short cluster of audio between

@@ -84,7 +84,7 @@ export default function SignIn() {
                       key={race.slug}
                       testID={`race-${race.slug}`}
                       accessibilityRole="radio"
-                      accessibilityState={{ selected: race.slug === slug }}
+                      accessibilityState={{ checked: race.slug === slug }}
                       onPress={() => setSlug(race.slug)}
                       style={[styles.input, styles.race, race.slug === slug ? styles.raceOn : null]}
                     >

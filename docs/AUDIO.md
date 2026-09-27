@@ -29,6 +29,7 @@ AudioEvent {
          | { kind: 'pace', slowerThan?, fasterThan?, afterMeters } | { kind: 'elapsed', seconds }
   source: { kind: 'file', key }                 // the offline sound, always a file in the pack
   personal?: { phase: 'prepare' | 'live' }      // the runner's own version exists (see below)
+  under?: key                                   // an ambiance played under it (see "Ambiances")
   mix: 'duck' | 'wait' | 'interrupt', priority: 0..10, once
 }
 AudioPack { courseId, version, locale, events, files: { key: { url, bytes, sha256 } } }
@@ -87,6 +88,47 @@ Every number is written out in French words before it reaches the voice (`french
 names (`{firstName}`, `{splitTime}`…) are read as aliases. `fillTemplate` returns null when a
 value is missing; that line then plays its offline version, never a sentence with a hole.
 `liveFactsFor(runState)` is what the app sends for a live line, with glitch values left out.
+
+## Ambiances (`under`)
+A line may carry an ambiance: the start village, the music of the gun, drums up a climb, a
+finish fanfare. It is a file in the pack (`<key>-under.<ext>`), started on a second player
+when the line starts, and it plays to its own end, over the next lines, until another line
+brings its own ambiance (the old one fades in 0.8 s) or the run stops. Before the gun it is
+the ceremony's (stopping the ceremony stops it); from the gun on it belongs to the run. The
+runner's own line (their name, their time) is thus said inside the crowd, not in silence.
+- It is pre-mixed at its level: an ambiance under a voice sits about ten decibels below it,
+  and one that opens under its own line is held down while the line plays (the two are on
+  separate players, so nothing can duck one under the other at play time).
+- The runner's music is ducked for as long as an ambiance plays: keep them for the moments.
+- Splits carry none: at 9 km the split must not cut the Golden km's music.
+- The studio shows a line's ambiance and keeps it through saves; uploading one is not built:
+  `npm run produce` sets them (below).
+
+## The voices: ElevenLabs or Gemini
+`script.voice.model` picks the provider (`shared/domain/geminiVoice.ts`, `api/src/lib/tts.ts`):
+- **ElevenLabs** (`eleven_v3`, older models): MP3, `[tags]` for v3. Our key is on the free
+  plan: no Voice Library voices by API, so no native French voice.
+- **Gemini** (`gemini-3.8-flash-tts`, a voice name such as `Sadachbia`): native French,
+  directed in words (`voice.direction`, and a scene per line in the production tool), called
+  through the AI Gateway (`google-ai-studio` route, `GEMINI_API_KEY`). It answers raw PCM or a
+  WAV; renders are stored as `.wav` (`voiceFormat`), and so are the pack files of voice lines
+  and the runners' own lines. The prompt must be the full "AUDIO PROFILE / THE SCENE /
+  DIRECTOR'S NOTES / TRANSCRIPT" form, or the model reads its notes aloud; even then it
+  sometimes does, so a take far longer than its words (`plausibleSeconds`) is rendered again,
+  twice at most (the production tool also has each take heard back and compared).
+  About 3 s per short line: a live line may take 7 s in the app. The preview model allows a
+  few requests a minute on our key: see CHAMPS_ELYSEES.md, "Known limits".
+
+## Produced sound (`api/tools/produce/`)
+`npm run produce -w api -- <raceId> [local|preview|production] [--publish]` mixes a race's
+sound with ffmpeg: the voice (Gemini, by scene), crowds and places (BBC Sound Effects, draft
+licence) and music composed for the race (Lyria, kept in R2 `produce-sources/`), per a recipe
+(`champsElysees.ts`). Each line gets a file and maybe an ambiance, loudness-normalized in two
+passes. With a target, they become the organizer's own files on the draft (`audio`, `under`,
+`studio-uploads/`), and `--publish` publishes (local and preview). It also writes a demo reel:
+the race in about five minutes, said to a sample runner, with chapters (`DemoReelSchema`),
+at `demo/<courseId>/reel.{mp3,json}`, served by `/api/courses/:id/reel(.mp3)` and played on
+the race page (« Écoutez la course »).
 
 ## ElevenLabs v3 tags
 `[excited]`, `[whisper]`, `[laughs]`… before the words they colour; ellipses make pauses. The

@@ -47,7 +47,7 @@ const direction = script.voice.direction ?? '';
 const OUT = join(CACHE, 'out', script.courseId);
 mkdirSync(OUT, { recursive: true });
 
-const say = (text: string, mood: Mood, take = 1) => voice(voiceEnv, script.voice, text, direction, MOODS[mood], take);
+const say = (text: string, mood: Mood, take = 1) => voice(voiceEnv, script.voice, text, `${direction} ${MOODS[mood].style}`, MOODS[mood].scene, take);
 /** What the Worker would say to a runner: the script's own direction, no mood. */
 const sayPersonal = (text: string) => voice(voiceEnv, script.voice, text, direction);
 
@@ -91,7 +91,8 @@ const steps: Step[] = [
   { file: await personal('ceremony.call'), chapter: at('ceremony.call', 0, 'Dossard mille deux cent quarante-sept… Camille Martin ! Bienvenue sur les Champs-Élysées. On vous attend dans le sas !') },
   { file: await sayPersonal(WORD), chapter: at('ceremony.word', 0, WORD) },
   { file: mixed['ceremony.countdown']!.file, under: mixed['ceremony.countdown']!.under, gap: 0, chapter: at('ceremony.countdown', 0, undefined, 'countdown') },
-  { file: mixed['ceremony.gun']!.file, under: mixed['ceremony.gun']!.under, hold: 22, chapter: at('ceremony.gun', 0, 'Partez ! Le chrono part au coup de corne.', 'gun') },
+  { file: mixed['ceremony.gun']!.file, under: mixed['ceremony.gun']!.under, hold: 20, chapter: at('ceremony.gun', 0, 'Partez ! Le chrono part au coup de corne.', 'gun') },
+  { under: 'stop', hold: 1.2 },
   { file: mixed['course.concorde']!.file, gap: 2, chapter: at('course.concorde', 0.3) },
   { file: await personal('personal.split', { km: 1, elapsedS: 298 }), gap: 2, chapter: { title: 'Kilomètre 1', km: 1, caption: 'Kilomètre un. Quatre minutes cinquante-huit.' } },
   { file: mixed['course.monceau']!.file, gap: 2, chapter: at('course.monceau', 2.1) },
@@ -99,10 +100,10 @@ const steps: Step[] = [
   { file: await personal('personal.split', { km: 5, elapsedS: 1432 }), gap: 2, chapter: { title: 'Kilomètre 5', km: 5, caption: 'Kilomètre cinq. Vingt-trois minutes cinquante-deux.' } },
   { file: mixed['course.rond-point']!.file, under: mixed['course.rond-point']!.under, hold: 12, chapter: at('course.rond-point', 5.95) },
   { file: mixed['course.arc']!.file, under: mixed['course.arc']!.under, hold: 24, chapter: at('course.arc', 6.9) },
-  { under: 'stop', gap: 1.5 },
+  { under: 'stop', hold: 1.5 },
   { file: mixed['course.alma']!.file, gap: 2, chapter: at('course.alma', 8.6) },
   { file: mixed['course.golden']!.file, under: mixed['course.golden']!.under, hold: 14, chapter: at('course.golden', 9) },
-  { file: mixed['course.final']!.file, under: mixed['course.final']!.under, hold: 6, chapter: at('course.final', 9.8) },
+  { file: mixed['course.final']!.file, under: mixed['course.final']!.under, hold: 3, chapter: at('course.final', 9.8) },
   { file: mixed['ceremony.line']!.file, gap: 0.2, chapter: at('ceremony.line', 10, undefined, 'finish') },
   {
     file: await personal('ceremony.finish', { elapsedS: 2832, finish: true }),

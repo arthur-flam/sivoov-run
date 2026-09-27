@@ -460,3 +460,30 @@
   written while stopping reach the upload. Reaching the distance sets `finished` first and calls
   `stop()` without waiting, and `run.tsx` snapshots the logbook on that phase change: anything
   logged while stopping (`background updates stopped`, the `stop` battery line) misses the upload.
+- 2026-09-27: the 10 km des Champs-Élysées and its sound. Worth knowing next time:
+  - Sport Concept Organisation runs both Deauville and the 10 km des Champs-Élysées: same
+    client. The race's "connecté" entry already exists (€32, self-declared time on Klikego).
+  - ElevenLabs on our key is the free plan: its Music API answers 402, Voice Library voices
+    answer 402 by API ("Free users cannot use library voices"). Sound effects work.
+  - Gemini TTS (`gemini-3.8-flash-tts`, voice Sadachbia) is native French and far better than
+    George's English accent, rated by an AI listener. It reads its prompt aloud unless the prompt
+    is the full "# AUDIO PROFILE / ## THE SCENE / ### DIRECTOR'S NOTES / #### TRANSCRIPT"
+    form, and even then about one take in fifteen reads the scene: check length
+    (`plausibleSeconds`) and, offline, have the take transcribed back. `systemInstruction` is
+    refused by the TTS models ("Developer instruction is not enabled").
+  - Gemini TTS answers `audio/wav` (a whole WAV, 24 kHz mono) although older docs say raw PCM:
+    wrapping it again put a 44-byte header in the audio. `geminiWav` wraps only raw PCM.
+  - The preview TTS model allows a few requests a minute on our key (429, then fine): the
+    production tool waits and retries; the Worker falls back to the offline version.
+  - Cloud Text-to-Speech (texttospeech.googleapis.com) with the same Gemini voices and MP3
+    output needs the Vertex "Agent Platform API" enabled on the Google project; not done.
+  - Lyria (`lyria-3-pro-preview`) composes usable music on our Gemini key, about 70 s per call
+    whatever length is asked, as MP3, with a structure you can describe (build, drop). Not
+    repeatable: keep what you cut to (R2 `produce-sources/`).
+  - The AI Gateway's Cloudflare front refuses Python's default User-Agent (error 1010): send one.
+  - An AI listener is a usable ear: Gemini 3.8 Flash, given an MP3, transcribes with timecodes
+    and reviews a mix (leaks, balance, transitions). It caught the scene read aloud at 5 km.
+  - ffmpeg's single-pass `loudnorm` pumps on sparse material (a voice over a long bed); two
+    passes (measure, then `linear=true`) keep one gain.
+  - BBC Sound Effects (sound-effects.bbcrewind.co.uk) has a search API and direct MP3s, with
+    real London Marathon crowds; licence RemArc (not for selling).

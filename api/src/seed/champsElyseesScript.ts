@@ -130,7 +130,7 @@ export const champsElysees2027Script: AudioScriptInput = {
     line({
       id: 'ceremony.line', title: 'La ligne', category: 'ceremony', mix: 'interrupt', priority: 10,
       trigger: { kind: 'finish' }, key: 'ceremony-line',
-      text: 'Et c’est la ligne !',
+      text: 'Voilà la ligne d’arrivée !',
     }),
     line({
       id: 'ceremony.finish', title: 'L’arrivée', category: 'personal', mix: 'wait', priority: 10,

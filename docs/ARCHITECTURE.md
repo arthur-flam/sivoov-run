@@ -20,7 +20,7 @@
 | App | Expo SDK 57, expo-router, React Native StyleSheet, Zustand, zod | current SDK, over-the-air updates via EAS Update |
 | Location | expo-location + expo-task-manager (background) | |
 | Audio | expo-audio with background mode | |
-| Content | ElevenLabs TTS (Eleven v3 by default, French), cached MP3 in R2; LLM calls only through Cloudflare AI Gateway "sivoov" (Claude via `@anthropic-ai/sdk` on the gateway's Anthropic route with the key held by the gateway, Workers AI Llama 3.3 on the same gateway as the stand-in) for per-runner personal lines and the studio's suggestions; Open-Meteo (no key) for the weather in those lines | pre-produced per race; personal lines rendered per runner before the start or live, always with an offline version (AUDIO.md) |
+| Content | TTS by the script's voice: ElevenLabs (MP3) or Google Gemini TTS (native French, WAV, through the AI Gateway), cached in R2; produced sound mixed offline with ffmpeg (`api/tools/produce`: Gemini voice, BBC Sound Effects, Lyria music); LLM calls only through Cloudflare AI Gateway "sivoov" (Claude via `@anthropic-ai/sdk` on the gateway's Anthropic route with the key held by the gateway, Workers AI Llama 3.3 on the same gateway as the stand-in) for per-runner personal lines and the studio's suggestions; Open-Meteo (no key) for the weather in those lines | pre-produced per race; personal lines rendered per runner before the start or live, always with an offline version (AUDIO.md) |
 | Maps | Mapbox Static Images, rendered by the Worker at `/api/courses/:id/map.png` (token stays server-side) | one PNG for the web pages and the app, no native map module |
 | Errors | Sentry (app + worker) | crash visibility without a laptop |
 | Builds | EAS Build (cloud), EAS Update (OTA), GitHub Actions | no Mac, no laptop |
@@ -65,7 +65,8 @@ Rows are validated by zod schemas in `shared/schemas/` on the way in and out of 
 - `/`: the open races. `/organisateurs` (`?lang=en`, `/organizers` redirects): the page for race
   directors, with a contact form stored in `leads`. `/media/races/<raceId>/<sha256>.<ext>`: logos and
   photos uploaded in the admin (PNG, JPEG, WebP, immutable).
-- `/{race}`: landing. `/{race}/signin`: bib + email → code. `/{race}/app`: install.
+- `/{race}`: landing, with « Écoutez la course » when the main course has a demo reel
+  (`/api/courses/:id/reel`, `reel.mp3` with byte ranges). `/{race}/signin`: bib + email → code. `/{race}/app`: install.
 - `/{race}/prepare`: course, trailer, instructions. `/{race}/results` (ranked runs only: finished
   and started inside the window), `/{race}/results/{bib}` (the certificate: prints to PDF,
   shares the card, and invites every other visitor into the race).

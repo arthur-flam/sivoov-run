@@ -22,14 +22,18 @@ export type Tools = {
 
 export type LineProduction = { file?: Cut; under?: Cut };
 
-/** What the speaker is doing, added to the voice's direction. */
+/**
+ * Where the speaker is (the scene, a place, never an instruction: the model sometimes says its
+ * scene aloud, and a place read aloud is caught by the check while an instruction sounds like
+ * narration) and how they speak there (added to the director's notes).
+ */
 export const MOODS = {
-  pa: 'Sur la sono géante du village de départ, devant vingt mille coureurs : voix projetée, énergie de speaker, sourire dans la voix.',
-  count: 'Compte à rebours sur la sono, un seul chiffre, crié net et fort avec la foule.',
-  ear: 'Dans les écouteurs du coureur qui court : proche, complice, posé, pas pressé.',
-  calm: 'Dans les écouteurs, au calme d’un parc : doux, complice, presque à voix basse.',
-  hype: 'Un grand moment de la course : la voix monte, enthousiaste, comme au passage d’un moment historique.',
-  finish: 'À la ligne d’arrivée sur la sono : explosion de joie, voix de fête.',
+  pa: { scene: 'Sur la sono du village de départ, devant vingt mille coureurs.', style: 'Voix projetée, énergie de speaker, sourire dans la voix.' },
+  count: { scene: 'Sur la sono du départ, pendant le compte à rebours.', style: 'Un seul chiffre, crié net et fort.' },
+  ear: { scene: 'Dans les écouteurs d’un coureur, pendant sa course.', style: 'Proche, complice, posé, pas pressé.' },
+  calm: { scene: 'Dans les écouteurs d’un coureur, dans un parc calme.', style: 'Doux, complice, presque à voix basse.' },
+  hype: { scene: 'Dans les écouteurs d’un coureur, au milieu de la foule.', style: 'Grand moment : enthousiaste, la voix monte.' },
+  finish: { scene: 'Sur la sono de la ligne d’arrivée, dans la clameur.', style: 'Explosion de joie, voix de fête.' },
 } as const;
 export type Mood = keyof typeof MOODS;
 
@@ -94,6 +98,10 @@ export const produceChampsElysees = async (lines: ScriptLine[], t: Tools): Promi
   const text = (id: string) => lines.find((l) => l.id === id)!.text;
   const say = (id: string, take?: number) => t.say(text(id), moodOf(id), take);
   const s = t.src;
+  /** An ambiance that opens under its own line: held down while the line plays, then up. */
+  const under = (cut: Cut, line: string, db = -8): Cut => ({ ...cut, duck: { until: 0.15 + durationOf(line), db } });
+  // The personal finish call is rendered per runner: about this long.
+  const CALL_S = 7.5;
 
   const village: Cut = {
     layers: [
@@ -106,7 +114,7 @@ export const produceChampsElysees = async (lines: ScriptLine[], t: Tools): Promi
 
   const numbers: string[] = [];
   for (const n of COUNT) numbers.push(await t.say(n, 'count'));
-  const countdown: Cut = { layers: numbers.map((path, i) => ({ path, at: i + 0.05, fx: 'pa' as const })), length: 10, lufs: -14 };
+  const countdown: Cut = { layers: numbers.map((path, i) => ({ path, at: i + 0.05, fit: 0.9, fx: 'pa' as const })), length: 10, lufs: -14 };
   const build: Cut = {
     layers: [
       { path: await s('lyria-start'), from: DROP_AT - 10, dur: 10, fadeIn: 0.4 },
@@ -162,7 +170,7 @@ export const produceChampsElysees = async (lines: ScriptLine[], t: Tools): Promi
       { path: await s('crowd-long'), from: 0, dur: 160, at: 20, gain: -10, fadeIn: 30, fadeOut: 5 },
       { path: await s('crowd-build'), from: 0, dur: 60, at: 118, gain: -4, fadeIn: 10, fadeOut: 6 },
     ],
-    lufs: -21,
+    lufs: -22,
   };
 
   const home: Cut = {
@@ -218,18 +226,18 @@ export const produceChampsElysees = async (lines: ScriptLine[], t: Tools): Promi
     'ceremony.gun': { file: gun, under: drop },
     'course.concorde': { file: over(await say('course.concorde'), 'ear', { path: await s('french-crowd'), from: 40, gain: -14 }) },
     'course.madeleine': { file: over(await say('course.madeleine'), 'ear', { path: await s('french-crowd'), from: 70, gain: -16 }) },
-    'personal.split': { file: spoken(await say('personal.split'), 'ear') },
+    'personal.split': { file: spoken(await say('personal.split'), 'ear', -14) },
     'course.monceau': { file: await park(await say('course.monceau')) },
     'course.lisbonne': { file: spoken(await say('course.lisbonne'), 'ear') },
     'course.half': { file: over(await say('course.half'), 'ear', { path: await s('crowd-long'), from: 30, gain: -8 }, 2.2, 2.5) },
-    'course.rond-point': { file: spoken(await say('course.rond-point'), 'ear'), under: climb },
-    'course.arc': { file: spoken(await say('course.arc'), 'ear', -14), under: descent },
+    'course.rond-point': { file: spoken(await say('course.rond-point'), 'ear'), under: under(climb, await say('course.rond-point')) },
+    'course.arc': { file: spoken(await say('course.arc'), 'ear', -14), under: under(descent, await say('course.arc'), -6) },
     'course.montaigne': { file: over(await say('course.montaigne'), 'ear', { path: await s('applause'), from: 0, gain: -18 }) },
     'course.alma': { file: over(await say('course.alma'), 'ear', { path: await s('church-bells'), from: 30, gain: -9 }, 2.5, 2.5) },
-    'course.golden': { file: spoken(await say('course.golden'), 'ear', -14), under: golden },
-    'course.final': { file: spoken(await say('course.final'), 'ear', -14), under: home },
+    'course.golden': { file: spoken(await say('course.golden'), 'ear', -14), under: under(golden, await say('course.golden'), -10) },
+    'course.final': { file: spoken(await say('course.final'), 'ear', -14), under: under(home, await say('course.final'), -6) },
     'ceremony.line': { file: theLine },
-    'ceremony.finish': { file: spoken(await say('ceremony.finish'), 'pa', -14), under: fanfare },
+    'ceremony.finish': { file: spoken(await say('ceremony.finish'), 'pa', -14), under: { ...fanfare, duck: { until: CALL_S, db: -8, ramp: 2 } } },
   };
 };
 

@@ -1,6 +1,7 @@
 # Status
 
 Updated: 2026-09-27. Race week: 14-15 November 2026 (Marathon International de Deauville).
+Second race: 10 km des Champs-Élysées, 7 February 2027 (docs/CHAMPS_ELYSEES.md).
 Milestones: PRD.md section 8 (M1 26 Sep, M2 10 Oct, M3 17 Oct, M4 31 Oct, freeze 7 Nov).
 
 ## Where we are
@@ -9,6 +10,23 @@ Live: https://run.sivoov.app/deauville-2026 (production), https://preview.run.si
 (preview). Test sign-in and roles: docs/ACCESS.md. M1 is done. The first real run happened
 on 2026-09-27 (below); M2 still needs a real finish. Production has the race and its courses;
 no real entrants yet.
+
+### The 10 km des Champs-Élysées (2026-09-27, branch `claude/champs-elysees`)
+The owner's call: convince the organizer (SCO, who also run Deauville, sold out, already
+selling a self-declared "connecté" entry) that a virtual race can be amazing with audio. Built:
+- **The race** in local, preview and production D1: `10km-champs-elysees-2027`, the official GPX,
+  twelve places measured on it, the organizer's logo and photo, the Paris Masters Circuit on the
+  theme. Test bibs 2001-2003 on local and preview (`marc@`, `lea@example.com`, and the owner).
+- **The race page** rebuilt around the race's identity and « Écoutez la course »: a five-minute
+  demo reel played over the course, runner dot, race clock, countdown digits, subtitles.
+  Preview: https://preview.run.sivoov.app/10km-champs-elysees-2027.
+- **The sound**, produced with `npm run produce` (AUDIO.md, "Produced sound"): a native French
+  Gemini voice, BBC crowds and Paris sounds, music composed with Lyria, twenty lines with
+  ambiances under the big moments, heard back by an AI listener. Published on preview.
+- **Ambiances under lines** and **Gemini voices** in the pipeline and the app (JS only, OTA),
+  and the app's sign-in asks which race when two are open.
+Production runs main's Worker: the draft and the reel are in production R2/D1, but the new
+page, the ambiances and Gemini renders need this branch merged, then « Publier » in the studio.
 
 ### First real run (2026-09-27)
 The owner ran 9.2 km in 46 min with `Sivoov (Preview)` on a Galaxy S23 (SM-S911B, Android 16),
@@ -48,6 +66,11 @@ the same run (read through Strava). Preview run `mujbwasn-hwxict1f`.
 
 ## Next, in order
 
+0. **Champs-Élysées: show it to the organizer.** Merge `claude/champs-elysees` (deploys
+   production), then publish the pack in production's studio, then run the 10 km on the phone
+   with the preview shell (bib 2003 on preview) and listen for the ambiances, the Gemini lines
+   (WAV) and the finish. Then the licensing and recording list in CHAMPS_ELYSEES.md.
+
 Anchored to PRD milestones (M2 10 Oct, M3 17 Oct, M4 31 Oct).
 
 1. **Put the tracker fix on the phone and run with the Garmin again.** Merge this branch (the
@@ -63,8 +86,6 @@ Anchored to PRD milestones (M2 10 Oct, M3 17 Oct, M4 31 Oct).
 2. **iOS does not exist yet.** No Apple Developer Program step done, no `eas credentials`,
    no build. Highest schedule risk on this page (PRD calls App Store review the critical
    path, submission due mid-October): start it before anything cosmetic.
-3. **Turn on real share cards**: set `BROWSER_RENDERING_TOKEN` (see Owner actions), then
-   check one real render on preview.
 4. **Real uploads and link previews**: send a real Strava and a real Garmin Connect export
    through `/{race}/upload`; paste a result link into WhatsApp and iMessage and look at
    the preview.
@@ -90,6 +111,15 @@ Anchored to PRD milestones (M2 10 Oct, M3 17 Oct, M4 31 Oct).
 
 ## Owner actions
 
+- **Google AI billing for Gemini voices**: the key is on a tier that allows a few TTS requests a
+  minute. Before real entrants (live splits for many runners at once), enable billing on the
+  Google AI Studio project (Tier 1). Until then a refused render plays the offline version.
+- **Merge `claude/champs-elysees`**, then in production's studio
+  (`/org/10km-champs-elysees-2027/courses/10km-champs-elysees-2027-10k`) press « Publier », or
+  `npm run produce -w api -- 10km-champs-elysees-2027 production` again first if anything changed.
+- **Before selling Champs-Élysées entries**: the licensing list in CHAMPS_ELYSEES.md (BBC sounds,
+  Lyria terms, the organizer's photos), and ask the organizer to record the 2027 race.
+
 - **Claude for AI lines**: in the Cloudflare dashboard, AI Gateway "sivoov" → Provider keys, add
   the Anthropic key (or turn on unified billing for Anthropic). Nothing to change in the Worker:
   until then, AI lines are written by Llama 3.3 on Workers AI through the same gateway, and the
@@ -113,6 +143,17 @@ Anchored to PRD milestones (M2 10 Oct, M3 17 Oct, M4 31 Oct).
 
 Newest to oldest, durable ones only. Rationale already written up elsewhere is not
 repeated here (see ARCHITECTURE.md, AUDIO.md, WORKFLOW.md).
+
+- The race page carries the race's identity (its colours, an accent, its photo, logo): the
+  owner asked for a good landing page, which lifts "no opinionated design" for the race layer
+  of that page; the Sivoov layer (header, footer, tokens) is unchanged (2026-09-27).
+- A line may have an ambiance under it, pre-mixed and played on a second player; one ambiance
+  at a time (2026-09-27, AUDIO.md).
+- Gemini TTS is a second voice provider, through the AI Gateway, stored as WAV; the owner said
+  to use Google's APIs (2026-09-27). The Champs-Élysées speaker is Gemini "Sadachbia".
+- Produced sound is mixed offline (`api/tools/produce`, ffmpeg) and enters the pipeline as the
+  organizer's own files, so the studio and publishing need no special case.
+- The circuit a race belongs to is on its theme (`theme.series`), not a table: no migration.
 
 - Every line keeps a sound that works offline, in the pack; a personal line is a bonus on top
   of it, never a dependency (2026-09-26, AUDIO.md).
@@ -159,6 +200,14 @@ repeated here (see ARCHITECTURE.md, AUDIO.md, WORKFLOW.md).
   showed the S23's reported speed reads 8-16 % low (MEMORY.md).
 
 ## Known gaps
+
+- Champs-Élysées: the BBC sounds are for a draft only (RemArc licence); Lyria's commercial
+  terms are unchecked; the photos and logo are hot-linked from the organizer's site.
+- Gemini lines are WAV: never played on an iPhone yet (Android sniffs the format).
+- The studio cannot upload an ambiance, nor pick a Gemini voice from its voice list (it keeps
+  one it is given): the production tool sets both.
+- The app still only runs one race at a time per sign-in (fine), and the home's race card and
+  prepare screen were not looked at with the 10 km course.
 
 - Share cards have never been rendered by the real Browser Rendering API (waits on
   `BROWSER_RENDERING_TOKEN`); the container also cannot reach Google Fonts, so local

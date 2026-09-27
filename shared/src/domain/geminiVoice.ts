@@ -94,6 +94,11 @@ export const wavSeconds = (wav: Uint8Array): number | null => {
 
 /**
  * Whether a take is about as long as its words: French is said at 12 to 16 characters a
- * second, pauses included; a take several times longer has the director's notes read into it.
+ * second; an ellipsis is a pause. A take that read its scene or notes aloud runs several
+ * seconds over (measured: 15 s for a line of 8, 24 s for one of 2).
  */
-export const plausibleSeconds = (text: string, seconds: number): boolean => seconds <= 1.5 + stripAudioTags(text).length * 0.13;
+export const plausibleSeconds = (text: string, seconds: number): boolean => {
+  const words = stripAudioTags(text);
+  const pauses = (words.match(/…|\.\.\./g) ?? []).length;
+  return seconds <= 1.5 + words.length * 0.09 + pauses * 0.6;
+};

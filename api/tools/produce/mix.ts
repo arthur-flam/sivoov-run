@@ -5,7 +5,7 @@
  * sound bleeding from far away). The mix is normalized to a loudness (LUFS) and written as MP3.
  * Pure description here; `render` runs ffmpeg.
  */
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 
 /**
  * - `pa`: the speaker on the start area's loudspeakers (band-limited, compressed, a slap of
@@ -23,6 +23,8 @@ export type Layer = {
   /** Seconds taken from the source; the rest of it by default. */
   dur?: number;
   gain?: number;
+  /** At most this long: a longer source is sped up to fit (a countdown number in its second). */
+  fit?: number;
   fadeIn?: number;
   fadeOut?: number;
   fx?: Fx;
@@ -34,10 +36,16 @@ export type Cut = {
   length?: number;
   /** Integrated loudness the cut is normalized to. */
   lufs: number;
+  /**
+   * An ambiance that starts under its own line: held `db` down until `until` seconds (the
+   * line's length), then back up over `ramp`. The app plays line and ambiance on two players,
+   * so the mix cannot duck one under the other: the ambiance leaves the room itself.
+   */
+  duck?: { until: number; db: number; ramp?: number };
 };
 
 const FX: Record<Fx, string> = {
-  pa: 'highpass=f=170,lowpass=f=7000,acompressor=threshold=-20dB:ratio=3:attack=5:release=90:makeup=3,aecho=0.85:0.55:38|95:0.22|0.10',
+  pa: 'highpass=f=140,lowpass=f=7500,equalizer=f=3200:t=q:w=1.2:g=-3,equalizer=f=450:t=q:w=1:g=-2,acompressor=threshold=-20dB:ratio=2.5:attack=8:release=150:makeup=2,aecho=0.85:0.5:38|95:0.2|0.09',
   far: 'highpass=f=110,lowpass=f=2600,aecho=0.8:0.7:140|290:0.32|0.18',
   ear: 'highpass=f=70,acompressor=threshold=-22dB:ratio=2.5:attack=5:release=120:makeup=2',
 };
@@ -58,19 +66,23 @@ export const durationOf = (path: string): number => {
 const n = (x: number) => x.toFixed(3);
 
 /** The layer's own length once cut. */
-export const layerLength = (l: Layer): number => l.dur ?? Math.max(0, durationOf(l.path) - (l.from ?? 0));
+const sourceLength = (l: Layer): number => l.dur ?? Math.max(0, durationOf(l.path) - (l.from ?? 0));
+/** How much faster a layer plays to fit, 1 when it fits already (atempo keeps the pitch). */
+const tempoOf = (l: Layer): number => (l.fit && sourceLength(l) > l.fit ? Math.min(2, sourceLength(l) / l.fit) : 1);
+export const layerLength = (l: Layer): number => sourceLength(l) / tempoOf(l);
 
 /** Where the cut ends: its length, or its longest layer. */
 export const cutLength = (cut: Cut): number => cut.length ?? Math.max(...cut.layers.map((l) => (l.at ?? 0) + layerLength(l)));
 
-/** The ffmpeg arguments for a cut. */
-export const ffmpegArgs = (cut: Cut, out: string): string[] => {
+/** The layers mixed, ducked if asked, cut to length, then `tail` (the loudness step). */
+const graph = (cut: Cut, tail: string): string => {
   const chains = cut.layers.map((l, i) => {
     const dur = layerLength(l);
     const steps = [
       'aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo',
-      `atrim=start=${n(l.from ?? 0)}:duration=${n(dur)}`,
+      `atrim=start=${n(l.from ?? 0)}:duration=${n(sourceLength(l))}`,
       'asetpts=PTS-STARTPTS',
+      ...(tempoOf(l) > 1 ? [`atempo=${tempoOf(l).toFixed(3)}`] : []),
       ...(l.fx ? [FX[l.fx]] : []),
       `volume=${n(l.gain ?? 0)}dB`,
       ...(l.fadeIn ? [`afade=t=in:st=0:d=${n(l.fadeIn)}`] : []),
@@ -79,17 +91,42 @@ export const ffmpegArgs = (cut: Cut, out: string): string[] => {
     ];
     return `[${i}:a]${steps.join(',')}[l${i}]`;
   });
-  const length = cutLength(cut);
-  const mix = `${cut.layers.map((_, i) => `[l${i}]`).join('')}amix=inputs=${cut.layers.length}:normalize=0:duration=longest,atrim=duration=${n(length)},loudnorm=I=${cut.lufs}:TP=-1.5:LRA=14[out]`;
-  return [
-    '-y', '-v', 'error',
-    ...cut.layers.flatMap((l) => ['-i', l.path]),
-    '-filter_complex', [...chains, mix].join(';'),
-    '-map', '[out]', '-ar', '44100', '-ac', '2', '-c:a', 'libmp3lame', '-b:a', '160k',
-    out,
-  ];
+  const duck = cut.duck
+    ? (() => {
+        const g = 10 ** (cut.duck.db / 20);
+        const u = cut.duck.until;
+        const r = cut.duck.ramp ?? 1.5;
+        return [`volume='if(lt(t,${n(u)}),${g.toFixed(4)},if(lt(t,${n(u + r)}),${g.toFixed(4)}+(1-${g.toFixed(4)})*(t-${n(u)})/${n(r)},1))':eval=frame`];
+      })()
+    : [];
+  const mix = [
+    `${cut.layers.map((_, i) => `[l${i}]`).join('')}amix=inputs=${cut.layers.length}:normalize=0:duration=longest`,
+    ...duck,
+    `atrim=duration=${n(cutLength(cut))}`,
+    tail,
+  ].join(',');
+  return [...chains, `${mix}[out]`].join(';');
 };
 
+const inputs = (cut: Cut) => cut.layers.flatMap((l) => ['-i', l.path]);
+
+/** The ffmpeg arguments for a cut, normalized with loudness already measured (linear: no pumping). */
+export const ffmpegArgs = (cut: Cut, out: string, measured?: Record<string, string>): string[] => {
+  const target = `I=${cut.lufs}:TP=-1.5:LRA=18`;
+  const loud = measured
+    ? `loudnorm=${target}:measured_I=${measured.input_i}:measured_TP=${measured.input_tp}:measured_LRA=${measured.input_lra}:measured_thresh=${measured.input_thresh}:offset=${measured.target_offset}:linear=true`
+    : `loudnorm=${target}`;
+  return ['-y', '-v', 'error', ...inputs(cut), '-filter_complex', graph(cut, loud), '-map', '[out]', '-ar', '44100', '-ac', '2', '-c:a', 'libmp3lame', '-b:a', '160k', out];
+};
+
+/** Two passes: measure the mix's loudness, then bring it to the target with one constant gain. */
 export const render = (cut: Cut, out: string): void => {
-  execFileSync('ffmpeg', ffmpegArgs(cut, out), { stdio: 'inherit' });
+  const probe = spawnSync(
+    'ffmpeg',
+    ['-hide_banner', '-nostats', ...inputs(cut), '-filter_complex', graph(cut, `loudnorm=I=${cut.lufs}:TP=-1.5:LRA=18:print_format=json`), '-map', '[out]', '-f', 'null', '-'],
+    { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
+  );
+  const json = probe.stderr.slice(probe.stderr.lastIndexOf('{'), probe.stderr.lastIndexOf('}') + 1);
+  const measured = json ? (JSON.parse(json) as Record<string, string>) : undefined;
+  execFileSync('ffmpeg', ffmpegArgs(cut, out, measured), { stdio: 'inherit' });
 };

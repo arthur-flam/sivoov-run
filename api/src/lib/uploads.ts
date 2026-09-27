@@ -28,6 +28,7 @@ export const storeUpload = async (files: R2Bucket, name: string, body: ArrayBuff
 
 /** Lines pointing at a file that is not in R2: a draft may only name files the Worker stored. */
 export const missingUploads = async (files: R2Bucket, lines: ScriptLine[]): Promise<ScriptLine[]> => {
-  const checked = await Promise.all(lines.map(async (line) => ({ line, found: line.audio ? (await files.head(uploadKey(line.audio))) !== null : true })));
+  const has = async (file: UploadedAudio | undefined) => !file || (await files.head(uploadKey(file))) !== null;
+  const checked = await Promise.all(lines.map(async (line) => ({ line, found: (await has(line.audio)) && (await has(line.under)) })));
   return checked.filter((c) => !c.found).map((c) => c.line);
 };

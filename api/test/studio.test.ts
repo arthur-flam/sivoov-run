@@ -420,6 +420,25 @@ describe('the organizer’s own sound file', () => {
     expect(object?.httpMetadata?.contentType).toBe('audio/wav');
   });
 
+  it('publishes a line’s ambiance beside its sound, and keeps it through a save', async () => {
+    const current = (await (await get(`/courses/${COURSE}/script`)).json()) as { script: { voice: unknown; lines: Record<string, unknown>[] } };
+    const gun = current.script.lines.find((l) => l.id === 'ceremony.gun')!;
+    const under = gun.audio;
+    const withUnder = { voice: current.script.voice, lines: current.script.lines.map((l) => (l.id === 'course.digue' ? { ...l, under } : l)) };
+    expect((await send(`/courses/${COURSE}/script`, withUnder, 'PUT')).status).toBe(200);
+    const lost = { ...withUnder, lines: withUnder.lines.map((l) => (l.id === 'course.digue' ? { ...l, under: { ...(under as object), hash: 'c'.repeat(64) } } : l)) };
+    const refused = await send(`/courses/${COURSE}/script`, lost, 'PUT');
+    expect(((await refused.json()) as { detail: string }).detail).toBe('Fichier audio introuvable pour : La digue.');
+
+    const res = await send(`/courses/${COURSE}/script/publish`, {});
+    expect(res.status).toBe(200);
+    const pack = await db(env.DB).latestAudioPack(COURSE);
+    const digue = pack!.events.find((e) => e.id === 'course.digue')!;
+    expect(digue.under).toBe('digue-under.wav');
+    expect(pack!.files['digue-under.wav']).toMatchObject({ bytes: wav.length });
+    expect(await env.FILES.get(`packs/${COURSE}/${pack!.version}/digue-under.wav`)).not.toBeNull();
+  });
+
   it('returns a line to the voice when its file is removed', async () => {
     const res = await SELF.fetch(`${base}/courses/${COURSE}/script/lines/course.digue/audio`, { method: 'DELETE', headers: { Cookie: cookie, Accept: 'application/json' } });
     expect(res.status).toBe(200);
@@ -440,7 +459,7 @@ describe('what the courses page says after publishing', () => {
     const res = await SELF.fetch(`${base}/courses/${COURSE}/publish`, { method: 'POST', headers: { Cookie: cookie }, redirect: 'manual' });
     expect(res.status).toBe(302);
     expect(res.headers.get('location')).toBe(`/org/${SLUG}/courses?done=published#${COURSE}`);
-    expect((await db(env.DB).latestAudioPack(COURSE))?.version).toBe(4);
+    expect((await db(env.DB).latestAudioPack(COURSE))?.version).toBe(5);
     const after = await (await get('/courses?done=published')).text();
     expect(after).toContain('Annonces publiées. Les coureurs les reçoivent la prochaine fois qu’ils ouvrent l’application.');
     expect(after).toMatch(/Publiées le \d{1,2} [^,]+, les coureurs les ont/);
@@ -494,7 +513,7 @@ describe('a viewer', () => {
     const form = await SELF.fetch(`${base}/courses/${COURSE}/publish`, { method: 'POST', headers: { Cookie: viewer }, redirect: 'manual' });
     expect(form.headers.get('location')).toBe(`/org/${SLUG}?denied=1`);
     expect((await scriptDb(env.DB).draft(COURSE))?.updatedAt).toBe(before?.updatedAt);
-    expect((await db(env.DB).latestAudioPack(COURSE))?.version).toBe(4);
+    expect((await db(env.DB).latestAudioPack(COURSE))?.version).toBe(5);
   });
 
   it('cannot change the places of a course', async () => {

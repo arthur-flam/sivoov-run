@@ -118,7 +118,7 @@ export const useRun = create<RunStore>((set, get) => {
       const mine = ++generation;
       const current = () => generation === mine;
       const resolve = soundFor ?? ((event: AudioEvent) => (event.source.kind === 'file' ? uriFor(event.source.key) : null));
-      const plan = source.kind === 'simulation' ? null : ceremonyPlan(pack, resolve);
+      const plan = source.kind === 'simulation' ? null : ceremonyPlan(pack, resolve, uriFor);
       set({ source, phase: 'countdown', countdown: countdownSeconds, cue: plan ? 'armed' : null, startError: null });
       // The clock starts when the gun file starts playing, not when a timer ends.
       const gunAt = plan ? await playPlan(plan, source) : null;

@@ -35,13 +35,14 @@ export const useAudioPlayback = (): void => {
         const event = pack.events.find((e) => e.id === record.eventId);
         if (!event) return;
         const offline = store.soundFor(event);
+        const under = event.under ? (store.uriFor(event.under) ?? undefined) : undefined;
         if (event.personal?.phase !== 'live') {
-          if (offline) player.play(event, offline);
+          if (offline) player.play(event, offline, under);
           return;
         }
         void liveSound(pack, event, s.state, useSession.getState().token).then((live) => {
           const uri = live ?? offline;
-          if (uri && useRun.getState().pack === pack) player.play(event, uri);
+          if (uri && useRun.getState().pack === pack) player.play(event, uri, under);
         });
       });
       if (s.phase === 'idle' && prev.phase !== 'idle') player.stop();

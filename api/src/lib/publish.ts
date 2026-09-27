@@ -1,4 +1,4 @@
-import { AUDIO_CONTENT_TYPES, buildScript, lineIssues, manifestFor, packFileKey, packPrefix, personalDefsFor } from '@sivoov/shared';
+import { AUDIO_CONTENT_TYPES, buildScript, lineIssues, manifestFor, packFileKey, packPrefix, personalDefsFor, underFileKey } from '@sivoov/shared';
 import type { AudioScript, RenderedFile, ScriptLine } from '@sivoov/shared';
 import type { Db } from '../db/queries';
 import type { ScriptDb } from '../db/scriptQueries';
@@ -37,18 +37,22 @@ export const publishScript = async (deps: { db: Db; scripts: ScriptDb; files: R2
   const toFix = built.lines.filter((l) => lineIssues(l).length > 0).map((l) => ({ id: l.id, title: l.title }));
   if (toFix.length > 0) return { ok: false, reason: 'fix', missing: toFix };
   const found = await Promise.all(built.lines.map(async (line) => ({ line, object: await deps.files.get(await sourceKey(built, line)) })));
-  const missing = found.filter((f) => f.object === null).map((f) => ({ id: f.line.id, title: f.line.title }));
+  const unders = await Promise.all(
+    built.lines.filter((l) => l.under).map(async (line) => ({ line, object: await deps.files.get(uploadKey(line.under!)) })),
+  );
+  const missing = [...found, ...unders].filter((f) => f.object === null).map((f) => ({ id: f.line.id, title: f.line.title }));
   if (missing.length > 0) return { ok: false, reason: 'missing', missing };
 
   const prefix = packPrefix(script.courseId, script.version);
-  const rendered: RenderedFile[] = await Promise.all(
-    found.map(async ({ line, object }): Promise<RenderedFile> => {
-      const body = await object!.arrayBuffer();
-      const key = packFileKey(line);
-      await deps.files.put(`${prefix}/${key}`, body, { httpMetadata: { contentType: AUDIO_CONTENT_TYPES[line.audio?.format ?? 'mp3'] } });
-      return { key, bytes: body.byteLength, sha256: await sha256HexBytes(body) };
-    }),
-  );
+  const copy = async (key: string, object: R2ObjectBody, contentType: string): Promise<RenderedFile> => {
+    const body = await object.arrayBuffer();
+    await deps.files.put(`${prefix}/${key}`, body, { httpMetadata: { contentType } });
+    return { key, bytes: body.byteLength, sha256: await sha256HexBytes(body) };
+  };
+  const rendered: RenderedFile[] = await Promise.all([
+    ...found.map(({ line, object }) => copy(packFileKey(line), object!, AUDIO_CONTENT_TYPES[line.audio?.format ?? 'mp3'])),
+    ...unders.map(({ line, object }) => copy(underFileKey(line)!, object!, AUDIO_CONTENT_TYPES[line.under!.format])),
+  ]);
 
   const pack = manifestFor(built, rendered);
   const defs = personalDefsFor(built);

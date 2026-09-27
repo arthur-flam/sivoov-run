@@ -66,6 +66,12 @@ export const AudioEventSchema = z.object({
    * it plays). Apps that predate it ignore the field and play the offline version.
    */
   personal: z.object({ phase: z.enum(['prepare', 'live']) }).optional(),
+  /**
+   * An ambiance played under this line (a crowd, the music of the start): a file in the pack
+   * that starts with the line's sound and plays to its own end, over the next lines, until
+   * another line brings its own ambiance or the run stops. Apps that predate it ignore it.
+   */
+  under: z.string().min(1).optional(),
 });
 export type AudioEvent = z.infer<typeof AudioEventSchema>;
 

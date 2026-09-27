@@ -10,6 +10,9 @@ import type { PlaceholderPhase } from './placeholders';
 /** The file a line becomes in the pack: `<key>.mp3` for the voice, the upload's own format otherwise. */
 export const packFileKey = (line: Pick<ScriptLine, 'key' | 'audio'>): string => `${line.key}.${line.audio?.format ?? 'mp3'}`;
 
+/** The file of a line's ambiance in the pack, beside the line's own: `<key>-under.<format>`. */
+export const underFileKey = (line: Pick<ScriptLine, 'key' | 'under'>): string | null => (line.under ? `${line.key}-under.${line.under.format}` : null);
+
 /**
  * Before personal lines, a line with `{slots}` was a caption-only template. It becomes a
  * personal template (its sentence moves to `personal.template`) whose offline version is still
@@ -44,6 +47,7 @@ export const eventFor = (line: ScriptLine): AudioEvent => {
     trigger: line.trigger,
     source: { kind: 'file', key: packFileKey(line) },
     ...(phase ? { personal: { phase } } : {}),
+    ...(line.under ? { under: underFileKey(line) } : {}),
   });
 };
 

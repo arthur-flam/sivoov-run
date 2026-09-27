@@ -187,7 +187,9 @@
       key: value(card, 'key') || (previous ? previous.key : data.courseId + '-' + id.replace(/\W+/g, '-')),
       text: value(card, 'text'),
     };
-    return { line: Object.assign({}, line, own.personal ? { personal: own.personal } : {}, file ? { audio: file } : {}) };
+    // The ambiance under a line is not edited here yet: it rides along untouched.
+    const under = previous && previous.under ? { under: previous.under } : {};
+    return { line: Object.assign({}, line, own.personal ? { personal: own.personal } : {}, file ? { audio: file } : {}, under) };
   }
 
   /** The whole script from the page, or null when a field needs fixing first. */

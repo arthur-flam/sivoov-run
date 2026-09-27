@@ -236,6 +236,12 @@ export const StudioLine = ({ line, status, canEdit, ttsReady, aiReady, tags }: P
           <p class="hint">MP3, M4A ou WAV, 5 Mo au plus. Le son est joué tel quel, du début à la fin.</p>
         </div>
 
+        {line.under ? (
+          <p class="hint" data-role="under">
+            Ambiance : <b>{line.under.name || 'son importé'}</b>. Elle commence avec l’annonce et continue sous les suivantes.
+          </p>
+        ) : null}
+
         <div data-sound="voice personal" class={forModes('voice personal', mode)}>
           <Field
             label={<span data-role="text-label">{mode === 'personal' ? 'Version hors ligne' : 'Texte lu'}</span>}

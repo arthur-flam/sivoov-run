@@ -2,6 +2,8 @@ import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import type { AudioPlayer } from 'expo-audio';
 import type { AudioEvent } from '@sivoov/shared';
 import { advance, emptyQueue, enqueue } from './queue';
+import { ambiance as sharedAmbiance } from './under';
+import type { Ambiance } from './under';
 import type { Queue, QueueItem } from './queue';
 
 /** Background playback that ducks the runner's music instead of stopping it (AUDIO.md). */
@@ -104,16 +106,17 @@ export const playSequence = (uris: string[], handlers: SequenceHandlers = {}): S
 };
 
 export type EventPlayer = {
-  play: (event: AudioEvent, uri: string) => void;
+  /** `under`: the event's ambiance, started with it (AudioEvent.under). */
+  play: (event: AudioEvent, uri: string, under?: string) => void;
   stop: () => void;
 };
 
 /**
  * Plays queued events one at a time, each as a sequence of one file; the queue module decides
  * order and interruptions. A file that fails is skipped: one bad file must not silence the
- * rest of the race.
+ * rest of the race. An event's ambiance starts when the event does and outlives it.
  */
-export const createEventPlayer = (onChange: (current: QueueItem | null) => void = () => undefined): EventPlayer => {
+export const createEventPlayer = (onChange: (current: QueueItem | null) => void = () => undefined, ambiance: Ambiance = sharedAmbiance): EventPlayer => {
   let queue: Queue = emptyQueue();
   let playing: Sequence | null = null;
 
@@ -122,7 +125,9 @@ export const createEventPlayer = (onChange: (current: QueueItem | null) => void 
     playing = null;
     const item = queue.current;
     onChange(item);
-    if (item) playing = playSequence([item.uri], { onDone: next, onFail: next });
+    if (!item) return;
+    if (item.under) ambiance.start(item.under);
+    playing = playSequence([item.uri], { onDone: next, onFail: next });
   };
 
   const next = () => {
@@ -131,8 +136,8 @@ export const createEventPlayer = (onChange: (current: QueueItem | null) => void 
   };
 
   return {
-    play(event, uri) {
-      const result = enqueue(queue, { event, uri });
+    play(event, uri, under) {
+      const result = enqueue(queue, under ? { event, uri, under } : { event, uri });
       const wasIdle = queue.current === null;
       queue = result.queue;
       if (wasIdle || result.cut) startCurrent();
@@ -141,6 +146,7 @@ export const createEventPlayer = (onChange: (current: QueueItem | null) => void 
       queue = emptyQueue();
       playing?.stop();
       playing = null;
+      ambiance.stop();
       onChange(null);
     },
   };

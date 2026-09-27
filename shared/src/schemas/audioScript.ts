@@ -74,6 +74,8 @@ export const ScriptLineSchema = z.object({
   audio: UploadedAudioSchema.optional(),
   /** Said differently to each runner, `text` being the offline version. */
   personal: PersonalLineSchema.optional(),
+  /** The organizer's ambiance under this line (AudioEvent.under): it starts with the line and outlasts it. */
+  under: UploadedAudioSchema.optional(),
 });
 export type ScriptLine = z.infer<typeof ScriptLineSchema>;
 export type ScriptLineInput = z.input<typeof ScriptLineSchema>;

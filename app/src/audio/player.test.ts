@@ -2,16 +2,29 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AudioEventSchema } from '@sivoov/shared';
 
 type Listener = (status: Record<string, unknown>) => void;
-type FakePlayer = { uri: string; emit: Listener; play: () => void; remove: () => void; addListener: (e: string, l: Listener) => void; removeAllListeners: () => void };
+type FakePlayer = {
+  uri: string;
+  volume: number;
+  removed: boolean;
+  emit: Listener;
+  play: () => void;
+  remove: () => void;
+  addListener: (e: string, l: Listener) => void;
+  removeAllListeners: () => void;
+};
 const players: FakePlayer[] = [];
 vi.mock('expo-audio', () => ({
   setAudioModeAsync: async () => undefined,
   createAudioPlayer: ({ uri }: { uri: string }) => {
     const p: FakePlayer = {
       uri,
+      volume: 1,
+      removed: false,
       emit: () => undefined,
       play: () => undefined,
-      remove: () => undefined,
+      remove: () => {
+        p.removed = true;
+      },
       addListener: (_e, l) => {
         p.emit = l;
       },
@@ -23,6 +36,7 @@ vi.mock('expo-audio', () => ({
 }));
 
 const { createEventPlayer, playSequence } = await import('./player');
+const { createAmbiance } = await import('./under');
 
 const ev = (id: string) => AudioEventSchema.parse({ id, trigger: { kind: 'start' }, source: { kind: 'file', key: `${id}.mp3` }, mix: 'duck', priority: 5, category: 'course' });
 const status = (s: Record<string, unknown>) => ({ didJustFinish: false, playbackState: 'ready', isLoaded: true, duration: 0, currentTime: 0, ...s });
@@ -59,6 +73,41 @@ describe('event player', () => {
     expect(players).toHaveLength(1);
     vi.advanceTimersByTime(15_000);
     expect(players).toHaveLength(2);
+  });
+
+  it('starts an event’s ambiance with it, and lets it outlive the voice', () => {
+    const ambiance = createAmbiance();
+    const player = createEventPlayer(undefined, ambiance);
+    player.play(ev('finish'), 'file://name-and-time', 'file://crowd');
+    expect(players.map((p) => p.uri)).toEqual(['file://crowd', 'file://name-and-time']);
+    players[1]!.emit(status({ didJustFinish: true }));
+    vi.advanceTimersByTime(5000);
+    expect(players[0]!.removed).toBe(false);
+  });
+
+  it('fades the ambiance out when the next one arrives, and when the run stops', () => {
+    const ambiance = createAmbiance();
+    const player = createEventPlayer(undefined, ambiance);
+    player.play(ev('gun'), 'file://gun', 'file://music');
+    player.play({ ...ev('km9'), mix: 'interrupt' }, 'file://km9', 'file://crowd');
+    vi.advanceTimersByTime(400);
+    const music = players.find((p) => p.uri === 'file://music')!;
+    expect(music.volume).toBeGreaterThan(0);
+    expect(music.volume).toBeLessThan(1);
+    vi.advanceTimersByTime(1000);
+    expect(music.removed).toBe(true);
+    player.stop();
+    vi.advanceTimersByTime(1000);
+    expect(players.find((p) => p.uri === 'file://crowd')!.removed).toBe(true);
+  });
+
+  it('leaves a newer ambiance alone when an older one is asked to stop', () => {
+    const ambiance = createAmbiance();
+    const first = ambiance.start('file://village');
+    ambiance.start('file://music');
+    ambiance.stop(first);
+    vi.advanceTimersByTime(1000);
+    expect(players.find((p) => p.uri === 'file://music')!.removed).toBe(false);
   });
 
   it('moves on when playback reports a failure', () => {

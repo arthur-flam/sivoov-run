@@ -4,9 +4,10 @@ import type { AudioEvent } from '@sivoov/shared';
  * Pure playback queue. `mix` says how an event meets what is already playing:
  * 'interrupt' cuts it and drops queued events of lower priority, 'wait' and 'duck' line up
  * behind it (ducking against the runner's music is the audio session's job). Within the
- * queue, higher priority goes first; equal priority keeps arrival order.
+ * queue, higher priority goes first; equal priority keeps arrival order. `under` is the
+ * playable uri of the event's ambiance, when it has one.
  */
-export type QueueItem = { event: AudioEvent; uri: string };
+export type QueueItem = { event: AudioEvent; uri: string; under?: string };
 export type Queue = { current: QueueItem | null; pending: QueueItem[] };
 
 export const emptyQueue = (): Queue => ({ current: null, pending: [] });

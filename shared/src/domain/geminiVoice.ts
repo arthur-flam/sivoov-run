@@ -20,17 +20,28 @@ export const voiceFormat = (voice: Pick<ScriptVoice, 'model'>): AudioUploadForma
 /** What the house voice is asked to be when a script says nothing: the race's own speaker. */
 export const DEFAULT_DIRECTION = 'Le speaker officiel de la course, dans les écouteurs du coureur. Chaleureux, enthousiaste, précis, jamais criard. Français de France.';
 
+/** Where the speaker is, when a line does not say: in the runner's ears. */
+export const DEFAULT_SCENE = 'Dans les écouteurs d’un coureur, pendant sa course.';
+
 /**
- * The prompt: a direction block the model plays and does not read, then the words. Without the
- * headings the model reads the direction out loud (measured: "Say in French, like an excited
- * announcer:" was spoken every time).
+ * The prompt: an audio profile, a scene and director's notes the model plays and does not
+ * read, then the words. Measured on gemini-3.8-flash-tts (2026-09-27): a bare "Say…:" prefix
+ * was read out every time, notes with a transcript heading about one time in three, this full
+ * form never in our tries. `plausibleSeconds` catches the rest.
  */
-export const geminiPrompt = (direction: string, text: string): string =>
-  ['### DIRECTOR\'S NOTES', direction.trim(), '### TRANSCRIPT', stripAudioTags(text)].join('\n');
+export const geminiPrompt = (direction: string, text: string, scene: string = DEFAULT_SCENE): string =>
+  [
+    '# AUDIO PROFILE: le speaker de la course',
+    `## THE SCENE: ${scene.trim()}`,
+    "### DIRECTOR'S NOTES",
+    direction.trim(),
+    '#### TRANSCRIPT',
+    stripAudioTags(text),
+  ].join('\n');
 
 /** The generateContent body for one line. */
-export const geminiTtsBody = (voice: Pick<ScriptVoice, 'id' | 'direction'>, text: string): Record<string, unknown> => ({
-  contents: [{ parts: [{ text: geminiPrompt(voice.direction ?? DEFAULT_DIRECTION, text) }] }],
+export const geminiTtsBody = (voice: Pick<ScriptVoice, 'id' | 'direction'>, text: string, scene?: string): Record<string, unknown> => ({
+  contents: [{ parts: [{ text: geminiPrompt(voice.direction ?? DEFAULT_DIRECTION, text, scene) }] }],
   generationConfig: {
     responseModalities: ['AUDIO'],
     speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice.id } } },
@@ -63,8 +74,26 @@ export const pcmToWav = (pcm: Uint8Array, sampleRate: number = GEMINI_PCM_RATE):
   return out;
 };
 
+/** The answer's audio as a WAV file: the model sends raw PCM, or sometimes a WAV already (`audio/wav`). */
+export const geminiWav = (bytes: Uint8Array): Uint8Array =>
+  bytes.length >= 12 && String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' && String.fromCharCode(...bytes.slice(8, 12)) === 'WAVE' ? bytes : pcmToWav(bytes);
+
 /** The base64 audio of a generateContent answer, or null when the model sent none (a refusal, an empty answer). */
 export const geminiAudioOf = (answer: unknown): string | null => {
   const parts = (answer as { candidates?: { content?: { parts?: { inlineData?: { data?: string } }[] } }[] })?.candidates?.[0]?.content?.parts ?? [];
   return parts.map((p) => p.inlineData?.data).find((d): d is string => typeof d === 'string' && d.length > 0) ?? null;
 };
+
+/** A WAV file's length in seconds, from its header; null when it is not one. */
+export const wavSeconds = (wav: Uint8Array): number | null => {
+  if (wav.length < 44 || String.fromCharCode(...wav.slice(0, 4)) !== 'RIFF') return null;
+  const v = new DataView(wav.buffer, wav.byteOffset, wav.byteLength);
+  const byteRate = v.getUint32(28, true);
+  return byteRate > 0 ? (wav.length - 44) / byteRate : null;
+};
+
+/**
+ * Whether a take is about as long as its words: French is said at 12 to 16 characters a
+ * second, pauses included; a take several times longer has the director's notes read into it.
+ */
+export const plausibleSeconds = (text: string, seconds: number): boolean => seconds <= 1.5 + stripAudioTags(text).length * 0.13;

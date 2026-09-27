@@ -1,4 +1,4 @@
-import { AUDIO_CONTENT_TYPES, geminiAudioOf, geminiTtsBody, isGeminiVoice, pcmToWav, ttsRequestBody, voiceCacheInput, voiceFormat } from '@sivoov/shared';
+import { AUDIO_CONTENT_TYPES, geminiAudioOf, geminiTtsBody, geminiWav, isGeminiVoice, plausibleSeconds, wavSeconds, ttsRequestBody, voiceCacheInput, voiceFormat } from '@sivoov/shared';
 import type { AudioUploadFormat, ScriptVoice } from '@sivoov/shared';
 import { sha256Hex, sha256HexBytes } from './crypto';
 
@@ -68,16 +68,26 @@ const fromElevenLabs = async (deps: TtsDeps, voice: ScriptVoice, text: string, l
 };
 
 const fromGemini = async (deps: TtsDeps, voice: ScriptVoice, text: string): Promise<Fetched> => {
-  if (!deps.gemini) return { ok: false, status: 503, detail: 'no Gemini key' };
-  const res = await (deps.fetchImpl ?? fetch)(`${deps.gemini.gateway}/google-ai-studio/v1beta/models/${voice.model}:generateContent`, {
-    method: 'POST',
-    headers: { 'x-goog-api-key': deps.gemini.apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify(geminiTtsBody(voice, text)),
-  });
-  if (!res.ok) return { ok: false, status: res.status, detail: (await res.text().catch(() => '')).slice(0, 200) };
-  const audio = geminiAudioOf(await res.json().catch(() => null));
-  if (!audio) return { ok: false, status: 502, detail: 'no audio in the answer' };
-  return { ok: true, body: pcmToWav(Uint8Array.from(atob(audio), (c) => c.charCodeAt(0))) };
+  const gemini = deps.gemini;
+  if (!gemini) return { ok: false, status: 503, detail: 'no Gemini key' };
+  const take = async (): Promise<Fetched> => {
+    const res = await (deps.fetchImpl ?? fetch)(`${gemini.gateway}/google-ai-studio/v1beta/models/${voice.model}:generateContent`, {
+      method: 'POST',
+      headers: { 'x-goog-api-key': gemini.apiKey, 'Content-Type': 'application/json', 'cf-aig-skip-cache': 'true' },
+      body: JSON.stringify(geminiTtsBody(voice, text)),
+    });
+    if (!res.ok) return { ok: false, status: res.status, detail: (await res.text().catch(() => '')).slice(0, 200) };
+    const audio = geminiAudioOf(await res.json().catch(() => null));
+    if (!audio) return { ok: false, status: 502, detail: 'no audio in the answer' };
+    return { ok: true, body: geminiWav(Uint8Array.from(atob(audio), (c) => c.charCodeAt(0))) };
+  };
+  // Now and then the model reads its director's notes aloud: a take far longer than its words is retried (twice at most).
+  const first = await take();
+  if (!first.ok || plausibleSeconds(text, wavSeconds(first.body) ?? 0)) return first;
+  const second = await take();
+  if (!second.ok || plausibleSeconds(text, wavSeconds(second.body) ?? 0)) return second.ok ? second : first;
+  const third = await take();
+  return third.ok ? third : first;
 };
 
 /** The rendered file for a text, from the R2 cache when it is there. */

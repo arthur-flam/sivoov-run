@@ -124,3 +124,28 @@ export type LiveVoiceRequest = z.infer<typeof LiveVoiceRequestSchema>;
 
 export const LiveVoiceSchema = z.object({ url: z.string().min(1), bytes: z.number().int().nonnegative() });
 export type LiveVoice = z.infer<typeof LiveVoiceSchema>;
+
+/**
+ * A course's demo reel: the whole race condensed to a few minutes (the ceremony, the places,
+ * the finish, said to a sample runner), one produced MP3 for the race page and for listening
+ * without running. Chapters say where each moment starts, and how far along the course it is.
+ */
+export const DemoReelSchema = z.object({
+  courseId: z.string().min(1),
+  duration: z.number().positive(),
+  /** The sample runner's pace, for the race clock the page shows. */
+  paceSecPerKm: z.number().positive(),
+  chapters: z
+    .array(
+      z.object({
+        t: z.number().nonnegative(),
+        title: z.string(),
+        km: z.number().nonnegative(),
+        caption: z.string(),
+        /** The countdown (digits), the gun (the clock starts), the finish (the clock stops). */
+        mark: z.enum(['countdown', 'gun', 'finish']).optional(),
+      }),
+    )
+    .min(1),
+});
+export type DemoReel = z.infer<typeof DemoReelSchema>;

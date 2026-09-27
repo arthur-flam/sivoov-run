@@ -26,7 +26,7 @@ export const tokens = `
   --shadow: 0 1px 2px rgba(20, 20, 20, 0.04), 0 4px 16px rgba(20, 20, 20, 0.05);
   --gutter: 16px; --max: 1040px;
   /* Race layer defaults, overridden on <body> by the race theme */
-  --race-primary: #1a1a1a; --race-on-primary: #ffffff;
+  --race-primary: #1a1a1a; --race-on-primary: #ffffff; --race-accent: #1a1a1a;
   /* Older names, kept so existing rules keep working */
   --card: var(--surface); --accent-name: var(--accent-ink);
   /* Audio announcement types, on the studio's map, frise and list */

@@ -15,7 +15,7 @@ export const ORGANIZERS_PATH = '/organisateurs';
 export const Layout = ({ title, description, locale, race, path, og, children }: Props) => {
   const t = translator(locale);
   const other = locale === 'fr' ? 'en' : 'fr';
-  const themeVars = race ? `--race-primary:${race.theme.primary};--race-on-primary:${race.theme.onPrimary};` : '';
+  const themeVars = race ? `--race-primary:${race.theme.primary};--race-on-primary:${race.theme.onPrimary};--race-accent:${race.theme.accent ?? race.theme.primary};` : '';
   return (
     <html lang={locale}>
       <head>

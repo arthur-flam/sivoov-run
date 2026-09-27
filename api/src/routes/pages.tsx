@@ -7,6 +7,7 @@ import { db } from '../db/queries';
 import { Layout } from '../pages/layout';
 import type { OpenGraph } from '../pages/layout';
 import { previewImage } from '../lib/cards';
+import { loadReel } from '../lib/reel';
 import { HomePage } from '../pages/home';
 import { LandingPage } from '../pages/landing';
 import { SigninPage } from '../pages/signin';
@@ -55,7 +56,7 @@ pages.get('/:slug', async (c) => {
   if (!race) return c.notFound();
   const courses = await q.coursesForRace(race.id);
   const mapUrl = mapUrlFor(c.env, courses[0]);
-  const track = mapUrl ? null : await trackFor(c.env, courses[0]);
+  const [track, reel] = await Promise.all([trackFor(c.env, courses[0]), courses[0] ? loadReel(c.env.FILES, courses[0].id) : null]);
   const base = new URL(c.req.url).origin;
   const og: OpenGraph = {
     title: translator(locale)('landing.tagline', { race: race.theme.displayName }),
@@ -65,7 +66,7 @@ pages.get('/:slug', async (c) => {
   };
   return c.html(
     <Layout title={`${race.theme.displayName} · Sivoov Run`} description={race.name} locale={locale} race={race} path={`/${race.slug}`} og={og}>
-      <LandingPage race={race} courses={courses} track={track} mapUrl={mapUrl} locale={locale} now={Date.now()} />
+      <LandingPage race={race} courses={courses} track={track} mapUrl={mapUrl} reel={reel} locale={locale} now={Date.now()} />
     </Layout>,
   );
 });

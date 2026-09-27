@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { AudioPack } from '@sivoov/shared';
 import type { AppEnv } from '../env';
 import { db } from '../db/queries';
+import { byteRange, loadReel, reelKey } from '../lib/reel';
 
 /**
  * Public audio routes: the pack manifest for a course and the files it points at. No auth:
@@ -61,4 +62,29 @@ audio.get('/voices/:file', async (c) => {
       'Accept-Ranges': 'bytes',
     },
   });
+});
+
+/** A course's demo reel: its chapters, then the sound. */
+audio.get('/courses/:id/reel', async (c) => {
+  const reel = await loadReel(c.env.FILES, c.req.param('id'));
+  return reel ? c.json(reel, 200, { 'Cache-Control': 'public, max-age=300' }) : c.json({ error: 'not_found' }, 404);
+});
+
+/** The reel's MP3, with byte ranges: Safari will not play (nor seek) an audio file served without them. */
+audio.get('/courses/:id/reel.mp3', async (c) => {
+  const key = reelKey(c.req.param('id'), 'mp3');
+  const head = await c.env.FILES.head(key);
+  if (!head) return c.json({ error: 'not_found' }, 404);
+  const range = byteRange(c.req.header('Range'), head.size);
+  const object = await c.env.FILES.get(key, range ? { range } : undefined);
+  if (!object) return c.json({ error: 'not_found' }, 404);
+  const headers = {
+    'Content-Type': 'audio/mpeg',
+    'Accept-Ranges': 'bytes',
+    ETag: head.httpEtag,
+    'Cache-Control': 'public, max-age=300',
+    'Content-Length': String(range ? range.length : head.size),
+    ...(range ? { 'Content-Range': `bytes ${range.offset}-${range.offset + range.length - 1}/${head.size}` } : {}),
+  };
+  return new Response(object.body, { status: range ? 206 : 200, headers });
 });

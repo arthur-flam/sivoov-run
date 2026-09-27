@@ -24,6 +24,7 @@ export const champsElyseesRace: Race = RaceSchema.parse({
     displayName: '10 km des Champs-Élysées',
     primary: '#003767',
     onPrimary: '#ffffff',
+    accent: '#ea5b1a',
     logo: 'https://static.wixstatic.com/media/2b8b4e_e5553556cac04d798551f6dcb2750bb9~mv2.png/v1/fill/w_280,h_336,al_c,q_90/logo.png',
     hero: 'https://static.wixstatic.com/media/2b8b4e_ecc62b98c9c446d6892af09ee4c3991c~mv2.jpg/v1/fill/w_2000,h_1334,al_c,q_85/hero.jpg',
     series: {

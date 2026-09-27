@@ -18,6 +18,7 @@
     "seed:runs": "tsx tools/seed-runs.ts",
     "import:entrants": "tsx tools/import-entrants.ts",
     "audio:build": "tsx tools/audio/build.ts",
+    "produce": "tsx tools/produce/produce.ts",
     "e2e": "playwright test",
     "trace:pull": "tsx tools/trace-pull.ts"
   },

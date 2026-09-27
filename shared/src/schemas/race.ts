@@ -48,6 +48,8 @@ export const RaceThemeSchema = z.object({
   displayName: z.string().min(1),
   primary: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   onPrimary: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  /** A second colour from the race's identity, for the one thing that must stand out (the play button, the runner's trace). */
+  accent: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   logo: WebUrlSchema.optional(),
   hero: WebUrlSchema.optional(),
   medal: WebUrlSchema.optional(),

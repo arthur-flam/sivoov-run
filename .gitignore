@@ -26,3 +26,6 @@ docs/shots/
 
 # agent worktrees (Claude Code)
 .claude/worktrees/
+
+# sound production (api/tools/produce): downloaded sources, renders, mixes
+.produce/

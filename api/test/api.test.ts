@@ -213,8 +213,10 @@ describe('pages', () => {
     await env.FILES.put('courses/deauville-2026-marathon.json', JSON.stringify(deauvilleMarathonGeometry));
     const fr = await (await SELF.fetch('http://run.test/deauville-2026')).text();
     expect(fr).toContain('Course virtuelle officielle');
-    expect(fr).toContain('Marathon International de Deauville');
+    expect(fr).toContain('Marathon International de Deauville, où que vous soyez.');
     expect(fr).toContain('<svg');
+    // No demo reel for this course: no player.
+    expect(fr).not.toContain('id="ecouter"');
     const en = await (await SELF.fetch('http://run.test/deauville-2026?lang=en')).text();
     expect(en).toContain('Official virtual race');
   });

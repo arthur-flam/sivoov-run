@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { geminiAudioOf, geminiTtsBody, geminiWav, plausibleSeconds, wavSeconds } from '@sivoov/shared';
+import { GEMINI_TTS_FALLBACK, geminiAudioOf, geminiTtsBody, geminiWav, plausibleSeconds, wavSeconds } from '@sivoov/shared';
 import type { ScriptVoice } from '@sivoov/shared';
 import { SOURCES } from './sources';
 import type { SourceId } from './sources';
@@ -84,9 +84,17 @@ export const saysItsWords = (text: string, heard: string): boolean => {
  * The voice reading `text` with `direction`, as a trimmed WAV. Cached by what was asked, so a
  * line is paid for once; `take` asks for another reading of the same words.
  */
-export const voice = async (env: VoiceEnv, v: ScriptVoice, text: string, direction: string, scene?: string, take = 1): Promise<string> => {
+/** Models whose daily quota ran out in this run: their fallback is used from then on. */
+const spent = new Set<string>();
+
+export const voice = async (env: VoiceEnv, v0: ScriptVoice, text: string, direction: string, scene?: string, take = 1): Promise<string> => {
+  const fallback = GEMINI_TTS_FALLBACK[v0.model];
+  const keyOf = (model: string) => sha(JSON.stringify([model, v0.id, direction, scene ?? '', text, take])).slice(0, 32);
+  // A take already made by the main model is kept even once its quota is spent.
+  const kept = existsSync(join(VOICES_DIR, `${keyOf(v0.model)}.wav`));
+  const v = !kept && spent.has(v0.model) && fallback ? { ...v0, model: fallback } : v0;
   mkdirSync(VOICES_DIR, { recursive: true });
-  const key = sha(JSON.stringify([v.model, v.id, direction, scene ?? '', text, take])).slice(0, 32);
+  const key = keyOf(v.model);
   const trimmed = join(VOICES_DIR, `${key}.wav`);
   const checked = join(VOICES_DIR, `${key}.heard.txt`);
   if (existsSync(trimmed)) {
@@ -98,7 +106,7 @@ export const voice = async (env: VoiceEnv, v: ScriptVoice, text: string, directi
       return trimmed;
     }
     console.log(`  voice: kept take ${take} of "${text.slice(0, 40)}" says "${heard.slice(0, 80)}", again`);
-    return voice(env, v, text, direction, scene, take + 1);
+    return voice(env, v0, text, direction, scene, take + 1);
   }
   const call = () =>
     fetch(`${env.gateway}/google-ai-studio/v1beta/models/${v.model}:generateContent`, {
@@ -109,6 +117,14 @@ export const voice = async (env: VoiceEnv, v: ScriptVoice, text: string, directi
     });
   // The preview TTS models allow a few requests a minute: wait and try again on 429.
   let res = await call();
+  if (res.status === 429 && v.model === v0.model && fallback) {
+    const why = await res.clone().text();
+    if (why.includes('PerDay')) {
+      console.log(`  voice: ${v0.model} is spent for today, going on with ${fallback} (the same voice)`);
+      spent.add(v0.model);
+      return voice(env, v0, text, direction, scene, take);
+    }
+  }
   for (let attempt = 1; res.status === 429 && attempt <= 10; attempt += 1) {
     console.log(`  voice: rate limited, waiting ${15 * attempt} s`);
     await new Promise((r) => setTimeout(r, 15_000 * attempt));
@@ -123,13 +139,13 @@ export const voice = async (env: VoiceEnv, v: ScriptVoice, text: string, directi
   if (!plausibleSeconds(text, seconds)) {
     if (take >= 4) throw new Error(`voice: every take of "${text}" is too long (${seconds.toFixed(1)} s)`);
     console.log(`  voice: take ${take} of "${text.slice(0, 40)}" lasts ${seconds.toFixed(1)} s, again`);
-    return voice(env, v, text, direction, scene, take + 1);
+    return voice(env, v0, text, direction, scene, take + 1);
   }
   const heard = await transcribe(env, Buffer.from(wav));
   if (heard !== null && !saysItsWords(text, heard)) {
     if (take >= 4) throw new Error(`voice: every take of "${text}" says something else ("${heard}")`);
     console.log(`  voice: take ${take} of "${text.slice(0, 40)}" says "${heard.slice(0, 80)}", again`);
-    return voice(env, v, text, direction, scene, take + 1);
+    return voice(env, v0, text, direction, scene, take + 1);
   }
   const raw = join(VOICES_DIR, `${key}.raw.wav`);
   writeFileSync(raw, wav);

@@ -1,4 +1,4 @@
-import { AUDIO_CONTENT_TYPES, geminiAudioOf, geminiTtsBody, geminiWav, isGeminiVoice, plausibleSeconds, wavSeconds, ttsRequestBody, voiceCacheInput, voiceFormat } from '@sivoov/shared';
+import { AUDIO_CONTENT_TYPES, GEMINI_TTS_FALLBACK, geminiAudioOf, geminiTtsBody, geminiWav, isGeminiVoice, plausibleSeconds, wavSeconds, ttsRequestBody, voiceCacheInput, voiceFormat } from '@sivoov/shared';
 import type { AudioUploadFormat, ScriptVoice } from '@sivoov/shared';
 import { sha256Hex, sha256HexBytes } from './crypto';
 
@@ -70,12 +70,17 @@ const fromElevenLabs = async (deps: TtsDeps, voice: ScriptVoice, text: string, l
 const fromGemini = async (deps: TtsDeps, voice: ScriptVoice, text: string): Promise<Fetched> => {
   const gemini = deps.gemini;
   if (!gemini) return { ok: false, status: 503, detail: 'no Gemini key' };
-  const take = async (): Promise<Fetched> => {
-    const res = await (deps.fetchImpl ?? fetch)(`${gemini.gateway}/google-ai-studio/v1beta/models/${voice.model}:generateContent`, {
+  const call = (model: string) =>
+    (deps.fetchImpl ?? fetch)(`${gemini.gateway}/google-ai-studio/v1beta/models/${model}:generateContent`, {
       method: 'POST',
       headers: { 'x-goog-api-key': gemini.apiKey, 'Content-Type': 'application/json', 'cf-aig-skip-cache': 'true' },
       body: JSON.stringify(geminiTtsBody(voice, text)),
     });
+  const take = async (): Promise<Fetched> => {
+    const first = await call(voice.model);
+    // Quota spent: the same voice from the lighter model rather than the offline version.
+    const fallback = GEMINI_TTS_FALLBACK[voice.model];
+    const res = first.status === 429 && fallback ? await call(fallback) : first;
     if (!res.ok) return { ok: false, status: res.status, detail: (await res.text().catch(() => '')).slice(0, 200) };
     const audio = geminiAudioOf(await res.json().catch(() => null));
     if (!audio) return { ok: false, status: 502, detail: 'no audio in the answer' };

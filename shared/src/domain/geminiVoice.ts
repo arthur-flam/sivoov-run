@@ -12,6 +12,12 @@ import { stripAudioTags } from './audioTags';
 /** The model used for new Gemini voices: the best French delivery measured on 2026-09-27. */
 export const GEMINI_TTS_MODEL = 'gemini-3.8-flash-tts';
 
+/**
+ * When a model's quota is spent (429), the same voice from its lighter sibling: heard as the
+ * same speaker (9.5/10 by an AI listener, 2026-09-27), with its own quota.
+ */
+export const GEMINI_TTS_FALLBACK: Record<string, string> = { 'gemini-3.8-flash-tts': 'gemini-3.8-flash-lite-tts' };
+
 export const isGeminiVoice = (voice: Pick<ScriptVoice, 'model'>): boolean => voice.model.startsWith('gemini-');
 
 /** The file a voice's render is: WAV for Gemini (raw PCM wrapped), MP3 for ElevenLabs. */

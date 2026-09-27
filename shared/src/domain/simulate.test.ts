@@ -36,4 +36,8 @@ describe('simulate', () => {
     expect(Math.max(...offsets)).toBeLessThan(25);
     expect(offsets.reduce((a, b) => a + b, 0) / offsets.length).toBeGreaterThan(1);
   });
+  it('can report a speed lower than the true one, like a real phone', () => {
+    const samples = simulateRun({ track, targetM: 1000, pace: constantPace(300), startTime: 0, speedScale: 0.85 });
+    samples.forEach((s) => expect(s.speed).toBeCloseTo(0.85 * (1000 / 300), 6));
+  });
 });

@@ -423,3 +423,29 @@
   Small 3.1 answer in plain French in 2-4 s. The Anthropic SDK skips auth when built with
   `apiKey: null` and `defaultHeaders: { 'x-api-key': null }`: that is how it talks to a gateway
   holding the key.
+- 2026-09-27: first real run (9.2 km, Galaxy S23, preview run `mujbwasn-hwxict1f`), compared
+  with the owner's Strava recording of the same run. Worth knowing next time:
+  - The phone's reported `speed` (fused provider) read 8-16 % under the watch in every 5-minute
+    window, while its positions summed to within 0.3 % of the watch. The tracker's +-15 % clamp
+    to the reported speed therefore cut 1.9 % (9 032 m for 9 204 m). Do not use a phone's
+    reported speed as a tight bound on distance; it is now a x1.5 ceiling, and a floor only
+    when the fixes stall (`smoothing.ts`). The simulator's speed was unbiased, which is why no
+    test ever saw this; `simulateRun` takes `speedScale` now.
+  - A floor on every step plus a loose ceiling inflates noisy traces (3.2 % at 8 m simulated
+    noise): noise that shortens a step is lifted, noise that lengthens it is kept. The old
+    +-15 % clamp was balanced only because it was symmetric around an unbiased speed.
+  - The Deauville GPX has a hairpin at 974-982 m, just before km 1. Positions cut it (9 m of
+    chord for 20 m of running), so any change to step handling shows up first in the km 1 split
+    of the clean 10 km tracker test and in the `kmMarks` test.
+  - Pulling a trace needs no Cloudflare credentials: sign in to the preview admin with the test
+    organizer (`POST /org/signin`, `step=code&email=orga@example.com&code=000000`, keep the
+    cookie), list `/org/deauville-2026/runs`, then `/org/deauville-2026/runs/<id>/trace.json`.
+    `npm run trace:pull` needs wrangler auth, which the cloud container does not have.
+  - The Strava MCP gives the watch's streams (`time`, `distance`, `location`) for the same run: a
+    ground truth for the app's distance over the app's own window. The watch had started 3 min
+    (524 m) before the app.
+  - Rounding accuracy to 0.1 m in a fixture moved the replayed distance by 6.5 m: the minimum
+    step is measured from the last accepted fix, so small input changes shift which fixes are
+    accepted. Keep fixtures at 0.01 m and check the replay against the original trace.
+  - The admin shows a run's times in the race's time zone (Europe/Paris): a 07:38 start in
+    Israel reads 06:38.

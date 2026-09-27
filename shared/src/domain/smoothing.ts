@@ -70,13 +70,36 @@ export type FilterConfig = {
    */
   minMovementM: number;
   /**
-   * Doppler speed from the receiver is far less noisy than positions. When both fixes carry
-   * one, the step is kept within this factor of the speed-implied distance, both ways.
+   * The wait grows with the fix's own accuracy: a step must be this many times the accuracy
+   * before it counts, so a vaguer fix waits for a longer step. 3 m accuracy keeps the 8 m floor.
    */
-  speedBoundFactor: number;
+  minMovementAccuracyFactor: number;
+  /**
+   * A step is capped at this multiple of the distance the receiver's reported speed allows,
+   * which removes a standing phone's drift and a jump. A loose ceiling on purpose: the first
+   * real run (Galaxy S23) reported speeds 8-16 % under a watch, and the old +-15 % clamp cost
+   * it 1.9 % of its distance (docs/MEMORY.md, 2026-09-27).
+   */
+  dopplerCeilingFactor: number;
+  /**
+   * When the fixes stall while the phone says it kept moving (a hairpin, a frozen fix), the
+   * step is lifted to the reported-speed distance divided by this factor. Positions alone cut
+   * a U-turn short. Only then: a floor on every step inflates a noisy trace.
+   */
+  dopplerFloorFactor: number;
+  /** A stall is a step short of that floor by more than this many times the fix's accuracy. */
+  stallAccuracyFactor: number;
 };
 
-export const DEFAULT_FILTER: FilterConfig = { maxAccuracyM: 30, maxSpeedMps: 10, minMovementM: 8, speedBoundFactor: 1.15 };
+export const DEFAULT_FILTER: FilterConfig = {
+  maxAccuracyM: 30,
+  maxSpeedMps: 10,
+  minMovementM: 8,
+  minMovementAccuracyFactor: 3,
+  dopplerCeilingFactor: 1.5,
+  dopplerFloorFactor: 1.15,
+  stallAccuracyFactor: 2,
+};
 
 export type FilterVerdict = { ok: true; stepM: number } | { ok: false; reason: 'accuracy' | 'time' | 'speed' | 'jitter' };
 
@@ -92,12 +115,12 @@ export const judgeSample = (
   if (dtS <= 0) return { ok: false, reason: 'time' };
   const positionStepM = haversineM(prev, next);
   if (positionStepM / dtS > config.maxSpeedMps) return { ok: false, reason: 'speed' };
-  if (positionStepM < config.minMovementM) return { ok: false, reason: 'jitter' };
+  const minStepM = Math.max(config.minMovementM, (next.accuracy ?? 0) * config.minMovementAccuracyFactor);
+  if (positionStepM < minStepM) return { ok: false, reason: 'jitter' };
   const dopplerStepM =
     prev.speed !== undefined && next.speed !== undefined ? ((prev.speed + next.speed) / 2) * dtS : undefined;
-  const stepM =
-    dopplerStepM === undefined
-      ? positionStepM
-      : Math.max(dopplerStepM / config.speedBoundFactor, Math.min(positionStepM, dopplerStepM * config.speedBoundFactor));
-  return { ok: true, stepM };
+  if (dopplerStepM === undefined) return { ok: true, stepM: positionStepM };
+  const floorM = dopplerStepM / config.dopplerFloorFactor;
+  const stalled = next.accuracy !== undefined && floorM - positionStepM > config.stallAccuracyFactor * next.accuracy;
+  return { ok: true, stepM: stalled ? floorM : Math.min(positionStepM, dopplerStepM * config.dopplerCeilingFactor) };
 };

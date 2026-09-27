@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { deauvilleMarathonGeometry } from '../fixtures';
+import { firstRealRunSamples, firstRealRunWatchM } from '../fixtures/firstRealRun';
 import { buildTrack } from './course';
 import { constantPace, simulateRun } from './simulate';
 import { abandon, applySample, idleRun, progress, startRun, tick } from './tracker';
@@ -7,8 +8,8 @@ import type { RunState } from './tracker';
 
 const track = buildTrack(deauvilleMarathonGeometry.points);
 
-const runThrough = (targetM: number, noiseM: number, paceSecPerKm = 300): RunState => {
-  const samples = simulateRun({ track, targetM: targetM * 1.05, pace: constantPace(paceSecPerKm), startTime: 1000, noiseM, seed: 3 });
+const runThrough = (targetM: number, noiseM: number, paceSecPerKm = 300, speedScale = 1): RunState => {
+  const samples = simulateRun({ track, targetM: targetM * 1.05, pace: constantPace(paceSecPerKm), startTime: 1000, noiseM, seed: 3, speedScale });
   return samples.reduce((s, sample) => applySample(s, sample), startRun(idleRun(targetM), 1000));
 };
 
@@ -39,6 +40,19 @@ describe('run tracker', () => {
     expect(s.rejected).toBeGreaterThan(0);
   });
 
+  it('measures the first real run within 0.5 % of the watch worn on it', () => {
+    // Galaxy S23, 46 min, 2 774 fixes. The old +-15 % speed clamp read 9 032 m: 1.9 % short.
+    const s = firstRealRunSamples(1000).reduce((acc, sample) => applySample(acc, sample), startRun(idleRun(42195), 1000));
+    expect(Math.abs(s.distanceM / firstRealRunWatchM - 1)).toBeLessThan(0.005);
+    expect(s.splits.map((x) => x.km)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  });
+
+  it('is not held back by a phone that reports its speed 15 % low', () => {
+    const s = runThrough(5000, 3, 300, 0.85);
+    expect(s.phase).toBe('finished');
+    expect(Math.abs(s.elapsedMs - 25 * 60 * 1000) / (25 * 60 * 1000)).toBeLessThan(0.01);
+  });
+
   it('keeps distance monotonic and reports a live pace', () => {
     const samples = simulateRun({ track, targetM: 1500, pace: constantPace(330), startTime: 0, noiseM: 6, seed: 9 });
     const states = samples.reduce<RunState[]>((acc, sample) => [...acc, applySample(acc[acc.length - 1]!, sample)], [startRun(idleRun(5000), 0)]);
@@ -66,8 +80,8 @@ describe('run tracker', () => {
     // A cached fix at home, five minutes before the start, then the real start 400 m away.
     const gun = 300_000;
     const home = { lat: 49.3600, lng: 0.0700, accuracy: 15, timestamp: 0 };
-    const start = { lat: 49.3636, lng: 0.0700, accuracy: 5, timestamp: gun + 1000 };
-    const onward = { lat: 49.3637, lng: 0.0700, accuracy: 5, timestamp: gun + 4000 };
+    const start = { lat: 49.3636, lng: 0.0700, accuracy: 3, timestamp: gun + 1000 };
+    const onward = { lat: 49.3637, lng: 0.0700, accuracy: 3, timestamp: gun + 4000 };
     const s = [home, start, onward].reduce((acc, sample) => applySample(acc, sample), startRun(idleRun(10000), gun));
     expect(s.rejected).toBe(1);
     expect(s.distanceM).toBeLessThan(20);

@@ -5,7 +5,7 @@ export type Bindings = Env & {
   TEST_CODE?: string;
   /**
    * Fixed sign-in code for App Review: only the test accounts of demo races (`review@example.com`),
-   * on every environment. A secret on production (`wrangler secret put REVIEW_CODE`). See docs/ACCESS.md.
+   * on every environment. A production var (`000000`): it opens nothing but a demo. See docs/ACCESS.md.
    */
   REVIEW_CODE?: string;
   /** Where the install page sends iPhones: the App Store page, or the TestFlight public link during the beta. A wrangler var. */

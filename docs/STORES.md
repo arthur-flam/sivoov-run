@@ -44,8 +44,8 @@ by the app (`ITSAppUsesNonExemptEncryption = false`).
     dans les oreilles. Démo pour les organisateurs. »
   - Feedback email, Marketing URL `https://run.sivoov.app/organisateurs`, Privacy Policy URL
     `https://run.sivoov.app/confidentialite`.
-  - Sign-in required: yes. User `review@example.com`, password: the review code
-    (`REVIEW_CODE`, see ACCESS.md). Notes for the reviewer: « Saisissez l’email, puis le code à 6
+  - Sign-in required: yes. User `review@example.com`, password `000000` (the review code,
+    `REVIEW_CODE`, see ACCESS.md). Notes for the reviewer: « Saisissez l’email, puis le code à 6
     chiffres ci-dessus (aucun email n’est envoyé à cette adresse). Sur l’écran de la course,
     “Écouter la course en 10 minutes” joue le parcours en accéléré sans GPS ; “Courir” mesure une
     vraie course, écran verrouillé. »
@@ -59,7 +59,6 @@ by the app (`ITSAppUsesNonExemptEncryption = false`).
 ### Before the reviewer or an organizer signs in
 - Production has the demo: `/org/<race>/settings` → « Course de démonstration » → « Créer la
   démo » (staff only). App Review's runner comes with it.
-- `npx wrangler secret put REVIEW_CODE` (production) with six digits of your choice.
 - Organizers: add them to the **demo** race's Coureurs with their real email. They sign in with
   the code they receive; nothing they do appears in the real race's admin.
 

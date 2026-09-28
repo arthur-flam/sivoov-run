@@ -21,7 +21,7 @@ so the first App Review passes the first time (runbook: STORES.md):
 - **Demo races** (ARCHITECTURE.md): staff press « Créer la démo » in a race's settings. Its own
   runners, results and admin (the real race's dashboard never sees them), the real race's courses
   and sound through `demo_of` (always in sync), open every day, a ten-minute simulated run on its
-  home for a desk demo, and App Review's runner (`review@example.com`, code `REVIEW_CODE`).
+  home for a desk demo, and App Review's runner (`review@example.com`, code `000000`, demo races only).
 - **Sign-in by email**: the race is worked out; asked only when the email is in several races,
   the bib only when two entries of one race share the email. Web sign-in too.
 - **Privacy**: `/confidentialite` (`/privacy`), linked from every footer and the app;
@@ -140,9 +140,11 @@ Anchored to PRD milestones (M2 10 Oct, M3 17 Oct, M4 31 Oct).
 - **Stores** (STORES.md): Apple Developer Program as an organization (D-U-N-S), Play Console
   organization account. Then send the TestFlight and Play testing links to set as `IOS_APP_URL`
   and `ANDROID_APP_URL`.
-- **After merging `claude/ios-readiness`**: `npx wrangler secret put REVIEW_CODE` (production,
-  six digits), then « Créer la démo » on the race to show (staff, its Réglages), and add the
-  organizers to the demo's Coureurs. The migration (0007) runs with the deploy.
+- **Production** (CI is out of minutes, and production is a manual promote anyway): run the
+  migration, then the Worker, from `api/`, in that order (the new Worker reads `races.demo_of`):
+  `npx wrangler d1 migrations apply sivoov-run --remote && npx wrangler deploy`. Then « Créer la
+  démo » on the race to show (staff, its Réglages) and add the organizers to the demo's Coureurs.
+  App Review signs in as `review@example.com` / `000000`.
 - **The privacy page names the company**: give its legal name, registered address and a
   contact email for data questions (`LEGAL_NAME`, `LEGAL_ADDRESS`, `PRIVACY_EMAIL` vars). Until
   then it says « édité par Sivoov » with no address. Have the text read by whoever does the

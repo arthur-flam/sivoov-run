@@ -10,7 +10,9 @@
   "rules": [{ "type": "Text", "globs": ["**/*.client.js"] }],
   // Top level is production. `--env preview` and `--env local` override below.
   // STAFF_EMAILS: Sivoov people who reach every race in /org and can create races.
-  "vars": { "ENVIRONMENT": "production", "BASE_URL": "https://run.sivoov.app", "STAFF_EMAILS": "arthur.flam@gmail.com", "CF_ACCOUNT_ID": "6bd098851f5995454ecdbad6744c567c", "AI_GATEWAY": "sivoov" },
+  // REVIEW_CODE: App Review's sign-in, accepted only for @example.com runners of a demo race
+  // (lib/testCode.ts), so a known value opens nothing real. Preview and local use TEST_CODE.
+  "vars": { "ENVIRONMENT": "production", "BASE_URL": "https://run.sivoov.app", "REVIEW_CODE": "000000", "STAFF_EMAILS": "arthur.flam@gmail.com", "CF_ACCOUNT_ID": "6bd098851f5995454ecdbad6744c567c", "AI_GATEWAY": "sivoov" },
   "d1_databases": [
     { "binding": "DB", "database_name": "sivoov-run", "database_id": "9bb857cd-16b3-4fa6-bd13-c39793b70da3", "migrations_dir": "migrations" }
   ],

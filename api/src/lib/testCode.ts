@@ -12,7 +12,7 @@ export const acceptsTestCode = (env: Pick<Bindings, 'TEST_CODE' | 'ENVIRONMENT'>
   env.ENVIRONMENT !== 'production' && !!env.TEST_CODE && code === env.TEST_CODE && isTestAccount(email);
 
 /**
- * App Review signs in with a fixed code (`REVIEW_CODE`, a secret on production), and only as a
+ * App Review signs in with a fixed code (`REVIEW_CODE`, a production var), and only as a
  * test account of a demo race: an `@example.com` address has no inbox and a demo race has no
  * real runner, so the code opens nothing that matters. See docs/ACCESS.md.
  */

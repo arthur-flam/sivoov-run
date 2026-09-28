@@ -27,7 +27,7 @@ export const DemoCard = ({ race, demo, source, flash }: Props) =>
       {demo ? (
         <>
           <p class="small muted" style="margin-bottom:14px">
-            Relecture App Store{'\u00a0'}: {REVIEW_EMAIL}, dossard {REVIEW_BIB}, avec le code de relecture (le secret <code>REVIEW_CODE</code> du Worker).
+            Relecture App Store{'\u00a0'}: {REVIEW_EMAIL}, dossard {REVIEW_BIB}, code 000000 (la variable <code>REVIEW_CODE</code> du Worker).
           </p>
           <div class="form-actions">
             <a class="btn" href={`/org/${demo.slug}`}>

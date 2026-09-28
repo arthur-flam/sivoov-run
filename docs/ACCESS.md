@@ -23,9 +23,9 @@ test accounts sign in with it and real people still get a real code. Production 
 Staff create a race's demo in its settings (« Course de démonstration »): `<slug>-demo`, open every
 day, its own runners and results, the real race's courses and sound (ARCHITECTURE.md, "Demo
 races"). It comes with App Review's runner, `review@example.com`, bib 9999, on the shortest
-course. That account signs in with the `REVIEW_CODE` secret (`npx wrangler secret put
-REVIEW_CODE`, six digits), accepted only for `@example.com` runners of a demo race; no email is
-sent to it on production. On local and preview `000000` works as for any test account. Testers
+course. That account signs in with `REVIEW_CODE` (`000000`, a production var in
+`api/wrangler.jsonc`), accepted only for `@example.com` runners of a demo race, so knowing it
+opens nothing but a demo; no email is sent to it on production. On local and preview `000000` works as for any test account. Testers
 (organizers) are added to the demo's Coureurs with their real email and sign in with a real code.
 
 ## Test runners (race `deauville-2026`, seeded by `npm run seed -w api -- <local|preview>`)

@@ -23,6 +23,7 @@ Depending on the task:
 - `docs/DEVICE.md` - testing on a real Android phone over USB. Read for anything native,
   background location, background audio or the upload queue.
 - `docs/HARVEST.md` - modules to port from the previous repo (`arthur-flam/sivoov`).
+- `docs/STORES.md` - Apple and Google accounts, TestFlight, Play testing, App Review sign-in.
 
 ## Repo layout
 ```

@@ -50,7 +50,7 @@ const send = (cookie: string, file: File | null) => {
   return SELF.fetch('http://run.test/deauville-2026/upload', { method: 'POST', headers: cookie ? { Cookie: cookie } : {}, body: form, redirect: 'manual' });
 };
 
-const marcHalf = () => db(env.DB).resultsForCourse('deauville-2026-half').then((rows) => rows.filter((r) => r.entrant.bib === '1001'));
+const marcHalf = () => db(env.DB).resultsForCourse(deauvilleRace.id, 'deauville-2026-half').then((rows) => rows.filter((r) => r.entrant.bib === '1001'));
 
 describe('the upload page', () => {
   it('sends a runner with no session to sign in, and sign-in brings them back', async () => {

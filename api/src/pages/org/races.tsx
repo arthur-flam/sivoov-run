@@ -37,7 +37,7 @@ export const OrgRacesPage = ({ races, staff, denied }: Props) => (
               {role ? ` · ${ROLE_LABELS[role]}` : ''}
             </span>
           </div>
-          <Badge tone={race.status === 'draft' ? 'neutral' : race.status === 'closed' ? 'neutral' : 'good'}>{STATUS_LABELS[race.status]}</Badge>
+          {race.demoOf ? <Badge tone="info">Démo</Badge> : <Badge tone={race.status === 'draft' ? 'neutral' : race.status === 'closed' ? 'neutral' : 'good'}>{STATUS_LABELS[race.status]}</Badge>}
         </a>
       ))
     )}

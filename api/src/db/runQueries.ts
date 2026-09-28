@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { RunSourceSchema, RunStatusSchema } from '@sivoov/shared';
 import type { Course, Entrant, Run, RunSource, RunStatus } from '@sivoov/shared';
+import { courseRaceOf } from './courseRace';
 import { COUNTS_AS_FINISH } from './dashboardQueries';
 import { courseFromRow, entrantFromRow, runFromRow } from './rows';
 
@@ -196,11 +197,11 @@ export const runDb = (d1: D1Database) => ({
       d1
         .prepare(
           `SELECT p.course_id, p.manifest FROM audio_packs p JOIN courses c ON c.id = p.course_id
-           WHERE c.race_id = ? AND p.locale = 'fr' AND p.version = (SELECT MAX(p2.version) FROM audio_packs p2 WHERE p2.course_id = p.course_id AND p2.locale = 'fr')`,
+           WHERE c.race_id = ${courseRaceOf('?1')} AND p.locale = 'fr' AND p.version = (SELECT MAX(p2.version) FROM audio_packs p2 WHERE p2.course_id = p.course_id AND p2.locale = 'fr')`,
         )
         .bind(raceId)
         .all(),
-      d1.prepare("SELECT s.course_id, s.script FROM audio_scripts s JOIN courses c ON c.id = s.course_id WHERE c.race_id = ? AND s.locale = 'fr'").bind(raceId).all(),
+      d1.prepare(`SELECT s.course_id, s.script FROM audio_scripts s JOIN courses c ON c.id = s.course_id WHERE c.race_id = ${courseRaceOf('?1')} AND s.locale = 'fr'`).bind(raceId).all(),
     ]);
     const fromPacks = packs.results
       .map((raw) => PackTitlesSchema.parse(raw))

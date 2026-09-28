@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { acceptsTestCode, isTestAccount, maySpendCredit } from './testCode';
+import { acceptsReviewCode, acceptsTestCode, isTestAccount, maySpendCredit } from './testCode';
 import { allowedRecipient } from './mailer';
 
 describe('test code sign-in', () => {
@@ -13,6 +13,19 @@ describe('test code sign-in', () => {
     expect(acceptsTestCode({ ENVIRONMENT: 'preview', TEST_CODE: '000000' }, 'marc@example.com', '123456')).toBe(false);
     expect(acceptsTestCode({ ENVIRONMENT: 'preview' }, 'marc@example.com', '000000')).toBe(false);
     expect(isTestAccount('someone@gmail.com')).toBe(false);
+  });
+});
+
+describe('the App Review code', () => {
+  const demo = { demoOf: 'r-champs' };
+  it('opens a test account of a demo race, production included', () => {
+    expect(acceptsReviewCode({ REVIEW_CODE: '424242' }, 'review@example.com', demo, '424242')).toBe(true);
+  });
+  it('never opens a real race, a real person, a wrong code, or anything when unset', () => {
+    expect(acceptsReviewCode({ REVIEW_CODE: '424242' }, 'review@example.com', {}, '424242')).toBe(false);
+    expect(acceptsReviewCode({ REVIEW_CODE: '424242' }, 'organizer@gmail.com', demo, '424242')).toBe(false);
+    expect(acceptsReviewCode({ REVIEW_CODE: '424242' }, 'review@example.com', demo, '000000')).toBe(false);
+    expect(acceptsReviewCode({}, 'review@example.com', demo, '424242')).toBe(false);
   });
 });
 

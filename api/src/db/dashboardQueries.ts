@@ -2,6 +2,7 @@
  * The numbers on the organizer's home page. Simulated runs never count as a start, and a time
  * an organizer set aside never counts as a finish.
  */
+import { courseRaceOf } from './courseRace';
 import { rankedRun } from './ranked';
 
 export type Funnel = { entrants: number; signedIn: number; onApp: number; started: number; finished: number };
@@ -39,11 +40,11 @@ export const dashboardDb = (d1: D1Database) => ({
     const { results } = await d1
       .prepare(
         `SELECT c.id AS course_id, c.distance_key, c.geometry_key,
-                (SELECT COUNT(*) FROM entrants e WHERE e.race_id = c.race_id AND e.distance_key = c.distance_key) AS entrants,
+                (SELECT COUNT(*) FROM entrants e WHERE e.race_id = ?1 AND e.distance_key = c.distance_key) AS entrants,
                 (SELECT COUNT(DISTINCT r.entrant_id) FROM runs r JOIN entrants e ON e.id = r.entrant_id
-                  WHERE e.race_id = c.race_id AND e.distance_key = c.distance_key AND ${COUNTS_AS_FINISH}) AS finished,
+                  WHERE e.race_id = ?1 AND e.distance_key = c.distance_key AND ${COUNTS_AS_FINISH}) AS finished,
                 (SELECT COUNT(*) FROM audio_packs p WHERE p.course_id = c.id) AS packs
-         FROM courses c WHERE c.race_id = ? ORDER BY c.distance_m DESC`,
+         FROM courses c WHERE c.race_id = ${courseRaceOf('?1')} ORDER BY c.distance_m DESC`,
       )
       .bind(raceId)
       .all<{ course_id: string; distance_key: string; geometry_key: string | null; entrants: number; finished: number; packs: number }>();

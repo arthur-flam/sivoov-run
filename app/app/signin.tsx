@@ -1,53 +1,51 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import type { Race } from '@sivoov/shared';
-import { useRouter } from 'expo-router';
+import type { CodeRequest, SignInAmbiguity } from '@sivoov/shared';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ApiError, api } from '@/api';
-import { Body, Button, Display, ErrorBox, Eyebrow, Screen } from '@/components/ui';
+import { ApiError, ambiguityOf } from '@/api';
+import { Body, Button, Card, Display, ErrorBox, Eyebrow, Screen } from '@/components/ui';
 import { t } from '@/i18n';
-import { DEFAULT_RACE_SLUG, useSession } from '@/stores/session';
+import { useSession } from '@/stores/session';
 import { colors, fonts, radius, space } from '@/theme';
 
+/**
+ * The email of the entry, then the code. The race and the bib are asked only when the server
+ * says the email holds more than one entry (`SignInAmbiguity`): another race, or a family
+ * sharing one address in the same race.
+ */
 export default function SignIn() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  // Back from « Supprimer mes données »: say it is done.
+  const { deleted } = useLocalSearchParams<{ deleted?: string }>();
   const requestCode = useSession((s) => s.requestCode);
   const verifyCode = useSession((s) => s.verifyCode);
   const [step, setStep] = useState<'identify' | 'code'>('identify');
-  const [bib, setBib] = useState('');
   const [email, setEmail] = useState('');
+  const [slug, setSlug] = useState<string | null>(null);
+  const [bib, setBib] = useState('');
+  const [asked, setAsked] = useState<SignInAmbiguity | null>(null);
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [races, setRaces] = useState<Race[]>([]);
-  const [slug, setSlug] = useState(DEFAULT_RACE_SLUG);
 
-  // With more than one race open, the runner says which one their bib belongs to.
-  useEffect(() => {
-    let cancelled = false;
-    api
-      .races()
-      .then((open) => {
-        if (cancelled || open.length === 0) return;
-        setRaces(open);
-        setSlug((current) => (open.some((r) => r.slug === current) ? current : open[0]!.slug));
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const who = (): CodeRequest => ({ email: email.trim(), ...(slug ? { raceSlug: slug } : {}), ...(bib.trim() ? { bib: bib.trim() } : {}) });
 
   const send = async () => {
     setBusy(true);
     setError(null);
     try {
-      const { devCode } = await requestCode(slug, bib.trim(), email.trim());
+      const { devCode } = await requestCode(who());
       if (devCode) setCode(devCode);
       setStep('code');
     } catch (e) {
-      setError(e instanceof ApiError && e.status === 404 ? t('signin.unknown') : t('common.error'));
+      const ambiguity = ambiguityOf(e);
+      if (ambiguity) {
+        // A second race list replaces the first; asking for the bib keeps the race chosen.
+        setAsked(ambiguity);
+        if (ambiguity.races.length > 0) setSlug(null);
+      } else setError(e instanceof ApiError && e.status === 404 ? t('signin.unknown') : e instanceof ApiError && e.status === 429 ? t('signin.tooMany') : t('common.error'));
     } finally {
       setBusy(false);
     }
@@ -57,7 +55,7 @@ export default function SignIn() {
     setBusy(true);
     setError(null);
     try {
-      await verifyCode(slug, bib.trim(), email.trim(), code.trim());
+      await verifyCode(who(), code.trim());
       router.replace('/home');
     } catch (e) {
       setError(e instanceof ApiError && e.status === 401 ? t('signin.badCode') : t('common.error'));
@@ -65,6 +63,16 @@ export default function SignIn() {
       setBusy(false);
     }
   };
+
+  const changeEmail = (value: string) => {
+    setEmail(value);
+    setAsked(null);
+    setSlug(null);
+    setBib('');
+  };
+
+  const races = asked?.races ?? [];
+  const ready = email.includes('@') && (races.length === 0 || slug !== null) && (!asked?.bib || bib.trim() !== '');
 
   return (
     <Screen style={{ paddingTop: insets.top + space.xl, paddingBottom: insets.bottom + space.lg }}>
@@ -75,10 +83,19 @@ export default function SignIn() {
             <>
               <Display>{t('signin.title')}</Display>
               <Body muted>{t('signin.lede')}</Body>
+              {deleted ? (
+                <Card>
+                  <Body testID="data-deleted">{t('home.deleteData.done')}</Body>
+                </Card>
+              ) : null}
               {error ? <ErrorBox>{error}</ErrorBox> : null}
-              {races.length > 1 ? (
+              <View style={styles.field}>
+                <Body style={styles.label}>{t('signin.email')}</Body>
+                <TextInput testID="email" style={styles.input} value={email} onChangeText={changeEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" />
+              </View>
+              {races.length > 0 ? (
                 <View style={styles.field}>
-                  <Body style={styles.label}>{t('signin.race')}</Body>
+                  <Body style={styles.label}>{t('signin.chooseRace')}</Body>
                   {races.map((race) => (
                     <Pressable
                       key={race.slug}
@@ -88,20 +105,18 @@ export default function SignIn() {
                       onPress={() => setSlug(race.slug)}
                       style={[styles.input, styles.race, race.slug === slug ? styles.raceOn : null]}
                     >
-                      <Body style={race.slug === slug ? styles.raceNameOn : undefined}>{race.theme.displayName}</Body>
+                      <Body style={race.slug === slug ? styles.raceNameOn : undefined}>{race.name}</Body>
                     </Pressable>
                   ))}
                 </View>
               ) : null}
-              <View style={styles.field}>
-                <Body style={styles.label}>{t('signin.bib')}</Body>
-                <TextInput testID="bib" style={styles.input} value={bib} onChangeText={setBib} keyboardType="number-pad" autoCapitalize="none" autoCorrect={false} />
-              </View>
-              <View style={styles.field}>
-                <Body style={styles.label}>{t('signin.email')}</Body>
-                <TextInput testID="email" style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} autoComplete="email" />
-              </View>
-              <Button testID="send" label={t('signin.send')} onPress={() => void send()} loading={busy} disabled={!bib.trim() || !email.includes('@')} />
+              {asked?.bib ? (
+                <View style={styles.field}>
+                  <Body style={styles.label}>{t('signin.needBib')}</Body>
+                  <TextInput testID="bib" style={styles.input} value={bib} onChangeText={setBib} keyboardType="number-pad" autoCapitalize="none" autoCorrect={false} autoFocus />
+                </View>
+              ) : null}
+              <Button testID="send" label={t('signin.send')} onPress={() => void send()} loading={busy} disabled={!ready} />
             </>
           ) : (
             <>

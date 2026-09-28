@@ -2,8 +2,9 @@ import type { Race } from '@sivoov/shared';
 import { translator } from '@sivoov/shared';
 import type { Locale } from '@sivoov/shared';
 
-type Step1 = { step: 'identify'; error?: 'unknown' | 'too_many' | 'invalid'; bib?: string; email?: string };
-type Step2 = { step: 'code'; bib: string; email: string; error?: 'bad_code'; devCode?: string };
+/** `askBib`: two entries of this race share the email, so the bib says which one. */
+type Step1 = { step: 'identify'; error?: 'unknown' | 'too_many' | 'invalid'; bib?: string; email?: string; askBib?: boolean };
+type Step2 = { step: 'code'; bib?: string; email: string; error?: 'bad_code'; devCode?: string };
 /** `next`: a same-site path to return to once signed in, carried through both steps. */
 type Props = { race: Race; locale: Locale; state: Step1 | Step2; next?: string | null };
 
@@ -21,19 +22,22 @@ export const SigninPage = ({ race, locale, state, next }: Props) => {
           <h1>{t('signin.title')}</h1>
           <p>{t('signin.lede')}</p>
           {state.error === 'unknown' ? <div class="error" role="alert">{t('signin.unknown')}</div> : null}
-          {state.error === 'too_many' ? <div class="error" role="alert">{locale === 'fr' ? 'Trop de demandes. Réessayez dans une heure.' : 'Too many requests. Try again in an hour.'}</div> : null}
+          {state.error === 'too_many' ? <div class="error" role="alert">{t('signin.tooMany')}</div> : null}
+          {state.askBib ? <div class="error" role="alert">{t('signin.needBib')}</div> : null}
           {state.error === 'invalid' ? <div class="error" role="alert">{t('common.error')}</div> : null}
           <form method="post" action={`/${race.slug}/signin`}>
             <input type="hidden" name="step" value="identify" />
             {nextInput}
             <div class="field">
-              <label for="bib">{t('signin.bib')}</label>
-              <input id="bib" name="bib" inputmode="numeric" autocomplete="off" required value={state.bib ?? ''} />
-            </div>
-            <div class="field">
               <label for="email">{t('signin.email')}</label>
               <input id="email" name="email" type="email" autocomplete="email" required value={state.email ?? ''} />
             </div>
+            {state.askBib ? (
+              <div class="field">
+                <label for="bib">{t('signin.bib')}</label>
+                <input id="bib" name="bib" inputmode="numeric" autocomplete="off" required autofocus value={state.bib ?? ''} />
+              </div>
+            ) : null}
             <button class="btn btn-race" type="submit" style="width:100%">
               {t('signin.send')}
             </button>
@@ -47,7 +51,7 @@ export const SigninPage = ({ race, locale, state, next }: Props) => {
           <form method="post" action={`/${race.slug}/signin`}>
             <input type="hidden" name="step" value="code" />
             {nextInput}
-            <input type="hidden" name="bib" value={state.bib} />
+            {state.bib ? <input type="hidden" name="bib" value={state.bib} /> : null}
             <input type="hidden" name="email" value={state.email} />
             <div class="field">
               <label for="code">{t('signin.code')}</label>

@@ -1,6 +1,6 @@
 # Status
 
-Updated: 2026-09-27. Race week: 14-15 November 2026 (Marathon International de Deauville).
+Updated: 2026-09-28. Race week: 14-15 November 2026 (Marathon International de Deauville).
 Second race: 10 km des Champs-Élysées, 7 February 2027 (docs/CHAMPS_ELYSEES.md).
 Milestones: PRD.md section 8 (M1 26 Sep, M2 10 Oct, M3 17 Oct, M4 31 Oct, freeze 7 Nov).
 
@@ -10,6 +10,28 @@ Live: https://run.sivoov.app/deauville-2026 (production), https://preview.run.si
 (preview). Test sign-in and roles: docs/ACCESS.md. M1 is done. The first real run happened
 on 2026-09-27 (below); M2 still needs a real finish. Production has the race and its courses;
 no real entrants yet.
+
+### Ready for iOS and for organizers' testing (2026-09-28, branch `claude/ios-readiness`)
+The owner wants a TestFlight link (and a Play testing link) for a few race organizers. Built,
+so the first App Review passes the first time (runbook: STORES.md):
+- **iOS « Lorsque l'app est active » is enough**: the pre-flight accepted only « Toujours », which
+  iOS never offers in its first prompt. iOS is no longer asked for it; background updates start
+  with "while using" (checked in expo-location's source: it needs only the foreground permission
+  and sets `allowsBackgroundLocationUpdates`). Android unchanged. Not yet on an iPhone.
+- **Demo races** (ARCHITECTURE.md): staff press « Créer la démo » in a race's settings. Its own
+  runners, results and admin (the real race's dashboard never sees them), the real race's courses
+  and sound through `demo_of` (always in sync), open every day, a ten-minute simulated run on its
+  home for a desk demo, and App Review's runner (`review@example.com`, code `REVIEW_CODE`).
+- **Sign-in by email**: the race is worked out; asked only when the email is in several races,
+  the bib only when two entries of one race share the email. Web sign-in too.
+- **Privacy**: `/confidentialite` (`/privacy`), linked from every footer and the app;
+  « Supprimer mes données » on the app's home (runs, traces, cards, AI lines, sessions; the
+  entry stays with the organizer).
+- **Native config** (next build): ids `app.sivoov.run{,.preview,.dev}`, no non-exempt
+  encryption, app privacy manifest, French and English location prompts. Install page links
+  from `IOS_APP_URL` / `ANDROID_APP_URL` (« L’app arrive… » until set).
+Verified: 212 API tests (18 new), the web target (reviewer sign-in, demo home and run, deletion),
+the screenshot rig, and an `expo prebuild` of the iOS project (plist, strings, manifest).
 
 ### The 10 km des Champs-Élysées (2026-09-27, branch `claude/champs-elysees`)
 The owner's call: convince the organizer (SCO, who also run Deauville, sold out, already
@@ -85,9 +107,11 @@ Anchored to PRD milestones (M2 10 Oct, M3 17 Oct, M4 31 Oct).
    the tracker has seen; a phone that reports its speed more than ~25 % low would still lose distance.
    For M2, a real finish: nobody has covered a course's full distance with the app yet. A test
    entrant on a short course on preview (a 5 or 10 km course) would make that a normal run.
-2. **iOS does not exist yet.** No Apple Developer Program step done, no `eas credentials`,
-   no build. Highest schedule risk on this page (PRD calls App Store review the critical
-   path, submission due mid-October): start it before anything cosmetic.
+2. **iOS: the accounts, then the first build.** The app side is ready (above); the owner's
+   steps are in STORES.md. Then, on an iPhone (an iPad proves audio and sign-in, not GPS): a real
+   run with the screen locked, background audio with Spotify ducked (with `duckOthers`, iOS may
+   keep other audio ducked for the whole run), Gemini WAV lines. Then the TestFlight public link
+   in `IOS_APP_URL`.
 4. **Real uploads and link previews**: send a real Strava and a real Garmin Connect export
    through `/{race}/upload`; paste a result link into WhatsApp and iMessage and look at
    the preview.
@@ -112,6 +136,19 @@ Anchored to PRD milestones (M2 10 Oct, M3 17 Oct, M4 31 Oct).
    image, English admin variant.
 
 ## Owner actions
+
+- **Stores** (STORES.md): Apple Developer Program as an organization (D-U-N-S), Play Console
+  organization account. Then send the TestFlight and Play testing links to set as `IOS_APP_URL`
+  and `ANDROID_APP_URL`.
+- **After merging `claude/ios-readiness`**: `npx wrangler secret put REVIEW_CODE` (production,
+  six digits), then « Créer la démo » on the race to show (staff, its Réglages), and add the
+  organizers to the demo's Coureurs. The migration (0007) runs with the deploy.
+- **The privacy page names the company**: give its legal name, registered address and a
+  contact email for data questions (`LEGAL_NAME`, `LEGAL_ADDRESS`, `PRIVACY_EMAIL` vars). Until
+  then it says « édité par Sivoov » with no address. Have the text read by whoever does the
+  company's legal side.
+- **The S23**: `npm run device:preview` once to install the shell under its new package
+  (`app.sivoov.run.preview`); the old one keeps receiving updates meanwhile.
 
 - **Google AI billing for Gemini voices**: the key is on a tier that allows a few TTS requests a
   minute. Before real entrants (live splits for many runners at once), enable billing on the
@@ -145,6 +182,17 @@ Anchored to PRD milestones (M2 10 Oct, M3 17 Oct, M4 31 Oct).
 
 Newest to oldest, durable ones only. Rationale already written up elsewhere is not
 repeated here (see ARCHITECTURE.md, AUDIO.md, WORKFLOW.md).
+
+- Store ids `app.sivoov.run`, accounts the company's; nothing was published before (2026-09-28).
+- iOS asks only for "while using" location; Android still needs "always".
+- A demo race borrows the real race's courses by `demo_of` instead of copying them: always in
+  sync, no publish hook. Runner data stays keyed on the entrant's race.
+- Sign-in is by email; the answer « this email is in these races » names the races to whoever
+  types the email. Accepted: entries and results are public in road racing anyway.
+- « Supprimer mes données » erases what Sivoov collected and keeps the entry (the organizer's
+  record); rendered voices stay in the sentence-hash cache, tied to nobody.
+- The demo race's home offers a simulated run in release builds; everywhere else simulation
+  stays development-only.
 
 - The race page carries the race's identity (its colours, an accent, its photo, logo): the
   owner asked for a good landing page, which lifts "no opinionated design" for the race layer
@@ -206,6 +254,13 @@ repeated here (see ARCHITECTURE.md, AUDIO.md, WORKFLOW.md).
 - Champs-Élysées: the BBC sounds are for a draft only (RemArc licence); Lyria's commercial
   terms are unchecked; the photos and logo are hot-linked from the organizer's site.
 - Gemini lines are WAV: never played on an iPhone yet (Android sniffs the format).
+- iOS has never run the app. "While using" background updates, background audio started from
+  the location task, and `duckOthers` over other apps are read from the docs and the source,
+  not seen on a phone.
+- The demo run is a simulation at about 5x (10 km) to 21x (marathon): lines crowd at the higher
+  speeds; nobody has listened to one end to end.
+- The privacy page has no retention job behind "kept while the race is online": nothing deletes
+  old runs automatically yet.
 - The studio cannot upload an ambiance, nor pick a Gemini voice from its voice list (it keeps
   one it is given): the production tool sets both.
 - The app still only runs one race at a time per sign-in (fine), and the home's race card and

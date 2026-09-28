@@ -41,6 +41,7 @@ export const RaceRowSchema = z.object({
   support_email: z.string().nullable().optional(),
   theme: json(RaceThemeSchema),
   status: z.string(),
+  demo_of: z.string().nullable().optional(),
 });
 
 export const raceFromRow = (row: unknown): Race => {
@@ -49,6 +50,7 @@ export const raceFromRow = (row: unknown): Race => {
     id: r.id, slug: r.slug, name: r.name, city: r.city, country: r.country,
     dateStart: r.date_start, dateEnd: r.date_end, windowStart: r.window_start, windowEnd: r.window_end,
     timezone: r.timezone, organizerUrl: r.organizer_url ?? undefined, supportEmail: r.support_email ?? undefined, theme: r.theme, status: r.status,
+    demoOf: r.demo_of ?? undefined,
   });
 };
 

@@ -5,6 +5,7 @@ import type { AppEnv } from '../env';
 import { db } from '../db/queries';
 import { requireCan, requireOrganizer } from '../lib/orgAuth';
 import type { OrgVars } from '../lib/orgAuth';
+import { makeDemo } from '../lib/demo';
 import { storeRaceImage } from '../lib/raceMedia';
 import type { StoredImage } from '../lib/raceMedia';
 import { SETTINGS_SECTIONS, applySettings } from '../lib/raceSettings';
@@ -20,16 +21,33 @@ export const orgRace = new Hono<AppEnv & { Variables: OrgVars }>();
 
 type SettingsState = { failure?: SettingsFailure; imageError?: ImageError };
 
-const settingsPage = (c: OrgContext, state: SettingsState = {}) =>
+/** Staff also see the demo card: the race's demo, or the race a demo plays. */
+const demoOf = async (c: OrgContext) => {
+  if (!c.get('access').staff) return undefined;
+  const race = c.get('race');
+  const q = db(c.env.DB);
+  return race.demoOf ? { demo: null, source: await q.raceById(race.demoOf) } : { demo: await q.demoFor(race.id), source: null };
+};
+
+const settingsPage = async (c: OrgContext, state: SettingsState = {}) =>
   orgPage(
     c,
     'settings',
     'Réglages',
-    <OrgSettingsPage race={c.get('race')} done={doneMessage(c, SETTINGS_DONE) ? c.req.query('done') : undefined} {...state} />,
+    <OrgSettingsPage race={c.get('race')} done={doneMessage(c, SETTINGS_DONE) ? c.req.query('done') : undefined} demo={await demoOf(c)} {...state} />,
     { status: state.failure || state.imageError ? 400 : 200 },
   );
 
 orgRace.get('/:slug/settings', requireOrganizer, requireCan('edit_race'), (c) => settingsPage(c));
+
+/** Staff: create the race's demo, or give it the race's look again (lib/demo.ts). */
+orgRace.post('/:slug/demo', requireOrganizer, requireCan('edit_race'), async (c) => {
+  const race = c.get('race');
+  if (!c.get('access').staff) return c.redirect(`/org/${race.slug}?denied=1`);
+  const outcome = await makeDemo(c.env, race);
+  if (!outcome.ok) return c.redirect(`/org/${race.slug}/settings#demo`);
+  return c.redirect(`/org/${race.slug}/settings?done=demo#demo`);
+});
 
 /**
  * One card's form: the race, the window, the contact, the colors or the status. One route per

@@ -4,7 +4,7 @@ Everything here runs from the laptop over a USB cable. No EAS queue, no Apple ac
 Play console. The Android SDK and JDK 17 are already installed on this Mac, so the dev
 client is compiled locally and installed straight onto the phone.
 
-The dev build is called **Sivoov (Dev)** (`com.arthur.flam.sivoov.dev`) and always talks to
+The dev build is called **Sivoov (Dev)** (`app.sivoov.run.dev`) and always talks to
 **preview** (`https://preview.run.sivoov.app`), never production. It installs next to a real
 Sivoov without replacing it.
 
@@ -94,7 +94,7 @@ without metro, so it cannot leave the house. `Sivoov (Preview)` can.
 ```bash
 npm run device:preview      # ~15 min: prebuild for the preview package, release build, install
 ```
-It installs `com.arthur.flam.sivoov.preview` alongside the dev one — different package, both
+It installs `app.sivoov.run.preview` alongside the dev one — different package, both
 can sit on the phone — grants the location permissions and the battery exemption over adb, and
 launches it. From then on:
 - the bundle is inside the APK, so no metro, no cable, no laptop;
@@ -102,6 +102,10 @@ launches it. From then on:
   (`gh workflow run deploy.yml -f action=publish-preview`, then **Diagnostic → Chercher une
   mise à jour** on the phone);
 - it is a release build, so it is the only honest place to measure battery.
+
+The package became `app.sivoov.run.preview` on 2026-09-28 (it was `com.arthur.flam.sivoov.preview`).
+A phone with the old shell keeps getting preview updates (same Expo project, same runtime
+2.0.0); run `npm run device:preview` once to install the new one, then uninstall the old.
 
 It signs in from scratch like a new phone: `coureur@example.com`, code `000000` on preview.
 

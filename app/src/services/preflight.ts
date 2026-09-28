@@ -1,7 +1,8 @@
 import { formatMegabytes } from '@sivoov/shared';
 import type { Locale, MessageKey, Params } from '@sivoov/shared';
 import type { PackStatus } from '@/audio/packStore';
-import type { LocationPermission } from '@/services/location/device';
+import { keepsTrackingLocked } from '@/services/location/permission';
+import type { DevicePlatform, LocationPermission } from '@/services/location/permission';
 
 /** One pre-flight check as the screen shows it: a state and a French message key. */
 export type CheckStatus = 'pending' | 'ok' | 'warn';
@@ -11,10 +12,12 @@ export const GPS_LOCK_ACCURACY_M = 30;
 export const GPS_LOCK_TIMEOUT_MS = 30_000;
 export const BATTERY_WARN_LEVEL = 0.5;
 
-export const permissionCheck = (permission: LocationPermission | null): Check => {
+/** The permission as the runner needs it: one that keeps measuring with the screen locked on this platform. */
+export const permissionCheck = (permission: LocationPermission | null, platform: DevicePlatform): Check => {
   if (permission === null || permission === 'undetermined') return { status: 'pending', key: 'prepare.check.permission.pending' };
   if (permission === 'always') return { status: 'ok', key: 'prepare.check.permission.ok' };
   if (permission === 'web') return { status: 'ok', key: 'prepare.check.permission.web' };
+  if (keepsTrackingLocked(permission, platform)) return { status: 'ok', key: 'prepare.check.permission.whileUsing' };
   if (permission === 'foreground') return { status: 'warn', key: 'prepare.check.permission.foreground' };
   return { status: 'warn', key: 'prepare.check.permission.denied' };
 };

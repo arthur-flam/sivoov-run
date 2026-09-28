@@ -4,7 +4,8 @@ import { CodeRequestSchema, CodeVerifySchema, buildTrack, t, translator } from '
 import type { Course, CourseTrack } from '@sivoov/shared';
 import type { AppEnv } from '../env';
 import { db } from '../db/queries';
-import { Layout } from '../pages/layout';
+import { Layout, PRIVACY_PATH } from '../pages/layout';
+import { PrivacyPage, privacyTitle } from '../pages/privacy';
 import type { OpenGraph } from '../pages/layout';
 import { previewImage } from '../lib/cards';
 import { loadReel } from '../lib/reel';
@@ -49,6 +50,20 @@ pages.get('/', async (c) => {
   );
 });
 
+/** Before `/:slug`, which would read the word as a race. The store listings link here. */
+pages.get(PRIVACY_PATH, (c) => {
+  const locale = localeOf(c);
+  const operator = { name: c.env.LEGAL_NAME || undefined, address: c.env.LEGAL_ADDRESS || undefined, email: c.env.PRIVACY_EMAIL || undefined };
+  return c.html(
+    <Layout title={`${privacyTitle(locale)} · Sivoov Run`} locale={locale} path={PRIVACY_PATH}>
+      <PrivacyPage locale={locale} operator={operator} />
+    </Layout>,
+  );
+});
+
+/** The address an English speaker would guess, like /organizers. */
+pages.get('/privacy', (c) => c.redirect(`${PRIVACY_PATH}?lang=en`, 301));
+
 pages.get('/:slug', async (c) => {
   const locale = localeOf(c);
   const q = db(c.env.DB);
@@ -90,26 +105,29 @@ pages.post('/:slug/signin', async (c) => {
   const form = await c.req.parseBody();
   const raceSlug = race.slug;
   const next = sameSitePath(form.next);
-  const render = (state: Parameters<typeof SigninPage>[0]['state'], status: 200 | 400 | 401 | 404 | 429 = 200) =>
+  const render = (state: Parameters<typeof SigninPage>[0]['state'], status: 200 | 400 | 401 | 404 | 409 | 429 = 200) =>
     c.html(
       <Layout title={`${locale === 'fr' ? 'Identifiez-vous' : 'Sign in'} · ${race.theme.displayName}`} locale={locale} race={race} path={`/${race.slug}/signin`}>
         <SigninPage race={race} locale={locale} state={state} next={next} />
       </Layout>,
       status,
     );
+  // The race is the page's; the bib only comes when two entries of it share the email.
+  const bib = typeof form.bib === 'string' && form.bib.trim() ? form.bib : undefined;
   if (form.step === 'identify') {
-    const parsed = CodeRequestSchema.safeParse({ raceSlug, bib: form.bib, email: form.email });
-    if (!parsed.success) return render({ step: 'identify', error: 'invalid', bib: String(form.bib ?? ''), email: String(form.email ?? '') }, 400);
+    const parsed = CodeRequestSchema.safeParse({ raceSlug, bib, email: form.email });
+    if (!parsed.success) return render({ step: 'identify', error: 'invalid', bib, email: String(form.email ?? '') }, 400);
     const result = await requestCode(c.env, parsed.data, (p) => c.executionCtx.waitUntil(p));
+    if (!result.ok && result.error === 'ambiguous') return render({ step: 'identify', askBib: true, email: parsed.data.email }, 409);
     if (!result.ok) {
       const error = result.error === 'too_many_requests' ? 'too_many' : 'unknown';
-      return render({ step: 'identify', error, bib: parsed.data.bib, email: parsed.data.email }, error === 'too_many' ? 429 : 404);
+      return render({ step: 'identify', error, bib: parsed.data.bib, askBib: !!parsed.data.bib, email: parsed.data.email }, error === 'too_many' ? 429 : 404);
     }
     return render({ step: 'code', bib: parsed.data.bib, email: parsed.data.email, devCode: result.devCode });
   }
 
-  const parsed = CodeVerifySchema.safeParse({ raceSlug, bib: form.bib, email: form.email, code: form.code });
-  if (!parsed.success) return render({ step: 'code', bib: String(form.bib ?? ''), email: String(form.email ?? ''), error: 'bad_code' }, 400);
+  const parsed = CodeVerifySchema.safeParse({ raceSlug, bib, email: form.email, code: form.code });
+  if (!parsed.success) return render({ step: 'code', bib, email: String(form.email ?? ''), error: 'bad_code' }, 400);
   const result = await verifyCode(c.env, parsed.data);
   if (!result.ok) return render({ step: 'code', bib: parsed.data.bib, email: parsed.data.email, error: 'bad_code' }, 401);
   setCookie(c, SESSION_COOKIE, result.token, { path: '/', httpOnly: true, sameSite: 'Lax', secure: c.env.ENVIRONMENT !== 'local', maxAge: 180 * 86400 });
@@ -126,7 +144,7 @@ pages.get('/:slug/app', async (c) => {
   if (!entrant || entrant.raceId !== race.id) return c.redirect(`/${race.slug}/signin`);
   return c.html(
     <Layout title={`${race.theme.displayName} · Sivoov Run`} locale={locale} race={race} path={`/${race.slug}/app`}>
-      <InstallPage race={race} entrant={entrant} locale={locale} />
+      <InstallPage race={race} entrant={entrant} locale={locale} links={{ ios: c.env.IOS_APP_URL || undefined, android: c.env.ANDROID_APP_URL || undefined }} />
     </Layout>,
   );
 });

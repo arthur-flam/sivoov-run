@@ -1,6 +1,7 @@
 import type { Race } from '@sivoov/shared';
 import type { SettingsFailure } from '../../lib/raceSettings';
 import { settingsValues } from '../../lib/raceSettings';
+import { DemoCard } from './settingsDemo';
 import { LookCard } from './settingsLook';
 import type { ImageError } from './settingsLook';
 import { StatusCard } from './settingsPublish';
@@ -20,6 +21,7 @@ export const SETTINGS_DONE: Record<string, string> = {
   hero: 'La photo est en place.',
   hero_removed: 'La photo est retirée.',
   status: 'L’état de la course est enregistré.',
+  demo: 'La démo est prête. Ajoutez-y les testeurs dans ses Coureurs.',
 };
 
 /** Which card shows the message of each `done` key. */
@@ -34,6 +36,7 @@ const CARD_OF: Record<string, string> = {
   hero: 'look',
   hero_removed: 'look',
   status: 'status',
+  demo: 'demo',
 };
 
 /** Which card holds the fields of each form section. */
@@ -47,10 +50,11 @@ const CARD_TITLES: Record<string, string> = {
   status: 'Publication',
 };
 
-type Props = { race: Race; done?: string; failure?: SettingsFailure; imageError?: ImageError };
+/** `demo`: staff see the demo card (`demo` and `source` are the race's demo, or the race a demo plays). */
+type Props = { race: Race; done?: string; failure?: SettingsFailure; imageError?: ImageError; demo?: { demo: Race | null; source: Race | null } };
 
 /** The race's settings: one card per subject, each saved on its own. */
-export const OrgSettingsPage = ({ race, done, failure, imageError }: Props) => {
+export const OrgSettingsPage = ({ race, done, failure, imageError, demo }: Props) => {
   const values = { ...settingsValues(race), ...(failure?.values ?? {}) };
   const errors = failure?.errors ?? {};
   const flashFor = (card: string) => (done && CARD_OF[done] === card ? SETTINGS_DONE[done] : undefined);
@@ -81,6 +85,7 @@ export const OrgSettingsPage = ({ race, done, failure, imageError }: Props) => {
           <StatusCard {...card('status')} />
           <ContactCard {...card('contact')} />
           <SaleCard race={race} />
+          {demo ? <DemoCard race={race} demo={demo.demo} source={demo.source} flash={flashFor('demo')} /> : null}
         </div>
       </div>
     </>

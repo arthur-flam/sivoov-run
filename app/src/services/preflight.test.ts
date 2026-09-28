@@ -11,12 +11,18 @@ describe('pre-flight checks', () => {
     expect(gpsCheck(null, 30_000)).toEqual({ status: 'warn', key: 'prepare.check.gps.timeout' });
     expect(gpsCheck(65, 31_000)).toEqual({ status: 'warn', key: 'prepare.check.gps.weak', params: { accuracy: 65 } });
   });
-  it('wants the "always" permission on device and accepts the web foreground one', () => {
-    expect(permissionCheck(null).status).toBe('pending');
-    expect(permissionCheck('always').status).toBe('ok');
-    expect(permissionCheck('web').status).toBe('ok');
-    expect(permissionCheck('foreground')).toMatchObject({ status: 'warn', key: 'prepare.check.permission.foreground' });
-    expect(permissionCheck('denied')).toMatchObject({ status: 'warn', key: 'prepare.check.permission.denied' });
+  it('wants the "always" permission on Android and accepts the web foreground one', () => {
+    expect(permissionCheck(null, 'android').status).toBe('pending');
+    expect(permissionCheck('always', 'android').status).toBe('ok');
+    expect(permissionCheck('web', 'web').status).toBe('ok');
+    expect(permissionCheck('foreground', 'android')).toMatchObject({ status: 'warn', key: 'prepare.check.permission.foreground' });
+    expect(permissionCheck('denied', 'android')).toMatchObject({ status: 'warn', key: 'prepare.check.permission.denied' });
+  });
+  it('takes "while using" on an iPhone: iOS keeps a run started on screen measuring when it locks', () => {
+    expect(permissionCheck('foreground', 'ios')).toEqual({ status: 'ok', key: 'prepare.check.permission.whileUsing' });
+    expect(permissionCheck('always', 'ios').status).toBe('ok');
+    expect(permissionCheck('denied', 'ios')).toMatchObject({ status: 'warn', key: 'prepare.check.permission.denied' });
+    expect(canStart({ gps: gpsCheck(10, 1000), permission: permissionCheck('foreground', 'ios') })).toBe(true);
   });
   it('warns under 50 % battery and shrugs when the platform cannot tell', () => {
     expect(batteryCheck(undefined).status).toBe('pending');
@@ -25,9 +31,9 @@ describe('pre-flight checks', () => {
     expect(batteryCheck(-1).status).toBe('ok');
   });
   it('enables the start only with a GPS lock and the permission ok', () => {
-    expect(canStart({ gps: gpsCheck(10, 1000), permission: permissionCheck('always') })).toBe(true);
-    expect(canStart({ gps: gpsCheck(10, 1000), permission: permissionCheck('foreground') })).toBe(false);
-    expect(canStart({ gps: gpsCheck(null, 1000), permission: permissionCheck('always') })).toBe(false);
+    expect(canStart({ gps: gpsCheck(10, 1000), permission: permissionCheck('always', 'android') })).toBe(true);
+    expect(canStart({ gps: gpsCheck(10, 1000), permission: permissionCheck('foreground', 'android') })).toBe(false);
+    expect(canStart({ gps: gpsCheck(null, 1000), permission: permissionCheck('always', 'android') })).toBe(false);
   });
   it('says the audio pack is on the phone, and how big it is', () => {
     expect(packCheck({ status: 'ready', bytes: 1_850_000 }, 'fr')).toEqual({ status: 'ok', key: 'prepare.check.pack.ok', params: { size: '1,9 Mo' } });
@@ -38,7 +44,7 @@ describe('pre-flight checks', () => {
   it('warns when the pack did not come down or does not exist, and never holds the start for it', () => {
     expect(packCheck({ status: 'error', bytes: 0 }, 'fr')).toEqual({ status: 'warn', key: 'prepare.check.pack.error' });
     expect(packCheck({ status: 'none', bytes: 0 }, 'fr')).toEqual({ status: 'warn', key: 'prepare.check.pack.none' });
-    const checks = { gps: gpsCheck(10, 1000), permission: permissionCheck('always'), pack: packCheck({ status: 'error', bytes: 0 }, 'fr') };
+    const checks = { gps: gpsCheck(10, 1000), permission: permissionCheck('always', 'android'), pack: packCheck({ status: 'error', bytes: 0 }, 'fr') };
     expect(canStart(checks)).toBe(true);
   });
 });

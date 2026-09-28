@@ -21,6 +21,8 @@ export default defineConfig(async () => {
             CLOUDFLARE_AI_TOKEN: 'test-cf-ai-token',
             MAPBOX_TOKEN: '',
             BROWSER_RENDERING_TOKEN: '',
+            // App Review's fixed code (lib/testCode.ts), unlike TEST_CODE so a test can tell them apart.
+            REVIEW_CODE: '424242',
           },
         },
       }),

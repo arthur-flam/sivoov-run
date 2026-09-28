@@ -1,0 +1,6 @@
+{
+  "ios": {
+    "NSLocationWhenInUseUsageDescription": "Sivoov measures your run's distance and time, even with the screen locked, and plays the announcements at the right places on the course.",
+    "NSLocationAlwaysAndWhenInUseUsageDescription": "Sivoov keeps measuring your run with the screen locked, phone in your pocket."
+  }
+}

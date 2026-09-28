@@ -71,6 +71,15 @@ export const scenes: Scene[] = [
     },
   },
   {
+    id: 'privacy',
+    title: 'Privacy: what the app collects, and « Supprimer mes données »',
+    go: async (page, shoot) => {
+      await page.goto('/confidentialite');
+      await expect(page.getByRole('heading', { level: 1 })).toHaveText('Confidentialité');
+      await shoot();
+    },
+  },
+  {
     id: 'landing',
     title: 'Landing — the race, the course, the pitch',
     go: async (page, shoot) => {
@@ -81,10 +90,10 @@ export const scenes: Scene[] = [
   },
   {
     id: 'signin',
-    title: 'Sign-in — bib and email',
+    title: 'Sign-in — the email of the entry',
     go: async (page, shoot) => {
       await page.goto(`${RACE}/signin`);
-      await expect(page.getByLabel('Numéro de dossard')).toBeVisible();
+      await expect(page.getByLabel('Email')).toBeVisible();
       await shoot();
     },
   },
@@ -93,7 +102,6 @@ export const scenes: Scene[] = [
     title: 'Sign-in — the six-digit code',
     go: async (page, shoot) => {
       await page.goto(`${RACE}/signin`);
-      await page.getByLabel('Numéro de dossard').fill('1001');
       await page.getByLabel('Email').fill('marc@example.com');
       await page.getByRole('button', { name: 'Recevoir mon code' }).click();
       await expect(page.getByRole('heading', { level: 1 })).toHaveText('Votre code');
@@ -106,7 +114,6 @@ export const scenes: Scene[] = [
     go: async (page, shoot) => {
       await page.goto(`${RACE}/signin`);
       // A different entrant from the signin-code scene: codes are capped at 5 per hour each.
-      await page.getByLabel('Numéro de dossard').fill('1002');
       await page.getByLabel('Email').fill('lea@example.com');
       await page.getByRole('button', { name: 'Recevoir mon code' }).click();
       await expect(page.getByLabel('Code à 6 chiffres')).toHaveValue(/\d{6}/);

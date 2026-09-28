@@ -1,3 +1,4 @@
+import type { Race } from '@sivoov/shared';
 import type { Bindings } from '../env';
 
 /** Test accounts: the seeded entrants and organizers on fake domains, never a real person. */
@@ -9,6 +10,14 @@ export const isTestAccount = (email: string): boolean => /@example\.(com|org|net
  */
 export const acceptsTestCode = (env: Pick<Bindings, 'TEST_CODE' | 'ENVIRONMENT'>, email: string, code: string): boolean =>
   env.ENVIRONMENT !== 'production' && !!env.TEST_CODE && code === env.TEST_CODE && isTestAccount(email);
+
+/**
+ * App Review signs in with a fixed code (`REVIEW_CODE`, a secret on production), and only as a
+ * test account of a demo race: an `@example.com` address has no inbox and a demo race has no
+ * real runner, so the code opens nothing that matters. See docs/ACCESS.md.
+ */
+export const acceptsReviewCode = (env: Pick<Bindings, 'REVIEW_CODE'>, email: string, race: Pick<Race, 'demoOf'>, code: string): boolean =>
+  !!env.REVIEW_CODE && code === env.REVIEW_CODE && !!race.demoOf && isTestAccount(email);
 
 /**
  * Voice rendering costs ElevenLabs credit: on preview and production, a session opened with the

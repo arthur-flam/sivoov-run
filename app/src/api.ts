@@ -12,9 +12,10 @@ import {
   RaceSchema,
   RunSchema,
   RunTraceSchema,
+  SignInAmbiguitySchema,
   formatClientHeader,
 } from '@sivoov/shared';
-import type { LiveVoiceRequest, Run, RunTrace } from '@sivoov/shared';
+import type { CodeRequest, LiveVoiceRequest, Run, RunTrace, SignInAmbiguity } from '@sivoov/shared';
 
 export const API_URL: string = (Constants.expoConfig?.extra as { apiUrl?: string } | undefined)?.apiUrl ?? 'https://run.sivoov.app';
 
@@ -35,10 +36,16 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     public code: string,
+    /** The answer's body, for the errors that carry more than a code (a 409 `ambiguous` sign-in). */
+    public body: unknown = null,
   ) {
     super(`${status} ${code}`);
   }
 }
+
+/** The races or the bib a sign-in must name, when the email holds more than one entry. */
+export const ambiguityOf = (e: unknown): SignInAmbiguity | null =>
+  e instanceof ApiError && e.status === 409 ? (SignInAmbiguitySchema.safeParse(e.body).data ?? null) : null;
 
 /** Default for small calls; a phone on a weak signal must fail fast rather than hang. */
 const TIMEOUT_MS = 20_000;
@@ -64,7 +71,7 @@ const request = async <T extends z.ZodType>(path: string, schema: T, init: Reque
       headers: { 'Content-Type': 'application/json', [CLIENT_HEADER]: CLIENT, ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(init.headers ?? {}) },
     });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw new ApiError(res.status, (body as { error?: string }).error ?? 'unknown');
+    if (!res.ok) throw new ApiError(res.status, (body as { error?: string }).error ?? 'unknown', body);
     return schema.parse(body);
   } catch (e) {
     if (controller.signal.aborted) throw new Error('timeout');
@@ -79,12 +86,11 @@ export const MeSchema = z.object({ entrant: EntrantPublicSchema, race: RaceSchem
 export type Me = z.infer<typeof MeSchema>;
 
 export const api = {
-  /** The races open to sign-in, soonest first. */
-  races: () => request('/races', z.object({ races: z.array(RaceSchema) })).then((r) => r.races.filter((race) => race.status === 'open' || race.status === 'live')),
-  requestCode: (raceSlug: string, bib: string, email: string) =>
-    request('/auth/code', z.object({ sent: z.boolean(), devCode: z.string().optional() }), { method: 'POST', body: JSON.stringify({ raceSlug, bib, email }) }),
-  verifyCode: (raceSlug: string, bib: string, email: string, code: string) =>
-    request('/auth/verify', VerifySchema, { method: 'POST', body: JSON.stringify({ raceSlug, bib, email, code }) }),
+  /** The email, and the race or the bib once the server asked for them (`ambiguityOf`). */
+  requestCode: (who: CodeRequest) => request('/auth/code', z.object({ sent: z.boolean(), devCode: z.string().optional() }), { method: 'POST', body: JSON.stringify(who) }),
+  verifyCode: (who: CodeRequest, code: string) => request('/auth/verify', VerifySchema, { method: 'POST', body: JSON.stringify({ ...who, code }) }),
+  /** « Supprimer mes données »: the runs, traces and sessions go; the entry stays with the organizer. */
+  deleteMe: (token: string) => request('/me', z.object({ ok: z.boolean(), runs: z.number() }), { method: 'DELETE' }, token),
   me: (token: string) => request('/me', MeSchema, {}, token),
   signOut: (token: string) => request('/me/signout', z.object({ ok: z.boolean() }), { method: 'POST' }, token),
   geometry: (courseId: string) => request(`/courses/${courseId}/geometry`, CourseGeometrySchema),

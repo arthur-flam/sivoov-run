@@ -42,7 +42,8 @@ docs/
 
 ## Domain model (v1)
 ```
-race          id, slug, name, city, dates, window_start, window_end, theme(json), status
+race          id, slug, name, city, dates, window_start, window_end, theme(json), status,
+              demo_of (a demo race: the race whose courses and sound it plays)
 course        race_id, distance_key (marathon|half|10k), distance_m, gpx (R2), landmarks(json)
 entrant       race_id, bib, email, first_name, last_name, distance_key, address(json), source
 session       entrant_id, token_hash, expires_at            (magic code auth)
@@ -113,9 +114,30 @@ multi-hour run; added 2026-09-13), expo-file-system (downloads the audio pack to
 dir so a run never needs the network; added 2026-09-13). Nothing else without a recorded decision.
 
 ## Identity and stores
-Reuse the existing Expo project (slug `sivoov`, owner `arthur.flam`) and bundle ids
-`com.arthur.flam.sivoov{,.preview,.dev}` so the App Store record and credentials carry
-over. The app name in stores stays "Sivoov".
+Bundle id and package `app.sivoov.run{,.preview,.dev}` (2026-09-28: nothing was ever published
+under the old `com.arthur.flam.sivoov` ids, and the owner wanted no personal name in them).
+Store accounts are the company's (organization, D-U-N-S). The Expo project stays (slug `sivoov`,
+owner `arthur.flam`): invisible to users, and it keeps the OTA channels. Name "Sivoov". iOS
+declares no non-exempt encryption and an app-level privacy manifest (`app.config.ts`); the
+location prompts are French and English (`app/locales/`). Runbook: STORES.md.
+
+## Demo races
+A demo race (`races.demo_of`) is a copy of a real race for the organizers' testers and App
+Review: same name, dates and look (copied when staff press « Créer / Mettre à jour la démo »),
+its own address (`<slug>-demo`), runners, runs, results and admin, a window open for two years,
+never listed (`db.races()`), `noindex`. Its courses are the real race's: `coursesForRace` and
+`courseFor` resolve them through `demo_of` (`db/courseRace.ts`), so the pack, personal lines,
+geometry and reel are always the ones last published on the real race, with nothing copied.
+Everything about runners stays keyed on the entrant's race (`e.race_id`), and the results are
+per race and course (`resultsForCourse(raceId, courseId)`), so a demo run never shows in the
+real race. App Review's runner (`review@example.com`, bib 9999) signs in with `REVIEW_CODE`,
+only on a demo race. On a demo race's home the app offers the course in ten minutes as a
+simulation (release builds too), stored as a simulation, never ranked.
+
+## Runner sign-in
+The email names the entry (`whichEntry` in shared): the race is asked only when the email holds
+entries in several races, the bib only when two entries of one race share it (409 `ambiguous`).
+Older app builds still send race and bib and still sign in.
 
 ## Environments
 | | API | App |

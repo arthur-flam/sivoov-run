@@ -4,7 +4,7 @@
  */
 
 /** First-level paths of run.sivoov.app that are not races. */
-export const RESERVED_SLUGS: readonly string[] = ['org', 'api', 'new', 'leads', 'signin', 'signout', 'organisateurs', 'organizers', 'media', 'results', 'app'];
+export const RESERVED_SLUGS: readonly string[] = ['org', 'api', 'new', 'leads', 'signin', 'signout', 'organisateurs', 'organizers', 'media', 'results', 'app', 'confidentialite', 'privacy'];
 
 export const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const SLUG_MAX = 60;

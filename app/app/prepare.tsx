@@ -9,7 +9,7 @@ import { Preflight } from '@/components/Preflight';
 import { Body, Button, Display, Eyebrow, Screen } from '@/components/ui';
 import { usePackDownload } from '@/hooks/usePackDownload';
 import { locale, t } from '@/i18n';
-import { requestLocationPermission } from '@/services/location/device';
+import { platform, requestLocationPermission } from '@/services/location/device';
 import type { LocationPermission } from '@/services/location/device';
 import { GPS_LOCK_TIMEOUT_MS, batteryCheck, canStart, gpsCheck, headphonesCheck, packCheck, permissionCheck } from '@/services/preflight';
 import { useSession } from '@/stores/session';
@@ -66,7 +66,7 @@ const useChecks = () => {
   }, [round]);
 
   return {
-    checks: { permission: permissionCheck(permission), gps: gpsCheck(bestAccuracy, waitedMs), battery: batteryCheck(battery), headphones: headphonesCheck() },
+    checks: { permission: permissionCheck(permission, platform), gps: gpsCheck(bestAccuracy, waitedMs), battery: batteryCheck(battery), headphones: headphonesCheck() },
     here,
     retry,
   };

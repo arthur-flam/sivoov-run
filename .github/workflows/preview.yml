@@ -57,7 +57,7 @@ jobs:
           APP_VARIANT: development
           EXPO_PUBLIC_API_URL: https://preview.run.sivoov.app
         with:
-          command: eas update --branch pr-${{ github.event.pull_request.number }} --message "${{ steps.message.outputs.text }}" --non-interactive
+          command: eas update --branch pr-${{ github.event.pull_request.number }} --environment preview --message "${{ steps.message.outputs.text }}" --non-interactive
           working-directory: app
           # v8 validates against "dev-client" only, despite documenting "dev-build"; both mean a dev build.
           qr-target: dev-client

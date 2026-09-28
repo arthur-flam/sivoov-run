@@ -519,3 +519,8 @@
   - Expo `locales`: nest iOS keys under `"ios"` in the JSON, or the top-level keys also land in
     Android's strings. `expo prebuild --platform ios --no-install` on the laptop (ios/ is
     ignored) is a quick way to check the plist, `InfoPlist.strings` and `PrivacyInfo.xcprivacy`.
+- 2026-09-28: CI was out of GitHub Actions minutes, so the merge was deployed by hand from the
+  laptop: preview migration, `wrangler deploy --env preview`, then the OTA. Current eas-cli
+  refuses `eas update --non-interactive` without `--environment` ("The `--environment` flag must
+  be set"); the workflows pass it now. By hand:
+  `APP_VARIANT=preview EXPO_PUBLIC_API_URL=https://preview.run.sivoov.app npx eas-cli update --channel preview --environment preview --message "…" --non-interactive`.

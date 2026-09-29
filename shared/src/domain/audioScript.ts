@@ -67,9 +67,6 @@ export const buildScript = (script: AudioScriptInput): BuiltScript => {
 /** Lines the voice reads the same to everyone (a personal line's offline version included): not the organizer's own files, not unwritten ones. */
 export const renderableLines = (script: Pick<AudioScript, 'lines'>): ScriptLine[] => script.lines.filter((l) => !l.audio && l.text.trim().length > 0);
 
-/** Lines that play the organizer's own sound file. */
-export const uploadedLines = (script: AudioScript): ScriptLine[] => script.lines.filter((l) => l.audio !== undefined);
-
 /** Pack file keys used by more than one line: publishing would write one over the other. */
 export const duplicateFileKeys = (lines: ScriptLine[]): string[] => {
   const keys = lines.map((l) => packFileKey(l));

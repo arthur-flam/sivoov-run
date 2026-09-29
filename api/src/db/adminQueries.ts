@@ -112,9 +112,6 @@ export const adminDb = (d1: D1Database) => ({
         organizer.createdAt ?? new Date().toISOString())
       .run();
   },
-  async removeOrganizer(raceId: string, email: string): Promise<void> {
-    await d1.prepare('DELETE FROM organizers WHERE race_id = ? AND email = ?').bind(raceId, email).run();
-  },
 });
 
 export type AdminDb = ReturnType<typeof adminDb>;

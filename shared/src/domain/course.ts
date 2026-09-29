@@ -1,4 +1,4 @@
-import type { LatLng, Landmark } from '../schemas/course';
+import type { LatLng } from '../schemas/course';
 import { haversineM, bearingDeg, interpolate } from './geo';
 
 export type Bounds = { minLat: number; maxLat: number; minLng: number; maxLng: number };
@@ -68,10 +68,6 @@ export const trackMetersForRun = (track: CourseTrack, officialM: number, runM: n
 
 export const positionForRun = (track: CourseTrack, officialM: number, runM: number): TrackPosition =>
   positionAtDistance(track, trackMetersForRun(track, officialM, runM));
-
-/** Landmarks are placed by official distance. The next one strictly ahead of the runner. */
-export const nextLandmark = (landmarks: Landmark[], runM: number): Landmark | undefined =>
-  [...landmarks].sort((a, b) => a.meters - b.meters).find((l) => l.meters > runM);
 
 /** The official distance a runner has covered when they stand at `trackM` on the polyline. */
 export const runMetersForTrack = (track: CourseTrack, officialM: number, trackM: number): number =>

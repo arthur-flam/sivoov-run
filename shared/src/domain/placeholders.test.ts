@@ -11,7 +11,7 @@ import {
   templatePhase,
   unknownPlaceholders,
 } from './placeholders';
-import { audioTagsIn, stripAudioTags, supportsAudioTags, textForVoice } from './audioTags';
+import { stripAudioTags, supportsAudioTags, textForVoice } from './audioTags';
 
 describe('placeholders', () => {
   it('finds the names between braces, once each, and reads the old English names as aliases', () => {
@@ -64,7 +64,6 @@ describe('liveFactsFor', () => {
 describe('audio tags', () => {
   it('are kept for v3 and stripped for older models, the browser voice and captions', () => {
     const text = '[excited] Partez ! [laughs] Bonne course.';
-    expect(audioTagsIn(text)).toEqual(['excited', 'laughs']);
     expect(stripAudioTags(text)).toBe('Partez ! Bonne course.');
     expect(supportsAudioTags('eleven_v3')).toBe(true);
     expect(supportsAudioTags('eleven_multilingual_v2')).toBe(false);
@@ -74,6 +73,5 @@ describe('audio tags', () => {
 
   it('never take a placeholder for a tag', () => {
     expect(stripAudioTags('Bravo {prenom} [happy] !')).toBe('Bravo {prenom} !');
-    expect(audioTagsIn('{prenom}')).toEqual([]);
   });
 });

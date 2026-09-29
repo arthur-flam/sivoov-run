@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { LandmarkSchema } from '../schemas/course';
 import { buildTrack } from './course';
 import { destination } from './geo';
-import { aheadOf, courseFraction, followCamera, glideStep, gpsSignal, lightPresetAt, paddedBounds, speedFromPace, sunElevation } from './runView';
+import { aheadOf, followCamera, glideStep, gpsSignal, lightPresetAt, paddedBounds, speedFromPace, sunElevation } from './runView';
 
 const start = { lat: 49.36, lng: 0.07 };
 /** 1 km due east, then 1 km due north: one clean right-angle turn at 1 000 m. */
@@ -31,7 +31,6 @@ describe('the camera behind the runner', () => {
     expect(cam.center.lat).toBeCloseTo(corner.lat, 5);
     expect(cam.center.lng).toBeCloseTo(corner.lng, 5);
     expect(cam.fraction).toBeCloseTo(0.5, 2);
-    expect(courseFraction(track, officialM, 3000)).toBe(1);
   });
 
   it('holds a heading at the start and at the finish, where the course runs out behind or ahead', () => {

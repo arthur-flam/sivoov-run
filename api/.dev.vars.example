@@ -1,3 +1,7 @@
-# Copy to .dev.vars for local development. Without RESEND_API_KEY, codes are printed to the console.
-RESEND_API_KEY=
-EMAIL_FROM="Sivoov Run <run@sivoov.app>"
+# Copy to .dev.vars for local development. Every line is optional: without a key the feature
+# says so or stands in (codes are printed to the console, the photo is its own picture).
+# Never put a production key here that a test could spend (docs/ACCESS.md).
+MAPBOX_TOKEN=
+ELEVENLABS_API_TOKEN=
+GEMINI_API_KEY=
+CLOUDFLARE_AI_TOKEN=

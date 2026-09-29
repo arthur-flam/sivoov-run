@@ -28,9 +28,6 @@ export const AUDIO_TAGS: { tag: string; label: string }[] = [
 
 const TAG = /\[[^\][{}]{1,40}\]/g;
 
-/** The tags written in a text, without brackets, in order: `["excited", "laughs"]`. */
-export const audioTagsIn = (text: string): string[] => Array.from(text.matchAll(TAG), (m) => m[0].slice(1, -1).trim());
-
 /** The words alone: what a caption shows, what the browser voice reads, what an older model gets. */
 export const stripAudioTags = (text: string): string =>
   text

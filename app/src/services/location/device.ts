@@ -133,16 +133,6 @@ const SAVER_OPTIONS: Location.LocationTaskOptions = {
   ...(Platform.OS === 'ios' ? { accuracy: Location.Accuracy.Highest, distanceInterval: 5 } : { timeInterval: 2000 }),
 };
 
-/** Where the permissions stand now, without prompting. */
-export const currentLocationPermission = async (): Promise<LocationPermission> => {
-  const fg = await Location.getForegroundPermissionsAsync();
-  if (fg.status === 'denied') return 'denied';
-  if (fg.status !== 'granted') return 'undetermined';
-  if (Platform.OS === 'web') return 'web';
-  const bg = await Location.getBackgroundPermissionsAsync().catch(() => null);
-  return bg?.status === 'granted' ? 'always' : 'foreground';
-};
-
 /**
  * Foreground first. Android then asks for "always" (its settings page: the only way the fixes
  * survive a locked screen there). iOS is not asked for it: "while using" already keeps a run
@@ -157,12 +147,7 @@ export const requestLocationPermission = async (): Promise<LocationPermission> =
   return bg?.status === 'granted' ? 'always' : 'foreground';
 };
 
-export interface DeviceLocationSource extends LocationSource {
-  /** Null until start() asked; then what the runner granted. */
-  permission: () => LocationPermission | null;
-}
-
-export const deviceSource = (): DeviceLocationSource => {
+export const deviceSource = (): LocationSource => {
   let subscription: Location.LocationSubscription | null = null;
   let background = false;
   let permission: LocationPermission | null = null;
@@ -204,7 +189,6 @@ export const deviceSource = (): DeviceLocationSource => {
   return {
     kind: 'device',
     now: () => Date.now(),
-    permission: () => permission,
     async start(onSample) {
       permission = await requestLocationPermission();
       diag('location', `permission: ${permission}`);

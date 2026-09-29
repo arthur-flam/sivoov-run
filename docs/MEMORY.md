@@ -614,4 +614,19 @@
   - PanResponder: at grant, `g.dx` already holds the move that crossed the slop, and a quick drag
     can be that one move: count a drag from `dx = 0` at grant, or it is lost.
   - The browser pane's console keeps errors from before a reload: check their component stack.
+- 2026-09-29: the run map's feel. Worth knowing next time:
+  - Short camera moves sent several times a second stutter on a phone: each starts and stops, and
+    the next waits for a render. One long even move a second, aimed ahead and overlapped by a
+    frame, is smooth; a dot drawn by the map at a few Hz shakes against it: draw the followed
+    runner over the map at the camera's focus.
+  - A gesture routed through React state and an eased camera move always trails the finger. Send
+    each move to the camera directly (rnmapbox `Camera` ref `setCamera` with `animationMode:
+    'none'`, GL JS `jumpTo`) and hold the plan still until the finger lets go.
+  - Mapbox Standard's house numbers (`building-number-label`) and block numbers only go with
+    `showPlaceLabels`; imported style layers cannot be hidden one by one.
+  - A hidden browser pane pauses requestAnimationFrame and throttles timers: map motion cannot be
+    measured there. `cameraFeel.test.ts` models the chain instead; `window.__runMap` (development
+    only) exposes the web map for reading its camera.
+  - A timer-paced simulation (one fix per timer, a clock clamped to the fixes) slows and stutters
+    when the JavaScript thread is busy. Pace it by its clock: hand over what fell due at each tick.
 

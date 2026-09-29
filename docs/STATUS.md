@@ -11,6 +11,30 @@ Live: https://run.sivoov.app/deauville-2026 (production), https://preview.run.si
 on 2026-09-27 (below); M2 still needs a real finish. Production has the race and its courses;
 no real entrants yet.
 
+### The run map, smooth under the finger (2026-09-29, branch `claude/run-map-feel`)
+The owner's second pass on the phone: turning the map did not follow the finger, house numbers
+cluttered the view, the simulation stuttered. JS only (OTA).
+- **Turning**: a finger put on the map drags the ground round the runner (its angle around the
+  runner), two fingers twist it. Each move goes straight to the map's camera (`setCamera`, no
+  animation, no redraw of the screen); let go, the turn is kept and the needle sets it back. Before,
+  each move went through React state and a 120 ms eased move, always behind the finger.
+- **Smooth following** (`useRunCamera`, shared by the phone and web maps): the followed camera
+  gets one even move a second, aimed where the runner will be a second later and sent a glide
+  frame before the last one ends, so the map animates it alone and never stops. The followed
+  runner is drawn over the map at the camera's focus (`RunnerDot`), so it cannot shake against it.
+  The glide aims at where the runner is now (the tracker's last step plus the ground run since,
+  at their pace) instead of chasing the tracker's 13 m steps. Modelled end to end in
+  `cameraFeel.test.ts` (simulator, tracker, glide, plan, camera): at 5x the camera's speed stays
+  within about 10 % frame to frame and never stops; before, it swung between 0 and 22 m/s.
+- **The simulation's clock** is the phone's time the speed factor, running evenly; each 250 ms tick
+  hands over every fix that fell due, so a busy phone no longer slows the run or stutters its time.
+- **No house numbers** close up: Mapbox Standard has them only under `showPlaceLabels`, now off in
+  the runner view and on over the whole course (towns, districts; no numbers at that zoom).
+Seen in the web target (runner dot at the focus, place labels off, a drag turned the map 60° and
+kept it) and `npm run shots` (all app screens; the web `organizers` shot failed on the contact
+form, a Worker page this does not touch). The motion itself is proven by the model test, not by
+eye: the browser pane was hidden. Not yet on a phone.
+
 ### The run screen after the owner's kitchen test (2026-09-29, branch `claude/run-feedback`)
 Six things the owner saw on the phone. JS only (OTA), no native module.
 - **The view moved on the line** (0 GPS, 0 m): the panel under the map grew and shrank with each

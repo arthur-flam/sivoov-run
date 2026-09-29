@@ -45,6 +45,8 @@ export const courseFraction = (track: CourseTrack, officialM: number, runM: numb
 export type Glide = {
   /** The tracker's distance, official meters. It moves in steps: a few fixes' worth at a time. */
   fixM: number;
+  /** Since the tracker's distance last moved on. A step counts all the ground up to it: the runner was there then. */
+  sinceFixMs: number;
   /** The runner's speed on the screen's clock, m/s: a simulation's is its own times its rate (0 when unknown). */
   speedMps: number;
   /** What the map showed last frame. */
@@ -56,9 +58,9 @@ export type Glide = {
 };
 
 export type GlideOptions = {
-  /** How quickly the map closes the distance to the tracker, beyond the runner's pace: a time constant, seconds. */
+  /** How quickly the map closes on where the runner is, beyond the runner's pace: a time constant, seconds. */
   catchS?: number;
-  /** How far past the tracker the map may run on at the runner's pace, seconds of running (the tracker lags by a step). */
+  /** How long after the tracker's last step the runner is still taken to be moving on at their pace, seconds. */
   leadS?: number;
   /** Past this far behind (a run coming back, a phone out of a pocket), the map goes straight there. */
   snapM?: number;
@@ -68,14 +70,17 @@ export type GlideOptions = {
  * The distance the map shows, frame to frame. The tracker's distance moves in steps (it waits
  * for a few fixes' worth of ground before it counts it, 13 m at a time on a steady run): drawn
  * as they come, the camera would lurch forward every few seconds, every second in a simulation.
- * The map carries on at the runner's pace and closes the gap to the tracker gently, never
- * backwards, never far ahead of it. The numbers on screen stay the tracker's own.
+ * Where the runner is now is the last step plus the ground run since it at their pace; the map
+ * moves on at that pace and closes gently on that estimate, never backwards, never more than
+ * `leadS` of running past the last step. The numbers on screen stay the tracker's own.
  */
-export const glideStep = ({ fixM, speedMps, shownM, dtMs, targetM }: Glide, { catchS = 2, leadS = 5, snapM = 100 }: GlideOptions = {}): number => {
+export const glideStep = ({ fixM, sinceFixMs, speedMps, shownM, dtMs, targetM }: Glide, { catchS = 2, leadS = 6, snapM = 100 }: GlideOptions = {}): number => {
   if (fixM - shownM > snapM) return Math.min(targetM, fixM);
   const dt = Math.min(Math.max(0, dtMs), 1000) / 1000;
   const speed = Math.max(0, speedMps);
-  const next = Math.min(shownM + dt * (speed + (fixM - shownM) / catchS), fixM + speed * leadS);
+  const ceiling = fixM + speed * leadS;
+  const here = Math.min(ceiling, fixM + (speed * Math.max(0, sinceFixMs)) / 1000);
+  const next = Math.min(shownM + dt * (speed + (here - shownM) / catchS), ceiling);
   return Math.min(targetM, Math.max(shownM, next));
 };
 

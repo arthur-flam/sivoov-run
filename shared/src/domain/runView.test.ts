@@ -41,41 +41,47 @@ describe('the camera behind the runner', () => {
 });
 
 describe('the map between two steps of the tracker', () => {
-  const glide = { fixM: 1000, speedMps: 3, shownM: 1000, dtMs: 250, targetM: 42195 };
+  const glide = { fixM: 1000, sinceFixMs: 0, speedMps: 3, shownM: 1000, dtMs: 250, targetM: 42195 };
   /** Frames of `dtMs` over a tracker that counts `stepM` at a time at `speedMps`: every frame's move. */
   const frames = (speedMps: number, stepM: number, seconds: number, dtMs = 250) => {
     const steps = Array.from({ length: (seconds * 1000) / dtMs }, (_, i) => ((i + 1) * dtMs) / 1000);
     return steps.reduce<{ shown: number; moves: number[] }>(
       (acc, t) => {
         const fixM = Math.floor((speedMps * t) / stepM) * stepM;
-        const shown = glideStep({ fixM, speedMps, shownM: acc.shown, dtMs, targetM: 42195 });
+        const sinceFixMs = (t - fixM / speedMps) * 1000;
+        const shown = glideStep({ fixM, sinceFixMs, speedMps, shownM: acc.shown, dtMs, targetM: 42195 });
         return { shown, moves: [...acc.moves, shown - acc.shown] };
       },
       { shown: 0, moves: [] },
     );
+  };
+  /** How much the moves of the last `n` frames vary around their mean. */
+  const unevenness = (moves: number[], n: number) => {
+    const last = moves.slice(-n);
+    const mean = last.reduce((a, b) => a + b, 0) / last.length;
+    return Math.max(...last.map((m) => Math.abs(m - mean))) / mean;
   };
 
   it('carries on at the runner’s pace after the last step', () => {
     expect(glideStep(glide)).toBeCloseTo(1000.75, 5);
   });
 
-  it('glides over a tracker that counts 13 m at a time instead of jumping with it', () => {
+  it('moves at an even pace over a tracker that counts 13 m at a time', () => {
     const run = frames(3.25, 13, 60);
-    expect(Math.max(...run.moves)).toBeLessThan(2);
-    expect(Math.min(...run.moves)).toBeGreaterThanOrEqual(0);
-    expect(run.shown).toBeGreaterThan(3.25 * 60 - 15);
+    expect(unevenness(run.moves, 160)).toBeLessThan(0.1);
+    expect(run.shown).toBeGreaterThan(3.25 * 60 - 3);
   });
 
-  it('glides a simulation five times faster than life the same way', () => {
+  it('and over a simulation five times faster than life', () => {
     const run = frames(16.7, 13, 20);
-    expect(Math.max(...run.moves)).toBeLessThan(8);
-    expect(run.shown).toBeGreaterThan(16.7 * 20 - 25);
+    expect(unevenness(run.moves, 40)).toBeLessThan(0.1);
+    expect(run.shown).toBeGreaterThan(16.7 * 20 - 10);
   });
 
-  it('never runs ahead of the tracker by more than five seconds of running', () => {
-    const shown = Array.from({ length: 80 }).reduce<number>((m) => glideStep({ ...glide, shownM: m }), 1000);
-    expect(shown).toBeGreaterThan(1004);
-    expect(shown).toBeLessThanOrEqual(1015);
+  it('stops a few meters on when the runner stops, never more than six seconds of running', () => {
+    const shown = Array.from({ length: 80 }).reduce<number>((m, _, i) => glideStep({ ...glide, shownM: m, sinceFixMs: (i + 1) * 250 }), 1000);
+    expect(shown).toBeGreaterThan(1015);
+    expect(shown).toBeLessThanOrEqual(1018);
   });
 
   it('never goes backwards when the tracker says the runner slowed', () => {

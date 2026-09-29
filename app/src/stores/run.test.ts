@@ -133,6 +133,18 @@ describe('run store with the simulation source', () => {
     expect(source.now() - t0).toBeCloseTo(10_000, -2);
   });
 
+  it('keeps its clock when the phone is busy: a late tick hands over every fix that fell due', async () => {
+    const source = simulationSource({ track, targetM: 5500, pace: constantPace(300), speedFactor: 10, noiseM: 0 });
+    const got: LocationSample[] = [];
+    await source.start((sample) => got.push(sample));
+    // Three seconds with the JavaScript thread busy: no timer ran, thirty seconds of race went by.
+    vi.setSystemTime(Date.now() + 3000);
+    vi.advanceTimersToNextTimer();
+    expect(got.length).toBeGreaterThanOrEqual(31);
+    expect(got.every((sample, i) => sample.timestamp - got[0]!.timestamp === i * 1000)).toBe(true);
+    await source.stop();
+  });
+
   it('a pack arriving mid-run does not wipe the run', async () => {
     const store = useRun.getState();
     store.prepare(course, track, packV0(course));

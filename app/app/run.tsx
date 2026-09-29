@@ -22,7 +22,7 @@ import { Stage } from '@/components/run/Stage';
 import { StartPanel } from '@/components/run/StartPanel';
 import { StatusChips } from '@/components/run/StatusChips';
 import { StopConfirm } from '@/components/run/StopConfirm';
-import { glideMsFor, normalizeTurn } from '@/components/run/mapConfig';
+import { normalizeTurn } from '@/components/run/mapConfig';
 import { Body, Screen } from '@/components/ui';
 import { useCaption } from '@/hooks/useCaption';
 import { useGlide } from '@/hooks/useGlide';
@@ -116,7 +116,7 @@ export default function Run() {
   const ceremonyLine = useRef<string | null>(null);
   // The map as the runner turned it by hand, and the one line whose words they hid.
   const [turn, setTurn] = useState(0);
-  const onTurn = useCallback((deg: number) => setTurn((was) => normalizeTurn(was + deg)), []);
+  const onTurn = useCallback((to: number) => setTurn(normalizeTurn(to)), []);
   const onResetTurn = useCallback(() => setTurn(0), []);
   const [hiddenLine, setHiddenLine] = useState<string | null>(null);
 
@@ -276,7 +276,8 @@ export default function Run() {
           token={mapShown ? mapToken : null}
           track={track}
           course={course}
-          runM={glided}
+          runM={glided.m}
+          speedMps={glided.speedMps}
           accent={accent}
           view={view}
           light={light}
@@ -284,7 +285,6 @@ export default function Run() {
           onFail={onMapFail}
           topInset={topInset}
           turn={turn}
-          glideMs={glideMsFor(source.rate ?? 1)}
           onTurn={onTurn}
           onResetTurn={onResetTurn}
         />

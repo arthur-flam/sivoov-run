@@ -1,8 +1,13 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { followCamera } from '@sivoov/shared';
-import { MAP_STYLE, basemapConfig, courseLine, courseMarks, nextCameraPlan, overviewBounds, paint, runnerPoint } from './mapConfig';
-import type { CameraPlan, CameraShot, RunMapProps } from './mapConfig';
+import { MAP_CREDITS_H, MAP_STYLE, basemapConfig, courseLine, courseMarks, paint, runnerPoint } from './mapConfig';
+import type { CameraShot, RunMapProps } from './mapConfig';
+import { RunnerDot } from './RunnerDot';
+import { TurnSurface } from './TurnSurface';
+import { useRunCamera } from './useRunCamera';
+
+/** No runner on the map: the followed one is drawn over it (RunnerDot). */
+const NOBODY = { type: 'FeatureCollection', features: [] };
 
 /**
  * The run map in a browser (the web target: development and `npm run shots`), with Mapbox GL
@@ -61,10 +66,13 @@ export const mapAvailable = true;
 const STYLE_TIMEOUT_MS = 12_000;
 
 /**
- * A change of view eases; the follow steps jump. In a browser the map draws on the page's own
- * thread (in software, headless): gliding four times a second would redraw without pause and
- * starve the page, a simulated run included. Phones glide (RunMap.tsx), the map drawing apart.
+ * Headless (the screenshot rig, e2e) the map draws in software on the page's own thread: a
+ * camera always moving would redraw without pause and starve the page, a simulated run
+ * included. There the followed camera jumps from step to step instead of moving between them.
  */
+const headless = typeof navigator !== 'undefined' && navigator.webdriver === true;
+
+/** Applies a shot: a change of view eases or flies, the followed camera moves evenly (mapConfig.ts). */
 const apply = (map: GlMap, shot: CameraShot, durationMs = shot.durationMs) => {
   if (shot.kind === 'overview') {
     const fit = { pitch: shot.pitch, bearing: shot.bearing, padding: shot.padding };
@@ -76,23 +84,25 @@ const apply = (map: GlMap, shot: CameraShot, durationMs = shot.durationMs) => {
     return;
   }
   const camera = { center: shot.center, bearing: shot.bearing, pitch: shot.pitch, zoom: shot.zoom, padding: shot.padding };
-  if (shot.mode === 'linear' || durationMs === 0) map.jumpTo(camera);
+  if (durationMs === 0 || (shot.mode === 'linear' && headless)) map.jumpTo(camera);
+  else if (shot.mode === 'linear') map.easeTo({ ...camera, duration: durationMs, easing: (t: number) => t, essential: true });
   else if (shot.mode === 'ease') map.easeTo({ ...camera, duration: durationMs, essential: true });
   else map.flyTo({ ...camera, duration: durationMs, essential: true });
 };
 
-export const RunMap = memo(function RunMap({ token, track, officialM, runM, landmarks, accent, view, turn, glideMs, light, onFail }: RunMapProps) {
+export const RunMap = memo(function RunMap({ token, track, officialM, runM, speedMps, landmarks, accent, view, turn, onTurn, light, onFail }: RunMapProps) {
   const host = useRef<View>(null);
   const map = useRef<GlMap | null>(null);
   const [loaded, setLoaded] = useState(false);
-  const plan = useRef<CameraPlan | null>(null);
-  const applied = useRef<CameraPlan | null>(null);
+  const applied = useRef<CameraShot | null>(null);
   const colours = useMemo(() => paint(accent), [accent]);
-  const bounds = useMemo(() => overviewBounds(track), [track]);
   const markStep = Math.floor(runM / 50);
   const marks = useMemo(() => courseMarks(track, officialM, landmarks, markStep * 50), [track, officialM, landmarks, markStep]);
-  const here = followCamera(track, officialM, runM);
-  plan.current = nextCameraPlan(plan.current, view, here, bounds, Date.now(), { turn, glideMs });
+  const jump = useCallback((to: CameraShot) => {
+    if (map.current) apply(map.current, to, 0);
+  }, []);
+  const { shot, here, following, focus, pivot, surface, onLayout } = useRunCamera({ track, officialM, runM, speedMps, view, turn, onTurn, jump });
+  const first = useRef(shot);
 
   useEffect(() => {
     let live = true;
@@ -103,12 +113,12 @@ export const RunMap = memo(function RunMap({ token, track, officialM, runM, land
       if (!gl || !host.current) return onFail();
       try {
         gl.accessToken = token;
-        const first = plan.current!;
-        const center = first.shot.kind === 'follow' ? first.shot.center : [(first.shot.ne[0] + first.shot.sw[0]) / 2, (first.shot.ne[1] + first.shot.sw[1]) / 2];
-        created = new gl.Map({ container: host.current as unknown as HTMLElement, style: MAP_STYLE, interactive: false, config: { basemap: basemapConfig(light) }, center, zoom: 12 });
+        const opening = first.current;
+        const center = opening.kind === 'follow' ? opening.center : [(opening.ne[0] + opening.sw[0]) / 2, (opening.ne[1] + opening.sw[1]) / 2];
+        created = new gl.Map({ container: host.current as unknown as HTMLElement, style: MAP_STYLE, interactive: false, config: { basemap: basemapConfig(light, view) }, center, zoom: 12 });
         // The first view is set without a move; the constructor's own bounds would ignore the tilt.
-        apply(created, first.shot, 0);
-        applied.current = first;
+        apply(created, opening, 0);
+        applied.current = opening;
       } catch {
         return onFail();
       }
@@ -148,6 +158,8 @@ export const RunMap = memo(function RunMap({ token, track, officialM, runM, land
           paint: { 'circle-radius': colours.runner.radius, 'circle-color': colours.runner.color, 'circle-stroke-color': colours.runner.stroke, 'circle-stroke-width': colours.runner.strokeWidth, 'circle-pitch-alignment': 'viewport', 'circle-emissive-strength': 1 },
         });
         map.current = m;
+        // Development only: the camera can be measured from the browser console.
+        if (__DEV__) (globalThis as { __runMap?: GlMap }).__runMap = m;
         setLoaded(true);
       });
     });
@@ -165,10 +177,10 @@ export const RunMap = memo(function RunMap({ token, track, officialM, runM, land
     if (!m || !loaded) return;
     m.setPaintProperty('course-rest', 'line-trim-offset', [0, here.fraction]);
     m.setPaintProperty('course-run', 'line-trim-offset', [here.fraction, 1]);
-    m.getSource('runner')?.setData(runnerPoint(here.center));
-    if (plan.current && plan.current !== applied.current) {
-      applied.current = plan.current;
-      apply(m, plan.current.shot);
+    m.getSource('runner')?.setData(following ? NOBODY : runnerPoint(here.center));
+    if (shot !== applied.current) {
+      applied.current = shot;
+      apply(m, shot);
     }
   });
 
@@ -180,8 +192,18 @@ export const RunMap = memo(function RunMap({ token, track, officialM, runM, land
     if (loaded) map.current?.setConfigProperty('basemap', 'lightPreset', light);
   }, [light, loaded]);
 
+  useEffect(() => {
+    if (loaded) map.current?.setConfigProperty('basemap', 'showPlaceLabels', basemapConfig(light, view).showPlaceLabels);
+  }, [view, loaded]);
+
   // The stage changes height between the phases (the panel under it grows): the canvas follows.
-  return <View ref={host} style={styles.fill} testID="run-map" onLayout={() => map.current?.resize()} />;
+  return (
+    <View style={styles.fill} onLayout={onLayout}>
+      <View ref={host} style={styles.fill} testID="run-map" onLayout={() => map.current?.resize()} />
+      {following ? <RunnerDot x={focus.x} y={focus.y} accent={accent} /> : null}
+      <TurnSurface pivot={pivot} {...surface} bottom={MAP_CREDITS_H} />
+    </View>
+  );
 });
 
 const styles = StyleSheet.create({ fill: { flex: 1 } });

@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { Course, CourseTrack, LightPreset } from '@sivoov/shared';
 import { CourseDiagram } from '@/components/CourseDiagram';
+import { MAP_CREDITS_H } from './mapConfig';
 import type { RunMapView } from './mapConfig';
 import { RunMap, mapAvailable } from './RunMap';
 import { TurnReset } from './TurnReset';
-import { TurnSurface } from './TurnSurface';
 
 type Props = {
   /** Null: no Mapbox token for this race, the course is drawn. */
@@ -13,6 +13,8 @@ type Props = {
   track: CourseTrack;
   course: Course;
   runM: number;
+  /** How fast `runM` moves on, m/s on the phone's clock. */
+  speedMps: number;
   accent: string;
   /** 'numbers': the runner chose the numbers alone (and the battery): the course is drawn. */
   view: RunMapView | 'numbers';
@@ -23,9 +25,8 @@ type Props = {
   topInset: number;
   /** How far the runner turned the map by hand, degrees. */
   turn: number;
-  /** How often `runM` moves on: the map's camera glides over the same time. */
-  glideMs: number;
-  onTurn: (deg: number) => void;
+  /** The runner turned the map by hand, to `turn` degrees in all. */
+  onTurn: (turn: number) => void;
   onResetTurn: () => void;
 };
 
@@ -34,7 +35,7 @@ type Props = {
  * drawing otherwise (no token, an older build without the map, no network with nothing kept,
  * or the runner's choice). Mounted once for the whole run, so the camera moves between views.
  */
-export const Stage = ({ token, track, course, runM, accent, view, light, failed, onFail, topInset, turn, glideMs, onTurn, onResetTurn }: Props) => {
+export const Stage = ({ token, track, course, runM, speedMps, accent, view, light, failed, onFail, topInset, turn, onTurn, onResetTurn }: Props) => {
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   const map = token !== null && mapAvailable && !failed && view !== 'numbers';
   const diagram = size ? { w: Math.min(size.w - 32, 480), h: Math.max(120, size.h - topInset - 32) } : null;
@@ -42,8 +43,20 @@ export const Stage = ({ token, track, course, runM, accent, view, light, failed,
     <View style={StyleSheet.absoluteFill} onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
       {map ? (
         <>
-          <RunMap token={token} track={track} officialM={course.distanceM} runM={runM} landmarks={course.landmarks} accent={accent} view={view} turn={turn} glideMs={glideMs} light={light} onFail={onFail} />
-          <TurnSurface onTurn={onTurn} bottom={MAP_CREDITS_H} />
+          <RunMap
+            token={token}
+            track={track}
+            officialM={course.distanceM}
+            runM={runM}
+            speedMps={speedMps}
+            landmarks={course.landmarks}
+            accent={accent}
+            view={view}
+            turn={turn}
+            onTurn={onTurn}
+            light={light}
+            onFail={onFail}
+          />
           {Math.abs(turn) >= 1 ? (
             <View style={styles.reset}>
               <TurnReset turn={turn} onReset={onResetTurn} />
@@ -58,9 +71,6 @@ export const Stage = ({ token, track, course, runM, accent, view, light, failed,
     </View>
   );
 };
-
-/** The strip at the bottom of the map with its logo and attribution, left to the map's own taps. */
-const MAP_CREDITS_H = 36;
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },

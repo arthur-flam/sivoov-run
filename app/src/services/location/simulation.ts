@@ -14,18 +14,22 @@ export type SimulationConfig = {
   seed?: number;
 };
 
-/** Plays the shared simulator through the LocationSource interface, with time acceleration. */
+/** How often the simulation looks at its clock and hands over the fixes that fell due. */
+const TICK_MS = 250;
+
+/**
+ * Plays the shared simulator through the LocationSource interface, with time acceleration.
+ * The simulation's clock is the phone's, sped up: it runs evenly from the moment the source is
+ * made (the countdown and the gun use it too), whatever the timers do. Fixes come one a second
+ * of that clock, as on a phone; each tick hands over those that fell due, several at once at
+ * high speed or when a tick comes late, so a busy phone never slows the run down.
+ */
 export const simulationSource = (config: SimulationConfig): LocationSource => {
   const speedFactor = config.speedFactor ?? 1;
   const intervalMs = config.intervalMs ?? 1000;
   let timer: ReturnType<typeof setTimeout> | null = null;
-  // One clock for the whole life of the source: the countdown and the gun use it too.
-  // Once fixes flow, the clock follows them: browser timers drift at high speed factors and a
-  // wall-based clock would run ahead of the samples and inflate the elapsed time.
   const realStart = Date.now();
-  let last: { t: number; wall: number } | null = null;
-  const now = () =>
-    last ? Math.min(last.t + intervalMs, last.t + (Date.now() - last.wall) * speedFactor) : realStart + (Date.now() - realStart) * speedFactor;
+  const now = () => realStart + (Date.now() - realStart) * speedFactor;
   return {
     kind: 'simulation',
     now,
@@ -40,13 +44,15 @@ export const simulationSource = (config: SimulationConfig): LocationSource => {
         noiseM: config.noiseM ?? 4,
         seed: config.seed ?? 1,
       });
+      let next = gen.next();
       const step = () => {
-        const next = gen.next();
-        if (next.done) return;
-        const sample: LocationSample = next.value;
-        last = { t: sample.timestamp, wall: Date.now() };
-        onSample(sample);
-        timer = setTimeout(step, intervalMs / speedFactor);
+        const due = now();
+        while (!next.done && next.value.timestamp <= due) {
+          const sample: LocationSample = next.value;
+          next = gen.next();
+          onSample(sample);
+        }
+        timer = next.done ? null : setTimeout(step, Math.min(TICK_MS, intervalMs / speedFactor));
       };
       step();
     },

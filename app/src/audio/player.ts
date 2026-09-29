@@ -22,6 +22,8 @@ export type SequenceHandlers = {
   onStart?: (index: number, remaining: number, elapsed: number) => void;
   /** File `index` is playing, `remaining` seconds from its end. */
   onRemaining?: (index: number, remaining: number) => void;
+  /** File `index` played to its end; the next one is about to load. */
+  onEnd?: (index: number) => void;
   /** Every file played to its end. */
   onDone?: () => void;
   /** File `index` never loaded, failed, or overran its length: the sequence stops there. */
@@ -77,7 +79,10 @@ export const playSequence = (uris: string[], handlers: SequenceHandlers = {}): S
       let started = false;
       p.addListener('playbackStatusUpdate', (status) => {
         if (player !== p) return;
-        if (status.didJustFinish) return playAt(index + 1);
+        if (status.didJustFinish) {
+          handlers.onEnd?.(index);
+          return playAt(index + 1);
+        }
         if (/error|fail/i.test(status.playbackState) || status.error) return fail(index);
         if (!(status.duration > 0)) return;
         const remaining = Math.max(0, status.duration - status.currentTime);

@@ -154,6 +154,15 @@ describe('sequence playback', () => {
     expect(log).toEqual(['start 0 20 0', 'start 1 10 0', 'left 1 6.6', 'start 2 1.8 0.2', 'done']);
   });
 
+  it('says when each file played to its end, before the next one loads', () => {
+    const ended: string[] = [];
+    playSequence(['file://countdown', 'file://gun'], { onEnd: (i) => ended.push(`end ${i} (${players.length} players)`) });
+    players[0]!.emit(status({ duration: 10, playing: true }));
+    players[0]!.emit(status({ didJustFinish: true }));
+    vi.advanceTimersByTime(8000);
+    expect(ended).toEqual(['end 0 (1 players)']);
+  });
+
   it('does not call a file started while it is only loaded', () => {
     const { log, handlers } = recorder();
     playSequence(['file://gun'], handlers);

@@ -27,21 +27,32 @@ export const useSession = create<SessionState>((set, get) => ({
   me: null,
   error: null,
 
+  /**
+   * Signed in from the last /me kept on the phone at once, when there is one: a weak signal
+   * must not hold the splash for the network's 20 s. Then /me is asked for: its answer
+   * replaces the kept one, a refused token signs out, no answer keeps the kept one ('offline';
+   * the upload queue sends later). With nothing kept, the splash waits for /me.
+   */
   async restore() {
     const token = await storage.get(TOKEN_KEY);
     if (!token) return set({ status: 'signedOut' });
+    const kept = await meCache.read();
+    if (kept) set({ status: 'signedIn', token, me: kept, error: null });
+    // Signed out or in again while /me was on its way: its answer is about another session.
+    const stale = () => get().status !== 'loading' && get().token !== token;
     try {
       const me = await api.me(token);
+      if (stale()) return;
       await meCache.write(me);
       set({ status: 'signedIn', token, me, error: null });
     } catch (e) {
+      if (stale()) return;
       if (e instanceof ApiError && e.status === 401) {
         await storage.remove(TOKEN_KEY);
         await meCache.clear();
         return set({ status: 'signedOut', token: null, me: null });
       }
-      // Offline: keep the token and run from the last /me seen; the upload queue sends later.
-      set({ status: 'signedIn', token, me: await meCache.read(), error: 'offline' });
+      set({ status: 'signedIn', token, me: get().me ?? (await meCache.read()), error: 'offline' });
     }
   },
 

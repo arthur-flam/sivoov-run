@@ -502,6 +502,16 @@
       .map((x) => x.status);
   }
 
+  /** The one line whose remaining time shows as digits: the last countdown line (mirrors ceremonySequence's countdownIndex). */
+  function digitLine(lines) {
+    return lines.reduce((last, s, i) => (s.cue.at === 'countdown' ? i : last), -1);
+  }
+
+  /** The digit under a countdown sound: never more than its whole seconds, never 0 (mirrors countdownDigit). */
+  function digitOf(remaining, duration) {
+    return String(Math.min(Math.max(1, Math.round(duration)), Math.max(1, Math.ceil(remaining - 0.1))));
+  }
+
   /** How long a line lasts: its sound file when there is one (measured once), otherwise its text read at speaking speed. */
   function secondsOf(status) {
     const known = status.audioPath ? durations[status.id + '|' + status.audioPath] : undefined;
@@ -537,6 +547,7 @@
     measureDurations(lines);
     steps.textContent = '';
     const gunAt = lines.findIndex((s) => s.cue.at === 'gun');
+    const digitsAt = digitLine(lines);
     const labels = { armed: 'Sur la ligne', countdown: 'Compte à rebours', gun: 'Coup de pistolet' };
     const total = lines.slice(0, gunAt < 0 ? lines.length : gunAt).reduce((sum, s) => sum + (secondsOf(s).seconds || 0), 0);
     lines.forEach((status, i) => {
@@ -553,7 +564,7 @@
       meta.textContent = (time.seconds ? (time.measured ? '' : 'environ ') + Math.round(time.seconds) + ' s' : '') + (status.personal ? ' · personnalisée' : '');
       item.appendChild(head);
       item.appendChild(meta);
-      if (status.cue.at === 'countdown' || i === gunAt) {
+      if (i === digitsAt || i === gunAt) {
         const why = document.createElement('span');
         why.className = 'cer-why';
         why.textContent = i === gunAt ? c.gun : c.countdown;
@@ -596,6 +607,7 @@
     const run = listenRun;
     const lines = ceremonyLines();
     const gunAt = lines.findIndex((s) => s.cue.at === 'gun');
+    const digitsAt = digitLine(lines);
     let started = null;
     let timer = null;
     const tick = (fn) => {
@@ -614,7 +626,7 @@
                 tick(() => screen('Chrono ' + clock(Date.now() - started)));
                 screen('Chrono 0:00');
               } else if (started === null) {
-                if (status.cue.at === 'countdown') tick(() => screen(audio && Number.isFinite(audio.duration) ? String(Math.max(1, Math.ceil(audio.duration - audio.currentTime))) : '…'));
+                if (i === digitsAt) tick(() => screen(audio && Number.isFinite(audio.duration) ? digitOf(audio.duration - audio.currentTime, audio.duration) : '…'));
                 else screen('Sur la ligne');
               }
               return play(status.id);
@@ -899,8 +911,11 @@
             say(detailOf(out), 'bad');
             return;
           }
-          say('Publié. Les coureurs reçoivent cette version la prochaine fois qu’ils ouvrent l’application.');
-          window.setTimeout(() => window.location.reload(), 1200);
+          // What went out but deserves a look (a countdown not ten seconds long): read before the reload, and under the line after it.
+          const warnings = (out.json && out.json.warnings) || [];
+          if (warnings.length > 0) say('Publié. À vérifier : ' + warnings.join(' '), 'bad');
+          else say('Publié. Les coureurs reçoivent cette version la prochaine fois qu’ils ouvrent l’application.');
+          window.setTimeout(() => window.location.reload(), warnings.length > 0 ? 8000 : 1200);
         });
       }),
     );

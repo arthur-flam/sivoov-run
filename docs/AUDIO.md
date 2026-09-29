@@ -40,11 +40,19 @@ Triggering is a pure function `nextEvents(state, pack, fired)` in `shared/domain
 
 **The start ceremony is sequenced, not triggered.** `cue` events never come out of
 `nextEvents`. `ceremonySequence(pack)` returns them in play order (every `armed` line, then the
-`countdown`, then the `gun`, by `order`) with `gunIndex`. The app plays them back to back when
-the runner presses Start, shows the countdown digits from the countdown file's own remaining
-time, and starts the clock when the gun file starts: « Partez ! » and 00:00 are the same
-instant. Sync is at file boundaries, never inside a file. A pack with no cue keeps the silent
-5 s countdown. The countdown line is written one number per second (« Dix. Neuf. … Un. »).
+`countdown`, then the `gun`, by `order`) with `countdownIndex` and `gunIndex`. The app plays
+them back to back when the runner presses Start, shows the countdown digits from the countdown
+file's own remaining time, and starts the clock when the gun file starts: « Partez ! » and
+00:00 are the same instant. Sync is at file boundaries, never inside a file. Only one line
+drives the digits, the last `countdown` one (`countdownIndex`); another `countdown` line plays
+like an `armed` one. The digit is `countdownDigit(remaining, duration)`: never above the file's
+whole seconds (MP3 padding makes a 10 s file report 10.03 s, which opened on « 11 »), never 0.
+The countdown and the gun lines are required: without a sound on the phone for either, the
+silent 5 s countdown; any other line with no sound is left out (`ceremonyPlan`). A gun file that
+never loads dates the clock from the end of the line before it (`onEnd`), not from the
+watchdog 8 s later. A pack with no cue keeps the silent 5 s countdown. The countdown line is
+written one number per second (« Dix. Neuf. … Un. ») and its sound must last 10 s: the studio
+warns otherwise (below).
 A personal line can be part of the ceremony (the runner called by bib and name) as long as it
 only uses fields known before the start (`live_before_start` otherwise).
 
@@ -62,6 +70,12 @@ produces. A line is an event plus:
 `lineIssues(line)` says what blocks a line: `no_text`, `placeholder_in_text` (braces in the
 text everyone hears), `unknown_placeholder`, `live_before_start`. The studio words them
 (`studioCopy.issueText`); publishing refuses a script with any.
+`ceremonyIssues(lines, secondsOf)` (`shared/domain/ceremonyChecks.ts`) warns without blocking:
+`countdown_length` (the countdown's sound is not 10 ± 0.3 s, measured from the file's first
+bytes by `audioSeconds`, WAV or MP3), `countdown_twice`, `countdown_without_gun`. The studio
+lists them under the line (`ceremonyIssueText`), and a publish answers them as `warnings`. A
+voice take of « Dix. Neuf. … Un. » is whatever length it comes out (Deauville's seed): the fix
+is a file of 10 s (`npm run produce` pads its countdown cut to exactly 10 s).
 
 **The voice** is `script.voice = { id, name, model, stability? }`, one per script. New scripts
 start on George, `eleven_v3`. The TTS body is `ttsRequestBody(voice, text, locale)` and the
@@ -216,11 +230,25 @@ R2 layout: `courses/<id>/geometry.json`; `tts/<hash>.mp3` (studio renders, priva
 - Background audio session, ducks the runner's music, never steals focus permanently.
 - The pack downloads from the race home and the pre-flight (« Pack audio prêt · 1,9 Mo »), then
   the runner's own lines (`packStore.loadPersonal`), the pre-flight sending its first GPS fix
-  rounded for the weather. A run never waits for either.
+  rounded for the weather. A run never waits for either. Every file has a 30 s deadline: a
+  stalled download ends in 'error' (Retry), never in 'loading' forever.
+- The pack is kept on the phone (`packDisk.ts`): files under the document dir (the OS may purge
+  the cache dir; packs older builds put there are downloaded again), and per course
+  `packs/<course>/pack.json`: the manifest, the runner's own lines and their words. A cold start
+  (the phone restarted mid-race, the app killed after the pre-flight) plays from it with no
+  network, 'ready' at once; the network is asked afterwards, and a newer pack replaces a whole
+  kept one only once all its files are on the phone. On a phone `uriFor`/`soundFor` return local
+  files only (a remote file offline held a line 8 s for nothing); the web streams the urls.
+- The binding of the run store to the speaker (`playback.ts`) is made once, by the run screen,
+  and outlives it while a run is on (`countdown`, `running`): Android may destroy the React tree
+  (the app swiped away) while the run goes on. A screen mounted again reuses it. Fired records
+  marked `silent` (a backlog restored after a crash) are neither played nor listed.
 - `soundFor(event)`: the runner's own version of a `prepare` line when it came down, the pack
   file otherwise. The ceremony uses it too. A `live` line fires, the app asks
-  `/api/me/voices/live` with `liveFactsFor(state)`, waits at most 7 s, and plays the answer or
-  the offline file.
+  `/api/me/voices/live` with `liveFactsFor(state)`, downloads the answer's file to the phone
+  within the same 7 s, and plays it or the offline file. After two network failures in a row
+  (a server that answers with a refusal does not count), live lines are not asked for during
+  five minutes (`breaker.ts`): in a valley with no signal every split would be 7 s late.
 - Files play through `playSequence` (all or nothing, with a watchdog). Interruptions drop the
   backlog except `finish`.
 - « Moins de voix » (AUDIO_EXPERIENCE.md X1), the runner's choice on the run screen, kept on the

@@ -350,7 +350,6 @@ export const en: Record<keyof typeof fr, string> = {
   'finish.incomplete.body': 'Only a complete run is ranked. You can go again while the window is open.',
   'finish.covered': '{distance} covered',
   'finish.share': 'Share my finish',
-  'finish.certificate': 'My certificate',
   'finish.images': 'My pictures to share',
   'finish.images.hint': 'Report, post, story, or a sticker on a transparent ground: pick one, share it or save it.',
   'finish.photos.title': 'Your race photos',

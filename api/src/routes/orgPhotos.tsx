@@ -1,7 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { Hono } from 'hono';
-import { z } from 'zod';
-import { IMAGE_TYPES, PhotoMomentSchema, can, checkImage, courseMoments, photoLineId, remixPrompt, stripJpegMetadata } from '@sivoov/shared';
+import { IMAGE_TYPES, PhotoMomentSchema, can, checkImage, courseMoments, photoLineId, stripJpegMetadata } from '@sivoov/shared';
 import type { PhotoMoment } from '@sivoov/shared';
 import type { AppEnv } from '../env';
 import { db } from '../db/queries';
@@ -10,7 +9,7 @@ import { scriptDb } from '../db/scriptQueries';
 import { newId } from '../lib/crypto';
 import { requireCan, requireOrganizer } from '../lib/orgAuth';
 import type { OrgVars } from '../lib/orgAuth';
-import { remixDeps, remixEnabled, renderRemix } from '../lib/photos';
+import { remixDeps, remixEnabled, renderForMoment } from '../lib/photos';
 import { mediaUrl, storeRaceImage } from '../lib/raceMedia';
 import { OrgPhotosPage } from '../pages/org/photos';
 import type { MomentForm, TriedPhoto } from '../pages/org/photos';
@@ -23,12 +22,8 @@ import type { OrgContext } from './orgPage';
  */
 export const orgPhotos = new Hono<AppEnv & { Variables: OrgVars }>();
 
-const MomentInputSchema = z.object({
-  title: z.string().trim().min(1).max(80),
-  at: z.string().trim().min(1).max(80),
-  ask: z.string().trim().min(1).max(240),
-  scene: z.string().trim().min(1).max(1200),
-});
+/** What the organizer types: the moment's own fields, with its limits. */
+const MomentInputSchema = PhotoMomentSchema.pick({ title: true, at: true, ask: true, scene: true });
 
 const DONE: Record<string, string> = { added: 'Moment ajouté.', saved: 'Moment enregistré.', removed: 'Moment retiré.' };
 
@@ -122,9 +117,11 @@ orgPhotos.post('/:slug/photos/:id', requireOrganizer, requireCan('edit_audio'), 
   return c.redirect(`/org/${c.get('race').slug}/photos?done=saved#m-${existing.id}`, 303);
 });
 
+/** The moment goes, and every runner's photo for it: the selfies and the pictures, which nothing else lists any more. */
 orgPhotos.post('/:slug/photos/:id/delete', requireOrganizer, requireCan('edit_audio'), async (c) => {
   if (c.get('race').demoOf) return c.redirect(`/org/${c.get('race').slug}/photos`, 303);
-  await photoQueries(c.env.DB).deleteMoment(c.get('race').id, c.req.param('id'));
+  const keys = await photoQueries(c.env.DB).deleteMoment(c.get('race').id, c.req.param('id'));
+  if (keys.length > 0) await c.env.FILES.delete(keys);
   return c.redirect(`/org/${c.get('race').slug}/photos?done=removed`, 303);
 });
 
@@ -140,10 +137,7 @@ orgPhotos.post('/:slug/photos/:id/try', requireOrganizer, requireCan('edit_audio
   const bytes = file ? new Uint8Array(await file.arrayBuffer()) : new Uint8Array();
   const check = checkImage(bytes, 'selfie');
   if (!check.ok) return page(c, { tried: { momentId: moment.id, error: 'Envoyez une photo en JPEG, PNG ou WebP, 8 Mo au plus.' }, status: 400 });
-  const refs = (await Promise.all(moment.refs.map((key) => c.env.FILES.get(key)))).filter((o): o is R2ObjectBody => o !== null);
-  const refPictures = await Promise.all(refs.map(async (o) => ({ bytes: new Uint8Array(await o.arrayBuffer()), contentType: o.httpMetadata?.contentType ?? 'image/jpeg' })));
-  const prompt = remixPrompt({ raceName: race.theme.displayName, city: race.city, title: moment.title, scene: moment.scene, bib: '1234', refs: refPictures.length, finish: moment.at === 'finish' });
-  const rendered = await renderRemix(remixDeps(c.env), prompt, { bytes: stripJpegMetadata(bytes), contentType: IMAGE_TYPES[check.kind].contentType }, refPictures);
+  const rendered = await renderForMoment(remixDeps(c.env), race, moment, { bytes: stripJpegMetadata(bytes), contentType: IMAGE_TYPES[check.kind].contentType }, '1234');
   if (!rendered.ok) {
     const error = rendered.reason === 'refused' ? 'Le modèle a refusé cette image. Essayez une autre photo, ou une scène plus simple.' : 'L’image n’a pas pu être créée. Réessayez dans un moment.';
     return page(c, { tried: { momentId: moment.id, error }, status: 422 });

@@ -53,10 +53,13 @@ describe('the moment the runner is at', () => {
 });
 
 describe('making a picture', () => {
-  it('may be tried three times, never while one is being made', () => {
-    expect(canTryAgain({ attempts: 1, status: 'done' })).toBe(true);
-    expect(canTryAgain({ attempts: 3, status: 'failed' })).toBe(false);
-    expect(canTryAgain({ attempts: 1, status: 'rendering' })).toBe(false);
+  it('may be tried three times, never while one is being made, again once one was lost', () => {
+    const now = Date.parse('2026-11-12T10:00:00Z');
+    const at = (min: number) => new Date(now - min * 60_000).toISOString();
+    expect(canTryAgain({ attempts: 1, status: 'done', updatedAt: at(0) }, now)).toBe(true);
+    expect(canTryAgain({ attempts: 3, status: 'failed', updatedAt: at(0) }, now)).toBe(false);
+    expect(canTryAgain({ attempts: 1, status: 'rendering', updatedAt: at(1) }, now)).toBe(false);
+    expect(canTryAgain({ attempts: 1, status: 'rendering', updatedAt: at(10) }, now)).toBe(true);
   });
   it('counts a picture being made for over three minutes as lost', () => {
     const now = Date.parse('2026-11-12T10:00:00Z');

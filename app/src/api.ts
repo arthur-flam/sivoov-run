@@ -102,18 +102,9 @@ export const MeSchema = z.object({
 export type Me = z.infer<typeof MeSchema>;
 
 /** A race photo as the app sees it: `picture` is an `/api/...` path, read with the runner's token. */
-export const PhotoViewSchema = z.object({
-  id: z.string(),
-  momentId: z.string(),
-  status: PhotoStatusSchema,
-  attempts: z.number(),
-  again: z.boolean(),
-  shown: z.boolean(),
-  picture: z.string().nullable(),
-});
+export const PhotoViewSchema = z.object({ id: z.string(), momentId: z.string(), status: PhotoStatusSchema, picture: z.string().nullable() });
 export type PhotoView = z.infer<typeof PhotoViewSchema>;
 const PhotosSchema = z.object({ enabled: z.boolean(), moments: z.array(CourseMomentSchema), photos: z.array(PhotoViewSchema) });
-export type Photos = z.infer<typeof PhotosSchema>;
 /** Making the pictures: 20 to 40 s each, three at a time. */
 const RENDER_TIMEOUT_MS = 180_000;
 
@@ -130,8 +121,8 @@ export const api = {
     request(`/me/photos/${encodeURIComponent(momentId)}`, z.object({ photo: PhotoViewSchema }), { method: 'POST', body: form }, token, UPLOAD_TIMEOUT_MS),
   /** After the run: every waiting photo gets its picture. */
   renderPhotos: (token: string) => request('/me/photos/render', z.object({ photos: z.array(PhotoViewSchema) }), { method: 'POST' }, token, RENDER_TIMEOUT_MS),
-  /** A one-use link that opens the runner's photos page (or result page) in the browser, signed in. */
-  webLink: (token: string, page: 'photos' | 'result') => request('/me/web-link', z.object({ url: z.url() }), { method: 'POST', body: JSON.stringify({ page }) }, token),
+  /** A one-use link that opens the runner's photos page in the browser, signed in. */
+  webLink: (token: string) => request('/me/web-link', z.object({ url: z.url() }), { method: 'POST' }, token),
   /** The runner's language: the app's screens and their emails from now on. */
   setLocale: (token: string, locale: Locale) => request('/me/locale', z.object({ ok: z.boolean() }), { method: 'PUT', body: JSON.stringify({ locale }) }, token),
   signOut: (token: string) => request('/me/signout', z.object({ ok: z.boolean() }), { method: 'POST' }, token),

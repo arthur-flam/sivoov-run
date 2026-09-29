@@ -1,4 +1,4 @@
-// The photos page. Before a selfie goes, it is shrunk in the browser to 1600 px and re-encoded
+// The photos page (shareFile.client.js runs before this script). Before a selfie goes, it is shrunk in the browser to 1600 px and re-encoded
 // as JPEG: a phone's 12 MB original becomes a few hundred kB, and the re-encoding drops the
 // photo's EXIF (where it was taken). While the picture is made (twenty seconds or more) the
 // button says so and the page waits. « Partager » hands the picture to the share sheet.
@@ -45,20 +45,11 @@
   });
 
   document.querySelectorAll('[data-share-photo]').forEach((button) => {
-    let file = null;
-    fetch(button.dataset.sharePhoto)
-      .then((res) => (res.ok ? res.blob() : null))
-      .then((blob) => {
-        file = blob ? new File([blob], 'photo.png', { type: blob.type || 'image/png' }) : null;
-      })
-      .catch(() => undefined);
+    const url = button.dataset.sharePhoto;
+    window.sivoovShareFile.prefetch(url, 'photo');
     button.addEventListener('click', async () => {
       try {
-        if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({ files: [file], text: button.dataset.title });
-          return;
-        }
-        window.open(button.dataset.sharePhoto, '_blank');
+        if (!(await window.sivoovShareFile.share(url, button.dataset.title))) window.open(url, '_blank');
       } catch {
         // Closed the share sheet.
       }

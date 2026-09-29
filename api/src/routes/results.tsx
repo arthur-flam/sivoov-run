@@ -7,8 +7,10 @@ import type { AppEnv } from '../env';
 import { db } from '../db/queries';
 import { photoQueries } from '../db/photoQueries';
 import { entrantForToken } from '../lib/authService';
-import { CARD_FORMATS, CARD_SIZE, cardDeps, cardFormat, cardPng, cardsEnabled, courseMapUrl, previewImage } from '../lib/cards';
-import type { CardFormat } from '../lib/cards';
+import { picturePath } from '../lib/photos';
+import { CARD_SIZE, cardDeps, cardFormat, cardPng, cardsEnabled, courseMapUrl, previewImage } from '../lib/cards';
+import { CARD_FORMATS } from '@sivoov/shared';
+import type { CardFormat } from '@sivoov/shared';
 import { finisherReport, fullName, raceCardId, resultForBib, runCardId, runnerCardFor, shortName } from '../lib/results';
 import { ReportCard, ShareCard } from '../pages/card';
 import type { MapBase } from '../pages/card';
@@ -99,7 +101,7 @@ results.get('/:slug/results/:bib', async (c) => {
   const titles = new Map(moments.map((m) => [m.id, m.title]));
   const shown = mine
     .filter((p) => p.shown && p.status === 'done' && p.resultKey)
-    .map((p) => ({ url: `/${race.slug}/photos/${p.id}/picture?v=${encodeURIComponent(p.resultKey!.split('/').pop() ?? '')}`, title: titles.get(p.momentId) ?? '' }));
+    .map((p) => ({ url: picturePath(`/${race.slug}/photos`, p)!, title: titles.get(p.momentId) ?? '' }));
   const token = getCookie(c, SESSION_COOKIE);
   const owner = token ? (await entrantForToken(c.env, token))?.id === result.entrant.id : false;
   return c.html(

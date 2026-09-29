@@ -1,5 +1,5 @@
 import type { CourseTrack, Locale, Race } from '@sivoov/shared';
-import type { CardFormat } from '../lib/cards';
+import type { CardFormat } from '@sivoov/shared';
 import { averagePace, distanceLabel, formatClock, formatOfficialTime, formatPace, translator, windowPhase } from '@sivoov/shared';
 import type { RunnerResult } from '../lib/results';
 import { runDate, shortName } from '../lib/results';

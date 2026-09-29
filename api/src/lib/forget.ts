@@ -2,7 +2,8 @@ import type { Entrant } from '@sivoov/shared';
 import type { Bindings } from '../env';
 import { db } from '../db/queries';
 import { photoQueries } from '../db/photoQueries';
-import { CARD_FORMATS, cardKey } from './cards';
+import { CARD_FORMATS } from '@sivoov/shared';
+import { cardKey } from './cards';
 
 const CARD_LOCALES = ['fr', 'en'] as const;
 /** R2 deletes at most this many keys per call. */

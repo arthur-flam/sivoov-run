@@ -85,7 +85,7 @@ export const Finish = ({ race, course, entrant, state, outcome, simulation, uplo
       <Body dark>{facts.join(' · ')}</Body>
       {halves?.negative ? (
         <Body dark testID="finish-negative">
-          {t('report.negative', { time: formatClock(halves.firstMs - halves.secondMs) })}
+          {t('report.negative', { time: formatClock(halves.gainMs) })}
         </Body>
       ) : null}
 

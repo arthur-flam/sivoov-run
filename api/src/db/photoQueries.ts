@@ -1,5 +1,6 @@
 import { PhotoMomentSchema, RunnerPhotoSchema } from '@sivoov/shared';
 import type { PhotoMoment, RunnerPhoto } from '@sivoov/shared';
+import { courseRaceOf } from './courseRace';
 
 /** Photo moments, runners' pictures and the app's web links (migration 0009). */
 
@@ -35,14 +36,14 @@ export const photoQueries = (d1: D1Database) => ({
   /** A demo race plays the real race's moments (`demo_of`), like its courses. */
   async moments(raceId: string): Promise<PhotoMoment[]> {
     const { results } = await d1
-      .prepare('SELECT * FROM photo_moments WHERE race_id = COALESCE((SELECT demo_of FROM races WHERE id = ?1), ?1) ORDER BY sort, created_at')
+      .prepare(`SELECT * FROM photo_moments WHERE race_id = ${courseRaceOf('?1')} ORDER BY sort, created_at`)
       .bind(raceId)
       .all<Record<string, unknown>>();
     return results.map(momentFromRow);
   },
   async moment(raceId: string, id: string): Promise<PhotoMoment | null> {
     const row = await d1
-      .prepare('SELECT * FROM photo_moments WHERE race_id = COALESCE((SELECT demo_of FROM races WHERE id = ?1), ?1) AND id = ?2')
+      .prepare(`SELECT * FROM photo_moments WHERE race_id = ${courseRaceOf('?1')} AND id = ?2`)
       .bind(raceId, id)
       .first<Record<string, unknown>>();
     return row ? momentFromRow(row) : null;
@@ -56,8 +57,13 @@ export const photoQueries = (d1: D1Database) => ({
       .bind(m.id, m.raceId, m.title, m.at, m.ask, m.scene, JSON.stringify(m.refs), m.sort, m.createdAt)
       .run();
   },
-  async deleteMoment(raceId: string, id: string): Promise<void> {
-    await d1.prepare('DELETE FROM photo_moments WHERE race_id = ? AND id = ?').bind(raceId, id).run();
+  /** The moment and every runner's photo for it. Returns the R2 keys to erase (selfies and pictures). */
+  async deleteMoment(raceId: string, id: string): Promise<string[]> {
+    // Only a moment of this race: another race's moment id deletes nothing.
+    const ofRace = 'moment_id IN (SELECT id FROM photo_moments WHERE race_id = ?1 AND id = ?2)';
+    const { results } = await d1.prepare(`SELECT selfie_key, result_key FROM runner_photos WHERE ${ofRace}`).bind(raceId, id).all<{ selfie_key: string; result_key: string | null }>();
+    await d1.batch([d1.prepare(`DELETE FROM runner_photos WHERE ${ofRace}`).bind(raceId, id), d1.prepare('DELETE FROM photo_moments WHERE race_id = ?1 AND id = ?2').bind(raceId, id)]);
+    return results.flatMap((r) => [r.selfie_key, ...(r.result_key ? [r.result_key] : [])]);
   },
   /** How many runners' pictures each moment has made. */
   async doneByMoment(raceId: string): Promise<Map<string, number>> {
@@ -99,6 +105,17 @@ export const photoQueries = (d1: D1Database) => ({
     const res = await d1
       .prepare(`UPDATE runner_photos SET status = 'rendering', attempts = attempts + 1, updated_at = ?1 WHERE id = ?2 AND (status != 'rendering' OR updated_at < ?3)`)
       .bind(nowIso, id, staleBeforeIso)
+      .run();
+    return (res.meta.changes ?? 0) > 0;
+  },
+  /**
+   * The end of a render: written only if the photo is still being made, so a photo deleted (or
+   * a runner's data erased) meanwhile stays gone. False when it was.
+   */
+  async finishRender(p: RunnerPhoto): Promise<boolean> {
+    const res = await d1
+      .prepare(`UPDATE runner_photos SET status = ?1, result_key = ?2, error = ?3, attempts = ?4, updated_at = ?5 WHERE id = ?6 AND status = 'rendering'`)
+      .bind(p.status, p.resultKey ?? null, p.error ?? null, p.attempts, p.updatedAt, p.id)
       .run();
     return (res.meta.changes ?? 0) > 0;
   },

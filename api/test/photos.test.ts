@@ -23,7 +23,7 @@ const racecourse = PhotoMomentSchema.parse({ ...finish, id: 'moment-hippodrome',
 
 type Call = { url: string; body: { contents: Array<{ parts: Array<{ text?: string; inlineData?: { mimeType: string } }> }> } };
 const calls: Call[] = [];
-let answer: () => Response = () => Response.json({ candidates: [{ content: { parts: [{ inlineData: { mimeType: 'image/png', data: toB64(png(9)) } }] } }] });
+let answer: () => Response | Promise<Response> = () => Response.json({ candidates: [{ content: { parts: [{ inlineData: { mimeType: 'image/png', data: toB64(png(9)) } }] } }] });
 const realFetch = globalThis.fetch;
 
 beforeAll(async () => {
@@ -181,8 +181,10 @@ describe('the app’s way into the web', () => {
   });
 
   it('never sends the browser off the race', async () => {
-    const res = await SELF.fetch(`${base}/link?c=nope&next=${encodeURIComponent('https://evil.test/')}`, { redirect: 'manual' });
-    expect(res.headers.get('location')).toBe(`/${SLUG}/signin?next=%2F${SLUG}%2Fphotos`);
+    for (const next of ['https://evil.test/', '//evil.test/', '/\\evil.test/', `/${SLUG}/../org`]) {
+      const res = await SELF.fetch(`${base}/link?c=nope&next=${encodeURIComponent(next)}`, { redirect: 'manual' });
+      expect(res.headers.get('location')).toBe(`/${SLUG}/signin?next=%2F${SLUG}%2Fphotos`);
+    }
   });
 });
 
@@ -297,6 +299,57 @@ describe('the app’s photos: sent any time, made after the run', () => {
 
   it('refuses a moment that is not on the runner’s course', async () => {
     expect((await sendFromApp(await bearer('marc@example.com'), racecourse.id)).status).toBe(404);
+  });
+});
+
+describe('photos that go wrong mid-way', () => {
+  const touques = PhotoMomentSchema.parse({ ...finish, id: 'moment-touques', title: 'Touques', at: 'touques', sort: 2 });
+  const bearer = async (email: string) => ({ Authorization: `Bearer ${await sessionFor(email)}` });
+  const send = async (headers: Record<string, string>) => {
+    const form = new FormData();
+    form.append('photo', new File([png(6)], 'IMG.png', { type: 'image/png' }));
+    form.append('consent', 'on');
+    return (await (await SELF.fetch(`http://run.test/api/me/photos/${touques.id}`, { method: 'POST', headers, body: form })).json<{ photo: { id: string } }>()).photo;
+  };
+  beforeAll(async () => {
+    await photoQueries(env.DB).upsertMoment(touques);
+  });
+
+  it('makes a picture whose making was lost (the page closed, the Worker stopped)', async () => {
+    const headers = await bearer('lea@example.com');
+    const { id } = await send(headers);
+    await env.DB.prepare(`UPDATE runner_photos SET status = 'rendering', updated_at = '2020-01-01T00:00:00.000Z' WHERE id = ?`).bind(id).run();
+    const res = await SELF.fetch('http://run.test/api/me/photos/render', { method: 'POST', headers });
+    const { photos } = await res.json<{ photos: Array<{ id: string; status: string }> }>();
+    expect(photos.find((p) => p.id === id)?.status).toBe('done');
+  });
+
+  it('keeps a photo deleted while its picture was being made deleted, picture included', async () => {
+    const headers = await bearer('lea@example.com');
+    const { id } = await send(headers);
+    const before = answer;
+    // The runner deletes the photo while the model is still drawing it.
+    answer = async () => {
+      await env.DB.prepare('DELETE FROM runner_photos WHERE id = ?').bind(id).run();
+      return before();
+    };
+    await SELF.fetch('http://run.test/api/me/photos/render', { method: 'POST', headers });
+    answer = before;
+    expect(await photoQueries(env.DB).photoById(id)).toBeNull();
+    const left = await env.FILES.list({ prefix: `photos/${deauvilleRace.id}/deauville-2026-1002/${id}` });
+    expect(left.objects).toEqual([]);
+  });
+
+  it('erases every runner’s photo of a moment the organizer removes', async () => {
+    const headers = await bearer('lea@example.com');
+    const { id } = await send(headers);
+    const photo = (await photoQueries(env.DB).photoById(id))!;
+    const form = new URLSearchParams({ step: 'code', email: 'orga@example.com', code: env.TEST_CODE! });
+    const signin = await SELF.fetch('http://run.test/org/signin', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: form, redirect: 'manual' });
+    const owner = signin.headers.get('set-cookie')!.split(';')[0]!;
+    await SELF.fetch(`http://run.test/org/${SLUG}/photos/${touques.id}/delete`, { method: 'POST', headers: { Cookie: owner }, redirect: 'manual' });
+    expect(await photoQueries(env.DB).photoById(id)).toBeNull();
+    expect(await env.FILES.head(photo.selfieKey)).toBeNull();
   });
 });
 

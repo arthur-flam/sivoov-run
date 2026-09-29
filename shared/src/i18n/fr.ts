@@ -360,7 +360,6 @@ export const fr = {
   'finish.incomplete.body': 'Seule une course complète est classée. Vous pouvez repartir tant que la fenêtre est ouverte.',
   'finish.covered': '{distance} parcourus',
   'finish.share': 'Partager mon arrivée',
-  'finish.certificate': 'Mon certificat',
   'finish.images': 'Mes images à partager',
   'finish.images.hint': 'Rapport, publication, story ou autocollant sur fond transparent : choisissez, partagez ou enregistrez.',
   'finish.photos.title': 'Vos photos de course',

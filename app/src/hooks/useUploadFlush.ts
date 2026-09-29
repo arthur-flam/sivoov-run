@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
+import { usePhotos } from '@/stores/photos';
 import { useUploads } from '@/stores/uploads';
 
 /**
@@ -9,26 +10,35 @@ import { useUploads } from '@/stores/uploads';
  */
 export const RETRY_EVERY_MS = 30_000;
 
-/** Retries pending uploads on mount, each time the app comes back to the foreground, and every half minute on screen. */
+/**
+ * Retries pending uploads on mount, each time the app comes back to the foreground, and every
+ * half minute on screen; the photos the camera kept on the phone go the same way.
+ */
 export const useUploadFlush = (token: string | null) => {
   const pendingCount = useUploads((s) => s.pending.length);
   const hydrated = useUploads((s) => s.hydrated);
+  const keptPhotos = usePhotos((s) => s.kept.length);
   useEffect(() => {
     if (!hydrated) void useUploads.getState().hydrate();
   }, [hydrated]);
   useEffect(() => {
     if (!token || !hydrated) return;
-    const flush = () => void useUploads.getState().flush(token).catch(() => undefined);
+    const flush = () => {
+      void useUploads.getState().flush(token).catch(() => undefined);
+      void usePhotos.getState().flush(token);
+    };
     flush();
     const sub = AppState.addEventListener('change', (state) => state === 'active' && flush());
     return () => sub.remove();
   }, [token, hydrated]);
   useEffect(() => {
-    if (!token || !hydrated || pendingCount === 0) return;
+    if (!token || !hydrated || pendingCount + keptPhotos === 0) return;
     const id = setInterval(() => {
-      if (AppState.currentState === 'active') void useUploads.getState().flush(token).catch(() => undefined);
+      if (AppState.currentState !== 'active') return;
+      void useUploads.getState().flush(token).catch(() => undefined);
+      void usePhotos.getState().flush(token);
     }, RETRY_EVERY_MS);
     return () => clearInterval(id);
-  }, [token, hydrated, pendingCount]);
+  }, [token, hydrated, pendingCount, keptPhotos]);
   return pendingCount;
 };

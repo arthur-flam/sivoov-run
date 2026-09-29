@@ -1,10 +1,9 @@
-import { useState } from 'react';
 import { View } from 'react-native';
 import type { CourseMoment } from '@sivoov/shared';
 import { Body, Button } from '@/components/ui';
 import { t } from '@/i18n';
 import { picker } from '@/photos/picker';
-import { usePhotos } from '@/stores/photos';
+import { takenMoments, usePhotos } from '@/stores/photos';
 import { space } from '@/theme';
 
 type Props = { moments: CourseMoment[]; token: string | null };
@@ -15,12 +14,12 @@ type Props = { moments: CourseMoment[]; token: string | null };
  * pictures come after the finish, rehearsal or race alike.
  */
 export const ReadyPhotos = ({ moments, token }: Props) => {
-  const [taken, setTaken] = useState(false);
+  const start = moments.find((m) => m.meters <= 0);
+  const taken = usePhotos((s) => (start ? takenMoments(s).includes(start.id) : false));
   const snap = usePhotos((s) => s.snap);
   if (moments.length === 0) return null;
-  const start = moments.find((m) => m.meters <= 0);
-  const selfie = async () => {
-    if (token && start) setTaken(await snap(token, start.id));
+  const selfie = () => {
+    if (token && start) void snap(token, start.id);
   };
   return (
     <View style={{ gap: space.xs }} testID="ready-photos">
@@ -31,7 +30,7 @@ export const ReadyPhotos = ({ moments, token }: Props) => {
         {t(picker ? 'ready.photos.body' : 'ready.photos.bodyOwnCamera', { moments: moments.map((m) => m.title).join(' · ') })}
       </Body>
       {start && picker ? (
-        <Button testID="start-selfie" label={taken ? t('ready.photos.selfieDone') : t('ready.photos.selfie')} ghost dark onPress={() => void selfie()} />
+        <Button testID="start-selfie" label={taken ? t('ready.photos.selfieDone') : t('ready.photos.selfie')} ghost dark onPress={selfie} />
       ) : null}
     </View>
   );

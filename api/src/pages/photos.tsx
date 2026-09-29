@@ -1,8 +1,10 @@
 import type { CourseMoment, Entrant, Locale, Race, RunnerPhoto } from '@sivoov/shared';
 import { MAX_PHOTO_ATTEMPTS, formatPlaceKm, translator } from '@sivoov/shared';
+import type { SelfieRefusal } from '../lib/photos';
 import { photosClient } from './photosClient';
 
-export type PhotoProblem = { reason: 'unknown' | 'unavailable' | 'consent' | 'no_file' | 'too_big' | 'type' | 'no_more' | 'failed'; momentId?: string };
+/** What went wrong, said on the page: a selfie refused (lib/photos.ts), or a picture that could not be made. */
+export type PhotoProblem = { reason: SelfieRefusal | 'failed'; momentId?: string };
 
 type Moment = CourseMoment & { place?: string };
 type Photo = RunnerPhoto & { url?: string; again: boolean };

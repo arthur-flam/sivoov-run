@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
-import { IMAGE_TYPES, RENDER_STALE_MS, checkImage, remixPrompt, sniffImage, stripJpegMetadata } from '@sivoov/shared';
-import type { Entrant, PhotoMoment, Race, RunnerPhoto } from '@sivoov/shared';
+import { IMAGE_TYPES, RENDER_STALE_MS, canTryAgain, checkImage, courseMoments, isStale, remixPrompt, sniffImage, stripJpegMetadata } from '@sivoov/shared';
+import type { Course, Entrant, PhotoMoment, Race, RunnerPhoto } from '@sivoov/shared';
 import type { Bindings } from '../env';
 import { photoQueries } from '../db/photoQueries';
 import { newId } from './crypto';
@@ -31,7 +31,7 @@ export const remixDeps = (env: Bindings): RemixDeps => ({
 
 export const remixEnabled = (deps: Pick<RemixDeps, 'gemini' | 'standIn'>): boolean => Boolean(deps.gemini || deps.standIn);
 
-type Picture = { bytes: Uint8Array; contentType: string };
+export type Picture = { bytes: Uint8Array; contentType: string };
 export type Rendered = { ok: true; picture: Picture } | { ok: false; reason: 'unavailable' | 'refused' | 'error'; detail: string };
 
 /** What Gemini answers: the picture is the first part carrying inline data. */
@@ -74,25 +74,65 @@ const read = async (files: R2Bucket, key: string): Promise<Picture | null> => {
   return kind ? { bytes, contentType: IMAGE_TYPES[kind].contentType } : null;
 };
 
-export type StoredSelfie = { ok: true; photo: RunnerPhoto } | { ok: false; error: 'empty' | 'type' | 'too_big' };
+/**
+ * One photo put into one moment: the place's photos read from R2, the prompt, the model. The
+ * runner's pictures and the organizer's « Essayer avec votre photo » both come through here.
+ */
+export const renderForMoment = async (deps: RemixDeps, race: Race, moment: PhotoMoment, selfie: Picture, bib: string): Promise<Rendered> => {
+  const refs = (await Promise.all(moment.refs.map((key) => read(deps.files, key)))).filter((p): p is Picture => p !== null);
+  const prompt = remixPrompt({ raceName: race.theme.displayName, city: race.city, title: moment.title, scene: moment.scene, bib, refs: refs.length, finish: moment.at === 'finish' });
+  return renderRemix(deps, prompt, selfie, refs);
+};
+
+/** Why a selfie was not taken. The web page says it in a sentence, the app gets it as a code. */
+export type SelfieRefusal = 'unknown' | 'unavailable' | 'consent' | 'no_file' | 'too_big' | 'type' | 'no_more';
+
+export const REFUSAL_STATUS: Record<SelfieRefusal, 400 | 404 | 413 | 422 | 429> = {
+  unknown: 404,
+  unavailable: 422,
+  consent: 400,
+  no_file: 400,
+  too_big: 413,
+  type: 400,
+  no_more: 429,
+};
+
+type Accepted = { ok: true; photo: RunnerPhoto; moment: PhotoMoment } | { ok: false; reason: SelfieRefusal; momentId?: string };
 
 /**
- * The runner's photo for a moment, stored privately, `waiting` for its picture (made right
- * after on the web, after the run from the app). A photo sent again for the same moment
- * replaces the first, and its picture is made again: the tries left carry over.
+ * A selfie sent for a moment, from the web page or the app: the moment must be on the runner's
+ * course, pictures must be possible here, the runner must have agreed, tries must be left. The
+ * photo is stored privately and `waiting` for its picture; one sent again for the same moment
+ * replaces the first (the tries carry over).
  */
-export const storeSelfie = async (env: Bindings, entrant: Entrant, moment: PhotoMoment, file: File, nowIso: string): Promise<StoredSelfie> => {
+export const acceptSelfie = async (
+  env: Bindings,
+  entrant: Entrant,
+  course: Course,
+  momentId: string,
+  body: { consent?: unknown; photo?: unknown },
+  nowMs = Date.now(),
+): Promise<Accepted> => {
+  const q = photoQueries(env.DB);
+  const moment = await q.moment(entrant.raceId, momentId);
+  if (!moment || courseMoments([moment], course).length === 0) return { ok: false, reason: 'unknown' };
+  const refuse = (reason: SelfieRefusal): Accepted => ({ ok: false, reason, momentId: moment.id });
+  if (!remixEnabled(remixDeps(env))) return refuse('unavailable');
+  if (body.consent !== 'on') return refuse('consent');
+  const file = body.photo;
+  if (!(file instanceof File) || file.size === 0) return refuse('no_file');
+  const existing = (await q.photos(entrant.id)).find((p) => p.momentId === moment.id);
+  if (existing && !canTryAgain(existing, nowMs)) return refuse('no_more');
   const sent = new Uint8Array(await file.arrayBuffer());
   const check = checkImage(sent, 'selfie');
-  if (!check.ok) return check;
-  // The page drops the EXIF when it shrinks the photo; without the page's script it is done here.
-  const bytes = stripJpegMetadata(sent);
-  const q = photoQueries(env.DB);
-  const existing = (await q.photos(entrant.id)).find((p) => p.momentId === moment.id);
+  if (!check.ok) return refuse(check.error === 'too_big' ? 'too_big' : 'type');
   const id = existing?.id ?? newId();
-  const selfieKey = `selfies/${entrant.raceId}/${entrant.id}/${id}.${IMAGE_TYPES[check.kind].ext}`;
-  await env.FILES.put(selfieKey, bytes, { httpMetadata: { contentType: IMAGE_TYPES[check.kind].contentType } });
+  const type = IMAGE_TYPES[check.kind];
+  const selfieKey = `selfies/${entrant.raceId}/${entrant.id}/${id}.${type.ext}`;
+  // The page drops the EXIF when it shrinks the photo; without the page's script it is done here.
+  await env.FILES.put(selfieKey, stripJpegMetadata(sent), { httpMetadata: { contentType: type.contentType } });
   if (existing && existing.selfieKey !== selfieKey) await env.FILES.delete(existing.selfieKey);
+  const nowIso = new Date(nowMs).toISOString();
   const photo: RunnerPhoto = {
     id,
     entrantId: entrant.id,
@@ -100,60 +140,58 @@ export const storeSelfie = async (env: Bindings, entrant: Entrant, moment: Photo
     selfieKey,
     status: 'waiting',
     resultKey: existing?.resultKey,
-    error: undefined,
     attempts: existing?.attempts ?? 0,
     shown: existing?.shown ?? false,
     createdAt: existing?.createdAt ?? nowIso,
     updatedAt: nowIso,
   };
   await q.upsertPhoto(photo);
-  return { ok: true, photo };
+  return { ok: true, photo, moment };
 };
 
 /**
- * Makes the picture for a photo, once at a time (`claimRender`): the runner's photo, the place's
- * photos, the prompt, the model, then the picture in R2. A failure keeps the previous picture,
- * if any, and says why for the organizer. Returns the photo as it now stands.
+ * Makes the picture for a photo, once at a time (`claimRender`), and keeps it only if the photo
+ * is still there when the model answers (`finishRender`: deleted meanwhile, it stays deleted).
+ * A failure keeps the previous picture, if any, and says why for the organizer.
  */
 export const makePhoto = async (env: Bindings, deps: RemixDeps, race: Race, entrant: Entrant, moment: PhotoMoment, photo: RunnerPhoto, nowMs = Date.now()): Promise<RunnerPhoto> => {
   const q = photoQueries(env.DB);
-  const nowIso = new Date(nowMs).toISOString();
-  const claimed = await q.claimRender(photo.id, nowIso, new Date(nowMs - RENDER_STALE_MS).toISOString());
+  const claimed = await q.claimRender(photo.id, new Date(nowMs).toISOString(), new Date(nowMs - RENDER_STALE_MS).toISOString());
   if (!claimed) return (await q.photo(entrant.id, photo.id)) ?? photo;
-  const attempts = photo.attempts + 1;
-  const done = (fields: Partial<RunnerPhoto>): Promise<RunnerPhoto> => {
-    const next: RunnerPhoto = { ...photo, attempts, updatedAt: new Date().toISOString(), ...fields };
-    return q.upsertPhoto(next).then(() => next);
+  const finish = async (fields: Partial<RunnerPhoto>): Promise<RunnerPhoto> => {
+    const next: RunnerPhoto = { ...photo, attempts: photo.attempts + 1, updatedAt: new Date().toISOString(), ...fields };
+    const kept = await q.finishRender(next);
+    if (!kept && fields.resultKey) await env.FILES.delete(fields.resultKey);
+    return next;
   };
   const selfie = await read(env.FILES, photo.selfieKey);
-  if (!selfie) return done({ status: 'failed', error: 'selfie missing' });
-  const refs = (await Promise.all(moment.refs.map((key) => read(env.FILES, key)))).filter((p): p is Picture => p !== null);
-  const prompt = remixPrompt({ raceName: race.theme.displayName, city: race.city, title: moment.title, scene: moment.scene, bib: entrant.bib, refs: refs.length, finish: moment.at === 'finish' });
-  const rendered = await renderRemix(deps, prompt, selfie, refs);
+  if (!selfie) return finish({ status: 'failed', error: 'selfie missing' });
+  const rendered = await renderForMoment(deps, race, moment, selfie, entrant.bib);
   if (!rendered.ok) {
     console.error('photo render failed', photo.id, rendered.reason, rendered.detail);
-    return done({ status: photo.resultKey ? 'done' : 'failed', error: `${rendered.reason}: ${rendered.detail}` });
+    return finish({ status: photo.resultKey ? 'done' : 'failed', error: `${rendered.reason}: ${rendered.detail}` });
   }
-  const ext = rendered.picture.contentType === 'image/png' ? 'png' : rendered.picture.contentType === 'image/webp' ? 'webp' : 'jpg';
-  const resultKey = `photos/${entrant.raceId}/${entrant.id}/${photo.id}-${attempts}.${ext}`;
+  const kind = sniffImage(rendered.picture.bytes) ?? 'png';
+  const resultKey = `photos/${entrant.raceId}/${entrant.id}/${photo.id}-${photo.attempts + 1}.${IMAGE_TYPES[kind].ext}`;
   await env.FILES.put(resultKey, rendered.picture.bytes, { httpMetadata: { contentType: rendered.picture.contentType } });
+  const made = await finish({ status: 'done', resultKey, error: undefined });
   if (photo.resultKey && photo.resultKey !== resultKey) await env.FILES.delete(photo.resultKey);
-  return done({ status: 'done', resultKey, error: undefined });
+  return made;
 };
 
 /** How many pictures one runner's request makes at once: a Worker holds six connections, R2 included. */
 const AT_ONCE = 3;
 
 /**
- * After the run: every photo still waiting gets its picture, three at a time. The app calls it
- * from the finish screen and the finisher's home; a photo already being made is left to finish.
+ * After the run: every photo still waiting (or whose making was lost) gets its picture, three at
+ * a time. The app calls it from the finish screen and the home.
  */
-export const makeWaiting = async (env: Bindings, deps: RemixDeps, race: Race, entrant: Entrant): Promise<RunnerPhoto[]> => {
+export const makeWaiting = async (env: Bindings, deps: RemixDeps, race: Race, entrant: Entrant, nowMs = Date.now()): Promise<RunnerPhoto[]> => {
   const q = photoQueries(env.DB);
   const [photos, moments] = await Promise.all([q.photos(entrant.id), q.moments(race.id)]);
   const byId = new Map(moments.map((m) => [m.id, m]));
-  const waiting = photos.filter((p) => p.status === 'waiting' && byId.has(p.momentId));
-  const batches = Array.from({ length: Math.ceil(waiting.length / AT_ONCE) }, (_, i) => waiting.slice(i * AT_ONCE, (i + 1) * AT_ONCE));
+  const due = photos.filter((p) => (p.status === 'waiting' || isStale(p, nowMs)) && byId.has(p.momentId));
+  const batches = Array.from({ length: Math.ceil(due.length / AT_ONCE) }, (_, i) => due.slice(i * AT_ONCE, (i + 1) * AT_ONCE));
   const made = await batches.reduce<Promise<RunnerPhoto[]>>(
     async (done, batch) => [...(await done), ...(await Promise.all(batch.map((p) => makePhoto(env, deps, race, entrant, byId.get(p.momentId)!, p))))],
     Promise.resolve([]),
@@ -161,3 +199,17 @@ export const makeWaiting = async (env: Bindings, deps: RemixDeps, race: Race, en
   const remade = new Map(made.map((p) => [p.id, p]));
   return photos.map((p) => remade.get(p.id) ?? p);
 };
+
+/** Where a picture is served, under `base` (`/<race>/photos` or `/api/me/photos`); its URL names the file, so a new one is a new URL. */
+export const picturePath = (base: string, photo: Pick<RunnerPhoto, 'id' | 'resultKey'>): string | null =>
+  photo.resultKey ? `${base}/${photo.id}/picture?v=${encodeURIComponent(photo.resultKey.split('/').pop() ?? '')}` : null;
+
+/** A picture from R2: cached publicly once the runner shows it, privately until then. */
+export const pictureResponse = (object: R2ObjectBody, shown: boolean): Response =>
+  new Response(object.body, {
+    headers: {
+      'Content-Type': object.httpMetadata?.contentType ?? 'image/png',
+      'Cache-Control': shown ? 'public, max-age=86400' : 'private, max-age=3600',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });

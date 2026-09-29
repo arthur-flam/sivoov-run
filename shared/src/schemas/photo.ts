@@ -6,15 +6,13 @@ import { z } from 'zod';
  * crowd). The organizer sets them in the admin; the runner sends their photos from the web.
  */
 
-/** Where on the course: the start, the finish, or one of the course's places (a landmark id). */
-export const MomentAtSchema = z.string().min(1).max(80);
-
 export const PhotoMomentSchema = z.object({
   id: z.string().min(1),
   raceId: z.string().min(1),
   /** « Sur les Planches » */
   title: z.string().trim().min(1).max(80),
-  at: MomentAtSchema,
+  /** Where on the course: `start`, `finish`, or one of the course's places (a landmark id). */
+  at: z.string().trim().min(1).max(80),
   /** What the runner is asked for, in a sentence: « Un selfie, bras levés, le sourire du finisher. » */
   ask: z.string().trim().min(1).max(240),
   /** The scene the image model draws the runner into: the place, the light, the crowd. */

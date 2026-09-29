@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { Race } from '@sivoov/shared';
 import { AuthedImage } from '@/components/AuthedImage';
@@ -34,8 +34,12 @@ export const RacePhotos = ({ race, token, run, officialM, finished, dark = false
     if (token) void load(token);
   }, [token, load]);
   const waiting = photos.some((p) => p.status === 'waiting');
+  // Once per screen: offline it would fail and ask again at once, forever. « Choisir mes photos » asks again.
+  const asked = useRef(false);
   useEffect(() => {
-    if (token && finished && enabled && waiting && busy === null) void make(token);
+    if (!token || !finished || !enabled || !waiting || busy !== null || asked.current) return;
+    asked.current = true;
+    void make(token);
   }, [token, finished, enabled, waiting, busy, make]);
   if (!token || moments.length === 0) return null;
 

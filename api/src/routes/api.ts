@@ -151,7 +151,7 @@ api.get('/me', async (c) => {
 });
 
 /**
- * A one-use link that opens a page of the race in the browser already signed in (the app's
+ * A one-use link that opens the runner's photos page in the browser already signed in (the app's
  * « Mes photos de course »): the browser has no session of its own, and typing an email code
  * after a race is the moment people give up.
  */
@@ -159,9 +159,7 @@ api.post('/me/web-link', async (c) => {
   const entrant = c.get('entrant')!;
   const race = await db(c.env.DB).raceById(entrant.raceId);
   if (!race) return c.json({ error: 'not_found' }, 404);
-  const page = z.enum(['photos', 'result']).catch('photos').parse((await c.req.json().catch(() => ({}))).page);
-  const next = page === 'photos' ? `/${race.slug}/photos` : `/${race.slug}/results/${entrant.bib}`;
-  return c.json({ url: await createWebLink(c.env, race, entrant, next) }, 200, { 'Cache-Control': 'private, no-store' });
+  return c.json({ url: await createWebLink(c.env, race, entrant, `/${race.slug}/photos`) }, 200, { 'Cache-Control': 'private, no-store' });
 });
 
 const VoicesBody = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).partial();

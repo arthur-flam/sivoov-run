@@ -1,6 +1,6 @@
 import { Linking, Platform, Share } from 'react-native';
 import { distanceLabel, formatOfficialTime } from '@sivoov/shared';
-import type { EntrantPublic, Race } from '@sivoov/shared';
+import type { CardFormat, EntrantPublic, Race } from '@sivoov/shared';
 import { API_URL, api } from '@/api';
 import { diag } from '@/diag';
 import { currentLocale, t } from '@/i18n';
@@ -38,7 +38,7 @@ export const shareBib = (race: Race, entrant: Pick<EntrantPublic, 'bib' | 'dista
 };
 
 /** The race report as a picture (api: /results/:bib/card.png), in the phone's language; it redirects to the current card. */
-export const reportImageUrl = (race: Pick<Race, 'slug'>, bib: string, format: 'og' | 'post' | 'story' | 'sticker'): string =>
+export const reportImageUrl = (race: Pick<Race, 'slug'>, bib: string, format: CardFormat): string =>
   `${API_URL}/${race.slug}/results/${bib}/card.png?format=${format}&lang=${currentLocale()}`;
 
 /** The runner's page: the certificate, and the four pictures to share or save. */
@@ -52,7 +52,7 @@ export const openCertificate = (race: Pick<Race, 'slug'>, bib: string): void => 
  */
 export const openPhotos = async (race: Pick<Race, 'slug'>, token: string | null): Promise<void> => {
   const fallback = `${API_URL}/${race.slug}/photos${currentLocale() === 'en' ? '?lang=en' : ''}`;
-  const url = token ? await api.webLink(token, 'photos').then((r) => r.url).catch(() => fallback) : fallback;
+  const url = token ? await api.webLink(token).then((r) => r.url).catch(() => fallback) : fallback;
   diag('share', `photos ${url === fallback ? 'page' : 'link'}`);
   await Linking.openURL(url).catch(() => undefined);
 };

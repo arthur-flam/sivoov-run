@@ -1,4 +1,5 @@
-import type { Course } from '@sivoov/shared';
+import { CARD_FORMATS } from '@sivoov/shared';
+import type { CardFormat, Course } from '@sivoov/shared';
 import type { Bindings } from '../env';
 
 /**
@@ -8,9 +9,6 @@ import type { Bindings } from '../env';
  * previews (og:image) and the image a runner posts. Without the optional token the pages fall
  * back to the course map, and nothing breaks.
  */
-export const CARD_FORMATS = ['og', 'post', 'story', 'sticker'] as const;
-export type CardFormat = (typeof CARD_FORMATS)[number];
-
 /**
  * og: the race report, landscape, what link previews crop to (1.91:1). post: the report as a 4:5
  * portrait that sits in every feed. story: 9:16, a full phone screen (Instagram, WhatsApp

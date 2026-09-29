@@ -1,4 +1,4 @@
-// The result page's buttons. « Partager l'image » hands the picture on show to the phone's share
+// The result page's buttons (shareFile.client.js runs before this script). « Partager l'image » hands the picture on show to the phone's share
 // sheet when the browser can share files (Instagram, WhatsApp, Messages take it as a photo),
 // the link when it can only share text, and copies the link everywhere else. The format
 // buttons swap the picture, its download and what is shared.
@@ -14,29 +14,14 @@
     }, 2000);
   };
 
-  // Fetched ahead: iOS only opens the share sheet from a tap, and a download between the tap
-  // and the sheet would spend it. One file per picture, kept once fetched.
-  const files = new Map();
-  const prefetch = (url, name) => {
-    if (!url || files.has(url)) return;
-    files.set(url, null);
-    fetch(url)
-      .then((res) => (res.ok ? res.blob() : null))
-      .then((blob) => files.set(url, blob ? new File([blob], name, { type: 'image/png' }) : null))
-      .catch(() => undefined);
-  };
-
+  const { prefetch, share: shareFile } = window.sivoovShareFile;
   const share = document.querySelector('[data-share]');
   if (share) {
-    prefetch(share.dataset.card, `${share.dataset.file || 'sivoov'}.png`);
+    prefetch(share.dataset.card, share.dataset.file || 'sivoov');
     share.addEventListener('click', async () => {
       const { url, text } = share.dataset;
-      const card = files.get(share.dataset.card);
       try {
-        if (card && navigator.canShare && navigator.canShare({ files: [card] })) {
-          await navigator.share({ files: [card], text: `${text} ${url}` });
-          return;
-        }
+        if (await shareFile(share.dataset.card, `${text} ${url}`)) return;
         if (navigator.share) {
           await navigator.share({ text, url });
           return;
@@ -99,7 +84,7 @@
       if (hint) hint.textContent = button.dataset.hint;
       if (share && png) {
         share.dataset.card = png;
-        prefetch(png, `${share.dataset.file || 'sivoov'}-${format}.png`);
+        prefetch(png, `${share.dataset.file || 'sivoov'}-${format}`);
       }
       if (download && png) {
         download.href = png;

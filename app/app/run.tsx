@@ -19,7 +19,7 @@ import { LivePanel } from '@/components/run/LivePanel';
 import { ReadyPanel } from '@/components/run/ReadyPanel';
 import { ReadyPhotos } from '@/components/run/ReadyPhotos';
 import { picker } from '@/photos/picker';
-import { usePhotos } from '@/stores/photos';
+import { takenMoments, usePhotos } from '@/stores/photos';
 import { ResumePanel } from '@/components/run/ResumePanel';
 import { Stage } from '@/components/run/Stage';
 import { StartPanel } from '@/components/run/StartPanel';
@@ -103,7 +103,7 @@ export default function Run() {
   // Moments whose photo is taken (sent, or kept on the phone until it can be): the camera says « Une autre photo ».
   const keptPhotos = usePhotos((s) => s.kept);
   const sentPhotos = usePhotos((s) => s.photos);
-  const photosTaken = [...keptPhotos, ...sentPhotos.map((p) => p.momentId)];
+  const photosTaken = takenMoments({ kept: keptPhotos, photos: sentPhotos });
   const uploadStatus = useUploads((s) => s.statusOf(run.runId));
   // A finish out of signal is sent from the finish screen as soon as the signal is back.
   useUploadFlush(token);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { RunSchema } from '../schemas/run';
-import { averagePace, bestRankedRun, finishOutcome } from './finish';
+import type { Run } from '../schemas/run';
+import { averagePace, bestRankedRun, finishOutcome, lastFinishedRun } from './finish';
 
 const window = { windowStart: '2026-11-09T00:00:00+01:00', windowEnd: '2026-11-15T23:59:59+01:00' };
 const HALF = 21097.5;
@@ -51,5 +52,17 @@ describe('the best official run the phone knows of', () => {
   });
   it('is nothing before any finish', () => {
     expect(bestRankedRun(window, HALF, [])).toBeNull();
+  });
+});
+
+describe('the last run that reached the line', () => {
+  const run = (id: string, startedAt: string, over: Partial<Run> = {}): Run =>
+    RunSchema.parse({ id, entrantId: 'e', courseId: 'c', status: 'finished', source: 'app', startedAt, elapsedMs: 6_000_000, distanceM: 21097.5, ...over });
+  it('is the latest full distance, a rehearsal as much as a race', () => {
+    const runs = [run('race', '2026-11-12T08:00:00Z'), run('rehearsal', '2026-11-20T08:00:00Z'), run('stopped', '2026-11-21T08:00:00Z', { status: 'abandoned' })];
+    expect(lastFinishedRun(runs, 21097.5)?.id).toBe('rehearsal');
+  });
+  it('is none when no run covered the distance', () => {
+    expect(lastFinishedRun([run('short', '2026-11-12T08:00:00Z', { distanceM: 9000 })], 21097.5)).toBeNull();
   });
 });

@@ -66,10 +66,15 @@ export const verifyCode = async (env: Bindings, req: CodeVerify, client: Session
   } else if (active) {
     await q.consumeCode(active.id);
   }
+  return { ok: true, ...(await startSession(env, entrant.id, client)), entrant };
+};
+
+/** A new runner session: the code's, or a one-use link's from the app (lib/webLink.ts). */
+export const startSession = async (env: Bindings, entrantId: string, client: SessionClient): Promise<{ token: string; expiresAt: string }> => {
   const token = randomHex(32);
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
-  await q.createSession(newId(), entrant.id, await sha256Hex(token), expiresAt, client);
-  return { ok: true, token, expiresAt, entrant };
+  await db(env.DB).createSession(newId(), entrantId, await sha256Hex(token), expiresAt, client);
+  return { token, expiresAt };
 };
 
 export const entrantForToken = async (env: Bindings, token: string): Promise<Entrant | null> => db(env.DB).entrantForToken(await sha256Hex(token));

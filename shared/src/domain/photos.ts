@@ -41,13 +41,15 @@ export const momentAt = (moments: readonly CourseMoment[], distanceM: number, of
 /** A runner may have a picture made this many times per moment (the first and two more tries). */
 export const MAX_PHOTO_ATTEMPTS = 3;
 
-export const canTryAgain = (photo: Pick<RunnerPhoto, 'attempts' | 'status'>): boolean => photo.status !== 'rendering' && photo.attempts < MAX_PHOTO_ATTEMPTS;
-
 /** A picture still "rendering" after this long was lost (the page closed, the Worker stopped): it may be asked again. */
 export const RENDER_STALE_MS = 3 * 60_000;
 
 export const isStale = (photo: Pick<RunnerPhoto, 'status' | 'updatedAt'>, nowMs: number): boolean =>
   photo.status === 'rendering' && nowMs - Date.parse(photo.updatedAt) > RENDER_STALE_MS;
+
+/** Another picture may be made: tries left, and none being made now (a lost one does not count). */
+export const canTryAgain = (photo: Pick<RunnerPhoto, 'attempts' | 'status' | 'updatedAt'>, nowMs: number): boolean =>
+  (photo.status !== 'rendering' || isStale(photo, nowMs)) && photo.attempts < MAX_PHOTO_ATTEMPTS;
 
 type PromptInput = { raceName: string; city: string; title: string; scene: string; bib: string; refs: number; finish: boolean };
 

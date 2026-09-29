@@ -67,6 +67,7 @@ describe('a finisher’s race report', () => {
     const halves = raceReport(paul, HALF).halves!;
     expect(halves.secondMs).toBeLessThan(halves.firstMs);
     expect(halves.negative).toBe(true);
+    expect(halves.gainMs).toBe(halves.firstMs - halves.secondMs);
     expect(raceReport(zoe, HALF).halves!.negative).toBe(false);
   });
 

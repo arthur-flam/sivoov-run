@@ -26,6 +26,26 @@ leaving the app, and a rehearsal is a run like the real one, photos included.
 Seen in `npm run shots` (`run-photo`, `run-photo-ready`); the camera itself is the web target's
 file input there: on a phone it needs the EAS build.
 
+### Review pass (2026-09-29, same branch)
+A reviewer subagent read the whole branch for sprawl and bugs. Fixed:
+- **Bugs**:
+  - a render lost mid-way (page closed, timeout) left the photo stuck: it is now retried after 3 min (`canTryAgain`, `makeWaiting`);
+  - a photo deleted, or a runner's data erased, during a render came back: the render only writes if the photo is still there, else it deletes the picture it made (`finishRender`);
+  - the app asked for the pictures again and again when offline: now once per screen;
+  - removing a moment left runners' photos and files behind: they are erased with it;
+  - photos taken in the app were only retried from the photos card: they now go with the pending uploads, at app start, on foreground and every 30 s;
+  - the app link's `next` now goes through `sameSitePath`.
+- **Sprawl**:
+  - one `acceptSelfie`, `renderForMoment`, `picturePath` and `pictureResponse` for the web page, the app and the admin try;
+  - `startSession` and `setRunnerCookie` shared with sign-in;
+  - `courseRaceOf` for demo races;
+  - `CARD_FORMATS` in shared;
+  - one share-sheet helper for both page scripts;
+  - `card.tsx` split into `reportParts.tsx` and `cardStyles.ts`;
+  - unused app routes, fields and strings removed;
+  - screen logic moved out (`lastFinishedRun`, `takenMoments`).
+- Left as is: renaming `rankedRun`, `isRanked` and `bestRankedRun` to "counts" would touch results, uploads and the admin beyond this branch. They mean "counts as an official finish", and their docs say so.
+
 ### Race photos in the app, the studio and the finisher's home (2026-09-29, same branch)
 The owner's review of the first pass: no ranking in the pictures, a photo before the start, the
 moments in the audio editor (they need their announcement), the share screen reachable after

@@ -40,6 +40,9 @@ type PhotosStore = {
   kept: string[];
 };
 
+/** The moments that have their photo: sent, or kept on the phone until it can be. */
+export const takenMoments = (s: Pick<PhotosStore, 'kept' | 'photos'>): string[] => [...s.kept, ...s.photos.map((p) => p.momentId)];
+
 /** The photo as a form part: a File on the web target, a file URI on a phone. */
 const formFor = (photo: PickedPhoto): FormData => {
   const form = new FormData();
@@ -57,7 +60,7 @@ const merge = (photos: PhotoView[], changed: PhotoView[]): PhotoView[] => {
 };
 
 /** One flush at a time: the camera and the screens all ask for one. */
-const flushing = { now: false };
+const flushing = { now: false, again: false };
 
 /** The runner's race photos: the moments of their course, what they sent, the pictures made. */
 export const usePhotos = create<PhotosStore>((set, get) => ({
@@ -119,7 +122,11 @@ export const usePhotos = create<PhotosStore>((set, get) => ({
     return true;
   },
   async flush(token) {
-    if (flushing.now) return;
+    // Asked again while sending (a photo taken meanwhile): one more pass once this one ends.
+    if (flushing.now) {
+      flushing.again = true;
+      return;
+    }
     flushing.now = true;
     try {
       const queued = await photoQueue.list();
@@ -138,6 +145,10 @@ export const usePhotos = create<PhotosStore>((set, get) => ({
       }, Promise.resolve(true));
     } finally {
       flushing.now = false;
+    }
+    if (flushing.again) {
+      flushing.again = false;
+      await get().flush(token);
     }
   },
   async make(token) {

@@ -1,6 +1,13 @@
 import type { Run, Split } from '../schemas/run';
 
 /**
+ * The pictures a finish is shared as: `og` the race report under a link (1200x630), `post` a 4:5
+ * feed post, `story` a 9:16 story, `sticker` the time and course on a transparent ground.
+ */
+export const CARD_FORMATS = ['og', 'post', 'story', 'sticker'] as const;
+export type CardFormat = (typeof CARD_FORMATS)[number];
+
+/**
  * The race report a finisher shares: their time at each timing point of the course, the pace
  * between two points, and the two halves. No ranking (the owner's call): everyone runs their
  * own race, somewhere, during the week. Pure: the share cards only draw it.
@@ -53,8 +60,8 @@ export type ReportCheckpoint = {
   paceSecPerKm: number;
 };
 
-/** `negative`: the second half at least a second quicker than the first (an even run is not one). */
-export type ReportHalves = { firstMs: number; secondMs: number; negative: boolean };
+/** `negative`: the second half at least a second quicker than the first (an even run is not one), by `gainMs`. */
+export type ReportHalves = { firstMs: number; secondMs: number; negative: boolean; gainMs: number };
 
 export type RaceReport = { checkpoints: ReportCheckpoint[]; halves: ReportHalves | null };
 
@@ -69,7 +76,7 @@ export const raceReport = (run: Pick<Run, 'elapsedMs' | 'splits'>, officialM: nu
     return { meters: p.meters, finish: p.meters >= officialM, elapsedMs: p.elapsedMs, segmentMs, paceSecPerKm: segmentMs / Math.max(1, p.meters - prev.meters) };
   });
   const half = elapsedAt(run, officialM, officialM / 2);
-  const halves = half !== null && run.splits.length >= 2 ? { firstMs: half, secondMs: run.elapsedMs - half, negative: run.elapsedMs - half <= half - 1000 } : null;
+  const halves = half !== null && run.splits.length >= 2 ? { firstMs: half, secondMs: run.elapsedMs - half, negative: run.elapsedMs - half <= half - 1000, gainMs: half - (run.elapsedMs - half) } : null;
   return { checkpoints, halves };
 };
 

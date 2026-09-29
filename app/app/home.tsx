@@ -2,7 +2,7 @@ import { Linking, ScrollView, StyleSheet, View, useWindowDimensions } from 'reac
 import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { daysUntilWindow, distanceLabel, formatDistanceLine, formatOfficialTime, windowPhase } from '@sivoov/shared';
+import { daysUntilWindow, distanceLabel, formatDistanceLine, formatOfficialTime, lastFinishedRun, windowPhase } from '@sivoov/shared';
 import { AccountActions } from '@/components/AccountActions';
 import { CourseMap } from '@/components/CourseMap';
 import { DemoRun } from '@/components/DemoRun';
@@ -57,7 +57,7 @@ export default function Home() {
   }
 
   const { entrant, race, course } = me;
-  const lastFinished = best ?? [...me.runs].filter((r) => r.status === 'finished' || r.status === 'uploaded').sort((a, b) => (b.startedAt ?? '').localeCompare(a.startedAt ?? ''))[0] ?? null;
+  const lastFinished = best ?? (course ? lastFinishedRun(me.runs, course.distanceM) : null);
   const now = Date.now();
   const phase = windowPhase(race, now);
   const days = daysUntilWindow(race, now);

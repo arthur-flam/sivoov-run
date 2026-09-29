@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import {
+  CLIENT_HEADER,
   CodeRequestSchema,
   CodeVerifySchema,
   CourseGeometrySchema,
@@ -8,11 +9,13 @@ import {
   LiveVoiceRequestSchema,
   LocaleSchema,
   RunSchema,
+  RunStartSchema,
   RunTraceSchema,
   isRanked,
   baseMapUrl,
   fitView,
   officialStatus,
+  parseClientHeader,
   staticMapUrl,
 } from '@sivoov/shared';
 import type { AppEnv } from '../env';
@@ -21,8 +24,10 @@ import { requireEntrant } from '../lib/auth';
 import type { AuthVars } from '../lib/auth';
 import { requestCode, verifyCode } from '../lib/authService';
 import { forgetRunner } from '../lib/forget';
+import { finishNotice, signInNotice, startNotice } from '../lib/notices';
 import { liveVoice, personalDeps, personalVoices, runnerFacts } from '../lib/personal';
 import { loadGeometry } from '../lib/studio';
+import { notify } from '../lib/telegram';
 import { mayRehearse } from '../lib/testCode';
 import { weatherAt } from '../lib/weather';
 import { prewarmCards } from './results';
@@ -108,6 +113,7 @@ api.post('/auth/verify', async (c) => {
   const result = await verifyCode(c.env, parsed.data, 'app');
   if (!result.ok && result.error === 'ambiguous') return c.json({ error: result.error, races: result.races, bib: result.bib }, 409);
   if (!result.ok) return c.json({ error: result.error }, result.error === 'unknown_entrant' ? 404 : 401);
+  notify(c, signInNotice(result.entrant, result.race, 'app', parseClientHeader(c.req.header(CLIENT_HEADER))));
   return c.json({ token: result.token, expiresAt: result.expiresAt, entrant: EntrantPublicSchema.parse(result.entrant) });
 });
 
@@ -217,7 +223,25 @@ api.put('/runs/:id', async (c) => {
   await q.upsertRun({ ...run, status }, traceKey);
   const race = await q.raceById(entrant.raceId);
   if (race && isRanked(race, { ...run, status })) c.executionCtx.waitUntil(prewarmCards(c.env, new URL(c.req.url).origin, race, entrant.bib).catch(() => undefined));
+  // Once per run: the upload queue sends the same run again until it hears back.
+  if (race && !existing) notify(c, finishNotice(entrant, race, course, { ...run, status }));
   return c.json({ ok: true, run: await q.runById(run.id) });
+});
+
+/**
+ * The gun, from the app, fire and forget: the owner hears who just started and whether it
+ * counts (the Worker's clock against the race window). Nothing is stored; the run itself
+ * arrives with its upload.
+ */
+api.post('/runs/:id/started', async (c) => {
+  const entrant = c.get('entrant')!;
+  const parsed = await parseBody(c, RunStartSchema);
+  if (!parsed.success) return c.json({ error: 'invalid', issues: parsed.error.issues }, 400);
+  const q = db(c.env.DB);
+  const [race, course] = await Promise.all([q.raceById(entrant.raceId), q.courseFor(entrant.raceId, entrant.distanceKey)]);
+  if (!race || !course || course.id !== parsed.data.courseId) return c.json({ error: 'invalid_course' }, 400);
+  notify(c, startNotice(entrant, race, course, parsed.data.source, Date.now()));
+  return c.json({ ok: true }, 202);
 });
 
 api.get('/runs', async (c) => c.json({ runs: await db(c.env.DB).runsForEntrant(c.get('entrant')!.id) }));

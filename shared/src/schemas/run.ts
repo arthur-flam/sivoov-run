@@ -54,6 +54,16 @@ export const RunSchema = z.object({
 });
 export type Run = z.infer<typeof RunSchema>;
 
+/**
+ * What the app says at the gun (`POST /api/runs/:id/started`), fire and forget: the Worker
+ * only tells the owner (lib/telegram.ts) and stores nothing. A GPX upload never starts live.
+ */
+export const RunStartSchema = z.object({
+  courseId: z.string().min(1),
+  source: RunSourceSchema.extract(['app', 'simulation']),
+});
+export type RunStart = z.infer<typeof RunStartSchema>;
+
 /** Everything the app uploads after a run, for results and debugging. */
 export const RunTraceSchema = z.object({
   runId: z.string().min(1),

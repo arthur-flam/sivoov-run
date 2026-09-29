@@ -161,7 +161,8 @@ const cameraFor = (shot: CameraShot) => ({
       ? { centerCoordinate: shot.center, heading: shot.bearing, pitch: shot.pitch, zoomLevel: shot.zoom }
       : { bounds: { ne: shot.ne, sw: shot.sw }, heading: shot.bearing, pitch: shot.pitch },
   padding: { paddingTop: shot.padding.top, paddingBottom: shot.padding.bottom, paddingLeft: shot.padding.left, paddingRight: shot.padding.right },
-  mode: shot.mode === 'linear' ? ('linearTo' as const) : shot.mode === 'ease' ? ('easeTo' as const) : ('flyTo' as const),
+  // A move of no duration is a jump: no animation left for a paused map to hold half done.
+  mode: shot.durationMs === 0 ? ('none' as const) : shot.mode === 'linear' ? ('linearTo' as const) : shot.mode === 'ease' ? ('easeTo' as const) : ('flyTo' as const),
 });
 
 const styles = StyleSheet.create({ fill: { flex: 1 } });

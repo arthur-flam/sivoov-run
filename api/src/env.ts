@@ -53,6 +53,20 @@ export type Bindings = Env & {
    * BROWSER_RENDERING_TOKEN`. Optional: without it link previews use the course map.
    */
   BROWSER_RENDERING_TOKEN?: string;
+  /**
+   * The owner's Telegram bot (made with @BotFather), which posts a line on each sign-in, run
+   * start, finish, organizer lead, admin sign-in and server error (lib/telegram.ts).
+   * `wrangler secret put TELEGRAM_BOT_TOKEN`. Optional: without it, or without the chat below,
+   * nothing is sent (local, tests).
+   */
+  TELEGRAM_BOT_TOKEN?: string;
+  /** The chat those lines go to (the owner's own chat with the bot, or a group). `wrangler secret put TELEGRAM_CHAT_ID`. */
+  TELEGRAM_CHAT_ID?: string;
+  /**
+   * Sentry DSN of the Worker's project (Cloudflare Workers), for error reports (lib/sentry.ts).
+   * `wrangler secret put SENTRY_DSN`, and `--env preview`. Optional: without it nothing is sent.
+   */
+  SENTRY_DSN?: string;
 };
 
 export type AppEnv = { Bindings: Bindings };

@@ -29,5 +29,8 @@ export const useGlide = (state: Pick<RunState, 'distanceM' | 'paceSecPerKm' | 't
     return () => clearInterval(id);
   }, [running, rate]);
 
-  return running ? { m: shown, speedMps: speedFromPace(state.paceSecPerKm) * rate } : { m: state.distanceM, speedMps: 0 };
+  // Back on screen, the first frame comes before the glide's first step: a map left far behind in
+  // the background goes straight to the runner then (glideStep's snap), not a frame later.
+  const m = glideStep({ fixM: state.distanceM, sinceFixMs: 0, speedMps: 0, shownM: shown, dtMs: 0, targetM: state.targetM });
+  return running ? { m, speedMps: speedFromPace(state.paceSecPerKm) * rate } : { m: state.distanceM, speedMps: 0 };
 };

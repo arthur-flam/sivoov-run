@@ -349,3 +349,44 @@ describe('the runner’s own lines', () => {
     expect(usePackStore.getState()).toMatchObject({ personal: {}, captions: {}, personalFor: null });
   });
 });
+
+describe('a pack published after the phone has one', () => {
+  beforeEach(wipe);
+
+  it('replaces the one on the phone when the pre-flight asks, once its files are down', async () => {
+    pack.mockResolvedValueOnce(published).mockResolvedValueOnce(republished);
+    await usePackStore.getState().load(course);
+    await usePackStore.getState().update(course);
+    expect(usePackStore.getState()).toMatchObject({ status: 'ready', outdated: false, bytes: 2_000_000 });
+    expect(usePackStore.getState().pack?.version).toBe(3);
+    expect(usePackStore.getState().uriFor('gun.mp3')).toBe('file://document/packs/deauville-2026-marathon/3/gun.mp3');
+  });
+
+  it('is never looked for by the race home or the run screen, which keep the pack they have', async () => {
+    pack.mockResolvedValueOnce(published).mockResolvedValueOnce(republished);
+    await usePackStore.getState().load(course);
+    await usePackStore.getState().load(course);
+    expect(pack).toHaveBeenCalledTimes(1);
+    expect(usePackStore.getState().pack?.version).toBe(2);
+  });
+
+  it('keeps the pack on the phone when the newer one cannot come down, or the server cannot be reached', async () => {
+    pack.mockResolvedValueOnce(published).mockResolvedValueOnce(republished).mockRejectedValueOnce(new Error('timeout'));
+    offline.add('https://run.test/api/packs/m/3/gun.mp3');
+    await usePackStore.getState().load(course);
+    await usePackStore.getState().update(course);
+    expect(usePackStore.getState()).toMatchObject({ status: 'ready', outdated: true });
+    expect(usePackStore.getState().uriFor('gun.mp3')).toBe('file://document/packs/deauville-2026-marathon/2/gun.mp3');
+    await usePackStore.getState().update(course);
+    expect(usePackStore.getState().pack?.version).toBe(2);
+  });
+
+  it('retries a pack that did not come down, as a first load would', async () => {
+    pack.mockRejectedValueOnce(new Error('timeout')).mockResolvedValueOnce(published);
+    await usePackStore.getState().load(course);
+    expect(usePackStore.getState().status).toBe('error');
+    await usePackStore.getState().update(course);
+    expect(usePackStore.getState()).toMatchObject({ status: 'ready' });
+    expect(usePackStore.getState().pack?.version).toBe(2);
+  });
+});

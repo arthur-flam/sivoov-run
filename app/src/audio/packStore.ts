@@ -35,6 +35,12 @@ type PackStore = {
   /** The pack version and whether a position went with it, so a later call only refetches what can improve. */
   personalFor: { version: number; here: boolean; at: number } | null;
   load: (course: Course) => Promise<void>;
+  /**
+   * The pre-flight's call: like `load`, and when a pack is already on the phone, asks whether a
+   * newer one was published since (the organizer may have changed a line) and swaps to it once
+   * all its files are down. Never from the run screen: a run keeps the pack it started with.
+   */
+  update: (course: Course) => Promise<void>;
   /** Fetches and downloads the runner's own lines for the loaded pack. Never throws, never blocks a run. */
   loadPersonal: (token: string, here?: { lat: number; lng: number }) => Promise<void>;
   uriFor: (key: string) => string | null;
@@ -148,6 +154,19 @@ export const usePackStore = create<PackStore>((set, get) => {
         await refresh(course, current);
       };
       const done = run().finally(() => {
+        if (inflight?.done === done) inflight = null;
+      });
+      inflight = { courseId: course.id, done };
+      return done;
+    },
+
+    update(course) {
+      const { courseId, status } = get();
+      if (courseId !== course.id || status !== 'ready' || inflight?.courseId === course.id) return get().load(course);
+      const mine = ++generation;
+      const current = () => generation === mine;
+      // The pack on the phone stays 'ready' while the newer one comes down: the start is never held up.
+      const done = refresh(course, current).finally(() => {
         if (inflight?.done === done) inflight = null;
       });
       inflight = { courseId: course.id, done };

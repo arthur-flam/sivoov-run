@@ -9,6 +9,8 @@ import {
   RunSchema,
   RunTraceSchema,
   isRanked,
+  baseMapUrl,
+  fitView,
   officialStatus,
   staticMapUrl,
 } from '@sivoov/shared';
@@ -20,6 +22,7 @@ import { requestCode, verifyCode } from '../lib/authService';
 import { forgetRunner } from '../lib/forget';
 import { liveVoice, personalDeps, personalVoices, runnerFacts } from '../lib/personal';
 import { loadGeometry } from '../lib/studio';
+import { mayRehearse } from '../lib/testCode';
 import { weatherAt } from '../lib/weather';
 import { prewarmCards } from './results';
 
@@ -54,6 +57,8 @@ api.get('/courses/:id/geometry', async (c) => {
 /**
  * Course map as a PNG: Mapbox Static Images rendered server-side so the token stays on the
  * Worker and the app and the web pages share one cached image. 404s when no token is set.
+ * `base=1`: the ground alone, framed by `fitView` on the course, for the app to draw the course
+ * on (it frames the same geometry the same way, so every point lands where it should).
  */
 api.get('/courses/:id/map.png', async (c) => {
   const token = c.env.MAPBOX_TOKEN;
@@ -61,7 +66,9 @@ api.get('/courses/:id/map.png', async (c) => {
   const q = db(c.env.DB);
   const course = await q.courseById(c.req.param('id'));
   if (!course) return c.json({ error: 'not_found' }, 404);
-  const size = z.object({ w: z.coerce.number().int().min(100).max(1280).default(720), h: z.coerce.number().int().min(100).max(1280).default(400) }).safeParse(c.req.query());
+  const size = z
+    .object({ w: z.coerce.number().int().min(100).max(1280).default(720), h: z.coerce.number().int().min(100).max(1280).default(400), base: z.literal('1').optional() })
+    .safeParse(c.req.query());
   if (!size.success) return c.json({ error: 'invalid' }, 400);
   const cache = caches.default;
   const cacheKey = new Request(new URL(c.req.url).toString());
@@ -72,7 +79,8 @@ api.get('/courses/:id/map.png', async (c) => {
   const geometry = CourseGeometrySchema.parse(await object.json());
   const race = await q.raceById(course.raceId);
   const color = (race?.theme.primary ?? '#e63946').replace('#', '');
-  const upstream = await fetch(staticMapUrl({ points: geometry.points, token, width: size.data.w, height: size.data.h, color }));
+  const { w: width, h: height, base } = size.data;
+  const upstream = await fetch(base ? baseMapUrl(fitView(geometry.points, width, height), token) : staticMapUrl({ points: geometry.points, token, width, height, color }));
   if (!upstream.ok) return c.json({ error: 'upstream', status: upstream.status }, 502);
   const res = new Response(upstream.body, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' } });
   c.executionCtx.waitUntil(cache.put(cacheKey, res.clone()));
@@ -110,14 +118,16 @@ api.use('/runs/*', requireEntrant);
 /**
  * Everything the app needs after sign-in: the entrant, the race, their course, and the Mapbox
  * public token the run screen's map draws with (the same one the admin's maps use), so a
- * token is rotated in the Worker, never in a build.
+ * token is rotated in the Worker, never in a build. `rehearsal`: whether the home offers a try
+ * before the race opens (`mayRehearse`).
  */
 api.get('/me', async (c) => {
   const entrant = c.get('entrant')!;
   const q = db(c.env.DB);
   const [race, course, runs] = await Promise.all([q.raceById(entrant.raceId), q.courseFor(entrant.raceId, entrant.distanceKey), q.runsForEntrant(entrant.id)]);
   const map = c.env.MAPBOX_TOKEN ? { token: c.env.MAPBOX_TOKEN } : null;
-  return c.json({ entrant: EntrantPublicSchema.parse(entrant), race, course, runs, map });
+  const rehearsal = race ? mayRehearse(c.env, entrant.email, race) : false;
+  return c.json({ entrant: EntrantPublicSchema.parse(entrant), race, course, runs, map, rehearsal });
 });
 
 const VoicesBody = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).partial();

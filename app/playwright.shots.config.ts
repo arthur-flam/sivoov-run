@@ -32,7 +32,7 @@ export const AUTH_STATE = 'test-results/shots/auth.json';
 
 /** Metro's port: another checkout's Metro may already hold 8081 (`SHOTS_APP_PORT=8082 npm run shots`). */
 const APP_PORT = process.env.SHOTS_APP_PORT ?? '8081';
-/** The local Worker's port, for the same reason (`SHOTS_API_PORT=8789`): Metro must then be started pointing at it. */
+/** The local Worker's port: another checkout's Worker may already hold 8788 (`SHOTS_API_PORT=8789`). */
 const API_PORT = process.env.SHOTS_API_PORT ?? '8788';
 
 const wanted: string[] = String(process.env.SHOTS_PRESETS ?? 'phone').split(',').map((s: string) => s.trim());
@@ -67,7 +67,7 @@ export default defineConfig({
     })),
   ],
   webServer: [
-    { command: `npx -w api wrangler dev --env local --port ${API_PORT}`, cwd: '..', url: `http://localhost:${API_PORT}/api/health`, reuseExistingServer: true, timeout: 60_000 },
+    { command: `npx wrangler dev --env local --port ${API_PORT}`, cwd: '../api', url: `http://localhost:${API_PORT}/api/health`, reuseExistingServer: true, timeout: 60_000 },
     { command: `npx expo start --web --port ${APP_PORT}`, url: `http://localhost:${APP_PORT}`, reuseExistingServer: true, timeout: 180_000, env: { EXPO_PUBLIC_API_URL: `http://localhost:${API_PORT}`, CI: '1' } },
   ],
   reporter: [['list']],

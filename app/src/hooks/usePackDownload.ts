@@ -11,17 +11,17 @@ export type PackDownload = { status: PackStatus; bytes: number; retry: () => voi
  * race home and the pre-flight for its status),
  * so the pack is on the phone before the start line, and says how it went. Then the runner's
  * own lines (their name, what the AI wrote for them) come down beside it; the pre-flight passes
- * where the phone is, rounded, so those lines can say the weather there.
+ * where the phone is, rounded, so those lines can say the weather there, and `update` so a pack
+ * published since the race home loaded replaces the one on the phone before the start.
  */
-export const usePackDownload = (course: Course | null, here?: { lat: number; lng: number } | null): PackDownload => {
+export const usePackDownload = (course: Course | null, here?: { lat: number; lng: number } | null, { update = false } = {}): PackDownload => {
   const status = usePackStore((s) => s.status);
   const bytes = usePackStore((s) => s.bytes);
   const load = () => {
     if (!course) return;
     const token = useSession.getState().token;
-    void usePackStore
-      .getState()
-      .load(course)
+    const store = usePackStore.getState();
+    void (update ? store.update(course) : store.load(course))
       .then(() => (token ? usePackStore.getState().loadPersonal(token, here ?? undefined) : undefined));
   };
   // Keyed on the id (and on the first position): a refreshed profile carrying the same course must not reload anything.

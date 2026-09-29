@@ -11,17 +11,18 @@ Live: https://run.sivoov.app/deauville-2026 (production), https://preview.run.si
 on 2026-09-27 (below); M2 still needs a real finish. Production has the race and its courses;
 no real entrants yet.
 
-### Race-day edge cases (2026-09-29, branch `claude/run-edge-cases`)
+### Race-day edge cases (2026-09-29, branch `claude/run-edge-cases`, merged)
 The owner asked for a review of what can go wrong mid-race: no network, the app closed or the
 phone restarted, a low battery, GPS gaps (tunnels), and whether the countdown follows the
-countdown file (it does). JS only, no new native module: it reaches `Sivoov (Preview)` by OTA
-once merged. Built (ARCHITECTURE.md, "A run survives the app" and "Battery"):
+countdown file (it does). JS and Worker only, no new native module: it reaches `Sivoov
+(Preview)` by OTA. Built (ARCHITECTURE.md, "A run survives the app" and "Battery"):
 - **A run survives the app.** The run journals itself as it goes; a killed app, a crash or a
   restarted phone reopens straight into the run, which carries on from where the runner is (the
   clock never stopped); « Votre course continue » (resume or stop and save) only if the GPS will
-  not restart. The audio pack now starts downloading at app start, not on the home screen. A run that is over is uploaded silently. On Android
-  the location service now outlives a swipe (`killServiceOnDestroy: false`) and fixes that
-  arrive with no run listening go to the journal, or switch off a GPS nobody reads.
+  not restart; after 2 h without a sign of life the run is closed and sent silently. The audio
+  pack now starts downloading at app start, not on the home screen. On Android the location
+  service outlives a swipe (`killServiceOnDestroy: false`) and fixes that arrive with no run
+  listening go to the journal, or switch off a GPS nobody reads.
 - **GPS gaps.** A tunnel is bridged by a straight line (tested); the lines that fell due in a
   gap over a minute are dropped, bar the finish, instead of a late burst. Fix timestamps years
   off (GPS week rollover) are dated on arrival.
@@ -39,11 +40,28 @@ once merged. Built (ARCHITECTURE.md, "A run survives the app" and "Battery"):
   mark. The studio warns when a countdown is not 10 ± 0.3 s long (Deauville's TTS take is not),
   when there are two, or no gun.
 - `reset()` could turn a left run 'finished' after the fact (a phantom finish uploaded later).
-Verified: 362 shared, 214 API, 121 app tests; on the web target with a mocked browser GPS: a
-real (non-simulated) run, reload mid-run → resume panel at the right distance → resumed under
-the same id with the clock continuous → reload → « Arrêter et enregistrer » → uploaded, journal
-cleared. Screenshot scene `run-resume`. **Not yet on a phone** (DEVICE.md, "the ways a run gets
+Verified: all tests; on the web target with a mocked browser GPS: a real (non-simulated) run,
+reload mid-run → back in the run at the right distance, same id, clock continuous → stop and
+save → uploaded, journal cleared. Screenshot scene `run-resume` (reopens straight into the run). **Not yet on a phone** (DEVICE.md, "the ways a run gets
 interrupted").
+
+### The race home and the pre-flight, tidied (2026-09-29, branch `claude/post-login-page-layout-3f894a`)
+The owner's review of the page after sign-in. JS and Worker only (OTA).
+- **Home order**: welcome, the bib with its distance (« Semi-marathon · 21,1 km », no count of
+  places), the race window, then the action, then the course.
+- **« Faire une répétition »** before the race opens only where nobody real races: preview and
+  local, test accounts (App Review's too), demo races (`mayRehearse`, `rehearsal` in `/api/me`).
+  It says under it that registered runners do not see it. A real runner in production sees the
+  window and no button until it opens.
+- **The course card**: the course drawn by the app over a Mapbox map framed on it
+  (`map.png?base=1`, `fitView`), start, finish and numbered places (left off the map where they
+  would pile up), then the places with their distance, and what they are for: each is announced
+  at its distance.
+- **Pre-flight**: « Retour » replaces « Relancer les vérifications »; the GPS keeps looking while
+  the screen is open, a failed pack download retries every 15 s, the buttons stay at the bottom
+  on a small phone. A pack published since the app loaded replaces the one on the phone here.
+- **Start screen**: no more « Carte du parcours gardée sur le téléphone ».
+Seen in the web target (`npm run shots`, home, prepare, run-ready); not yet on a phone.
 
 ### The run screen, rebuilt (2026-09-29, branch `claude/run-screen`)
 The owner asked for a run screen that is highly functional, polished and clear, with the race's

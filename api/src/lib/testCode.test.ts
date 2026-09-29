@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { acceptsReviewCode, acceptsTestCode, isTestAccount, maySpendCredit } from './testCode';
+import { acceptsReviewCode, acceptsTestCode, isTestAccount, mayRehearse, maySpendCredit } from './testCode';
 import { allowedRecipient } from './mailer';
 
 describe('test code sign-in', () => {
@@ -35,6 +35,20 @@ describe('what a test account may do outside local', () => {
     expect(maySpendCredit({ ENVIRONMENT: 'production' }, 'orga@example.com')).toBe(false);
     expect(maySpendCredit({ ENVIRONMENT: 'preview' }, 'arthur.flam@gmail.com')).toBe(true);
     expect(maySpendCredit({ ENVIRONMENT: 'local' }, 'orga@example.com')).toBe(true);
+  });
+});
+
+describe('who is offered a rehearsal before the race opens', () => {
+  const race = {};
+  const demo = { demoOf: 'r-deauville' };
+  it('everyone on the test builds, test accounts and demo races in production', () => {
+    expect(mayRehearse({ ENVIRONMENT: 'preview' }, 'arthur.flam@gmail.com', race)).toBe(true);
+    expect(mayRehearse({ ENVIRONMENT: 'local' }, 'someone@gmail.com', race)).toBe(true);
+    expect(mayRehearse({ ENVIRONMENT: 'production' }, 'review@example.com', race)).toBe(true);
+    expect(mayRehearse({ ENVIRONMENT: 'production' }, 'organizer@gmail.com', demo)).toBe(true);
+  });
+  it('never a real runner of a real race in production', () => {
+    expect(mayRehearse({ ENVIRONMENT: 'production' }, 'runner@gmail.com', race)).toBe(false);
   });
 });
 

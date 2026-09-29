@@ -222,15 +222,15 @@ export const fr = {
 
   // App: race home
   'home.yourEntry': 'Votre dossard',
-  'home.yourDistance': 'Votre distance',
   'home.window': 'Fenêtre de course',
-  'home.mapCaption': 'Le vrai parcours. Vous le courez où vous voulez.',
+  'home.course': 'Le parcours',
+  'home.course.note': 'Chaque lieu vous est annoncé à sa distance, où que vous couriez.',
+  'home.rehearse.who': 'Visible seulement pour les tests et les démonstrations. Les coureurs inscrits ne voient pas ce bouton.',
   'home.prepare': 'Se préparer',
   'home.run': 'Courir',
   'home.results': 'Résultats',
   'home.offline': 'Hors ligne',
   'home.offlineCached': 'Hors ligne : vous pouvez courir, le résultat partira au retour du réseau.',
-  'home.landmarks': '{count} lieux racontés',
   'home.pack.download': 'Télécharger le pack audio',
   'home.pack.ready': 'Pack audio prêt',
   'home.signout': 'Se déconnecter',
@@ -301,8 +301,6 @@ export const fr = {
   'run.view.follow': 'Coureur',
   'run.view.overview': 'Parcours',
   'run.view.numbers': 'Chiffres',
-  'run.map.saving': 'Carte du parcours en cours de téléchargement',
-  'run.map.saved': 'Carte du parcours gardée sur le téléphone',
   'location.notification.title': 'Sivoov mesure votre course',
   'location.notification.body': 'La distance continue d’être mesurée, écran verrouillé.',
 
@@ -319,7 +317,7 @@ export const fr = {
   'prepare.check.gps.pending': 'Recherche du signal GPS…',
   'prepare.check.gps.ok': 'Signal GPS précis ({accuracy} m)',
   'prepare.check.gps.weak': 'Signal GPS imprécis ({accuracy} m) : sortez à découvert',
-  'prepare.check.gps.timeout': 'Pas de signal GPS après 30 s : sortez à découvert et réessayez',
+  'prepare.check.gps.timeout': 'Pas de signal GPS après 30 s : sortez à découvert, la recherche continue',
   'prepare.check.battery.pending': 'Lecture de la batterie…',
   'prepare.check.battery.ok': 'Batterie à {level} %',
   'prepare.check.battery.low': 'Batterie à {level} % : rechargez avant un long effort',
@@ -329,9 +327,8 @@ export const fr = {
   'prepare.check.pack.loading': 'Téléchargement du pack audio…',
   'prepare.check.pack.ok': 'Pack audio prêt · {size}',
   'prepare.check.pack.none': 'Pas encore de voix pour ce parcours : les annonces s’afficheront à l’écran',
-  'prepare.check.pack.error': 'Pack audio non téléchargé : relancez les vérifications, ou partez sans la voix',
+  'prepare.check.pack.error': 'Pack audio non téléchargé : nouvel essai dans quelques secondes, ou partez sans la voix',
   'prepare.settings': 'Ouvrir les réglages du téléphone',
-  'prepare.retry': 'Relancer les vérifications',
   'prepare.go': 'Aller au départ',
 
   // Uploads

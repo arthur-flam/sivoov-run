@@ -4,7 +4,6 @@ import { useCallback } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { daysUntilWindow, distanceLabel, formatKm, formatOfficialTime, windowPhase } from '@sivoov/shared';
 import { AccountActions } from '@/components/AccountActions';
-import { CourseDiagram } from '@/components/CourseDiagram';
 import { CourseMap } from '@/components/CourseMap';
 import { DemoRun } from '@/components/DemoRun';
 import { Body, Button, Card, Display, Eyebrow, Num, Screen } from '@/components/ui';
@@ -18,7 +17,7 @@ import { locale, t } from '@/i18n';
 import { openCertificate, openResults, shareBib, shareFinish } from '@/share';
 import { useSession } from '@/stores/session';
 import { useUploads } from '@/stores/uploads';
-import { colors, radius, space } from '@/theme';
+import { colors, fonts, space } from '@/theme';
 
 /** "9 novembre", or "27 septembre 2026" when the window spans more than one year (a demo race's). */
 const fmt = (iso: string, tz: string, year: boolean) =>
@@ -59,7 +58,6 @@ export default function Home() {
   const phase = windowPhase(race, now);
   const days = daysUntilWindow(race, now);
   const windowLine = phase === 'open' ? t('home.openNow') : phase === 'after' ? t('home.closed') : days <= 1 ? t('home.opensTomorrow') : t('home.opensIn', { count: days });
-  const diagramW = width - 2 * space.md - 2;
   const spansYears = new Date(race.windowStart).getUTCFullYear() !== new Date(race.windowEnd).getUTCFullYear();
 
   return (
@@ -93,6 +91,9 @@ export default function Home() {
             <Num size={72} testID="bib-number">
               {entrant.bib}
             </Num>
+            <Body style={styles.distance} testID="distance-line">
+              {course ? `${distanceLabel(locale, entrant.distanceKey)} · ${formatKm(course.distanceM, locale, course.distanceKey === 'marathon' ? 3 : 1)}` : distanceLabel(locale, entrant.distanceKey)}
+            </Body>
             {!best && phase !== 'after' ? (
               <View style={styles.cardActions}>
                 <Button testID="share-bib" label={t('home.shareBib')} ghost onPress={() => void shareBib(race, entrant)} />
@@ -101,24 +102,6 @@ export default function Home() {
           </View>
           <View style={[styles.stripe, { backgroundColor: race.theme.primary }]} />
         </Card>
-        <Card>
-          <Body muted>{t('home.yourDistance')}</Body>
-          <Body style={styles.big}>{distanceLabel(locale, entrant.distanceKey)}</Body>
-          <Body muted>{course ? `${formatKm(course.distanceM, locale, course.distanceKey === 'marathon' ? 3 : 1)} · ${t('home.landmarks', { count: course.landmarks.length })}` : ''}</Body>
-        </Card>
-        {course ? (
-          <CourseMap
-            courseId={course.id}
-            caption={t('home.mapCaption')}
-            fallback={
-              track ? (
-                <View style={styles.diagram}>
-                  <CourseDiagram track={track} officialM={course.distanceM} runM={0} landmarks={course.landmarks} accent={race.theme.primary} width={diagramW} height={diagramW * 0.62} dark={false} />
-                </View>
-              ) : null
-            }
-          />
-        ) : null}
         <Card>
           <Body muted>{t('home.window')}</Body>
           <Body style={styles.big}>{windowLine}</Body>
@@ -133,25 +116,37 @@ export default function Home() {
           </Card>
         ) : null}
 
-        {course && phase !== 'after' ? (
+        {course && phase === 'open' ? (
           <View style={styles.cta}>
             <Button
               testID="go-run"
-              label={phase === 'before' ? t('home.rehearse') : best ? t('home.runAgain') : t('home.run')}
+              label={best ? t('home.runAgain') : t('home.run')}
               color={race.theme.primary}
               onColor={race.theme.onPrimary}
-              ghost={phase === 'open' && best !== null}
+              ghost={best !== null}
               onPress={() => router.push('/prepare')}
             />
-            {phase === 'before' || best ? (
+            {best ? (
               <Body muted style={styles.note}>
-                {phase === 'before' ? t('home.rehearse.note') : t('home.runAgain.note')}
+                {t('home.runAgain.note')}
               </Body>
             ) : null}
           </View>
         ) : null}
+        {course && phase === 'before' && me.rehearsal ? (
+          <View style={styles.cta}>
+            <Button testID="go-rehearse" label={t('home.rehearse')} color={race.theme.primary} onColor={race.theme.onPrimary} onPress={() => router.push('/prepare')} />
+            <Body muted style={styles.note}>
+              {t('home.rehearse.note')}
+            </Body>
+            <Body muted style={styles.note} testID="rehearse-who">
+              {t('home.rehearse.who')}
+            </Body>
+          </View>
+        ) : null}
         {course ? <DemoRun race={race} course={course} /> : null}
         {phase === 'after' ? <Button testID="open-results" label={t('home.results')} color={race.theme.primary} onColor={race.theme.onPrimary} onPress={() => openResults(race)} /> : null}
+        {course && track ? <CourseMap courseId={course.id} track={track} landmarks={course.landmarks} officialM={course.distanceM} accent={race.theme.primary} width={width - 2 * space.md - 2} /> : null}
         {race.supportEmail ? (
           <Card>
             <Body muted>{t('home.help')}</Body>
@@ -175,7 +170,7 @@ const styles = StyleSheet.create({
   bibCard: { flexDirection: 'row', alignItems: 'stretch', overflow: 'hidden' },
   stripe: { width: 10, borderRadius: 5, marginLeft: space.md },
   big: { fontSize: 22, lineHeight: 28 },
-  diagram: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, alignItems: 'center' },
+  distance: { fontFamily: fonts.bodyBold, fontSize: 18, lineHeight: 24 },
   cta: { gap: space.sm },
   note: { fontSize: 14, textAlign: 'center' },
   devLink: { color: colors.muted, textAlign: 'center', fontSize: 13, padding: space.sm },

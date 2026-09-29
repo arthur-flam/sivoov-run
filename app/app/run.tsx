@@ -108,7 +108,8 @@ export default function Run() {
   const [mapFailed, setMapFailed] = useState(false);
   const onMapFail = useCallback(() => setMapFailed(true), []);
   const mapToken = me?.map?.token ?? null;
-  const mapDownload = useMapDownload(course?.id ?? null, track, mapToken);
+  // Kept on the phone quietly, in case the race home had no signal: nothing to show the runner.
+  useMapDownload(course?.id ?? null, track, mapToken);
   const light = useLight(track);
   const glided = useGlide(run.state, run.phase === 'running' && onScreen);
   const ceremonyLine = useRef<string | null>(null);
@@ -286,7 +287,6 @@ export default function Run() {
             who={`${me?.entrant.firstName ?? ''} · ${courseLabel(course)}`}
             error={run.startError}
             simulation={simulation ? `${t('run.sim.badge')} · ${params.pace ?? '5:30'} /km · ×${params.speed ?? 1}` : null}
-            map={mapDownload}
             color={race.theme.primary}
             onColor={race.theme.onPrimary}
             onStart={start}

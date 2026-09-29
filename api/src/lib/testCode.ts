@@ -24,3 +24,11 @@ export const acceptsReviewCode = (env: { REVIEW_CODE?: string }, email: string, 
  * shared test code may not spend it. Local always may (the tests stub the provider).
  */
 export const maySpendCredit = (env: Pick<Bindings, 'ENVIRONMENT'>, email: string): boolean => env.ENVIRONMENT === 'local' || !isTestAccount(email);
+
+/**
+ * « Faire une répétition » before the race opens: only where nobody real is racing, so a runner
+ * never mistakes a try for their race. Preview and local (the test builds), test accounts (App
+ * Review's among them), and demo races, where organizers try the app. The app says so beside it.
+ */
+export const mayRehearse = (env: Pick<Bindings, 'ENVIRONMENT'>, email: string, race: Pick<Race, 'demoOf'>): boolean =>
+  env.ENVIRONMENT !== 'production' || isTestAccount(email) || !!race.demoOf;

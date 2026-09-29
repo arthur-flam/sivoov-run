@@ -26,6 +26,8 @@ export * from './csvEntrants';
 export * from './clientHeader';
 export * from './runnerInput';
 export * from './mapbox';
+export * from './runView';
+export * from './voiceLevel';
 export * from './access';
 export * from './zonedTime';
 export * from './contrast';

@@ -1,4 +1,4 @@
-import { PersonalDefsSchema, fillTemplate, spokenValues, supportsAudioTags, voiceFormat } from '@sivoov/shared';
+import { PersonalDefsSchema, fillTemplate, spokenValues, stripAudioTags, supportsAudioTags, voiceFormat } from '@sivoov/shared';
 import type { AudioUploadFormat, Course, LiveFacts, PersonalDef, PersonalDefs, PersonalVoices, Race, RunnerFacts } from '@sivoov/shared';
 import { distanceName } from '../pages/org/format';
 import { maxCharsFor, writePersonalLine } from './llm';
@@ -101,7 +101,7 @@ const prepareText = async (deps: PersonalDeps, defs: PersonalDefs, def: Personal
  * to download. Lines that cannot be said to this runner are simply absent.
  */
 export const personalVoices = async (deps: PersonalDeps, ctx: PersonalContext, version: number, now: Date = new Date()): Promise<PersonalVoices> => {
-  const empty = { courseId: ctx.course.id, version, files: {} };
+  const empty = { courseId: ctx.course.id, version, files: {}, captions: {} };
   const defs = await loadDefs(deps.files, ctx.course.id, version);
   if (!defs || !deps.tts) return empty;
   const prepare = defs.lines.filter((d) => d.phase === 'prepare');
@@ -119,21 +119,19 @@ export const personalVoices = async (deps: PersonalDeps, ctx: PersonalContext, v
   const rendered = await mapLimit(
     texts.filter((t): t is { def: PersonalDef; text: string } => t.text !== null),
     2,
-    async ({ def, text }) => ({ def, outcome: await renderText(tts, defs.voice, text, { prefix: VOICES_PREFIX, locale: defs.locale }) }),
+    async ({ def, text }) => ({ def, text, outcome: await renderText(tts, defs.voice, text, { prefix: VOICES_PREFIX, locale: defs.locale }) }),
   );
-  const files = Object.fromEntries(
-    rendered.flatMap(({ def, outcome }) =>
-      outcome.ok ? [[def.eventId, { url: voiceUrl(deps.baseUrl, outcome.rendered.hash, outcome.rendered.format), bytes: outcome.rendered.bytes, sha256: outcome.rendered.sha256 }]] : [],
-    ),
-  );
-  return { ...empty, files };
+  const said = rendered.flatMap(({ def, text, outcome }) => (outcome.ok ? [{ def, text, rendered: outcome.rendered }] : []));
+  const files = Object.fromEntries(said.map(({ def, rendered: r }) => [def.eventId, { url: voiceUrl(deps.baseUrl, r.hash, r.format), bytes: r.bytes, sha256: r.sha256 }]));
+  const captions = Object.fromEntries(said.map(({ def, text }) => [def.eventId, stripAudioTags(text)]));
+  return { ...empty, files, captions };
 };
 
 /** Live renders a runner may cause in a day, past the ones already cached: a marathon's splits and a finish, twice over. */
 export const LIVE_DAILY_LIMIT = 150;
 const quotaKey = (entrantId: string, now: Date) => `voice-quota/${now.toISOString().slice(0, 10)}/${entrantId}.json`;
 
-export type LiveOutcome = { ok: true; url: string; bytes: number } | { ok: false; status: 404 | 422 | 429 | 502 | 503; detail: string };
+export type LiveOutcome = { ok: true; url: string; bytes: number; caption: string } | { ok: false; status: 404 | 422 | 429 | 502 | 503; detail: string };
 
 /**
  * One `live` line for this runner at this moment of their run. 422 when a value it needs is
@@ -149,14 +147,15 @@ export const liveVoice = async (deps: PersonalDeps, ctx: Pick<PersonalContext, '
   const hash = await ttsHash(defs.voice, text);
   const format = voiceFormat(defs.voice);
   const cached = await deps.files.head(renderKey(defs.voice, hash, VOICES_PREFIX));
-  if (cached) return { ok: true, url: voiceUrl(deps.baseUrl, hash, format), bytes: cached.size };
+  const caption = stripAudioTags(text);
+  if (cached) return { ok: true, url: voiceUrl(deps.baseUrl, hash, format), bytes: cached.size, caption };
   const qKey = quotaKey(ctx.entrantId, now);
   const used = ((await (await deps.files.get(qKey))?.json().catch(() => null)) as { n?: number } | null)?.n ?? 0;
   if (used >= LIVE_DAILY_LIMIT) return { ok: false, status: 429, detail: 'daily allowance used' };
   const outcome = await renderText(deps.tts, defs.voice, text, { prefix: VOICES_PREFIX, locale: defs.locale });
   if (!outcome.ok) return { ok: false, status: 502, detail: `tts ${outcome.status}` };
   await deps.files.put(qKey, JSON.stringify({ n: used + 1 }), { httpMetadata: { contentType: 'application/json' } });
-  return { ok: true, url: voiceUrl(deps.baseUrl, outcome.rendered.hash, format), bytes: outcome.rendered.bytes };
+  return { ok: true, url: voiceUrl(deps.baseUrl, outcome.rendered.hash, format), bytes: outcome.rendered.bytes, caption };
 };
 
 /** The dependencies as this environment has them: no key, no voice or no AI, never an error. */

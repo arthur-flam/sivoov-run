@@ -30,6 +30,16 @@ export const formatKm = (meters: number, locale: Locale, digits = 2): string => 
   return `${locale === 'fr' ? km.replace('.', ',') : km} km`;
 };
 
+/**
+ * How far away something is, the way a runner reads it: "350 m" under a kilometre (to the
+ * nearest 10 m), "1,2 km" above it.
+ */
+export const formatDistanceAway = (meters: number, locale: Locale): string => {
+  const m = Math.max(0, meters);
+  if (m < 995) return `${Math.max(10, Math.round(m / 10) * 10)} m`;
+  return formatKm(m, locale, 1);
+};
+
 /** "1,9 Mo" in French, "1.9 MB" in English: a download size, never under 0.1. */
 export const formatMegabytes = (bytes: number, locale: Locale): string => {
   const mb = Math.max(0.1, bytes / 1_000_000).toFixed(1);

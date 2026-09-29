@@ -80,11 +80,13 @@ describe('magic code sign-in', () => {
     expect(entrant.firstName).toBe('Marc');
     const me = await SELF.fetch('http://run.test/api/me', { headers: { Authorization: `Bearer ${token}` } });
     expect(me.status).toBe(200);
-    const body = (await me.json()) as { entrant: { bib: string; email?: string }; race: { slug: string }; course: { distanceKey: string } };
+    const body = (await me.json()) as { entrant: { bib: string; email?: string }; race: { slug: string }; course: { distanceKey: string }; map: unknown };
     expect(body.entrant.bib).toBe('1001');
     expect(body.entrant.email).toBeUndefined();
     expect(body.race.slug).toBe('deauville-2026');
     expect(body.course.distanceKey).toBe('half');
+    // No Mapbox token in this Worker: no map, and the run screen keeps its course drawing.
+    expect(body.map).toBeNull();
   });
   it('rejects a wrong code and a consumed code', async () => {
     const sent = await SELF.fetch('http://run.test/api/auth/code', json({ raceSlug: 'deauville-2026', bib: '1002', email: 'lea@example.com' }));

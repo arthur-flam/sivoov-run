@@ -50,6 +50,14 @@ export type MixMode = z.infer<typeof MixModeSchema>;
 export const AudioCategorySchema = z.enum(['ceremony', 'course', 'coaching', 'personal', 'safety']);
 export type AudioCategory = z.infer<typeof AudioCategorySchema>;
 
+/**
+ * How much of the race the runner wants to hear (« moins de voix », AUDIO_EXPERIENCE.md X1):
+ * `all` every line, `course` the places and the kilometres, `essential` the start, the finish
+ * and safety. A runner's choice, never the organizer's.
+ */
+export const VoiceLevelSchema = z.enum(['all', 'course', 'essential']);
+export type VoiceLevel = z.infer<typeof VoiceLevelSchema>;
+
 export const AudioEventSchema = z.object({
   id: z.string().min(1),
   trigger: AudioTriggerSchema,
@@ -60,6 +68,11 @@ export const AudioEventSchema = z.object({
   once: z.boolean().default(true),
   /** Human label for the trace and the organizer review. */
   title: z.string().optional(),
+  /**
+   * What the voice says, as the runner reads it on the run screen: the line's text without its
+   * voice tags. For a personal line, its offline version. Packs published before it have none.
+   */
+  caption: z.string().optional(),
   /**
    * A personal line: the source file is its offline version; the runner's own version comes
    * from `/api/me/voices` (`prepare`: before the start) or `/api/me/voices/live` (`live`: when
@@ -96,6 +109,8 @@ export const PersonalVoicesSchema = z.object({
   courseId: z.string().min(1),
   version: z.number().int().positive(),
   files: z.record(z.string(), AudioFileSchema),
+  /** What each of those files says (event id -> words), for the run screen's captions. */
+  captions: z.record(z.string(), z.string()).default({}),
 });
 export type PersonalVoices = z.infer<typeof PersonalVoicesSchema>;
 
@@ -122,7 +137,12 @@ export const LiveVoiceRequestSchema = z.object({
 });
 export type LiveVoiceRequest = z.infer<typeof LiveVoiceRequestSchema>;
 
-export const LiveVoiceSchema = z.object({ url: z.string().min(1), bytes: z.number().int().nonnegative() });
+export const LiveVoiceSchema = z.object({
+  url: z.string().min(1),
+  bytes: z.number().int().nonnegative(),
+  /** The words the file says, for the run screen's caption. */
+  caption: z.string().optional(),
+});
 export type LiveVoice = z.infer<typeof LiveVoiceSchema>;
 
 /**

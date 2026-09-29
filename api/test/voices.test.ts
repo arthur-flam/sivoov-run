@@ -260,6 +260,8 @@ describe('personal lines in the studio', () => {
     expect(pack.events.find((e) => e.id === 'personal.split')?.personal).toEqual({ phase: 'live' });
     expect(pack.files['split.mp3']).toBeDefined();
     expect(JSON.stringify(pack)).not.toContain('{prenom}');
+    // The words are public, as the files say them aloud; how a personal line is made is not.
+    expect(pack.events.find((e) => e.id === 'ceremony.call')?.caption).toBeTruthy();
     const defs = PersonalDefsSchema.parse(await (await env.FILES.get(`personal-defs/${COURSE}/${version}.json`))!.json());
     expect(defs.lines.map((d) => [d.eventId, d.phase])).toEqual([
       ['ceremony.call', 'prepare'],
@@ -280,6 +282,7 @@ describe('what the app gets for its runner', () => {
     const voices = PersonalVoicesSchema.parse(await res.json());
     expect(Object.keys(voices.files).sort()).toEqual(['ceremony.call', 'ceremony.word']);
     expect(tts.map((t) => t.body.text)).toContain('Dossard mille deux, Léa Martin, de Rouen !');
+    expect(voices.captions['ceremony.call']).toBe('Dossard mille deux, Léa Martin, de Rouen !');
     expect(tts.map((t) => t.body.text)).toContain(claudeAnswer);
     expect(claude[0]!.body.messages[0]!.content).toContain('Ville : Rouen');
     const file = await SELF.fetch(voices.files['ceremony.call']!.url.replace(env.BASE_URL, 'http://run.test'));
@@ -302,7 +305,9 @@ describe('what the app gets for its runner', () => {
     tts = [];
     const split = await app('/me/voices/live', { courseId: COURSE, version: pack.version, eventId: 'personal.split', facts: { km: 5, elapsedS: 1650 } });
     expect(split.status).toBe(200);
-    expect(((await split.json()) as { url: string }).url).toMatch(/\/api\/voices\/[0-9a-f]{64}\.mp3$/);
+    const said = (await split.json()) as { url: string; caption: string };
+    expect(said.url).toMatch(/\/api\/voices\/[0-9a-f]{64}\.mp3$/);
+    expect(said.caption).toBe('Kilomètre cinq, vingt-sept minutes trente.');
     expect(tts[0]!.body.text).toBe('Kilomètre cinq, vingt-sept minutes trente.');
     const finish = await app('/me/voices/live', { courseId: COURSE, version: pack.version, eventId: 'ceremony.finish', facts: { elapsedS: 13579 } });
     expect(finish.status).toBe(200);

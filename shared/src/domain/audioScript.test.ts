@@ -77,6 +77,20 @@ describe('eventFor', () => {
     const ai = AudioScriptSchema.parse(script([line({ text: 'Bienvenue.', personal: { kind: 'ai', prompt: 'Accueille le coureur par son prénom.' } })])).lines[0]!;
     expect(eventFor(ai).personal).toEqual({ phase: 'prepare' });
   });
+
+  it('carries the words the runner reads on screen, without the voice tags, and never how a personal line is made', () => {
+    const [tagged, personal, silent] = AudioScriptSchema.parse(
+      script([
+        line({ id: 'a', key: 'a', text: '[excited] Les Planches,  à votre gauche !' }),
+        line({ id: 'b', key: 'b', text: 'Coureurs, sur la ligne.', personal: { kind: 'template', template: 'Dossard {dossard}, {prenom}.' } }),
+        line({ id: 'c', key: 'c', text: '   ' }),
+      ]),
+    ).lines;
+    expect(eventFor(tagged!).caption).toBe('Les Planches, à votre gauche !');
+    expect(eventFor(personal!).caption).toBe('Coureurs, sur la ligne.');
+    expect(JSON.stringify(eventFor(personal!))).not.toContain('{dossard}');
+    expect(eventFor(silent!).caption).toBeUndefined();
+  });
 });
 
 describe('upgradeLine', () => {

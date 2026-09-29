@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatClock, formatKm, formatMegabytes, formatOfficialTime, formatPace, formatRank, parsePace } from './format';
+import { formatClock, formatDistanceAway, formatKm, formatMegabytes, formatOfficialTime, formatPace, formatRank, parsePace } from './format';
 
 describe('format', () => {
   it('clock', () => {
@@ -19,6 +19,12 @@ describe('format', () => {
   it('km per locale', () => {
     expect(formatKm(10000, 'fr')).toBe('10,00 km');
     expect(formatKm(21097.5, 'en', 1)).toBe('21.1 km');
+  });
+  it('how far away the next place is: meters to the nearest ten, then kilometres', () => {
+    expect(formatDistanceAway(347, 'fr')).toBe('350 m');
+    expect(formatDistanceAway(2, 'fr')).toBe('10 m');
+    expect(formatDistanceAway(996, 'fr')).toBe('1,0 km');
+    expect(formatDistanceAway(1240, 'en')).toBe('1.2 km');
   });
   it('download size per locale, a tiny pack still showing a size', () => {
     expect(formatMegabytes(1_850_000, 'fr')).toBe('1,9 Mo');

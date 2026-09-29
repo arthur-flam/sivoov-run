@@ -310,11 +310,13 @@ describe('publishing', () => {
     expect(AudioPackSchema.parse(await manifest!.json()).version).toBe(1);
     expect((await scriptDb(env.DB).draft(COURSE))?.version).toBe(2);
 
-    // What the app downloads carries no script text, only titles and keys.
+    // What the app downloads carries what each line says, for the run screen's captions (the
+    // files say it aloud anyway), never the script itself: no `text` field, no voice settings.
     const served = await SELF.fetch(`http://run.test/api/courses/${COURSE}/pack`);
     const text = await served.text();
-    expect(text).not.toContain('Vous longez la digue');
+    expect(JSON.parse(text).events.find((e: { id: string }) => e.id === 'course.digue').caption).toBe('Vous longez la digue.');
     expect(text).not.toContain('"text"');
+    expect(text).not.toContain('"voice"');
     expect(JSON.parse(text).events[0].title).toBe('Le départ');
   });
 

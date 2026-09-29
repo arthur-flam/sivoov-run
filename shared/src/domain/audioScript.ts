@@ -3,7 +3,7 @@ import type { AudioEvent, AudioPack } from '../schemas/audio';
 import { AudioScriptSchema, PersonalDefsSchema } from '../schemas/audioScript';
 import type { AudioScript, AudioScriptInput, AudioUploadFormat, PersonalDefs, ScriptLine, ScriptVoice } from '../schemas/audioScript';
 import { whenInWords } from './audioEditor';
-import { supportsAudioTags, textForVoice } from './audioTags';
+import { stripAudioTags, supportsAudioTags, textForVoice } from './audioTags';
 import { isGeminiVoice, voiceFormat } from './geminiVoice';
 import { livePlaceholders, placeholdersIn, templatePhase, unknownPlaceholders } from './placeholders';
 import type { PlaceholderPhase } from './placeholders';
@@ -38,9 +38,11 @@ export const personalPhase = (line: Pick<ScriptLine, 'personal'>): PlaceholderPh
  */
 export const eventFor = (line: ScriptLine, voice: AudioUploadFormat = 'mp3'): AudioEvent => {
   const phase = personalPhase(line);
+  const caption = stripAudioTags(line.text);
   return AudioEventSchema.parse({
     id: line.id,
     title: line.title,
+    ...(caption ? { caption } : {}),
     category: line.category,
     mix: line.mix,
     priority: line.priority,

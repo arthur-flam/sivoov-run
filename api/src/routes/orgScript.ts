@@ -37,8 +37,9 @@ import { UPLOAD_ERRORS, WRITER_NOTE } from '../pages/org/studioCopy';
  * The studio's JSON half, on the organizer cookie (no bearer, no public exposure): read and
  * save the draft, render one line with ElevenLabs, put the organizer's own sound file on a
  * line or take it off, stream a sound back for the "Écouter" button, project a click on the
- * map, publish a version. The public `/api` never carries script text: the pack the app
- * downloads has titles and file keys only. `detail` is always a sentence for the organizer.
+ * map, publish a version. The public `/api` carries what the voice says, never how it is
+ * made: the pack has each line's caption (its words, without voice tags), never a template,
+ * an AI instruction or a voice direction. `detail` is always a sentence for the organizer.
  */
 export const orgScript = new Hono<AppEnv & { Variables: CourseVars }>();
 

@@ -101,12 +101,17 @@ api.use('/me/*', requireEntrant);
 api.use('/runs', requireEntrant);
 api.use('/runs/*', requireEntrant);
 
-/** Everything the app needs after sign-in: the entrant, the race, their course. */
+/**
+ * Everything the app needs after sign-in: the entrant, the race, their course, and the Mapbox
+ * public token the run screen's map draws with (the same one the admin's maps use), so a
+ * token is rotated in the Worker, never in a build.
+ */
 api.get('/me', async (c) => {
   const entrant = c.get('entrant')!;
   const q = db(c.env.DB);
   const [race, course, runs] = await Promise.all([q.raceById(entrant.raceId), q.courseFor(entrant.raceId, entrant.distanceKey), q.runsForEntrant(entrant.id)]);
-  return c.json({ entrant: EntrantPublicSchema.parse(entrant), race, course, runs });
+  const map = c.env.MAPBOX_TOKEN ? { token: c.env.MAPBOX_TOKEN } : null;
+  return c.json({ entrant: EntrantPublicSchema.parse(entrant), race, course, runs, map });
 });
 
 const VoicesBody = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).partial();
@@ -143,7 +148,7 @@ api.post('/me/voices/live', async (c) => {
   const { version, eventId, facts } = parsed.data;
   const outcome = await liveVoice(personalDeps(c.env), { entrantId: entrant.id, runner: runnerFacts(entrant) }, course.id, version, eventId, facts);
   if (!outcome.ok) return c.json({ error: outcome.detail }, outcome.status);
-  return c.json({ url: outcome.url, bytes: outcome.bytes }, 200, { 'Cache-Control': 'private, no-store' });
+  return c.json({ url: outcome.url, bytes: outcome.bytes, caption: outcome.caption }, 200, { 'Cache-Control': 'private, no-store' });
 });
 
 api.post('/me/signout', async (c) => {

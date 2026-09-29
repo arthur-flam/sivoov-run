@@ -20,5 +20,5 @@ export const useMyResult = (): Run | null => {
     seen.current = sentCount;
   }, [sentCount]);
   if (!me?.course) return null;
-  return bestRankedRun(me.race, me.course.distanceM, [...me.runs, ...pending.map((p) => p.run)]);
+  return bestRankedRun(me.race, me.course, [...me.runs, ...pending.map((p) => p.run)]);
 };

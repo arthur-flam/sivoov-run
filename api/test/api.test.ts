@@ -200,8 +200,13 @@ describe('runs', () => {
     const put = (run: Record<string, unknown>) => SELF.fetch(`http://run.test/api/runs/${run.id}`, { ...json({ run }, headers), method: 'PUT' });
     expect((await put({ ...base, id: 'sim-1', source: 'simulation', elapsedMs: 1_800_000, distanceM: 42195 })).status).toBe(200);
     expect((await put({ ...base, id: 'short-1', source: 'app', elapsedMs: 120_000, distanceM: 400 })).status).toBe(200);
+    // A marathon in half an hour: the app's word is not enough for a time no runner can run.
+    expect((await put({ ...base, id: 'fast-1', source: 'app', elapsedMs: 1_800_000, distanceM: 42195 })).status).toBe(200);
+    // A file is judged from its points on the upload page, never sent as a finished run.
+    expect((await put({ ...base, id: 'file-1', source: 'upload', status: 'uploaded', elapsedMs: 12_000_000, distanceM: 42195 })).status).toBe(400);
     const listed = (await (await SELF.fetch('http://run.test/api/runs', { headers })).json()) as { runs: Array<{ id: string; status: string }> };
-    expect(listed.runs.filter((r) => r.id === 'sim-1' || r.id === 'short-1').map((r) => r.status)).toEqual(['abandoned', 'abandoned']);
+    expect(listed.runs.filter((r) => ['sim-1', 'short-1', 'fast-1'].includes(r.id)).map((r) => r.status)).toEqual(['abandoned', 'abandoned', 'abandoned']);
+    expect(listed.runs.some((r) => r.id === 'file-1')).toBe(false);
     const html = await (await SELF.fetch('http://run.test/deauville-2026/results?distance=marathon')).text();
     expect(html).not.toContain('MARTIN');
     expect(html).not.toContain('0:30:00');

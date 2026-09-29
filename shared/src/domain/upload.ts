@@ -2,28 +2,10 @@ import type { Course } from '../schemas/course';
 import type { DistanceKey, Race } from '../schemas/race';
 import type { LocationSample, Split } from '../schemas/run';
 import type { GpxPoint } from './gpx';
+import { FASTEST_KILOMETRE_MS, RECORD_FLOOR_MS } from './official';
 import { windowPhase } from './raceWindow';
 import { applySample, idleRun, startRun } from './tracker';
-
-/**
- * Nobody has covered these distances faster. The men's road world records in September 2026
- * are 1:59:30 (marathon), 56:51 (half), 26:31 (10 km) and 12:49 (5 km); each is rounded down
- * to the minute, so the next record never makes a champion look like a bicycle.
- */
-const RECORD_FLOOR_MS: Record<DistanceKey, number> = {
-  marathon: 119 * 60_000,
-  half: 56 * 60_000,
-  '10k': 26 * 60_000,
-  '5k': 12 * 60_000,
-};
-
-/**
- * No kilometre under 2:10: the 1000 m world record is 2:11.83 (2026), on a track. This is the
- * check that catches a bus or a car in the middle of a run: the tracker refuses steps above
- * 10 m/s, but a ride followed by a wait comes back as one long step, and its kilometres come
- * out at a speed no runner holds.
- */
-const FASTEST_KILOMETRE_MS = 130_000;
+import type { RunState } from './tracker';
 
 /**
  * A watch stopped on the finish line, replayed through the tracker, measures a little short:
@@ -58,6 +40,19 @@ export type UploadInput = {
 };
 
 /**
+ * A replay that stopped within the tolerance of the line is credited the distance, timed to the
+ * last point, and given the kilometre split it fell short of: a marathon replayed to 41,990 m
+ * still has its km 42, so its last stretch and its fastest kilometre are judged like any other.
+ */
+const onTheLineState = (replayed: RunState, courseM: number, elapsedMs: number): RunState => {
+  const lastKm = Math.floor(courseM / 1000);
+  const prev = replayed.splits[replayed.splits.length - 1];
+  const missing = lastKm > 0 && (prev?.km ?? 0) < lastKm;
+  const splits = missing ? [...replayed.splits, { km: lastKm, elapsedMs, splitMs: elapsedMs - (prev?.elapsedMs ?? 0) }] : replayed.splits;
+  return { ...replayed, distanceM: courseM, elapsedMs, splits };
+};
+
+/**
  * A runner's own recording, judged like a run in the app: the points are replayed through the
  * same tracker, from the first timed point (the gun) to the moment the course distance is
  * reached (the finish mat), wherever the watch was stopped after that. Pauses count, as in the
@@ -79,7 +74,7 @@ export const evaluateUpload = ({ points, course, race }: UploadInput): UploadVer
   const replayed = samples.reduce((s, sample) => applySample(s, sample), startRun(idleRun(course.distanceM), first.timestamp));
   const onTheLine = replayed.phase !== 'finished' && replayed.distanceM >= course.distanceM * (1 - UPLOAD_DISTANCE_TOLERANCE);
   if (replayed.phase !== 'finished' && !onTheLine) return { ok: false, reason: 'too_short', distanceM: replayed.distanceM };
-  const state = onTheLine ? { ...replayed, distanceM: course.distanceM, elapsedMs: last.timestamp - first.timestamp } : replayed;
+  const state = onTheLine ? onTheLineState(replayed, course.distanceM, last.timestamp - first.timestamp) : replayed;
   if (state.elapsedMs < RECORD_FLOOR_MS[course.distanceKey]) return { ok: false, reason: 'faster_than_record', elapsedMs: state.elapsedMs };
   const fast = state.splits.find((s) => s.splitMs < FASTEST_KILOMETRE_MS);
   if (fast) return { ok: false, reason: 'fast_kilometre', km: fast.km, splitMs: fast.splitMs };

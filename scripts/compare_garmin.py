@@ -201,6 +201,25 @@ def compare(g, tr, samples, started_at):
         print(f"    km{km:>2}: {(ta-prev_a)/1000:6.1f} s | {(tg-prev_g)/1000:6.1f} s | {(ta-tg)/1000:+6.1f} s")
         prev_a, prev_g = ta, tg
 
+    # what each device said at each km call: the app speaks its average since the gun, the
+    # watch shows its average since its own start (which includes whatever came before the gun)
+    fmt = lambda sec: f"{int(sec // 60)}:{sec % 60:04.1f}"
+    w0 = g["ms"][0]
+    print(f"  watch before the gun: {gd(started_at):.0f} m in {(started_at - w0)/1000:.0f} s")
+    print("  at each km call: app says (avg since gun) | watch avg since its start (diff) | watch avg since the gun (diff)")
+    for ev in tr.get("audioFired", []):
+        if ev["eventId"] != "personal.split":
+            continue
+        t = started_at + ev["elapsedMs"]
+        app_p = ev["elapsedMs"] / ev["distanceM"]
+        w_all = (t - w0) / gd(t)
+        w_gun = (t - started_at) / (gd(t) - gd(started_at))
+        print(f"    km{round(ev['distanceM']/1000):>2}: {fmt(app_p)} | {fmt(w_all)} ({app_p - w_all:+5.1f}) | {fmt(w_gun)} ({app_p - w_gun:+5.1f})")
+    fin = next((ev["elapsedMs"] for ev in tr.get("audioFired", []) if ev["eventId"] == "ceremony.finish"), None)
+    if fin:
+        tg = float(np.interp(gd(started_at) + 10000, g["dist"], g["ms"]))
+        print(f"  official time {fmt(fin/1000)}; the watch covered the same 10 km from the gun in {fmt((tg - started_at)/1000)}")
+
     # instantaneous pace as shown (30 s window on tracker distance) vs Garmin speed
     t_grid = np.arange(lo + 60_000, hi, 5_000)
     app_v = (app_d(t_grid) - app_d(t_grid - 30_000)) / 30
@@ -227,7 +246,7 @@ def compare(g, tr, samples, started_at):
 
     diag = tr.get("diagnostics") or {}
     lines = diag.get("lines", [])
-    bat = [(l["atMs"], l["message"]) for l in lines if re.search(r"\d+ %", l.get("message", "")) and l.get("tag", "").startswith(("battery", "power")) or re.match(r"^(start|run|stop|low)[^:]*: \d+ %", l.get("message", ""))]
+    bat = [(l["atMs"], l["message"]) for l in lines if l.get("tag") == "battery" and re.search(r"\d+ %", l.get("message", ""))]
     print("\n== Battery (logbook)")
     if not bat:
         print("  no battery lines in the trace")
@@ -239,6 +258,9 @@ def compare(g, tr, samples, started_at):
         rate = (l0 - l1) / ((a1 - a0) / 3_600_000)
         print(f"  {l0} -> {l1} % over {(a1-a0)/60000:.0f} min = {rate:.1f} %/h; a 4 h marathon would use {rate*4:.0f} %")
     print("  counters:", diag.get("counters"))
+    for l in lines:
+        if l.get("tag") != "battery" and re.search(r"battery|saver|refused|failed", l.get("message", "")):
+            print(f"  {l['atMs']/60000:6.1f} min  [{l['tag']}] {l['message'].splitlines()[0][:140]}")
 
 
 def load_fixture(path):

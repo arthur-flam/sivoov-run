@@ -11,6 +11,34 @@ Live: https://run.sivoov.app/deauville-2026 (production), https://preview.run.si
 on 2026-09-27 (below); M2 still needs a real finish. Production has the race and its courses;
 no real entrants yet.
 
+### Second real run: a full 10 km, against the Fenix 8 (2026-09-29)
+The owner rehearsed the 10 km des Champs-Élysées (bib 2002, run `mumtdgzg-uaew1q4g`) on the
+Galaxy S23 with the tracker fix from 2026-09-27, the Fenix 8 recording (DotDot run `25a17856`,
+Strava `20380103615`). Easy GPS: 3.3 m median accuracy, 1 Hz, longest gap 1.2 s, nothing dropped.
+The first course run to its full distance: all 22 lines fired in order, the finish and upload
+landed. Compared with `uv run scripts/compare_garmin.py` (the trace is the admin's « Données
+brutes »; the GPX button gave the same JSON).
+- **Distance: +0.39 % against the watch** over the app's own window (10 003 m for 9 964 m), about
+  1 s/km fast. Official time 46:34.7; the watch covered the same 10 km from the gun in 46:44.3.
+  Km calls drifted from 1 s early at km 1 to 11 s early at km 10. The first run replays at +0.23 %:
+  both runs lean long by the same small amount. The phone's reported speed read 8-10 % low again.
+- **The "5 s/km too fast" the owner felt is the watch's head start**, not the tracker. The watch
+  started 97 s (291 m, mostly walking) before the gun, so its average carried a slow start: the
+  app's spoken average was 14 s/km faster at km 1, 6 s at km 4, 2.5 s at km 9. Against the watch's
+  average from the gun it was 0.5-1.9 s/km faster. The shown 30 s pace swings ±3-4 s/km around
+  the watch's (median -0.4).
+- **Not recalibrated.** A larger minimum step brings both runs to the watch (12 m: +0.24/+0.12 %,
+  15 m: -0.04/-0.07 %) but breaks the hairpin, the clean 10 km and the km-marks tests, and two
+  runs on one phone in one city are not enough to trade the hairpin for 0.3 %. The Garmin's own
+  positions sum 0.7 % over its own distance: the watch is a smoothed reference, not the truth.
+- **Battery: 28 → 7 % in 45 min, 28 %/h** (from a low start, battery optimization on). 36 %/h
+  until 19 %, 24 %/h after, which is when the run screen stops holding the display on (if the
+  phone was not locked by hand). Even the lower rate is twice the PRD's half a phone for a
+  4 h marathon. 2 133 location batches for 2 795 fixes: the JS wakes on almost every fix.
+- **The GPS saver pace never engaged**: at 19 % `startLocationUpdatesAsync(SAVER_OPTIONS)` was
+  refused ("Couldn't start the foreground service"), Android's ban on starting a foreground service
+  from the background. The 1 Hz updates carried on, so nothing was lost, but nothing was spared.
+
 ### The run map, smooth under the finger (2026-09-29, branch `claude/run-map-feel`)
 The owner's second pass on the phone: turning the map did not follow the finger, house numbers
 cluttered the view, the simulation stuttered. JS only (OTA).

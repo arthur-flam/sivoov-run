@@ -7,6 +7,7 @@ import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold } from '@expo-g
 import { BarlowCondensed_600SemiBold, BarlowCondensed_700Bold } from '@expo-google-fonts/barlow-condensed';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { usePackDownload } from '@/hooks/usePackDownload';
+import { watchGun } from '@/stores/runStarted';
 import { useSession } from '@/stores/session';
 // Defines the background location task at startup, before any screen can start updates.
 import '@/services/location/device';
@@ -33,6 +34,9 @@ export default function RootLayout() {
   useEffect(() => {
     void restore();
   }, [restore]);
+
+  // The Worker hears of each gun (the owner's Telegram), whichever screen starts the run.
+  useEffect(() => watchGun(), []);
 
   useEffect(() => {
     if (fontsLoaded && status !== 'loading') void SplashScreen.hideAsync().catch(() => undefined);

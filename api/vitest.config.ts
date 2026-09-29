@@ -21,6 +21,10 @@ export default defineConfig(async () => {
             CLOUDFLARE_AI_TOKEN: 'test-cf-ai-token',
             MAPBOX_TOKEN: '',
             BROWSER_RENDERING_TOKEN: '',
+            // No Telegram bot, whatever .dev.vars holds: the suite never posts to the owner's chat
+            // (test/telegram.test.ts sets both for its own requests, with fetch stubbed).
+            TELEGRAM_BOT_TOKEN: '',
+            TELEGRAM_CHAT_ID: '',
             // App Review's fixed code (lib/testCode.ts), unlike TEST_CODE so a test can tell them apart.
             REVIEW_CODE: '424242',
           },

@@ -15,7 +15,7 @@ export const MAX_CODES_PER_HOUR = 5;
 
 type Ambiguous = { ok: false } & SignInAmbiguity;
 export type CodeResult = { ok: true; devCode?: string } | { ok: false; error: 'unknown_entrant' | 'too_many_requests' } | Ambiguous;
-export type VerifyResult = { ok: true; token: string; expiresAt: string; entrant: Entrant } | { ok: false; error: 'unknown_entrant' | 'bad_code' } | Ambiguous;
+export type VerifyResult = { ok: true; token: string; expiresAt: string; entrant: Entrant; race: Race } | { ok: false; error: 'unknown_entrant' | 'bad_code' } | Ambiguous;
 
 type Entry = { entrant: Entrant; race: Race };
 type Found = { ok: true; entry: Entry } | { ok: false; error: 'unknown_entrant' } | Ambiguous;
@@ -69,7 +69,7 @@ export const verifyCode = async (env: Bindings, req: CodeVerify, client: Session
   const token = randomHex(32);
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
   await q.createSession(newId(), entrant.id, await sha256Hex(token), expiresAt, client);
-  return { ok: true, token, expiresAt, entrant };
+  return { ok: true, token, expiresAt, entrant, race };
 };
 
 export const entrantForToken = async (env: Bindings, token: string): Promise<Entrant | null> => db(env.DB).entrantForToken(await sha256Hex(token));

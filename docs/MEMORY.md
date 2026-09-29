@@ -649,3 +649,8 @@
   - Leaving the finish screen unmounted the run screen, which released the player and reset the
     run: the finish lines and the crowd were cut. The finish now plays out (`letFinish`).
   - A Galaxy S23 with the 3D map on screen went from 28 % to 7 % in 46 min (about 27 %/h).
+- 2026-09-29: a workerd test that needs a secret the suite must not have (the Telegram bot): call
+  the Hono app itself, `app.request(url, init, { ...env, SECRET: 'x' }, createExecutionContext())`,
+  then `waitOnExecutionContext(ctx)` for what runs after the response (both from `cloudflare:test`);
+  SELF only ever has the config's bindings. Blank every such secret in `vitest.config.ts`, or a
+  laptop's `api/.dev.vars` makes the suite post for real.

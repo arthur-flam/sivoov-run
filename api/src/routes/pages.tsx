@@ -16,6 +16,8 @@ import { InstallPage } from '../pages/install';
 import { CourseGeometrySchema } from '@sivoov/shared';
 import { entrantForToken, requestCode, signOut, verifyCode } from '../lib/authService';
 import { sameSitePath } from '../lib/nextPath';
+import { signInNotice } from '../lib/notices';
+import { notify } from '../lib/telegram';
 import { localeOf } from './locale';
 
 export const pages = new Hono<AppEnv>();
@@ -130,6 +132,7 @@ pages.post('/:slug/signin', async (c) => {
   if (!parsed.success) return render({ step: 'code', bib, email: String(form.email ?? ''), error: 'bad_code' }, 400);
   const result = await verifyCode(c.env, parsed.data);
   if (!result.ok) return render({ step: 'code', bib: parsed.data.bib, email: parsed.data.email, error: 'bad_code' }, 401);
+  notify(c, signInNotice(result.entrant, result.race, 'web', null));
   // A language picked on the site (`?lang=`, remembered in its cookie) is the runner's choice: the app and the emails follow it.
   if (getCookie(c, 'lang')) await db(c.env.DB).setLocale(result.entrant.id, locale);
   setCookie(c, SESSION_COOKIE, result.token, { path: '/', httpOnly: true, sameSite: 'Lax', secure: c.env.ENVIRONMENT !== 'local', maxAge: 180 * 86400 });

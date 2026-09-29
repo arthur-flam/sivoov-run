@@ -3,7 +3,7 @@ import { AudioEventSchema, AudioPackSchema } from './audio';
 import { CodeRequestSchema, CodeVerifySchema } from './auth';
 import { EntrantSchema } from './entrant';
 import { DISTANCE_METERS, RaceSchema } from './race';
-import { RunSchema } from './run';
+import { RunSchema, RunStartSchema } from './run';
 
 describe('race', () => {
   const base = {
@@ -61,6 +61,11 @@ describe('run', () => {
     const run = RunSchema.parse({ id: 'x', entrantId: 'e', courseId: 'c', status: 'planned', source: 'app' });
     expect(run.splits).toEqual([]);
     expect(run.distanceM).toBe(0);
+  });
+  it('says a start comes from the app or a simulation, never from a GPX file', () => {
+    expect(RunStartSchema.parse({ courseId: 'c', source: 'simulation' })).toEqual({ courseId: 'c', source: 'simulation' });
+    expect(RunStartSchema.safeParse({ courseId: 'c', source: 'upload' }).success).toBe(false);
+    expect(RunStartSchema.safeParse({ source: 'app' }).success).toBe(false);
   });
 });
 

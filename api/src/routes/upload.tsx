@@ -6,6 +6,8 @@ import type { Course, Entrant, Race } from '@sivoov/shared';
 import type { AppEnv } from '../env';
 import { db } from '../db/queries';
 import { entrantForToken } from '../lib/authService';
+import { finishNotice } from '../lib/notices';
+import { notify } from '../lib/telegram';
 import { Layout } from '../pages/layout';
 import { UploadPage } from '../pages/upload';
 import type { UploadProblem } from '../pages/upload';
@@ -80,7 +82,12 @@ upload.post('/:slug/upload', async (c) => {
   const traceKey = `traces/${race.id}/${run.id}.json`;
   const trace = RunTraceSchema.parse({ runId: run.id, samples: verdict.samples, audioFired: [] });
   await c.env.FILES.put(traceKey, JSON.stringify(trace), { httpMetadata: { contentType: 'application/json' } });
-  await db(c.env.DB).upsertRun({ ...run, status: officialStatus(run, course.distanceM) }, traceKey);
+  const q = db(c.env.DB);
+  // The same file sent twice is the same run: the owner hears of it once.
+  const again = await q.runById(run.id);
+  const stored = { ...run, status: officialStatus(run, course.distanceM) };
+  await q.upsertRun(stored, traceKey);
   c.executionCtx.waitUntil(prewarmCards(c.env, new URL(c.req.url).origin, race, entrant.bib).catch(() => undefined));
+  if (!again) notify(c, finishNotice(entrant, race, course, stored));
   return c.redirect(`/${race.slug}/results/${encodeURIComponent(entrant.bib)}`, 303);
 });

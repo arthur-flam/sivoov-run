@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import type { AppEnv } from './env';
+import { errorNotice } from './lib/notices';
+import { notify } from './lib/telegram';
 import { api } from './routes/api';
 import { audio } from './routes/audio';
 import { media } from './routes/media';
@@ -31,6 +33,7 @@ app.route('/', pages);
 app.notFound((c) => (c.req.path.startsWith('/api') ? c.json({ error: 'not_found' }, 404) : c.text('Page introuvable', 404)));
 app.onError((err, c) => {
   console.error(err);
+  notify(c, errorNotice(c.req.method, c.req.path, err));
   return c.req.path.startsWith('/api') ? c.json({ error: 'internal' }, 500) : c.text('Une erreur est survenue.', 500);
 });
 

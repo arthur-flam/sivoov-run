@@ -50,6 +50,13 @@ jobs:
         env:
           TITLE: ${{ github.event.pull_request.title }}
         run: echo "text=$(printf '%s' "$TITLE" | tr -d '"\\`$' | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
+      # The app's Sentry DSN, inlined into the bundle (docs/WORKFLOW.md, Secrets). Only when the
+      # secret exists: without it the app sends nothing, and an empty variable would hide one set
+      # in the EAS environment.
+      - name: Sentry DSN for the bundle
+        env:
+          DSN: ${{ secrets.SENTRY_DSN_APP }}
+        run: '[ -z "$DSN" ] || echo "EXPO_PUBLIC_SENTRY_DSN=$DSN" >> "$GITHUB_ENV"'
       - name: Publish update to a branch named after the PR, comment QR on the PR
         uses: expo/expo-github-action/preview@v8
         # Opened in the dev client: its config, pointed at preview (see deploy.yml).
@@ -61,3 +68,15 @@ jobs:
           working-directory: app
           # v8 validates against "dev-client" only, despite documenting "dev-build"; both mean a dev build.
           qr-target: dev-client
+      # The update's source maps (in dist/, matched to the bundle by its debug id). Optional: without
+      # the token, stack traces stay minified; a failed upload never fails the publish.
+      - name: Source maps to Sentry
+        working-directory: app
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          SENTRY_URL: https://sentry.io/
+        run: |
+          [ -n "$SENTRY_AUTH_TOKEN" ] || { echo "SENTRY_AUTH_TOKEN not set: no source maps for this update."; exit 0; }
+          npx sentry-expo-upload-sourcemaps dist || echo "::warning::Sentry source maps were not uploaded; the update is published."

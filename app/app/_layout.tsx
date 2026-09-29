@@ -1,4 +1,6 @@
 import { useEffect } from 'react';
+// Before the screens, so that their errors are reported (when this build has a DSN: src/sentry.ts).
+import { wrapRoot } from '@/sentry';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -14,7 +16,7 @@ import { colors } from '@/theme';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
-export default function RootLayout() {
+function RootLayout() {
   const [fontsLoaded] = useFonts({
     Fraunces_500Medium,
     Fraunces_500Medium_Italic,
@@ -50,3 +52,5 @@ export default function RootLayout() {
     </SafeAreaProvider>
   );
 }
+
+export default wrapRoot(RootLayout);

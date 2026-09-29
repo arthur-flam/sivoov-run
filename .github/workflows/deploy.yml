@@ -79,6 +79,13 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
       - run: npm ci
+      # The app's Sentry DSN, inlined into the bundle (docs/WORKFLOW.md, Secrets). Only when the
+      # secret exists: without it the app sends nothing, and an empty variable would hide one set
+      # in the EAS environment.
+      - name: Sentry DSN for the bundle
+        env:
+          DSN: ${{ secrets.SENTRY_DSN_APP }}
+        run: '[ -z "$DSN" ] || echo "EXPO_PUBLIC_SENTRY_DSN=$DSN" >> "$GITHUB_ENV"'
       - name: Publish update to the preview channel
         working-directory: app
         # The message goes through the environment, never pasted into the script: a quote in a
@@ -90,6 +97,18 @@ jobs:
           APP_VARIANT: preview
           EXPO_PUBLIC_API_URL: https://preview.run.sivoov.app
         run: eas update --channel preview --environment preview --message "$MESSAGE" --non-interactive
+      # The update's source maps (in dist/, matched to the bundle by its debug id). Optional: without
+      # the token, stack traces stay minified; a failed upload never fails the publish.
+      - name: Source maps to Sentry
+        working-directory: app
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          SENTRY_URL: https://sentry.io/
+        run: |
+          [ -n "$SENTRY_AUTH_TOKEN" ] || { echo "SENTRY_AUTH_TOKEN not set: no source maps for this update."; exit 0; }
+          npx sentry-expo-upload-sourcemaps dist || echo "::warning::Sentry source maps were not uploaded; the update is published."
 
   promote-production:
     needs: secrets-check
@@ -118,12 +137,31 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # The app's Sentry DSN, inlined into the bundle (docs/WORKFLOW.md, Secrets). Only when the
+      # secret exists: without it the app sends nothing, and an empty variable would hide one set
+      # in the EAS environment.
+      - name: Sentry DSN for the bundle
+        env:
+          DSN: ${{ secrets.SENTRY_DSN_APP }}
+        run: '[ -z "$DSN" ] || echo "EXPO_PUBLIC_SENTRY_DSN=$DSN" >> "$GITHUB_ENV"'
       - name: Publish update to the production channel
         working-directory: app
         env:
           APP_VARIANT: production
           EXPO_PUBLIC_API_URL: https://run.sivoov.app
         run: eas update --channel production --environment production --message "${{ github.sha }}" --non-interactive
+      # The update's source maps (in dist/, matched to the bundle by its debug id). Optional: without
+      # the token, stack traces stay minified; a failed upload never fails the publish.
+      - name: Source maps to Sentry
+        working-directory: app
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          SENTRY_URL: https://sentry.io/
+        run: |
+          [ -n "$SENTRY_AUTH_TOKEN" ] || { echo "SENTRY_AUTH_TOKEN not set: no source maps for this update."; exit 0; }
+          npx sentry-expo-upload-sourcemaps dist || echo "::warning::Sentry source maps were not uploaded; the update is published."
 
   native-build:
     needs: secrets-check

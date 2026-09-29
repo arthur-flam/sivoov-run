@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import type { AppEnv } from './env';
+import { reportError, withErrorReports } from './lib/sentry';
 import { api } from './routes/api';
 import { audio } from './routes/audio';
 import { media } from './routes/media';
@@ -31,7 +32,9 @@ app.route('/', pages);
 app.notFound((c) => (c.req.path.startsWith('/api') ? c.json({ error: 'not_found' }, 404) : c.text('Page introuvable', 404)));
 app.onError((err, c) => {
   console.error(err);
+  reportError(err);
   return c.req.path.startsWith('/api') ? c.json({ error: 'internal' }, 500) : c.text('Une erreur est survenue.', 500);
 });
 
-export default app;
+// Sentry wraps the handler when the deployment has a SENTRY_DSN (lib/sentry.ts).
+export default withErrorReports(app);

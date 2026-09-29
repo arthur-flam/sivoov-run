@@ -53,6 +53,11 @@ export type Bindings = Env & {
    * BROWSER_RENDERING_TOKEN`. Optional: without it link previews use the course map.
    */
   BROWSER_RENDERING_TOKEN?: string;
+  /**
+   * Sentry DSN of the Worker's project (Cloudflare Workers), for error reports (lib/sentry.ts).
+   * `wrangler secret put SENTRY_DSN`, and `--env preview`. Optional: without it nothing is sent.
+   */
+  SENTRY_DSN?: string;
 };
 
 export type AppEnv = { Bindings: Bindings };

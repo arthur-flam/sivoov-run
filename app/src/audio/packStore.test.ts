@@ -78,7 +78,7 @@ describe('the audio pack on the phone', () => {
     pack.mockReset();
     platform.OS = 'android';
     myVoices.mockReset();
-    usePackStore.setState({ courseId: null, pack: null, status: 'idle', bytes: 0, uris: {}, personal: {}, personalFor: null });
+    usePackStore.setState({ courseId: null, pack: null, status: 'idle', bytes: 0, uris: {}, personal: {}, captions: {}, personalFor: null });
   });
 
   it('downloads every file ahead of the run and says how much it weighs', async () => {
@@ -146,7 +146,12 @@ describe('the runner’s own lines', () => {
       { id: 'split', trigger: { kind: 'split', everyMeters: 5000 }, source: { kind: 'file', key: 'gun.mp3' }, category: 'personal', personal: { phase: 'live' } },
     ],
   });
-  const lea: PersonalVoices = { courseId: course.id, version: 2, files: { call: { url: 'https://run.test/api/voices/abc.mp3', bytes: 9_000, sha256: 'a'.repeat(64) } } };
+  const lea: PersonalVoices = {
+    courseId: course.id,
+    version: 2,
+    files: { call: { url: 'https://run.test/api/voices/abc.mp3', bytes: 9_000, sha256: 'a'.repeat(64) } },
+    captions: { call: 'Dossard 1002, Léa Martin, de Rouen !', word: 'Never downloaded.' },
+  };
   const call = personalPack.events.find((e) => e.id === 'call')!;
   const split = personalPack.events.find((e) => e.id === 'split')!;
 
@@ -156,7 +161,7 @@ describe('the runner’s own lines', () => {
     pack.mockReset();
     myVoices.mockReset();
     platform.OS = 'android';
-    usePackStore.setState({ courseId: null, pack: null, status: 'idle', bytes: 0, uris: {}, personal: {}, personalFor: null });
+    usePackStore.setState({ courseId: null, pack: null, status: 'idle', bytes: 0, uris: {}, personal: {}, captions: {}, personalFor: null });
     sizes.set('https://run.test/api/voices/abc.mp3', 9_000);
   });
 
@@ -168,6 +173,8 @@ describe('the runner’s own lines', () => {
     expect(usePackStore.getState().soundFor(call)).toBe(`file://cache/voices/${course.id}/2/${'a'.repeat(32)}.mp3`);
     // A live line is said when it plays: before that, its sound is the offline file.
     expect(usePackStore.getState().soundFor(split)).toBe('file://cache/packs/deauville-2026-marathon/2/gun.mp3');
+    // The words come with it, for the caption; only for a line whose sound came down.
+    expect(usePackStore.getState().captions).toEqual({ call: 'Dossard 1002, Léa Martin, de Rouen !' });
   });
 
   it('leave the offline files in place when the server cannot say them, and never throw', async () => {

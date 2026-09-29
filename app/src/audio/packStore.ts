@@ -24,6 +24,8 @@ type PackStore = {
    * what the AI wrote for them): event id -> playable uri. Absent lines play their offline file.
    */
   personal: Record<string, string>;
+  /** What each of the runner's own lines says (event id -> words), for the run screen's captions. */
+  captions: Record<string, string>;
   /** The pack version and whether a position went with it, so a later call only refetches what can improve. */
   personalFor: { version: number; here: boolean; at: number } | null;
   load: (course: Course) => Promise<void>;
@@ -73,6 +75,7 @@ export const usePackStore = create<PackStore>((set, get) => ({
   bytes: 0,
   uris: {},
   personal: {},
+  captions: {},
   personalFor: null,
 
   /**
@@ -86,7 +89,7 @@ export const usePackStore = create<PackStore>((set, get) => ({
     const { courseId, status } = get();
     const same = courseId === course.id;
     if (same && (status === 'loading' || status === 'ready')) return;
-    set(same ? { status: 'loading' } : { courseId: course.id, status: 'loading', pack: null, bytes: 0, uris: {}, personal: {}, personalFor: null });
+    set(same ? { status: 'loading' } : { courseId: course.id, status: 'loading', pack: null, bytes: 0, uris: {}, personal: {}, captions: {}, personalFor: null });
     const fetched = await api.pack(course.id).catch((e: unknown): 'none' | 'error' => (e instanceof ApiError && e.status === 404 ? 'none' : 'error'));
     if (get().courseId !== course.id) return;
     if (fetched === 'none' || fetched === 'error') {
@@ -111,7 +114,8 @@ export const usePackStore = create<PackStore>((set, get) => ({
       Object.entries(voices.files).map(([eventId, f]) => [eventId, f, `${f.sha256.slice(0, 32)}.${f.url.endsWith('.wav') ? 'wav' : 'mp3'}`]),
     ).catch(() => ({ uris: {} as Record<string, string> }));
     if (get().pack?.version !== pack.version) return;
-    set({ personal: { ...get().personal, ...uris }, personalFor: { version: pack.version, here: Boolean(here), at: Date.now() } });
+    const captions = Object.fromEntries(Object.entries(voices.captions).filter(([eventId]) => eventId in uris));
+    set({ personal: { ...get().personal, ...uris }, captions: { ...get().captions, ...captions }, personalFor: { version: pack.version, here: Boolean(here), at: Date.now() } });
   },
 
   uriFor(key) {

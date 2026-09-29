@@ -67,6 +67,8 @@ const config: ExpoConfig = {
     ],
     'expo-audio',
     'expo-secure-store',
+    // The run screen's 3D map (ARCHITECTURE.md, native module list). Mapbox v11: no download token.
+    '@rnmapbox/maps',
     ['expo-splash-screen', { image: './assets/splash-icon.png', imageWidth: 160, resizeMode: 'contain', backgroundColor: '#faf9f7' }],
   ],
   updates: {

@@ -5,7 +5,7 @@ import { ambiance as sharedAmbiance } from './under';
 import type { Ambiance } from './under';
 
 /** The start ceremony ready to play: every line with a playable file (and its ambiance, if any), and which one is the gun. */
-export type CeremonyPlan = { lines: { at: CueMoment; uri: string; under?: string }[]; gunIndex: number };
+export type CeremonyPlan = { lines: { event: AudioEvent; at: CueMoment; uri: string; under?: string }[]; gunIndex: number };
 
 /**
  * The pack's start ceremony, or null when the run keeps the silent visual countdown: the pack
@@ -22,7 +22,7 @@ export const ceremonyPlan = (
   if (!ceremony) return null;
   const lines = ceremony.lines.map((line) => {
     const under = line.under ? uriFor(line.under) : null;
-    return { at: line.trigger.at, uri: soundFor(line), ...(under ? { under } : {}) };
+    return { event: line as AudioEvent, at: line.trigger.at, uri: soundFor(line), ...(under ? { under } : {}) };
   });
   return lines.every((l): l is CeremonyPlan['lines'][number] => l.uri !== null) ? { lines, gunIndex: ceremony.gunIndex } : null;
 };
@@ -47,7 +47,10 @@ export type Ceremony = {
  * ambiance (the crowd of the start area, the music after the gun) starts with the line and
  * carries on under the next ones, into the run.
  */
-export const playCeremony = (plan: CeremonyPlan, now: () => number, onCue: (cue: CeremonyCue) => void, ambiance: Ambiance = sharedAmbiance): Ceremony => {
+/** `onLine`: a line starts or the ceremony falls silent (null), for the caption of what the speaker says. */
+export type CeremonyHandlers = { onCue: (cue: CeremonyCue) => void; onLine?: (line: CeremonyPlan['lines'][number] | null) => void };
+
+export const playCeremony = (plan: CeremonyPlan, now: () => number, { onCue, onLine = () => undefined }: CeremonyHandlers, ambiance: Ambiance = sharedAmbiance): Ceremony => {
   let settle: (at: number | null) => void = () => undefined;
   let fired = false;
   let ticket: number | undefined;
@@ -59,6 +62,7 @@ export const playCeremony = (plan: CeremonyPlan, now: () => number, onCue: (cue:
     plan.lines.map((l) => l.uri),
     {
       onStart: (index, remaining, elapsed) => {
+        onLine(plan.lines[index] ?? null);
         const under = plan.lines[index]?.under;
         if (under) ticket = ambiance.start(under);
         const at = beforeGun(index);
@@ -71,14 +75,21 @@ export const playCeremony = (plan: CeremonyPlan, now: () => number, onCue: (cue:
       onRemaining: (index, remaining) => {
         if (beforeGun(index) === 'countdown') onCue({ at: 'countdown', seconds: Math.ceil(remaining) });
       },
-      onDone: () => settle(now()),
-      onFail: (index) => settle(index >= plan.gunIndex ? now() : null),
+      onDone: () => {
+        onLine(null);
+        settle(now());
+      },
+      onFail: (index) => {
+        onLine(null);
+        settle(index >= plan.gunIndex ? now() : null);
+      },
     },
   );
   return {
     gun,
     stop: () => {
       sequence.stop();
+      onLine(null);
       // Before the gun the ambiance is the ceremony's; after it, the run's (it fades on its own).
       if (!fired) ambiance.stop(ticket);
       settle(null);

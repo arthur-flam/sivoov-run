@@ -1,29 +1,68 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { BackHandler, Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BackHandler, Platform, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useKeepAwake } from 'expo-keep-awake';
+import * as Haptics from 'expo-haptics';
 import Constants from 'expo-constants';
-import { constantPace, finishOutcome, formatClock, formatKm, formatPace, nextLandmark, parsePace, progress, readableOn } from '@sivoov/shared';
+import { aheadOf, constantPace, finishOutcome, formatKm, gpsSignal, lightPresetAt, parsePace, progress, readableOn } from '@sivoov/shared';
+import type { Course, CourseTrack, LightPreset } from '@sivoov/shared';
+import type { CeremonyHandlers } from '@/audio/ceremony';
 import { usePackStore } from '@/audio/packStore';
+import { captionFor, useSaid } from '@/audio/said';
 import { useAudioPack, useAudioPlayback } from '@/audio/usePlayback';
-import { CourseDiagram } from '@/components/CourseDiagram';
 import { Finish } from '@/components/Finish';
-import { Body, Button, Card, Display, Eyebrow, Num, Screen } from '@/components/ui';
+import { Announcements } from '@/components/run/Announcements';
+import { Caption } from '@/components/run/Caption';
+import { CountdownDigit } from '@/components/run/CountdownDigit';
+import { LivePanel } from '@/components/run/LivePanel';
+import { ReadyPanel } from '@/components/run/ReadyPanel';
+import { Stage } from '@/components/run/Stage';
+import { StartPanel } from '@/components/run/StartPanel';
+import { StatusChips } from '@/components/run/StatusChips';
+import { StopConfirm } from '@/components/run/StopConfirm';
+import { Body, Screen } from '@/components/ui';
+import { useCaption } from '@/hooks/useCaption';
+import { useGlide } from '@/hooks/useGlide';
+import { useMapDownload } from '@/hooks/useMapDownload';
 import { useTrack } from '@/hooks/useTrack';
 import { diag, useDiag } from '@/diag';
 import { locale, t } from '@/i18n';
 import { deviceSource, simulationSource } from '@/services/location';
+import { usePrefs } from '@/stores/prefs';
+import type { MapView } from '@/stores/prefs';
 import { useRun } from '@/stores/run';
 import { useSession } from '@/stores/session';
 import { newRunId, toUpload, useUploads } from '@/stores/uploads';
-import { colors, fonts, space } from '@/theme';
+import { colors, space } from '@/theme';
+
+/**
+ * The screen stays on during the run, on a phone. Not on the web target (development and the
+ * screenshot rig), where the browser's wake lock throws when a reload unmounts it before it took.
+ */
+const useStayAwake: () => void = Platform.OS === 'web' ? () => undefined : useKeepAwake;
+
+const VIEWS: MapView[] = ['follow', 'overview', 'numbers'];
+const nextView = (view: MapView): MapView => VIEWS[(VIEWS.indexOf(view) + 1) % VIEWS.length]!;
+
+/** The map's light for the course's start, now, checked again every few minutes (a marathon can run into the night). */
+const useLight = (track: CourseTrack | null): LightPreset => {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 5 * 60_000);
+    return () => clearInterval(id);
+  }, []);
+  return track ? lightPresetAt(track.points[0]!, now) : 'day';
+};
+
+/** « 42,195 km », « 21,1 km », « 10 km »: the course's distance as the race names it. */
+const courseLabel = (course: Course) => formatKm(course.distanceM, locale, course.distanceKey === 'marathon' ? 3 : course.distanceM % 1000 === 0 ? 0 : 1);
 
 export default function Run() {
-  useKeepAwake();
+  useStayAwake();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
   const params = useLocalSearchParams<{ sim?: string; pace?: string; speed?: string; noise?: string }>();
   const me = useSession((s) => s.me);
   const course = me?.course ?? null;
@@ -35,6 +74,23 @@ export default function Run() {
   const token = useSession((s) => s.token);
   const runId = useRef(newRunId());
   const uploadStatus = useUploads((s) => s.statusOf(runId.current));
+  const prefs = usePrefs();
+  const said = useSaid();
+  const caption = useCaption();
+  const [sheet, setSheet] = useState<'said' | 'stop' | null>(null);
+  const [mapFailed, setMapFailed] = useState(false);
+  const onMapFail = useCallback(() => setMapFailed(true), []);
+  const mapToken = me?.map?.token ?? null;
+  const mapDownload = useMapDownload(course?.id ?? null, track, mapToken);
+  const light = useLight(track);
+  const glided = useGlide(run.state, run.phase === 'running');
+  const ceremonyLine = useRef<string | null>(null);
+
+  useEffect(() => {
+    void usePrefs.getState().load();
+    useSaid.getState().reset();
+    return () => useSaid.getState().reset();
+  }, []);
 
   // Prepare whenever the inputs settle; the store ignores it once the countdown has begun, so
   // the published pack landing after Start (it replaces the bundled one) never wipes the run.
@@ -43,12 +99,23 @@ export default function Run() {
   }, [course, track, pack]);
   useEffect(() => () => useRun.getState().reset(), []);
 
-  // Android's back button would unmount the screen and drop the run: only the long press stops it.
+  // Android's back button would unmount the screen and drop the run: during the run it asks to
+  // stop, like the stop control; during the countdown it does nothing.
   useEffect(() => {
     if (Platform.OS !== 'android') return;
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => ['countdown', 'running'].includes(useRun.getState().phase));
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      const phase = useRun.getState().phase;
+      if (phase === 'running') setSheet((open) => (open ? null : 'stop'));
+      return phase === 'countdown' || phase === 'running';
+    });
     return () => sub.remove();
   }, []);
+
+  // The gun: a firm tap on the phone as the clock starts, for a runner not looking at the screen.
+  useEffect(() => {
+    if (run.phase === 'running' && Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => undefined);
+    if (run.phase !== 'running') setSheet(null);
+  }, [run.phase]);
 
   // The finish path: queue the run and its trace; the store sends it now or when back online.
   useEffect(() => {
@@ -74,63 +141,18 @@ export default function Run() {
   if (!course || !race || !track || !source) {
     return (
       <Screen dark style={[styles.center, { paddingTop: insets.top }]}>
+        <StatusBar style="light" />
         <Body dark>{t('common.loading')}</Body>
       </Screen>
     );
   }
 
-  // The race colour lifted to read on the night ground: Deauville's navy vanished on black.
-  const accent = readableOn(race.theme.primary, colors.night);
   const { state, phase } = run;
-  const next = nextLandmark(course.landmarks, state.distanceM);
-  const diagramW = Math.min(width - 2 * space.md, 420);
-
-  if (phase === 'idle') {
-    return (
-      <Screen dark style={{ paddingTop: insets.top + space.xl, paddingBottom: insets.bottom + space.lg, gap: space.md }}>
-        <Eyebrow dark>{race.theme.displayName}</Eyebrow>
-        <Display dark>{t('run.ready')}</Display>
-        <Body dark muted>
-          {me?.entrant.firstName} · {formatKm(course.distanceM, locale, course.distanceKey === 'marathon' ? 3 : 1)}
-        </Body>
-        {run.startError ? <Body dark testID="start-error">{run.startError === 'location_denied' ? t('prepare.check.permission.denied') : t('run.startFailed')}</Body> : null}
-        {source.kind === 'simulation' ? <Body dark muted testID="sim-badge">{t('run.sim.badge')} · {params.pace ?? '5:30'} /km · ×{params.speed ?? 1}</Body> : null}
-        <View style={{ alignItems: 'center', paddingVertical: space.md }}>
-          <CourseDiagram track={track} officialM={course.distanceM} runM={0} landmarks={course.landmarks} accent={accent} width={diagramW} height={diagramW * 0.8} />
-        </View>
-        <View style={{ flex: 1 }} />
-        <Button testID="start" label={t('run.start')} color={race.theme.primary} onColor={race.theme.onPrimary} onPress={() => void run.start(source, { soundFor: usePackStore.getState().soundFor, uriFor: usePackStore.getState().uriFor })} />
-        <Button label={t('common.back')} ghost dark onPress={() => router.back()} />
-      </Screen>
-    );
-  }
-
-  // The ceremony's first lines: no digits yet, the runner is on the line and listening.
-  if (phase === 'countdown' && run.cue === 'armed') {
-    return (
-      <Screen dark style={[styles.center, { padding: space.lg }]}>
-        <Eyebrow dark>{race.theme.displayName}</Eyebrow>
-        <Display dark style={{ textAlign: 'center' }}>{t('run.armed.title')}</Display>
-        <Body dark muted style={{ textAlign: 'center' }} testID="on-the-line">
-          {t('run.armed.body')}
-        </Body>
-      </Screen>
-    );
-  }
-
-  if (phase === 'countdown') {
-    return (
-      <Screen dark style={styles.center}>
-        <Body dark muted>{t('run.countdown')}</Body>
-        <Num dark size={200} testID="countdown">{Math.max(1, run.countdown)}</Num>
-      </Screen>
-    );
-  }
-
   if (phase === 'finished' && me) {
     const outcome = finishOutcome({ distanceM: state.distanceM, courseDistanceM: course.distanceM, startedAtMs: state.startedAt ?? 0, window: source.kind === 'simulation' ? null : race });
     return (
       <Screen dark style={{ paddingTop: insets.top + space.lg, paddingBottom: insets.bottom }}>
+        <StatusBar style="light" />
         <Finish
           race={race}
           course={course}
@@ -146,46 +168,104 @@ export default function Run() {
     );
   }
 
+  // The race colour lifted to read on the night ground: Deauville's navy vanished on black.
+  const accent = readableOn(race.theme.primary, colors.night);
+  const simulation = source.kind === 'simulation';
+  const mapShown = mapToken !== null && !mapFailed;
+  const view = phase === 'idle' ? 'overview' : phase === 'countdown' ? 'follow' : prefs.view;
+  // Room for the chips (and, over the course drawing, the caption under them).
+  const topInset = insets.top + 132;
+
+  // Each line of the start ceremony as it plays: its words on screen and in the list.
+  const onLine: CeremonyHandlers['onLine'] = (line) => {
+    const saidNow = useSaid.getState();
+    if (!line) {
+      if (saidNow.speaking === ceremonyLine.current) saidNow.setSpeaking(null);
+      return;
+    }
+    ceremonyLine.current = line.event.id;
+    saidNow.add({ key: `cue:${line.event.id}`, event: line.event, text: captionFor(line.event, usePackStore.getState().captions), distanceM: 0, elapsedMs: 0, sound: 'heard', uri: line.uri, at: Date.now() });
+    saidNow.setSpeaking(line.event.id);
+  };
+  const start = () => void run.start(source, { soundFor: usePackStore.getState().soundFor, uriFor: usePackStore.getState().uriFor, onLine });
+
   return (
-    <Screen dark style={{ paddingTop: insets.top + space.md, paddingBottom: insets.bottom + space.md }}>
-      <View style={[styles.progressTrack]}>
-        <View style={[styles.progressFill, { width: `${progress(state) * 100}%`, backgroundColor: accent }]} />
-      </View>
-      <View style={styles.row}>
-        <Eyebrow dark>{race.theme.displayName}</Eyebrow>
-        {source.kind === 'simulation' ? <Body dark muted style={{ fontSize: 12 }} testID="sim-badge-live">{t('run.sim.badge')}</Body> : null}
-      </View>
-      <View style={{ paddingTop: space.md }}>
-        <Body dark muted>{t('common.distance')}</Body>
-        <Num dark size={96} testID="distance">{formatKm(state.distanceM, locale)}</Num>
-      </View>
-      <View style={styles.row}>
-        <View style={{ flex: 1 }}>
-          <Body dark muted>{t('run.elapsed')}</Body>
-          <Num dark size={56} testID="elapsed">{formatClock(state.elapsedMs)}</Num>
+    <View style={styles.screen}>
+      <StatusBar style="light" />
+      <View style={styles.stage}>
+        <Stage token={mapShown ? mapToken : null} track={track} course={course} runM={glided} accent={accent} view={view} light={light} failed={mapFailed} onFail={onMapFail} topInset={topInset} />
+        <View style={[styles.chips, { paddingTop: insets.top + space.sm }]}>
+          <StatusChips race={race.theme.displayName} gps={phase === 'running' ? gpsSignal(run.samples[run.samples.length - 1] ?? null, source.now()) : null} simulation={simulation && phase !== 'idle'} />
         </View>
-        <View style={{ flex: 1 }}>
-          <Body dark muted>{t('common.pace')}</Body>
-          <Num dark size={56} testID="pace">{formatPace(state.paceSecPerKm)}</Num>
+        {phase === 'countdown' && run.cue !== 'armed' ? (
+          <View style={styles.countdown} pointerEvents="none">
+            <CountdownDigit value={Math.max(1, run.countdown)} />
+          </View>
+        ) : null}
+        {phase === 'running' ? (
+          <View style={[styles.caption, { top: insets.top + 56 }]}>
+            <Caption line={caption.line} speaking={caption.speaking} onPress={() => setSheet('said')} />
+          </View>
+        ) : null}
+      </View>
+
+      <View style={[styles.panel, { paddingBottom: insets.bottom + space.md }]}>
+        <View style={styles.seam}>
+          <View style={[styles.seamFill, { width: `${progress(state) * 100}%`, backgroundColor: accent }]} />
         </View>
+        {phase === 'idle' ? (
+          <ReadyPanel
+            who={`${me?.entrant.firstName ?? ''} · ${courseLabel(course)}`}
+            error={run.startError}
+            simulation={simulation ? `${t('run.sim.badge')} · ${params.pace ?? '5:30'} /km · ×${params.speed ?? 1}` : null}
+            map={mapDownload}
+            color={race.theme.primary}
+            onColor={race.theme.onPrimary}
+            onStart={start}
+            onBack={() => router.back()}
+          />
+        ) : phase === 'countdown' ? (
+          <StartPanel cue={run.cue === 'armed' ? 'armed' : 'digits'} who={`${me?.entrant.firstName ?? ''} · ${courseLabel(course)}`} line={caption.line} speaking={caption.speaking} />
+        ) : (
+          <LivePanel
+            state={state}
+            ofLabel={courseLabel(course)}
+            ahead={aheadOf(course.landmarks, course.distanceM, state.distanceM)}
+            accent={accent}
+            voice={t(`run.voice.${prefs.voice}`)}
+            view={mapShown ? prefs.view : null}
+            onAnnouncements={() => setSheet('said')}
+            onView={() => prefs.setView(nextView(prefs.view))}
+            onStop={() => setSheet('stop')}
+          />
+        )}
       </View>
-      <View style={{ alignItems: 'center', paddingVertical: space.sm }}>
-        <CourseDiagram track={track} officialM={course.distanceM} runM={state.distanceM} landmarks={course.landmarks} accent={accent} width={diagramW} height={diagramW * 0.62} />
-      </View>
-      <Card dark style={{ gap: 2 }}>
-        <Body dark muted>{next ? `${t('run.next')} · km ${(next.meters / 1000).toFixed(1).replace('.0', '')}` : t('run.finish')}</Body>
-        <Body dark style={{ fontFamily: fonts.bodyBold, fontSize: 18 }} testID="next-landmark">{next?.name ?? formatKm(course.distanceM, locale)}</Body>
-        {run.nowPlaying ? <Body dark muted testID="now-playing">🔊 {run.nowPlaying.title ?? run.nowPlaying.id}</Body> : null}
-      </Card>
-      <View style={{ flex: 1 }} />
-      <Button testID="stop" label={t('run.stopHold')} ghost dark onPress={() => undefined} onLongPress={() => void run.stop()} delayLongPress={1200} />
-    </Screen>
+
+      {sheet === 'said' ? <Announcements lines={said.lines} speaking={said.speaking} level={prefs.voice} onLevel={prefs.setVoice} onClose={() => setSheet(null)} /> : null}
+      {sheet === 'stop' ? (
+        <StopConfirm
+          distance={formatKm(state.distanceM, locale)}
+          onKeep={() => setSheet(null)}
+          onStop={() => {
+            setSheet(null);
+            void run.stop();
+          }}
+        />
+      ) : null}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.night },
   center: { alignItems: 'center', justifyContent: 'center', gap: space.md },
-  row: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: space.md },
-  progressTrack: { height: 4, backgroundColor: colors.nightBorder, borderRadius: 2, overflow: 'hidden', marginBottom: space.md },
-  progressFill: { height: 4 },
+  stage: { flex: 1, overflow: 'hidden' },
+  chips: { position: 'absolute', top: 0, left: space.md, right: space.md },
+  countdown: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(12,12,12,0.35)' },
+  // Under the chips, over the sky of the followed view: the runner and the road ahead stay clear,
+  // and so do the map's logo and attribution at the bottom.
+  caption: { position: 'absolute', left: space.sm, right: space.sm },
+  panel: { backgroundColor: colors.night, paddingHorizontal: space.md, paddingTop: space.md },
+  seam: { position: 'absolute', top: 0, left: 0, right: 0, height: 3, backgroundColor: colors.nightBorder },
+  seamFill: { height: 3 },
 });

@@ -30,6 +30,9 @@ export const presets: Preset[] = [
 
 export const AUTH_STATE = 'test-results/shots/auth.json';
 
+/** Metro's port: another checkout's Metro may already hold 8081 (`SHOTS_APP_PORT=8082 npm run shots`). */
+const APP_PORT = process.env.SHOTS_APP_PORT ?? '8081';
+
 const wanted: string[] = String(process.env.SHOTS_PRESETS ?? 'phone').split(',').map((s: string) => s.trim());
 const chosen = presets.filter((p) => wanted.includes(p.id));
 if (chosen.length === 0) throw new Error(`SHOTS_PRESETS matched nothing. Known: ${presets.map((p) => p.id).join(', ')}`);
@@ -40,7 +43,7 @@ export default defineConfig({
   timeout: 240_000,
   workers: 1,
   use: {
-    baseURL: 'http://localhost:8081',
+    baseURL: `http://localhost:${APP_PORT}`,
     launchOptions: chromiumLaunch(),
     // A locked-in fix, so the pre-flight GPS check passes on the web target.
     permissions: ['geolocation'],
@@ -63,7 +66,7 @@ export default defineConfig({
   ],
   webServer: [
     { command: 'npm run dev -w api', cwd: '..', url: 'http://localhost:8788/api/health', reuseExistingServer: true, timeout: 60_000 },
-    { command: 'npx expo start --web --port 8081', url: 'http://localhost:8081', reuseExistingServer: true, timeout: 180_000, env: { EXPO_PUBLIC_API_URL: 'http://localhost:8788', CI: '1' } },
+    { command: `npx expo start --web --port ${APP_PORT}`, url: `http://localhost:${APP_PORT}`, reuseExistingServer: true, timeout: 180_000, env: { EXPO_PUBLIC_API_URL: 'http://localhost:8788', CI: '1' } },
   ],
   reporter: [['list']],
 });

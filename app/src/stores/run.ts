@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { applySample, abandon as abandonRun, idleRun, nextEvents, startRun, tick } from '@sivoov/shared';
 import type { AudioEvent, AudioPack, Course, CourseTrack, Firing, LocationSample, RunState } from '@sivoov/shared';
 import { ceremonyPlan, playCeremony } from '@/audio/ceremony';
-import type { Ceremony, CeremonyPlan } from '@/audio/ceremony';
+import type { Ceremony, CeremonyHandlers, CeremonyPlan } from '@/audio/ceremony';
 import type { LocationSource } from '@/services/location';
 
 export type Fired = { eventId: string; key: string; distanceM: number; elapsedMs: number };
@@ -41,7 +41,8 @@ type RunStore = {
   reset: () => void;
 };
 
-type StartOptions = { uriFor?: (key: string) => string | null; soundFor?: (event: AudioEvent) => string | null; countdownSeconds?: number };
+/** `onLine`: each line of the start ceremony as it starts (null when it falls silent), for its caption. */
+type StartOptions = { uriFor?: (key: string) => string | null; soundFor?: (event: AudioEvent) => string | null; countdownSeconds?: number; onLine?: CeremonyHandlers['onLine'] };
 
 const SIM_COUNTDOWN_MS = 1000;
 
@@ -53,8 +54,9 @@ export const useRun = create<RunStore>((set, get) => {
   let ceremony: Ceremony | null = null;
 
   /** Resolves with the gun's time, or null when the ceremony failed before it (or was stopped). */
-  const playPlan = (plan: CeremonyPlan, source: LocationSource): Promise<number | null> => {
-    ceremony = playCeremony(plan, () => source.now(), (cue) => set(cue.at === 'countdown' ? { cue: cue.at, countdown: cue.seconds } : { cue: cue.at }));
+  const playPlan = (plan: CeremonyPlan, source: LocationSource, onLine: CeremonyHandlers['onLine']): Promise<number | null> => {
+    const onCue: CeremonyHandlers['onCue'] = (cue) => set(cue.at === 'countdown' ? { cue: cue.at, countdown: cue.seconds } : { cue: cue.at });
+    ceremony = playCeremony(plan, () => source.now(), { onCue, onLine });
     return ceremony.gun;
   };
 
@@ -112,7 +114,7 @@ export const useRun = create<RunStore>((set, get) => {
       set({ course, track, pack, state: idleRun(course.distanceM), phase: 'idle', samples: [], fired: [], nowPlaying: null, cue: null });
     },
 
-    async start(source, { uriFor = () => null, soundFor, countdownSeconds = 5 } = {}) {
+    async start(source, { uriFor = () => null, soundFor, countdownSeconds = 5, onLine } = {}) {
       const { course, pack } = get();
       if (!course) throw new Error('prepare() first');
       const mine = ++generation;
@@ -121,7 +123,7 @@ export const useRun = create<RunStore>((set, get) => {
       const plan = source.kind === 'simulation' ? null : ceremonyPlan(pack, resolve, uriFor);
       set({ source, phase: 'countdown', countdown: countdownSeconds, cue: plan ? 'armed' : null, startError: null });
       // The clock starts when the gun file starts playing, not when a timer ends.
-      const gunAt = plan ? await playPlan(plan, source) : null;
+      const gunAt = plan ? await playPlan(plan, source, onLine) : null;
       if (!current()) return;
       if (gunAt === null) await visualCountdown(source, countdownSeconds, current);
       if (!current()) return;

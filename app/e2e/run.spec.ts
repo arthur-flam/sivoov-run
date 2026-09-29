@@ -15,6 +15,9 @@ test('sign in, then run a simulated half at 5:00/km in accelerated time', async 
   await expect(page.getByTestId('bib-number')).toHaveText('1001');
   await page.screenshot({ path: `${shots}/home.png` });
 
+  // The numbers view: this test is about the tracker and the finish. A local Worker with a Mapbox
+  // token would otherwise draw the 3D map, in software in headless Chromium, and slow the run.
+  await page.addInitScript(() => globalThis.localStorage?.setItem('sivoov.prefs', JSON.stringify({ voice: 'all', view: 'numbers' })));
   await page.goto('/run?sim=1&pace=5:00&speed=60&noise=4');
   await expect(page.getByTestId('sim-badge')).toBeVisible();
   await page.screenshot({ path: `${shots}/run-ready.png` });

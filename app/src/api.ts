@@ -75,7 +75,14 @@ const request = async <T extends z.ZodType>(path: string, schema: T, init: Reque
 };
 
 const VerifySchema = z.object({ token: z.string(), expiresAt: z.string(), entrant: EntrantPublicSchema });
-export const MeSchema = z.object({ entrant: EntrantPublicSchema, race: RaceSchema, course: CourseSchema.nullable(), runs: z.array(RunSchema) });
+/** `map`: the Mapbox public token for the run screen's map; null (or an older cache without it) draws the course diagram. */
+export const MeSchema = z.object({
+  entrant: EntrantPublicSchema,
+  race: RaceSchema,
+  course: CourseSchema.nullable(),
+  runs: z.array(RunSchema),
+  map: z.object({ token: z.string().min(1) }).nullable().default(null),
+});
 export type Me = z.infer<typeof MeSchema>;
 
 export const api = {

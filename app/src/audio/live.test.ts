@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AudioEventSchema, idleRun, startRun } from '@sivoov/shared';
 import type { LiveVoiceRequest, RunState } from '@sivoov/shared';
 
-const liveVoice = vi.fn<(token: string, req: LiveVoiceRequest) => Promise<{ url: string; bytes: number }>>();
+const liveVoice = vi.fn<(token: string, req: LiveVoiceRequest) => Promise<{ url: string; bytes: number; caption?: string }>>();
 vi.mock('@/api', () => ({ api: { liveVoice: (token: string, req: LiveVoiceRequest) => liveVoice(token, req) } }));
 
 const { liveSound } = await import('./live');
@@ -23,8 +23,8 @@ describe('a live line', () => {
   });
 
   it('is asked for with what the run knows at that moment, and played from the answer', async () => {
-    liveVoice.mockResolvedValue({ url: 'https://run.test/api/voices/f00.mp3', bytes: 9000 });
-    expect(await liveSound(pack, split, atKm10, 'token')).toBe('https://run.test/api/voices/f00.mp3');
+    liveVoice.mockResolvedValue({ url: 'https://run.test/api/voices/f00.mp3', bytes: 9000, caption: 'Kilomètre dix, cinquante-cinq minutes.' });
+    expect(await liveSound(pack, split, atKm10, 'token')).toMatchObject({ url: 'https://run.test/api/voices/f00.mp3', caption: 'Kilomètre dix, cinquante-cinq minutes.' });
     expect(liveVoice).toHaveBeenCalledWith('token', { ...pack, eventId: 'personal.split', facts: { km: 10, elapsedS: 3300, paceSecPerKm: 329, projectedS: 13897 } });
   });
 

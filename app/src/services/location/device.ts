@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import * as Battery from 'expo-battery';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
@@ -162,9 +162,27 @@ export const deviceSource = (): DeviceLocationSource => {
   let saving = false;
   let unsubscribePower: () => void = () => undefined;
 
-  /** Once, when the battery runs low mid-run: never back, a GPS switched to and fro costs more than it saves. */
+  let unsubscribeScreen: () => void = () => undefined;
+
+  /**
+   * Once, when the battery runs low mid-run: never back, a GPS switched to and fro costs more than it
+   * saves. Changing the pace restarts Android's location service, which Android refuses from the
+   * background ("Foreground service cannot be started when the application is in the background",
+   * the rehearsal of 2026-09-29, phone in a pocket): then it waits for the app to be on screen again.
+   */
   const spare = async () => {
     if (!background || saving) return;
+    if (Platform.OS === 'android' && AppState.currentState !== 'active') {
+      unsubscribeScreen();
+      const sub = AppState.addEventListener('change', (next) => {
+        if (next !== 'active') return;
+        sub.remove();
+        void spare();
+      });
+      unsubscribeScreen = () => sub.remove();
+      diag('location', 'battery low: GPS saver pace when the app is back on screen');
+      return;
+    }
     saving = true;
     diag('location', 'battery low: GPS saver pace');
     await Location.startLocationUpdatesAsync(LOCATION_TASK, SAVER_OPTIONS).catch((e: unknown) => diag('location', `saver pace refused: ${e instanceof Error ? e.message : String(e)}`));
@@ -212,6 +230,7 @@ export const deviceSource = (): DeviceLocationSource => {
     },
     async stop() {
       unsubscribePower();
+      unsubscribeScreen();
       await battery?.stop();
       subscription?.remove();
       subscription = null;

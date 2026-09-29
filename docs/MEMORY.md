@@ -654,3 +654,19 @@
   then `waitOnExecutionContext(ctx)` for what runs after the response (both from `cloudflare:test`);
   SELF only ever has the config's bindings. Blank every such secret in `vitest.config.ts`, or a
   laptop's `api/.dev.vars` makes the suite post for real.
+- 2026-09-29: Sentry. Worth knowing next time:
+  - `@sentry/react-native` without its native module (a shell older than the module, OTA JS):
+    `init` sets `enableNative` from `NATIVE.isNativeAvailable()` (`TurboModuleRegistry.get`, not
+    `getEnforcing`, so importing it never throws), the transport falls back to fetch and the native
+    integrations are left out. `NativeRNSentry.js` does use `getEnforcing` but is only the codegen
+    spec, imported by nothing.
+  - Any `tracesSampleRate`, 0 included, turns on the RN tracing integrations (stall tracking has a
+    timer): leave it out for errors only.
+  - The Expo config plugin `@sentry/react-native/expo` only uploads source maps and debug symbols,
+    and fails the Gradle/Xcode build without `SENTRY_AUTH_TOKEN` (unless
+    `SENTRY_DISABLE_AUTO_UPLOAD=true`). The native module links without it.
+  - `@sentry/cloudflare` 11 dropped `sendDefaultPii` for `dataCollection`, whose defaults collect
+    request headers, cookies and bodies (sign-in emails and codes, bearer tokens): turn each off.
+    `withSentry` also initialises a client per request even without a DSN: the Worker skips the
+    wrapper when `SENTRY_DSN` is unset. Hono's `onError` swallows errors before the wrapper sees
+    them, so it calls `captureException` itself.

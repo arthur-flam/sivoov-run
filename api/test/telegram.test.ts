@@ -1,13 +1,13 @@
 import { SELF, createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { RunSchema } from '@sivoov/shared';
-import app from '../src/index';
+import worker from '../src/index';
 import { db } from '../src/db/queries';
 import { deauvilleCourses, deauvilleRace, deauvilleTestEntrants } from '../src/seed/deauville';
 
 /**
  * The owner's Telegram lines, end to end. The test config sets no Telegram secrets, so SELF is
- * the Worker as it runs locally; `withTelegram` calls the same app with both set. The worker
+ * the Worker as it runs locally; `withTelegram` calls the same handler with both set. The worker
  * shares this isolate, so stubbing the global fetch catches what it would send.
  */
 const realFetch = globalThis.fetch;
@@ -41,7 +41,8 @@ const TELEGRAM = { TELEGRAM_BOT_TOKEN: 'test-bot-token', TELEGRAM_CHAT_ID: '42' 
 /** One request to the Worker with the two secrets set, waiting for what it does after the response. */
 const withTelegram = async (path: string, init: RequestInit): Promise<Response> => {
   const ctx = createExecutionContext();
-  const res = await app.request(`http://run.test${path}`, init, { ...env, ...TELEGRAM }, ctx);
+  const request = new Request(`http://run.test${path}`, init) as Parameters<NonNullable<typeof worker.fetch>>[0];
+  const res = await worker.fetch!(request, { ...env, ...TELEGRAM }, ctx);
   await waitOnExecutionContext(ctx);
   return res;
 };

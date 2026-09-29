@@ -66,6 +66,46 @@ Then, in `api/`: `npx wrangler secret put TELEGRAM_BOT_TOKEN` and `npx wrangler 
 TELEGRAM_CHAT_ID` for production, and the same with `--env preview` for preview. No deploy needed
 for the secrets; the code ships with the next Worker deploy. Without them, nothing is sent.
 
+### Sentry, app and Worker (2026-09-29, branch `claude/rehearsal-run-issues-yugv8j`)
+Configured, off until the owner adds the DSNs: nothing is sent without them (local, tests, the web
+target, screenshots).
+- **App** (`app/src/sentry.ts`, imported first in `app/_layout.tsx`, which it wraps for touch
+  breadcrumbs): `@sentry/react-native` 7.11, loaded only when the bundle has
+  `EXPO_PUBLIC_SENTRY_DSN` and not on web. Environment = the channel (development in Metro),
+  release `sivoov@<version>`, tag `update` = the update id. Errors only: no tracing, no replay,
+  `sendDefaultPii: false`; the user is the entrant id alone, set and cleared from the session
+  store. An error carries the last 60 logbook lines (`diag.ts`) as breadcrumbs, read only then.
+  **Old shells**: the JS arrives over the air in shells without Sentry's native module; `enableNative`
+  follows the module's presence (as `mapboxSdk.ts` does) and the SDK then sends JavaScript errors
+  over fetch, with no native crash handler. JS only until the next EAS build, which carries the
+  native half with @rnmapbox/maps (ARCHITECTURE.md, native module list).
+- **Metro** uses `getSentryExpoConfig` (a debug id in each bundle, for source maps). The config
+  plugin `@sentry/react-native/expo` is added only when the build has `SENTRY_AUTH_TOKEN`: it fails
+  a native build that cannot upload.
+- **Worker** (`api/src/lib/sentry.ts`): `@sentry/cloudflare` 11 wraps the handler only when
+  `SENTRY_DSN` is set; `app.onError` reports the error (one line). Errors only; no headers,
+  cookies, bodies, query strings or user info collected (v11 collects them by default).
+- **CI**: every `eas update` (deploy.yml, preview.yml) gets `EXPO_PUBLIC_SENTRY_DSN` from the
+  GitHub secret `SENTRY_DSN_APP` when it exists, and uploads the update's source maps when
+  `SENTRY_AUTH_TOKEN` exists. Neither missing fails a workflow.
+Proven in the container: typecheck, tests, lint; `npm run shots -- --app` (Metro with Sentry's
+config, Worker without DSN); a web and an Android export (DSN inlined, debug id in the map);
+`expo config` and an Android prebuild with and without the token; `wrangler dev` with a fake DSN
+captured a temporary throwing route's error from `onError` and sent it. Not yet on a phone.
+
+**The owner, to switch it on:**
+1. Create two Sentry projects: React Native (the app) and Cloudflare Workers (the Worker).
+2. Worker: `npx wrangler secret put SENTRY_DSN` and `npx wrangler secret put SENTRY_DSN --env
+   preview` in `api/` (the Workers project's DSN).
+3. App updates: GitHub secret `SENTRY_DSN_APP` (the React Native project's DSN).
+4. App builds: EAS environment variable `EXPO_PUBLIC_SENTRY_DSN`, same value, for development,
+   preview and production (`eas env:create`, visibility sensitive). A laptop build
+   (`npm run device:preview`) takes it from the shell's environment.
+5. Optional, readable stack traces: a Sentry auth token as the GitHub secret `SENTRY_AUTH_TOKEN`
+   with Actions variables `SENTRY_ORG` and `SENTRY_PROJECT`, and the same three as EAS
+   environment variables for builds.
+6. The next EAS build (already needed for the map) carries Sentry's native half.
+
 ### The run map, smooth under the finger (2026-09-29, branch `claude/run-map-feel`)
 The owner's second pass on the phone: turning the map did not follow the finger, house numbers
 cluttered the view, the simulation stuttered. JS only (OTA).

@@ -62,6 +62,11 @@ export type Bindings = Env & {
   TELEGRAM_BOT_TOKEN?: string;
   /** The chat those lines go to (the owner's own chat with the bot, or a group). `wrangler secret put TELEGRAM_CHAT_ID`. */
   TELEGRAM_CHAT_ID?: string;
+  /**
+   * Sentry DSN of the Worker's project (Cloudflare Workers), for error reports (lib/sentry.ts).
+   * `wrangler secret put SENTRY_DSN`, and `--env preview`. Optional: without it nothing is sent.
+   */
+  SENTRY_DSN?: string;
 };
 
 export type AppEnv = { Bindings: Bindings };

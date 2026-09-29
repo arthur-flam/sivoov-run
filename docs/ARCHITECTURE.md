@@ -110,7 +110,8 @@ drives both maps (`mapConfig.ts`): `RunMap.tsx` (native) and `RunMap.web.tsx` (M
 Mapbox's CDN, same pinned version as the admin, for the web target and the screenshots).
 
 The course diagram (`CourseDiagram`, SVG, no tiles) stays the fallback: no token, no network with
-nothing kept, a style that does not load, the runner's choice, and **a shell built before the
+nothing kept, a style that does not load (an error, or nothing within 6 s: offline the SDK may
+never say), the runner's choice, and **a shell built before the
 SDK**, which gets this JavaScript over the air without the native half: `mapboxSdk.ts` checks for
 the native module before it even loads the package. The race home keeps the course on the phone
 for offline runs (`useMapDownload`: a Mapbox offline region over the course, zoom 11-16).
@@ -120,8 +121,8 @@ expo-location, expo-task-manager, expo-audio, expo-secure-store, expo-haptics,
 expo-keep-awake, expo-updates, @sentry/react-native, react-native-svg,
 react-native-reanimated, react-native-gesture-handler, react-native-screens,
 react-native-safe-area-context, expo-battery (pre-flight battery level check before a
-multi-hour run; added 2026-09-13), expo-file-system (downloads the audio pack to the cache
-dir so a run never needs the network; added 2026-09-13), @rnmapbox/maps (the run screen's 3D map
+multi-hour run; added 2026-09-13), expo-file-system (downloads the audio pack to the
+document dir so a run never needs the network, a cold start included; added 2026-09-13), @rnmapbox/maps (the run screen's 3D map
 and its offline region; Mapbox Maps SDK v11, no download token needed; added 2026-09-29, needs a
 new EAS build to appear, older shells keep the diagram). Nothing else without a recorded decision.
 

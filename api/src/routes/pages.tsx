@@ -115,7 +115,7 @@ pages.post('/:slug/signin', async (c) => {
   // The race is the page's; the bib only comes when two entries of it share the email.
   const bib = typeof form.bib === 'string' && form.bib.trim() ? form.bib : undefined;
   if (form.step === 'identify') {
-    const parsed = CodeRequestSchema.safeParse({ raceSlug, bib, email: form.email });
+    const parsed = CodeRequestSchema.safeParse({ raceSlug, bib, email: form.email, locale });
     if (!parsed.success) return render({ step: 'identify', error: 'invalid', bib, email: String(form.email ?? '') }, 400);
     const result = await requestCode(c.env, parsed.data, (p) => c.executionCtx.waitUntil(p));
     if (!result.ok && result.error === 'ambiguous') return render({ step: 'identify', askBib: true, email: parsed.data.email }, 409);
@@ -130,6 +130,8 @@ pages.post('/:slug/signin', async (c) => {
   if (!parsed.success) return render({ step: 'code', bib, email: String(form.email ?? ''), error: 'bad_code' }, 400);
   const result = await verifyCode(c.env, parsed.data);
   if (!result.ok) return render({ step: 'code', bib: parsed.data.bib, email: parsed.data.email, error: 'bad_code' }, 401);
+  // A language picked on the site (`?lang=`, remembered in its cookie) is the runner's choice: the app and the emails follow it.
+  if (getCookie(c, 'lang')) await db(c.env.DB).setLocale(result.entrant.id, locale);
   setCookie(c, SESSION_COOKIE, result.token, { path: '/', httpOnly: true, sameSite: 'Lax', secure: c.env.ENVIRONMENT !== 'local', maxAge: 180 * 86400 });
   return c.redirect(next ?? `/${race.slug}/app`);
 });

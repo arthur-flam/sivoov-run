@@ -15,7 +15,7 @@ import {
   SignInAmbiguitySchema,
   formatClientHeader,
 } from '@sivoov/shared';
-import type { CodeRequest, LiveVoiceRequest, Run, RunTrace, SignInAmbiguity } from '@sivoov/shared';
+import type { CodeRequest, LiveVoiceRequest, Locale, Run, RunTrace, SignInAmbiguity } from '@sivoov/shared';
 
 export const API_URL: string = (Constants.expoConfig?.extra as { apiUrl?: string } | undefined)?.apiUrl ?? 'https://run.sivoov.app';
 
@@ -99,6 +99,8 @@ export const api = {
   /** « Supprimer mes données »: the runs, traces and sessions go; the entry stays with the organizer. */
   deleteMe: (token: string) => request('/me', z.object({ ok: z.boolean(), runs: z.number() }), { method: 'DELETE' }, token),
   me: (token: string) => request('/me', MeSchema, {}, token),
+  /** The runner's language: the app's screens and their emails from now on. */
+  setLocale: (token: string, locale: Locale) => request('/me/locale', z.object({ ok: z.boolean() }), { method: 'PUT', body: JSON.stringify({ locale }) }, token),
   signOut: (token: string) => request('/me/signout', z.object({ ok: z.boolean() }), { method: 'POST' }, token),
   geometry: (courseId: string) => request(`/courses/${courseId}/geometry`, CourseGeometrySchema),
   pack: (courseId: string) => request(`/courses/${courseId}/pack`, AudioPackSchema),

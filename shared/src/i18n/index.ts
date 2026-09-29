@@ -1,7 +1,8 @@
 import { fr } from './fr';
 import { en } from './en';
+import type { Locale } from '../schemas/locale';
 
-export type Locale = 'fr' | 'en';
+export type { Locale } from '../schemas/locale';
 export type MessageKey = keyof typeof fr;
 export type Params = Record<string, string | number>;
 

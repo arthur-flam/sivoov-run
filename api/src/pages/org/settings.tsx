@@ -2,6 +2,7 @@ import type { Race } from '@sivoov/shared';
 import type { SettingsFailure } from '../../lib/raceSettings';
 import { settingsValues } from '../../lib/raceSettings';
 import { DemoCard } from './settingsDemo';
+import { LanguageCard } from './settingsLanguage';
 import { LookCard } from './settingsLook';
 import type { ImageError } from './settingsLook';
 import { StatusCard } from './settingsPublish';
@@ -21,6 +22,7 @@ export const SETTINGS_DONE: Record<string, string> = {
   hero: 'La photo est en place.',
   hero_removed: 'La photo est retirée.',
   status: 'L’état de la course est enregistré.',
+  language: 'La langue des coureurs est enregistrée.',
   demo: 'La démo est prête. Ajoutez-y les testeurs dans ses Coureurs.',
 };
 
@@ -36,11 +38,12 @@ const CARD_OF: Record<string, string> = {
   hero: 'look',
   hero_removed: 'look',
   status: 'status',
+  language: 'language',
   demo: 'demo',
 };
 
 /** Which card holds the fields of each form section. */
-const SECTION_CARD: Record<SettingsFailure['section'], string> = { race: 'race', window: 'window', contact: 'contact', colors: 'look', status: 'status' };
+const SECTION_CARD: Record<SettingsFailure['section'], string> = { race: 'race', window: 'window', contact: 'contact', colors: 'look', status: 'status', language: 'language' };
 
 const CARD_TITLES: Record<string, string> = {
   race: 'La course',
@@ -48,6 +51,7 @@ const CARD_TITLES: Record<string, string> = {
   contact: 'Contact pour les coureurs',
   look: 'Apparence',
   status: 'Publication',
+  language: 'Langue des coureurs',
 };
 
 /** `demo`: staff see the demo card (`demo` and `source` are the race's demo, or the race a demo plays). */
@@ -84,6 +88,7 @@ export const OrgSettingsPage = ({ race, done, failure, imageError, demo }: Props
         <div>
           <StatusCard {...card('status')} />
           <ContactCard {...card('contact')} />
+          <LanguageCard {...card('language')} />
           <SaleCard race={race} />
           {demo ? <DemoCard race={race} demo={demo.demo} source={demo.source} flash={flashFor('demo')} /> : null}
         </div>

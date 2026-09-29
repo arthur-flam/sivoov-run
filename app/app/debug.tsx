@@ -6,7 +6,7 @@ import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
 import { Body, Button, Card, Display, Eyebrow, Screen } from '@/components/ui';
 import { useDiag } from '@/diag';
-import { t } from '@/i18n';
+import { t, useLocale } from '@/i18n';
 import { useSession } from '@/stores/session';
 import { useUploads } from '@/stores/uploads';
 import { colors, space } from '@/theme';
@@ -17,6 +17,7 @@ import { colors, space } from '@/theme';
  * a Claude session by message (docs/WORKFLOW.md, loop 2b).
  */
 export default function Debug() {
+  useLocale();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [shared, setShared] = useState(false);

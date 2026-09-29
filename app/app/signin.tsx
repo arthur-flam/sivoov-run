@@ -5,7 +5,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ApiError, ambiguityOf } from '@/api';
 import { Body, Button, Card, Display, ErrorBox, Eyebrow, Screen } from '@/components/ui';
-import { t } from '@/i18n';
+import { LanguagePicker } from '@/components/LanguagePicker';
+import { t, useLocale } from '@/i18n';
 import { useSession } from '@/stores/session';
 import { colors, fonts, radius, space } from '@/theme';
 
@@ -15,6 +16,7 @@ import { colors, fonts, radius, space } from '@/theme';
  * sharing one address in the same race.
  */
 export default function SignIn() {
+  useLocale();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   // Back from « Supprimer mes données »: say it is done.
@@ -78,7 +80,10 @@ export default function SignIn() {
     <Screen style={{ paddingTop: insets.top + space.xl, paddingBottom: insets.bottom + space.lg }}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: space.md }}>
-          <Eyebrow>Sivoov Run</Eyebrow>
+          <View style={styles.top}>
+            <Eyebrow>Sivoov Run</Eyebrow>
+            <LanguagePicker />
+          </View>
           {step === 'identify' ? (
             <>
               <Display>{t('signin.title')}</Display>
@@ -138,6 +143,7 @@ export default function SignIn() {
 }
 
 const styles = StyleSheet.create({
+  top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   field: { gap: space.xs },
   label: { fontFamily: fonts.bodyBold, fontSize: 14 },
   input: { fontFamily: fonts.body, fontSize: 18, paddingHorizontal: space.md, paddingVertical: 14, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, backgroundColor: colors.card, color: colors.ink },

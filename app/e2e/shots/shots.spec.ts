@@ -19,6 +19,10 @@ for (const scene of scenes) {
   test(scene.id, async ({ page }, testInfo) => {
     const preset = testInfo.project.metadata.preset as Preset;
     test.skip(Boolean(preset.store) && !scene.store, 'not a store scene');
+    // The app's language is the runner's choice, not the browser's: each preset makes it, and
+    // `unsynced` sends it to the runner's entry, so the next preset's choice is not overruled.
+    const language = preset.locale.startsWith('en') ? 'en' : 'fr';
+    await page.addInitScript((l) => globalThis.localStorage?.setItem('sivoov.language', JSON.stringify({ choice: l, unsynced: true })), language);
 
     if (scene.signedOut) {
       await page.goto('/signin');

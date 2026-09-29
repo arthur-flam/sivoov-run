@@ -4,7 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { averagePace, formatClock, formatKm, formatPace } from '@sivoov/shared';
 import type { Course, EntrantPublic, FinishOutcome, Race, RunState } from '@sivoov/shared';
 import { Body, Button, Card, Display, Eyebrow, Num } from '@/components/ui';
-import { locale, t } from '@/i18n';
+import { currentLocale, t } from '@/i18n';
 import { openCertificate, shareFinish } from '@/share';
 import type { UploadStatus } from '@/stores/uploads';
 import { fonts, space } from '@/theme';
@@ -21,7 +21,7 @@ type Props = {
   onDiagnostics: () => void;
 };
 
-const dateOf = (iso: string, race: Race) => new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', { day: 'numeric', month: 'long', timeZone: race.timezone }).format(new Date(iso));
+const dateOf = (iso: string, race: Race) => new Intl.DateTimeFormat(currentLocale() === 'fr' ? 'fr-FR' : 'en-GB', { day: 'numeric', month: 'long', timeZone: race.timezone }).format(new Date(iso));
 
 /**
  * The finish line: the time, what it counts for, and for an official finish two ways to tell
@@ -49,7 +49,7 @@ export const Finish = ({ race, course, entrant, state, outcome, simulation, uplo
   }[outcome];
   const km = course.distanceKey === 'marathon' ? 3 : 1;
   const facts = finished
-    ? [formatKm(course.distanceM, locale, km), `${formatPace(averagePace(state.elapsedMs, course.distanceM))} /km`, `${t('result.bib')} ${entrant.bib}`]
+    ? [formatKm(course.distanceM, currentLocale(), km), `${formatPace(averagePace(state.elapsedMs, course.distanceM))} /km`, `${t('result.bib')} ${entrant.bib}`]
     : [formatClock(state.elapsedMs), `${formatPace(averagePace(state.elapsedMs, state.distanceM))} /km`, `${t('result.bib')} ${entrant.bib}`];
 
   return (
@@ -70,7 +70,7 @@ export const Finish = ({ race, course, entrant, state, outcome, simulation, uplo
         </Num>
       ) : (
         <Num dark size={96} testID="final-distance">
-          {formatKm(state.distanceM, locale)}
+          {formatKm(state.distanceM, currentLocale())}
         </Num>
       )}
       <Body dark muted testID="finish-verdict">

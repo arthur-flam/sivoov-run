@@ -28,7 +28,7 @@ import { useGlide } from '@/hooks/useGlide';
 import { useMapDownload } from '@/hooks/useMapDownload';
 import { useTrack } from '@/hooks/useTrack';
 import { diag, useDiag } from '@/diag';
-import { locale, t } from '@/i18n';
+import { currentLocale, t, useLocale } from '@/i18n';
 import { deviceSource, simulationSource } from '@/services/location';
 import { usePrefs } from '@/stores/prefs';
 import type { MapView } from '@/stores/prefs';
@@ -57,9 +57,10 @@ const useLight = (track: CourseTrack | null): LightPreset => {
 };
 
 /** « 42,195 km », « 21,1 km », « 10 km »: the course's distance as the race names it. */
-const courseLabel = (course: Course) => formatKm(course.distanceM, locale, course.distanceKey === 'marathon' ? 3 : course.distanceM % 1000 === 0 ? 0 : 1);
+const courseLabel = (course: Course) => formatKm(course.distanceM, currentLocale(), course.distanceKey === 'marathon' ? 3 : course.distanceM % 1000 === 0 ? 0 : 1);
 
 export default function Run() {
+  const locale = useLocale();
   useStayAwake();
   const router = useRouter();
   const insets = useSafeAreaInsets();

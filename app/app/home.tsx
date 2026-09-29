@@ -13,7 +13,7 @@ import { useMapDownload } from '@/hooks/useMapDownload';
 import { usePackDownload } from '@/hooks/usePackDownload';
 import { useTrack } from '@/hooks/useTrack';
 import { useUploadFlush } from '@/hooks/useUploadFlush';
-import { locale, t } from '@/i18n';
+import { currentLocale, t, useLocale } from '@/i18n';
 import { openCertificate, openResults, shareBib, shareFinish } from '@/share';
 import { useSession } from '@/stores/session';
 import { useUploads } from '@/stores/uploads';
@@ -21,9 +21,10 @@ import { colors, radius, space } from '@/theme';
 
 /** "9 novembre", or "27 septembre 2026" when the window spans more than one year (a demo race's). */
 const fmt = (iso: string, tz: string, year: boolean) =>
-  new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', { day: 'numeric', month: 'long', ...(year ? { year: 'numeric' } : {}), timeZone: tz }).format(new Date(iso));
+  new Intl.DateTimeFormat(currentLocale() === 'fr' ? 'fr-FR' : 'en-GB', { day: 'numeric', month: 'long', ...(year ? { year: 'numeric' } : {}), timeZone: tz }).format(new Date(iso));
 
 export default function Home() {
+  const locale = useLocale();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();

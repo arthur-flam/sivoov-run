@@ -8,7 +8,7 @@ import * as Location from 'expo-location';
 import { Preflight } from '@/components/Preflight';
 import { Body, Button, Display, Eyebrow, Screen } from '@/components/ui';
 import { usePackDownload } from '@/hooks/usePackDownload';
-import { locale, t } from '@/i18n';
+import { t, useLocale } from '@/i18n';
 import { platform, requestLocationPermission } from '@/services/location/device';
 import type { LocationPermission } from '@/services/location/device';
 import { GPS_LOCK_TIMEOUT_MS, batteryCheck, canStart, gpsCheck, headphonesCheck, packCheck, permissionCheck } from '@/services/preflight';
@@ -73,6 +73,7 @@ const useChecks = () => {
 };
 
 export default function Prepare() {
+  const locale = useLocale();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const me = useSession((s) => s.me);

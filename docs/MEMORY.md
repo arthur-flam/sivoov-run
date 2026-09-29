@@ -544,3 +544,17 @@
     worktree it started the main checkout's Worker. Run a worktree's servers by hand.
   - The seeded half (`deauville-2026-half`) uses the marathon's 42 km geometry, so on the map a
     half runner moves twice as fast as they run (progress is proportional). Seen in the local seed; preview and production not checked.
+- 2026-09-29: runner language (app picker, race default, emails). Worth knowing next time:
+  - The preview tool reads the main checkout's `.claude/launch.json`, but an entry there can run a
+    worktree's servers: `"runtimeExecutable": "sh", "runtimeArgs": ["-c", "cd <worktree>/api && npx wrangler dev --env local --port 8798"]`,
+    and the app with `EXPO_PUBLIC_API_URL=http://localhost:8798 … --port 8084 --clear`. Other
+    sessions held 8788/8081/8082, and the shots rig reuses whatever answers on 8788 (another
+    checkout's Worker, without this branch's migration).
+  - A background tab of the browser pane reports `document.visibilityState === 'hidden'` and its
+    screenshots come back blank, even after `tabs_select`; read the DOM instead.
+  - The app's strings were already all translated: `app/src/i18n.ts` just froze the device
+    language at import. `t` now reads a Zustand store at call time; a module-level constant built
+    with `t` or the locale (a URL, a label) would freeze again, so build them in functions.
+  - `toMatchObject({ locale: undefined })` fails when the key is absent from the JSON: assert
+    `toBeUndefined()` on the field.
+

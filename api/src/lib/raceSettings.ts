@@ -7,7 +7,7 @@ import type { Race } from '@sivoov/shared';
  * so a page can never save a race the rest of the system would refuse.
  */
 
-export const SETTINGS_SECTIONS = ['race', 'window', 'contact', 'colors', 'status'] as const;
+export const SETTINGS_SECTIONS = ['race', 'window', 'contact', 'colors', 'status', 'language'] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 
 export type FormValues = Record<string, string>;
@@ -21,6 +21,7 @@ const FIELDS: Record<SettingsSection, readonly string[]> = {
   contact: ['supportEmail'],
   colors: ['primary', 'onPrimary'],
   status: ['status'],
+  language: ['defaultLocale'],
 };
 
 /** What to say under a field the schema refused. */
@@ -38,6 +39,7 @@ const MESSAGES: Record<string, string> = {
   primary: 'Choisissez une couleur.',
   onPrimary: 'Choisissez une couleur.',
   status: 'Choisissez un état.',
+  defaultLocale: 'Choisissez une langue.',
 };
 
 /** What to say when the dates are each fine but out of order. */
@@ -75,6 +77,7 @@ const MERGES: Record<SettingsSection, Merge> = {
   contact: (race, v) => ({ candidate: { ...race, supportEmail: optional(v.supportEmail ?? '') }, errors: {} }),
   colors: (race, v) => ({ candidate: { ...race, theme: { ...race.theme, primary: v.primary?.toLowerCase(), onPrimary: v.onPrimary?.toLowerCase() } }, errors: {} }),
   status: (race, v) => ({ candidate: { ...race, status: v.status }, errors: {} }),
+  language: (race, v) => ({ candidate: { ...race, defaultLocale: v.defaultLocale }, errors: {} }),
 };
 
 /** A zod issue path -> the form field it belongs to (`theme.primary` is the `primary` field). */
@@ -112,4 +115,5 @@ export const settingsValues = (race: Race): FormValues => ({
   primary: race.theme.primary,
   onPrimary: race.theme.onPrimary,
   status: race.status,
+  defaultLocale: race.defaultLocale,
 });

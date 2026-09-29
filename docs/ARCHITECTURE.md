@@ -43,9 +43,11 @@ docs/
 ## Domain model (v1)
 ```
 race          id, slug, name, city, dates, window_start, window_end, theme(json), status,
-              demo_of (a demo race: the race whose courses and sound it plays)
+              demo_of (a demo race: the race whose courses and sound it plays),
+              default_locale (fr|en: the runners' language until they choose, Réglages)
 course        race_id, distance_key (marathon|half|10k), distance_m, gpx (R2), landmarks(json)
-entrant       race_id, bib, email, first_name, last_name, distance_key, address(json), source
+entrant       race_id, bib, email, first_name, last_name, distance_key, address(json), source,
+              locale (fr|en, null until the runner chooses; per entry, like the slot)
 session       entrant_id, token_hash, expires_at            (magic code auth)
 run           entrant_id, course_id, started_at, finished_at, status(planned|running|finished|uploaded|abandoned),
               elapsed_ms, distance_m, splits(json), source(app|upload), device(json)
@@ -150,6 +152,24 @@ simulation (release builds too), stored as a simulation, never ranked.
 The email names the entry (`whichEntry` in shared): the race is asked only when the email holds
 entries in several races, the bib only when two entries of one race share it (409 `ambiguous`).
 Older app builds still send race and bib and still sign in.
+
+## Runner language
+French first. A runner reads `runnerLocale(entrant, race)` (shared `domain/locale.ts`): their own
+choice (`entrants.locale`), else the race's (`races.default_locale`, the organizer's « Langue des
+coureurs » card in Réglages), else French. It covers the app's screens and the runner emails;
+the audio stays the course's pack. The admin stays French.
+- **The app** (`stores/language.ts`): the picker (Français | English, each in its own language) is
+  on the sign-in screen and the race home. The choice is kept on the phone (the sign-in screen and
+  an offline start speak it) and sent to `PUT /api/me/locale`; a choice made before sign-in, or
+  while the server was out of reach, is sent at the next `/me` (`reconcileLanguage`), and a choice
+  made elsewhere (the web, another phone) is taken from `/me`. `t()` reads the language at call
+  time; each screen calls `useLocale()` once so everything it draws redraws on a change.
+- **The code email** is written in the language of the screen that asked for it (`CodeRequest.locale`:
+  the app's language, or the web page's); older apps that do not say get `runnerLocale`.
+- **The instructions email** (the organizer's « Envoyer les instructions ») uses `runnerLocale`,
+  and links to the race page with `?lang=en` for an English reader.
+- **The web** keeps its own rule (`?lang=`, its cookie, Accept-Language); a runner who switched the
+  site's language (the `lang` cookie) and then signs in there gets it saved as their choice.
 
 ## Environments
 | | API | App |

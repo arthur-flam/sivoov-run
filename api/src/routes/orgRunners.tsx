@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { DistanceKeySchema, EntrantSchema, decodeSpreadsheet, parseEntrantsCsv, parseRunnerEdit, parseRunnerInput, planImport, runnerFieldsFrom, runnerFieldsOf } from '@sivoov/shared';
+import { DistanceKeySchema, EntrantSchema, decodeSpreadsheet, parseEntrantsCsv, parseRunnerEdit, parseRunnerInput, planImport, runnerFieldsFrom, runnerFieldsOf, runnerLocale } from '@sivoov/shared';
 import type { DistanceKey, Entrant } from '@sivoov/shared';
 import type { AppEnv } from '../env';
 import { MAX_INSTRUCTIONS_PER_DAY, RUNNER_FILTERS, instructionsLog, runnerDb, sentInLastDay } from '../db/runnerQueries';
@@ -9,14 +9,13 @@ import { requireCan, requireOrganizer } from '../lib/orgAuth';
 import type { OrgVars } from '../lib/orgAuth';
 import { mailerFor } from '../lib/mailer';
 import { instructionsEmail } from '../pages/emails';
-import { distanceName, plural } from '../pages/org/format';
+import { plural } from '../pages/org/format';
 import { OrgImportPage } from '../pages/org/import';
 import type { ImportProblem, ImportState } from '../pages/org/import';
 import { OrgRunnerPage } from '../pages/org/runner';
 import { entrantsCsv, medalsCsv, resultsCsv, templateCsv } from '../pages/org/runnerExports';
 import { OrgRunnerFormPage } from '../pages/org/runnerForm';
 import type { RunnerFormState } from '../pages/org/runnerForm';
-import { windowText } from '../pages/org/runnerPresence';
 import { OrgRunnersPage, runnerHref } from '../pages/org/runners';
 import type { FlashMessage } from '../pages/org/runners';
 import { Card, Empty, PageHead } from '../pages/org/ui';
@@ -132,8 +131,8 @@ const sendInstructions = async (c: OrgContext, entrant: Entrant): Promise<boolea
   const now = new Date();
   if (sentInLastDay(await log.list(entrant.id), now) >= MAX_INSTRUCTIONS_PER_DAY) return false;
   const mail = instructionsEmail({
-    to: entrant.email, firstName: entrant.firstName, bib: entrant.bib, distance: distanceName(entrant.distanceKey), race,
-    raceUrl: `${new URL(c.req.url).origin}/${race.slug}`, window: windowText(race), supportEmail: race.supportEmail,
+    to: entrant.email, firstName: entrant.firstName, bib: entrant.bib, distanceKey: entrant.distanceKey, race,
+    origin: new URL(c.req.url).origin, locale: runnerLocale(entrant, race),
   });
   c.executionCtx.waitUntil(mailerFor(c.env).send(mail));
   await log.add(entrant.id, { at: now.toISOString(), by: c.get('admin').email });

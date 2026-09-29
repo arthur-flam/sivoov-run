@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { DistanceKeySchema } from './race';
+import { LocaleSchema } from './locale';
 
 export const AddressSchema = z.object({
   line1: z.string().min(1),
@@ -25,6 +26,8 @@ export const EntrantSchema = z.object({
   source: EntrantSourceSchema.default('import'),
   /** Runner-chosen start slot inside the window, ISO datetime. */
   slotAt: z.iso.datetime({ offset: true }).optional(),
+  /** The language the runner chose, in the app or on the web; none means the race's (`runnerLocale`). */
+  locale: LocaleSchema.optional(),
 });
 export type Entrant = z.infer<typeof EntrantSchema>;
 
@@ -37,5 +40,6 @@ export const EntrantPublicSchema = EntrantSchema.pick({
   lastName: true,
   distanceKey: true,
   slotAt: true,
+  locale: true,
 });
 export type EntrantPublic = z.infer<typeof EntrantPublicSchema>;

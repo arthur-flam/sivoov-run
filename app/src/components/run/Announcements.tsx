@@ -3,13 +3,13 @@ import { VOICE_LEVELS, formatClock } from '@sivoov/shared';
 import type { VoiceLevel } from '@sivoov/shared';
 import { replay } from '@/audio/usePlayback';
 import type { SaidLine } from '@/audio/said';
-import { locale, t } from '@/i18n';
+import { currentLocale, t } from '@/i18n';
 import { colors, fonts, radius, space } from '@/theme';
 import { ReplayIcon } from './icons';
 import { Sheet } from './Sheet';
 import { SpeakingBars } from './SpeakingBars';
 
-const km = (m: number) => (m / 1000).toFixed(1).replace('.', locale === 'fr' ? ',' : '.');
+const km = (m: number) => (m / 1000).toFixed(1).replace('.', currentLocale() === 'fr' ? ',' : '.');
 
 /** « Moins de voix »: three levels, each saying what it keeps. */
 const VoiceLevels = ({ level, onLevel }: { level: VoiceLevel; onLevel: (level: VoiceLevel) => void }) => (

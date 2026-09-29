@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { LocaleSchema } from './locale';
 
 /** Distances a race can open virtually. Keys are stable identifiers used in URLs and rows. */
 export const DistanceKeySchema = z.enum(['marathon', 'half', '10k', '5k']);
@@ -77,6 +78,8 @@ export const RaceSchema = z.object({
   /** Where runners write when they are stuck; shown on the race page and in the app. */
   supportEmail: z.string().trim().toLowerCase().pipe(z.email()).optional(),
   theme: RaceThemeSchema,
+  /** The language of the app and the emails for a runner who has not chosen one (Réglages). */
+  defaultLocale: LocaleSchema.default('fr'),
   status: RaceStatusSchema.default('draft'),
   /**
    * A demonstration of another race (its id): the organizers' testers and App Review run it.

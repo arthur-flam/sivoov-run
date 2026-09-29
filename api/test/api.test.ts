@@ -4,6 +4,7 @@ import { deauvilleMarathonGeometry } from '@sivoov/shared';
 import { db } from '../src/db/queries';
 import { deauvilleCourses, deauvilleRace, deauvilleTestEntrants } from '../src/seed/deauville';
 import { sha256Hex } from '../src/lib/crypto';
+import { codeEmail } from '../src/pages/emails';
 
 const json = (body: unknown, headers: Record<string, string> = {}) => ({
   method: 'POST',
@@ -111,6 +112,34 @@ describe('magic code sign-in', () => {
   it('requires a bearer token on /me and /runs', async () => {
     expect((await SELF.fetch('http://run.test/api/me')).status).toBe(401);
     expect((await SELF.fetch('http://run.test/api/runs')).status).toBe(401);
+  });
+});
+
+describe('the runner’s language', () => {
+  const me = async (token: string) =>
+    (await (await SELF.fetch('http://run.test/api/me', { headers: { Authorization: `Bearer ${token}` } })).json()) as { entrant: { locale?: string }; race: { defaultLocale: string } };
+  const choose = (token: string, locale: string) =>
+    SELF.fetch('http://run.test/api/me/locale', { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ locale }) });
+
+  it('is the race’s until the runner chooses, then theirs, remembered on the server', async () => {
+    const { token } = await signIn('1002', 'lea@example.com');
+    const before = await me(token);
+    expect(before.entrant.locale).toBeUndefined();
+    expect(before.race.defaultLocale).toBe('fr');
+    expect((await choose(token, 'de')).status).toBe(400);
+    expect((await choose(token, 'en')).status).toBe(200);
+    expect((await me(token)).entrant.locale).toBe('en');
+  });
+
+  it('writes the code email in the language of the screen that asked', () => {
+    const race = deauvilleRace;
+    const en = codeEmail({ to: 'lea@example.com', firstName: 'Léa', race, code: '123456', locale: 'en' });
+    expect(en.subject).toBe('123456 · your Sivoov Run code');
+    expect(en.text).toContain('Hello Léa,');
+    expect(en.text).toContain(`Your code for ${race.theme.displayName}: 123456`);
+    const fr = codeEmail({ to: 'lea@example.com', firstName: 'Léa', race, code: '123456', locale: 'fr' });
+    expect(fr.subject).toBe('123456 · votre code Sivoov Run');
+    expect(fr.text).toContain('Bonjour Léa,');
   });
 });
 
@@ -243,6 +272,22 @@ describe('pages', () => {
     const unknown = await form({ step: 'identify', bib: '9999', email: 'marc@example.com' });
     expect(unknown.status).toBe(404);
     expect(await unknown.text()).toContain('Nous ne trouvons pas');
+  });
+  it('remembers a language picked on the site as the runner’s own at sign-in', async () => {
+    const nina = { ...deauvilleTestEntrants[0]!, id: 'deauville-2026-1009', bib: '1009', email: 'nina@example.com', firstName: 'Nina' };
+    await db(env.DB).upsertEntrant(nina);
+    const form = (fields: Record<string, string>) =>
+      SELF.fetch('http://run.test/deauville-2026/signin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: 'lang=en' },
+        body: new URLSearchParams(fields).toString(),
+        redirect: 'manual',
+      });
+    expect(await (await form({ step: 'identify', email: nina.email })).text()).toContain('name="code"');
+    const code = await codeFor(nina.id);
+    expect((await form({ step: 'code', email: nina.email, code })).status).toBe(302);
+    const row = await env.DB.prepare('SELECT locale FROM entrants WHERE id = ?').bind(nina.id).first<{ locale: string | null }>();
+    expect(row?.locale).toBe('en');
   });
   it('redirects /app to sign-in without a session', async () => {
     const res = await SELF.fetch('http://run.test/deauville-2026/app', { redirect: 'manual' });

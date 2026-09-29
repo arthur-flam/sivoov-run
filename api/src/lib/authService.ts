@@ -1,4 +1,4 @@
-import { whichEntry } from '@sivoov/shared';
+import { codeEmailLocale, whichEntry } from '@sivoov/shared';
 import type { CodeRequest, CodeVerify, Entrant, Race, SignInAmbiguity } from '@sivoov/shared';
 import type { Bindings } from '../env';
 import { db } from '../db/queries';
@@ -42,7 +42,8 @@ export const requestCode = async (env: Bindings, req: CodeRequest, defer: (p: Pr
   if (recent >= MAX_CODES_PER_HOUR) return { ok: false, error: 'too_many_requests' };
   const code = randomCode();
   await q.createCode(newId(), entrant.id, await sha256Hex(code), new Date(Date.now() + CODE_TTL_MS).toISOString());
-  if (!(env.ENVIRONMENT === 'production' && isTestAccount(entrant.email))) defer(mailerFor(env).send(codeEmail({ to: entrant.email, firstName: entrant.firstName, race, code })));
+  const locale = codeEmailLocale(req.locale, entrant, race);
+  if (!(env.ENVIRONMENT === 'production' && isTestAccount(entrant.email))) defer(mailerFor(env).send(codeEmail({ to: entrant.email, firstName: entrant.firstName, race, code, locale })));
   return { ok: true, ...(env.ENVIRONMENT === 'local' ? { devCode: code } : {}) };
 };
 

@@ -217,15 +217,30 @@ describe('one runner', () => {
 });
 
 describe('the instructions email', () => {
+  const withContact = { ...race, supportEmail: 'aide@example.com' };
+  const lea = { to: 'lea@example.com', firstName: 'Léa', bib: '1002', distanceKey: 'marathon' as const, race: withContact, origin: 'https://run.sivoov.app' };
+
   it('gives the bib, the race page and the way to sign in, in plain words', () => {
-    const mail = instructionsEmail({ to: 'lea@example.com', firstName: 'Léa', bib: '1002', distance: 'Marathon', race, raceUrl: 'https://run.sivoov.app/runners-2026', window: 'du 9 au 15 novembre', supportEmail: 'aide@example.com' });
+    const mail = instructionsEmail({ ...lea, locale: 'fr' });
     expect(mail.subject).toBe('Votre dossard 1002 · Course des coureurs');
     expect(mail.text).toContain('Dossard : 1002');
+    expect(mail.text).toContain('Distance : Marathon');
     expect(mail.text).toContain('1. Ouvrez la page de la course : https://run.sivoov.app/runners-2026');
     expect(mail.text).toContain('votre numéro de dossard (1002) et cette adresse email');
     expect(mail.text).toContain('Écrivez à aide@example.com');
     expect(mail.html).toContain('<a href="https://run.sivoov.app/runners-2026">');
     expect(`${mail.subject}${mail.text}${mail.html}`).not.toMatch(/[\u2013\u2014]/);
+  });
+
+  it('is written in English for a runner who reads English, and opens the race page in English', () => {
+    const mail = instructionsEmail({ ...lea, locale: 'en' });
+    expect(mail.subject).toBe('Your bib 1002 · Course des coureurs');
+    expect(mail.text).toContain('Hello Léa,');
+    expect(mail.text).toContain('Bib: 1002');
+    expect(mail.text).toContain('1. Open the race page: https://run.sivoov.app/runners-2026?lang=en');
+    expect(mail.text).toContain('Write to aide@example.com');
+    expect(mail.text).not.toMatch(/Bonjour|Dossard|Écrivez/);
+    expect(mail.html).toContain('<a href="https://run.sivoov.app/runners-2026?lang=en">');
   });
 });
 
@@ -244,7 +259,9 @@ describe('adding a runner by hand', () => {
     expect(added.headers.get('location')).toBe(`/org/${SLUG}/runners/77?done=added_notified`);
     expect(await stored('77')).toMatchObject({ id: `${SLUG}-77`, first_name: 'Paul', source: 'manual', address: null });
     expect(await instructionsLog(env.FILES).list(`${SLUG}-77`)).toHaveLength(1);
-    expect(await (await get(`${base}/runners/77`, cookie)).text()).toContain('Ajouté à la main le');
+    const page77 = await (await get(`${base}/runners/77`, cookie)).text();
+    expect(page77).toContain('Ajouté à la main le');
+    expect(page77).toContain('Français, celle de la course');
   });
 
   it('refuses a distance the race does not offer', async () => {

@@ -6,6 +6,7 @@ import {
   CourseGeometrySchema,
   EntrantPublicSchema,
   LiveVoiceRequestSchema,
+  LocaleSchema,
   RunSchema,
   RunTraceSchema,
   isRanked,
@@ -166,6 +167,14 @@ api.delete('/me', async (c) => {
 api.post('/me/signout', async (c) => {
   await db(c.env.DB).deleteSession(c.get('tokenHash')!);
   return c.json({ ok: true });
+});
+
+/** The runner's language, chosen in the app: the app's screens and every email after this one. */
+api.put('/me/locale', async (c) => {
+  const parsed = await parseBody(c, z.object({ locale: LocaleSchema }));
+  if (!parsed.success) return c.json({ error: 'invalid', issues: parsed.error.issues }, 400);
+  await db(c.env.DB).setLocale(c.get('entrant')!.id, parsed.data.locale);
+  return c.json({ ok: true, locale: parsed.data.locale });
 });
 
 const SlotSchema = z.object({ slotAt: z.iso.datetime({ offset: true }).nullable() });

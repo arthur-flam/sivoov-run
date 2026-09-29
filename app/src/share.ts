@@ -3,10 +3,10 @@ import { distanceLabel, formatOfficialTime } from '@sivoov/shared';
 import type { EntrantPublic, Race } from '@sivoov/shared';
 import { API_URL } from '@/api';
 import { diag } from '@/diag';
-import { locale, t } from '@/i18n';
+import { currentLocale, t } from '@/i18n';
 
 /** The runner's certificate on the web: the page a shared link opens, with its preview card. */
-export const resultUrl = (race: Pick<Race, 'slug'>, bib: string): string => `${API_URL}/${race.slug}/results/${bib}${locale === 'en' ? '?lang=en' : ''}`;
+export const resultUrl = (race: Pick<Race, 'slug'>, bib: string): string => `${API_URL}/${race.slug}/results/${bib}${currentLocale() === 'en' ? '?lang=en' : ''}`;
 
 /**
  * The phone's share sheet with a sentence and the runner's page. The link's preview is the card
@@ -24,7 +24,7 @@ const shareLink = async (what: string, message: string, url: string): Promise<vo
 
 export const shareFinish = (race: Race, entrant: Pick<EntrantPublic, 'bib' | 'distanceKey'>, elapsedMs: number): Promise<void> => {
   const url = resultUrl(race, entrant.bib);
-  return shareLink('finish', t('finish.shareMessage', { race: race.theme.displayName, distance: distanceLabel(locale, entrant.distanceKey), time: formatOfficialTime(elapsedMs), url }), url);
+  return shareLink('finish', t('finish.shareMessage', { race: race.theme.displayName, distance: distanceLabel(currentLocale(), entrant.distanceKey), time: formatOfficialTime(elapsedMs), url }), url);
 };
 
 /**
@@ -33,8 +33,8 @@ export const shareFinish = (race: Race, entrant: Pick<EntrantPublic, 'bib' | 'di
  */
 export const shareBib = (race: Race, entrant: Pick<EntrantPublic, 'bib' | 'distanceKey'>): Promise<void> => {
   const url = resultUrl(race, entrant.bib);
-  const day = (iso: string) => new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', { day: 'numeric', month: 'long', timeZone: race.timezone }).format(new Date(iso));
-  return shareLink('bib', t('share.bibMessage', { race: race.theme.displayName, distance: distanceLabel(locale, entrant.distanceKey), bib: entrant.bib, start: day(race.windowStart), end: day(race.windowEnd), url }), url);
+  const day = (iso: string) => new Intl.DateTimeFormat(currentLocale() === 'fr' ? 'fr-FR' : 'en-GB', { day: 'numeric', month: 'long', timeZone: race.timezone }).format(new Date(iso));
+  return shareLink('bib', t('share.bibMessage', { race: race.theme.displayName, distance: distanceLabel(currentLocale(), entrant.distanceKey), bib: entrant.bib, start: day(race.windowStart), end: day(race.windowEnd), url }), url);
 };
 
 export const openCertificate = (race: Pick<Race, 'slug'>, bib: string): void => {
@@ -42,5 +42,5 @@ export const openCertificate = (race: Pick<Race, 'slug'>, bib: string): void => 
 };
 
 export const openResults = (race: Pick<Race, 'slug'>): void => {
-  void Linking.openURL(`${API_URL}/${race.slug}/results${locale === 'en' ? '?lang=en' : ''}`).catch(() => undefined);
+  void Linking.openURL(`${API_URL}/${race.slug}/results${currentLocale() === 'en' ? '?lang=en' : ''}`).catch(() => undefined);
 };

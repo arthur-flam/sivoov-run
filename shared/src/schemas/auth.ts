@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { LocaleSchema } from './locale';
 
 /**
  * Step 1 of the magic-code sign-in: the email of the entry. The race and the bib are only
@@ -8,6 +9,8 @@ export const CodeRequestSchema = z.object({
   email: z.string().trim().toLowerCase().pipe(z.email()),
   raceSlug: z.string().min(1).optional(),
   bib: z.string().trim().min(1).optional(),
+  /** The language of the screen asking: the code is read there, so its email is written in it. */
+  locale: LocaleSchema.optional(),
 });
 export type CodeRequest = z.infer<typeof CodeRequestSchema>;
 

@@ -1,4 +1,4 @@
-import type { DeviceInfo, Race } from '@sivoov/shared';
+import type { DeviceInfo } from '@sivoov/shared';
 import type { Presence, RunnerFilter } from '../../db/runnerQueries';
 import { ago } from './format';
 import type { Tone } from './ui';
@@ -47,11 +47,4 @@ export const FILTER_EMPTY: Record<RunnerFilter, string> = {
   app: 'Personne n’a encore ouvert l’application.',
   ran: 'Personne n’a encore couru.',
   finished: 'Personne n’est encore arrivé.',
-};
-
-/** "du 9 au 15 novembre", in the race's timezone. */
-export const windowText = (race: Race): string => {
-  const day = (iso: string, month: boolean) => new Intl.DateTimeFormat('fr-FR', { day: 'numeric', ...(month ? { month: 'long' } : {}), timeZone: race.timezone }).format(new Date(iso));
-  const sameMonth = day(race.windowStart, true).split(' ')[1] === day(race.windowEnd, true).split(' ')[1];
-  return `du ${day(race.windowStart, !sameMonth)} au ${day(race.windowEnd, true)}`;
 };

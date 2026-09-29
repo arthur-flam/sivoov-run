@@ -1,17 +1,17 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { formatClock, formatKm, formatPace } from '@sivoov/shared';
 import type { RunState } from '@sivoov/shared';
-import { locale, t } from '@/i18n';
+import { currentLocale, t } from '@/i18n';
 import { colors, fonts } from '@/theme';
 
 /** The distance first and biggest, then the race clock and the pace: the order a runner glances in. */
 /** `ofLabel`: the course's distance as the race names it (« 42,195 km », « 10 km »). */
 export const Numbers = ({ state, ofLabel }: { state: Pick<RunState, 'distanceM' | 'elapsedMs' | 'paceSecPerKm'>; ofLabel: string }) => {
-  const distance = formatKm(state.distanceM, locale).replace(' km', '');
+  const distance = formatKm(state.distanceM, currentLocale()).replace(' km', '');
   return (
     <View style={styles.wrap}>
       <View style={styles.hero}>
-        <Text testID="distance" style={styles.distance} accessibilityLabel={formatKm(state.distanceM, locale)}>
+        <Text testID="distance" style={styles.distance} accessibilityLabel={formatKm(state.distanceM, currentLocale())}>
           {distance}
           <Text style={styles.unit}> {t('run.unit.km')}</Text>
         </Text>

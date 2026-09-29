@@ -1,4 +1,4 @@
-import type { AudioPack, Course, Entrant, Race, Run } from '@sivoov/shared';
+import type { AudioPack, Course, Entrant, Locale, Race, Run } from '@sivoov/shared';
 import { audioPackFromRow, courseFromRow, entrantFromRow, raceFromRow, runFromRow } from './rows';
 import { courseRaceOf } from './courseRace';
 import { rankedRun } from './ranked';
@@ -26,15 +26,15 @@ export const db = (d1: D1Database) => ({
   async upsertRace(race: Race): Promise<void> {
     await d1
       .prepare(
-        `INSERT INTO races (id, slug, name, city, country, date_start, date_end, window_start, window_end, timezone, organizer_url, support_email, theme, status, demo_of)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO races (id, slug, name, city, country, date_start, date_end, window_start, window_end, timezone, organizer_url, support_email, theme, status, demo_of, default_locale)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET slug=excluded.slug, name=excluded.name, city=excluded.city, country=excluded.country,
            date_start=excluded.date_start, date_end=excluded.date_end, window_start=excluded.window_start, window_end=excluded.window_end,
            timezone=excluded.timezone, organizer_url=excluded.organizer_url, support_email=excluded.support_email, theme=excluded.theme, status=excluded.status,
-           demo_of=excluded.demo_of`,
+           demo_of=excluded.demo_of, default_locale=excluded.default_locale`,
       )
       .bind(race.id, race.slug, race.name, race.city, race.country, race.dateStart, race.dateEnd, race.windowStart, race.windowEnd,
-        race.timezone, race.organizerUrl ?? null, race.supportEmail ?? null, JSON.stringify(race.theme), race.status, race.demoOf ?? null)
+        race.timezone, race.organizerUrl ?? null, race.supportEmail ?? null, JSON.stringify(race.theme), race.status, race.demoOf ?? null, race.defaultLocale)
       .run();
   },
 
@@ -117,6 +117,10 @@ export const db = (d1: D1Database) => ({
   async setSlot(entrantId: string, slotAt: string | null): Promise<void> {
     await d1.prepare('UPDATE entrants SET slot_at = ? WHERE id = ?').bind(slotAt, entrantId).run();
   },
+  /** The runner's language, chosen in the app or on the web. */
+  async setLocale(entrantId: string, locale: Locale): Promise<void> {
+    await d1.prepare('UPDATE entrants SET locale = ? WHERE id = ?').bind(locale, entrantId).run();
+  },
 
   async createCode(id: string, entrantId: string, codeHash: string, expiresAt: string): Promise<void> {
     await d1.batch([
@@ -183,7 +187,7 @@ export const db = (d1: D1Database) => ({
       .run();
   },
   /**
-   * « Supprimer mes données »: the runner's runs, codes and sessions, and their chosen slot, go.
+   * « Supprimer mes données »: the runner's runs, codes and sessions, their chosen slot and language, go.
    * The entry itself stays (the organizer's record). Returns what the runs left in R2.
    */
   async forgetEntrant(entrantId: string): Promise<{ runIds: string[]; traceKeys: string[] }> {
@@ -192,7 +196,7 @@ export const db = (d1: D1Database) => ({
       d1.prepare('DELETE FROM runs WHERE entrant_id = ?').bind(entrantId),
       d1.prepare('DELETE FROM auth_codes WHERE entrant_id = ?').bind(entrantId),
       d1.prepare('DELETE FROM sessions WHERE entrant_id = ?').bind(entrantId),
-      d1.prepare('UPDATE entrants SET slot_at = NULL WHERE id = ?').bind(entrantId),
+      d1.prepare('UPDATE entrants SET slot_at = NULL, locale = NULL WHERE id = ?').bind(entrantId),
     ]);
     return { runIds: results.map((r) => r.id), traceKeys: results.flatMap((r) => (r.trace_key ? [r.trace_key] : [])) };
   },

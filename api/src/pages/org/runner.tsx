@@ -1,5 +1,5 @@
 import { addressLines, can, formatOfficialTime } from '@sivoov/shared';
-import type { Access, Race } from '@sivoov/shared';
+import type { Access, Locale, Race } from '@sivoov/shared';
 import type { InstructionsSent, RunnerDetail } from '../../db/runnerQueries';
 import { MAX_INSTRUCTIONS_PER_DAY, sentInLastDay } from '../../db/runnerQueries';
 import { ago, dateFr, dateTimeFr, distanceName, plural } from './format';
@@ -12,6 +12,11 @@ import { Badge, Card, ConfirmButton, Empty, Flash, Icon, KeyValues, PageHead } f
 type Props = { race: Race; access: Access; runner: RunnerDetail; sent: InstructionsSent[]; flash?: FlashMessage; now?: Date };
 
 const NBSP = String.fromCharCode(160);
+const LANGUAGE_NAMES: Record<Locale, string> = { fr: 'Français', en: 'Anglais' };
+
+/** The language the app and the emails use for this runner, and where it comes from. */
+const languageText = (locale: Locale | undefined, race: Race): string =>
+  locale ? `${LANGUAGE_NAMES[locale]}, choisie par le coureur` : `${LANGUAGE_NAMES[race.defaultLocale]}, celle de la course`;
 const km = (m: number) => `${(m / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 2 })}${NBSP}km`;
 
 /** The one sentence that says where the runner is, and what to do about it. */
@@ -101,6 +106,7 @@ export const OrgRunnerPage = ({ race, access, runner, sent, flash, now = new Dat
                 ['Nom', `${entrant.firstName} ${entrant.lastName.toUpperCase()}`],
                 ['Email', <a href={`mailto:${entrant.email}`}>{entrant.email.split('@')[0]}@<wbr />{entrant.email.split('@').slice(1).join('@')}</a>],
                 ['Distance', distanceName(entrant.distanceKey)],
+                ['Langue', languageText(entrant.locale, race)],
                 [entrant.source === 'import' ? 'Importé le' : 'Ajouté à la main le', dateFr(runner.createdAt, race.timezone)],
               ]}
             />

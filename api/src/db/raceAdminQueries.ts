@@ -40,11 +40,11 @@ export const raceAdminDb = (d1: D1Database) => ({
     await d1.batch([
       d1
         .prepare(
-          `INSERT INTO races (id, slug, name, city, country, date_start, date_end, window_start, window_end, timezone, organizer_url, support_email, theme, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO races (id, slug, name, city, country, date_start, date_end, window_start, window_end, timezone, organizer_url, support_email, theme, status, default_locale)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(race.id, race.slug, race.name, race.city, race.country, race.dateStart, race.dateEnd, race.windowStart, race.windowEnd,
-          race.timezone, race.organizerUrl ?? null, race.supportEmail ?? null, JSON.stringify(race.theme), race.status),
+          race.timezone, race.organizerUrl ?? null, race.supportEmail ?? null, JSON.stringify(race.theme), race.status, race.defaultLocale),
       ...courses.map((c) =>
         d1
           .prepare('INSERT INTO courses (id, race_id, distance_key, distance_m, geometry_key, landmarks) VALUES (?, ?, ?, ?, ?, ?)')

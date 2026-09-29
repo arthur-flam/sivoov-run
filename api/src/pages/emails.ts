@@ -1,16 +1,23 @@
-import type { Lead, Race } from '@sivoov/shared';
+import { distanceLabel, translator } from '@sivoov/shared';
+import type { DistanceKey, Lead, Locale, Race } from '@sivoov/shared';
+import { fmtSpan } from './dates';
 import type { Mail } from '../lib/mailer';
 
 /** Anything a person typed, made safe to drop into an email's HTML. */
 const escapeHtml = (s: string): string => s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
 
-export const codeEmail = ({ to, firstName, race, code }: { to: string; firstName: string; race: Race; code: string }): Mail => ({
-  to,
-  subject: `${code} · votre code Sivoov Run`,
-  text: `Bonjour ${firstName},\n\nVotre code pour ${race.theme.displayName} : ${code}\n\nIl est valable 15 minutes.\n\nSivoov Run`,
-  html: `<p>Bonjour ${escapeHtml(firstName)},</p><p>Votre code pour <strong>${escapeHtml(race.theme.displayName)}</strong> :</p>
-<p style="font-size:34px;letter-spacing:0.3em;font-weight:700">${code}</p><p>Il est valable 15 minutes.</p><p>Sivoov Run</p>`,
-});
+/** The runner's sign-in code, in the language of the screen that asked for it (`codeEmailLocale`). */
+export const codeEmail = ({ to, firstName, race, code, locale }: { to: string; firstName: string; race: Race; code: string; locale: Locale }): Mail => {
+  const tr = translator(locale);
+  const name = race.theme.displayName;
+  return {
+    to,
+    subject: tr('email.code.subject', { code }),
+    text: `${tr('email.hello', { firstName })}\n\n${tr('email.code.for', { race: name })} ${code}\n\n${tr('email.code.valid')}\n\nSivoov Run`,
+    html: `<p>${tr('email.hello', { firstName: escapeHtml(firstName) })}</p><p>${tr('email.code.for', { race: `<strong>${escapeHtml(name)}</strong>` })}</p>
+<p style="font-size:34px;letter-spacing:0.3em;font-weight:700">${code}</p><p>${tr('email.code.valid')}</p><p>Sivoov Run</p>`,
+  };
+};
 
 /**
  * To Sivoov staff when a race organizer writes from /organisateurs. Plain text only: every field
@@ -69,37 +76,42 @@ export const teamInviteEmail = ({ to, name, inviter, race, roleLabel, roleHint, 
 };
 
 /**
- * Sent by the organizer from a runner's page: the bib, where to go and how to sign in. Plain
- * enough to be forwarded to someone who has never heard of Sivoov.
+ * Sent by the organizer from a runner's page: the bib, where to go and how to sign in, in the
+ * runner's language (`runnerLocale`), the race page's link included. Plain enough to be
+ * forwarded to someone who has never heard of Sivoov.
  */
-export const instructionsEmail = ({ to, firstName, bib, distance, race, raceUrl, window, supportEmail }: {
-  to: string; firstName: string; bib: string; distance: string; race: Race; raceUrl: string; window: string; supportEmail?: string;
+export const instructionsEmail = ({ to, firstName, bib, distanceKey, race, origin, locale }: {
+  to: string; firstName: string; bib: string; distanceKey: DistanceKey; race: Race; origin: string; locale: Locale;
 }): Mail => {
+  const tr = translator(locale);
   const name = race.theme.displayName;
+  const raceUrl = `${origin}/${race.slug}${locale === 'fr' ? '' : `?lang=${locale}`}`;
+  const distance = distanceLabel(locale, distanceKey);
   const steps = [
-    `Ouvrez la page de la course : ${raceUrl}`,
-    `Touchez « Je participe », puis saisissez votre numéro de dossard (${bib}) et cette adresse email.`,
-    'Vous recevez un code à 6 chiffres par email : saisissez-le sur la page.',
-    'Installez ensuite l’application Sivoov et connectez-vous de la même façon. C’est elle qui vous accompagne pendant la course.',
+    tr('email.instructions.step1', { url: raceUrl }),
+    tr('email.instructions.step2', { cta: tr('landing.cta'), bib }),
+    tr('email.instructions.step3'),
+    tr('email.instructions.step4'),
   ];
-  const help = supportEmail ? `Une question ? Écrivez à ${supportEmail}.` : 'Une question ? Contactez l’organisateur de la course.';
+  const help = race.supportEmail ? tr('email.instructions.help', { email: race.supportEmail }) : tr('email.instructions.helpOrganizer');
+  const window = tr('email.instructions.window', fmtSpan(race.windowStart, race.windowEnd, locale, race.timezone));
   return {
     to,
-    subject: `Votre dossard ${bib} · ${name}`,
+    subject: tr('email.instructions.subject', { bib, race: name }),
     text: [
-      `Bonjour ${firstName},`,
-      `Votre inscription en virtuel est prête.\nCourse : ${name}\nDistance : ${distance}\nDossard : ${bib}`,
-      `Vous courez où vous voulez, ${window}.`,
-      `Pour vous connecter :\n${steps.map((s, i) => `${i + 1}. ${s}`).join('\n')}`,
+      tr('email.hello', { firstName }),
+      [tr('email.instructions.ready'), tr('email.instructions.race', { race: name }), tr('email.instructions.distance', { distance }), tr('email.instructions.bib', { bib })].join('\n'),
+      window,
+      `${tr('email.instructions.howTo')}\n${steps.map((s, i) => `${i + 1}. ${s}`).join('\n')}`,
       help,
-      'Bonne course !\nSivoov Run',
+      `${tr('email.instructions.signoff')}\nSivoov Run`,
     ].join('\n\n'),
-    html: `<p>Bonjour ${escapeHtml(firstName)},</p>
-<p>Votre inscription en virtuel est prête.<br />Course : <strong>${escapeHtml(name)}</strong><br />Distance : ${escapeHtml(distance)}</p>
-<p style="font-size:15px;margin:0">Votre dossard</p><p style="font-size:34px;font-weight:700;margin:0 0 16px">${escapeHtml(bib)}</p>
-<p>Vous courez où vous voulez, ${escapeHtml(window)}.</p>
-<p><strong>Pour vous connecter</strong></p>
+    html: `<p>${tr('email.hello', { firstName: escapeHtml(firstName) })}</p>
+<p>${tr('email.instructions.ready')}<br />${tr('email.instructions.race', { race: `<strong>${escapeHtml(name)}</strong>` })}<br />${tr('email.instructions.distance', { distance: escapeHtml(distance) })}</p>
+<p style="font-size:15px;margin:0">${tr('email.instructions.yourBib')}</p><p style="font-size:34px;font-weight:700;margin:0 0 16px">${escapeHtml(bib)}</p>
+<p>${escapeHtml(window)}</p>
+<p><strong>${tr('email.instructions.howTo')}</strong></p>
 <ol>${steps.map((s) => `<li>${escapeHtml(s).replace(escapeHtml(raceUrl), `<a href="${escapeHtml(raceUrl)}">${escapeHtml(raceUrl)}</a>`)}</li>`).join('')}</ol>
-<p>${escapeHtml(help)}</p><p>Bonne course !<br />Sivoov Run</p>`,
+<p>${escapeHtml(help)}</p><p>${tr('email.instructions.signoff')}<br />Sivoov Run</p>`,
   };
 };

@@ -2,16 +2,17 @@ import { useState } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { API_URL } from '@/api';
+import { LanguagePicker } from '@/components/LanguagePicker';
 import { Body, Button, Card, ErrorBox } from '@/components/ui';
-import { locale, t } from '@/i18n';
+import { currentLocale, t } from '@/i18n';
 import { useSession } from '@/stores/session';
 import { colors, space } from '@/theme';
 
-/** The privacy page on the Worker, in the phone's language. */
-const PRIVACY_URL = `${API_URL}/confidentialite${locale === 'en' ? '?lang=en' : ''}`;
+/** The privacy page on the Worker, in the app's language. */
+const privacyUrl = () => `${API_URL}/confidentialite${currentLocale() === 'en' ? '?lang=en' : ''}`;
 
 /**
- * The bottom of the race home: the privacy page, « Supprimer mes données » (the App Store
+ * The bottom of the race home: the language, the privacy page, « Supprimer mes données » (the App Store
  * asks for it inside the app) behind a confirmation card, and signing out. A card rather than a
  * system alert: React Native's Alert does nothing on the web target, where the rig drives it.
  */
@@ -38,6 +39,7 @@ export const AccountActions = () => {
 
   return (
     <View style={styles.actions}>
+      <LanguagePicker />
       {confirming ? (
         <Card>
           <Body style={styles.title}>{t('home.deleteData.title')}</Body>
@@ -51,7 +53,7 @@ export const AccountActions = () => {
       ) : null}
       <Button label={t('home.signout')} ghost onPress={() => void signOut().then(() => router.replace('/signin'))} />
       <View style={styles.links}>
-        <Pressable testID="privacy" accessibilityRole="link" onPress={() => void Linking.openURL(PRIVACY_URL)} hitSlop={8}>
+        <Pressable testID="privacy" accessibilityRole="link" onPress={() => void Linking.openURL(privacyUrl())} hitSlop={8}>
           <Body style={styles.link}>{t('home.privacy')}</Body>
         </Pressable>
         {!confirming ? (

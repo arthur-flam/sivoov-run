@@ -85,7 +85,7 @@ describe('race settings', () => {
   it('shows every card to an owner, with the window on the race’s clock', async () => {
     const cookie = await cookieFor('reglages@example.com');
     const html = await (await get(base, cookie)).text();
-    ['La course', 'Quand les coureurs peuvent courir', 'Contact pour les coureurs', 'Apparence', 'Publication', 'Vente en ligne'].forEach((title) =>
+    ['La course', 'Quand les coureurs peuvent courir', 'Contact pour les coureurs', 'Langue des coureurs', 'Apparence', 'Publication', 'Vente en ligne'].forEach((title) =>
       expect(html).toContain(title),
     );
     expect(html).toContain('value="2026-11-09T00:00"');
@@ -198,6 +198,18 @@ describe('race settings', () => {
     expect((await post(`${base}/status`, { status: 'published' }, cookie)).status).toBe(400);
     await post(`${base}/status`, { status: 'open' }, cookie);
     expect(await listed()).toContain(SETTINGS.slug);
+  });
+
+  it('sets the runners’ language, French until the organizer says otherwise', async () => {
+    const cookie = await cookieFor('reglages@example.com');
+    expect((await raceOf(SETTINGS.slug)).defaultLocale).toBe('fr');
+    expect((await post(`${base}/language`, { defaultLocale: 'de' }, cookie)).status).toBe(400);
+    const res = await post(`${base}/language`, { defaultLocale: 'en' }, cookie);
+    expect(res.headers.get('location')).toBe(`/org/${SETTINGS.slug}/settings?done=language#language`);
+    expect((await raceOf(SETTINGS.slug)).defaultLocale).toBe('en');
+    expect(await (await get(`${base}?done=language`, cookie)).text()).toContain('La langue des coureurs est enregistrée.');
+    await post(`${base}/language`, { defaultLocale: 'fr' }, cookie);
+    expect((await raceOf(SETTINGS.slug)).defaultLocale).toBe('fr');
   });
 
   it('refuses the settings to an editor and to a viewer, even by a direct post', async () => {

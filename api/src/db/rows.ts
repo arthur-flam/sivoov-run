@@ -42,6 +42,7 @@ export const RaceRowSchema = z.object({
   theme: json(RaceThemeSchema),
   status: z.string(),
   demo_of: z.string().nullable().optional(),
+  default_locale: z.string().optional(),
 });
 
 export const raceFromRow = (row: unknown): Race => {
@@ -50,7 +51,7 @@ export const raceFromRow = (row: unknown): Race => {
     id: r.id, slug: r.slug, name: r.name, city: r.city, country: r.country,
     dateStart: r.date_start, dateEnd: r.date_end, windowStart: r.window_start, windowEnd: r.window_end,
     timezone: r.timezone, organizerUrl: r.organizer_url ?? undefined, supportEmail: r.support_email ?? undefined, theme: r.theme, status: r.status,
-    demoOf: r.demo_of ?? undefined,
+    demoOf: r.demo_of ?? undefined, defaultLocale: r.default_locale,
   });
 };
 
@@ -82,6 +83,7 @@ export const EntrantRowSchema = z.object({
   address: json(AddressSchema).nullable(),
   source: z.string(),
   slot_at: z.string().nullable(),
+  locale: z.string().nullable().optional(),
 });
 
 export const entrantFromRow = (row: unknown): Entrant => {
@@ -89,6 +91,7 @@ export const entrantFromRow = (row: unknown): Entrant => {
   return EntrantSchema.parse({
     id: r.id, raceId: r.race_id, bib: r.bib, email: r.email, firstName: r.first_name, lastName: r.last_name,
     distanceKey: r.distance_key, address: r.address ?? undefined, source: r.source, slotAt: r.slot_at ?? undefined,
+    locale: r.locale ?? undefined,
   });
 };
 

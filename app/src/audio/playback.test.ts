@@ -14,6 +14,10 @@ vi.mock('expo-audio', () => ({
 vi.mock('@/stores/session', () => ({ useSession: { getState: () => ({ token: null }) } }));
 vi.mock('@/stores/prefs', () => ({ usePrefs: { getState: () => ({ voice: 'all' }) } }));
 vi.mock('./live', () => ({ liveSound: async () => null, resetLiveLines: () => undefined }));
+// The run journals itself to disk; nothing here needs it.
+vi.mock('@/stores/journalFiles', () => ({
+  journalFiles: { open: async () => undefined, writeMeta: async () => undefined, append: async () => undefined, readMeta: async () => null, read: async () => null, clear: async () => undefined },
+}));
 vi.mock('./packStore', () => ({
   usePackStore: {
     getState: () => ({

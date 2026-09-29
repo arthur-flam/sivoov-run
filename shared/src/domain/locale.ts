@@ -13,15 +13,27 @@ export const runnerLocale = (entrant: Pick<Entrant, 'locale'> | null | undefined
 export const codeEmailLocale = (screen: Locale | undefined, entrant: Pick<Entrant, 'locale'>, race: Pick<Race, 'defaultLocale'>): Locale =>
   screen ?? runnerLocale(entrant, race);
 
+/** A phone's language when Sivoov Run speaks it ("en-GB" -> en, "fr-CA" -> fr), else none: a German phone gets the race's. */
+export const spokenLocale = (candidate: string | null | undefined): Locale | null => {
+  const tag = candidate?.toLowerCase() ?? '';
+  return tag.startsWith('en') ? 'en' : tag.startsWith('fr') ? 'fr' : null;
+};
+
+/** The app's language: the runner's choice, else the phone's, else the race's, else French. */
+export const appLocale = ({ choice, device, raceDefault }: { choice: Locale | null; device: Locale | null; raceDefault: Locale | null }): Locale =>
+  choice ?? device ?? raceDefault ?? 'fr';
+
 /** The phone's side of the language: the runner's last choice on it, and whether the server has heard of it. */
 export type PhoneLanguage = { choice: Locale | null; unsynced: boolean };
 
 /**
- * After the app hears from the server (`saved` is the runner's choice there): a choice made on
- * the phone that the server has not heard of is sent (`push`); otherwise the phone takes the
- * server's, which may have been made on the web or on another phone.
+ * After the app hears from the server (`saved` is the runner's language there): a choice made on
+ * the phone that the server has not heard of is sent (`push`); a choice made elsewhere (the web,
+ * another phone) is taken; a runner with none yet gets the phone's language (`device`) saved, so
+ * the emails speak what the app shows.
  */
-export const reconcileLanguage = (phone: PhoneLanguage, saved: Locale | undefined): { choice: Locale | null; push: boolean } =>
-  phone.choice && (phone.unsynced || !saved)
-    ? { choice: phone.choice, push: phone.choice !== saved }
-    : { choice: saved ?? phone.choice, push: false };
+export const reconcileLanguage = (phone: PhoneLanguage, saved: Locale | undefined, device: Locale | null = null): { choice: Locale | null; push: Locale | null } => {
+  if (phone.choice && (phone.unsynced || !saved)) return { choice: phone.choice, push: phone.choice === saved ? null : phone.choice };
+  if (saved) return { choice: saved, push: null };
+  return { choice: null, push: device };
+};

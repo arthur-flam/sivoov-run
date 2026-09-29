@@ -11,22 +11,26 @@ Live: https://run.sivoov.app/deauville-2026 (production), https://preview.run.si
 on 2026-09-27 (below); M2 still needs a real finish. Production has the race and its courses;
 no real entrants yet.
 
-### The runner's language (2026-09-29, branch `claude/language`, on top of `claude/run-screen`)
+### The runner's language (2026-09-29, `claude/language`, merged)
 The owner asked for a way to choose the language in the app, French by default and settable by
 the organizer, remembered per runner so the emails follow (the audio stays French for now).
 The app's strings were all in French and English already; it just froze the phone's language.
 - **The app**: « Français | English » on the sign-in screen and at the bottom of the race home;
-  the screen changes at once. Before sign-in the app is French unless chosen; after, it is the
-  runner's choice, else the race's. Kept on the phone and on the server (`entrants.locale`).
-- **The organizer**: Réglages → « Langue des coureurs » (French unless changed); the runner's page
-  says which language they get and whether they chose it.
+  the screen changes at once. The app speaks the runner's choice, else the phone's language
+  (French or English), else the race's. Kept on the phone and on the server (`entrants.locale`):
+  a runner who never chose gets their phone's language saved at sign-in, so the emails match.
+- **The organizer**: Réglages → « Langue des coureurs » (French unless changed): for runners whose
+  language is not known yet (emails before they open the app) or whose phone is in neither
+  language. The runner's page says which language they get and where it comes from.
 - **Emails**: the sign-in code is written in the language of the screen that asked (app or web);
   the bib instructions email in the runner's language, with the race page link in it.
 - **The web**: a runner who switched the site to English and signs in there has it saved too.
 Seen in the web target (sign-in in English, code email in English, the home switching back to
 French, both `PUT /api/me/locale` saved) and covered by tests (shared rules, API, store). Needs
 migration `0008_languages.sql` before the Worker. Not built: a `langue` column in the CSV import;
-the choice is per entry (a runner in two races chooses in each).
+the choice is per entry (a runner in two races chooses in each). Later (the owner's call,
+2026-09-29): a proper runner, signed in once and entered in several races, would hold the
+language, the sign-in and the history instead of each entry.
 
 ### The run screen, rebuilt (2026-09-29, branch `claude/run-screen`)
 The owner asked for a run screen that is highly functional, polished and clear, with the race's
@@ -172,11 +176,12 @@ Anchored to PRD milestones (M2 10 Oct, M3 17 Oct, M4 31 Oct).
    the start). The race home could use the same map later instead of its PNG.
 9. **Web polish**: hero photo and real theme from the organizer, English copy review, OG
    image, English admin variant.
+10. **A runner, not only entries** (not now): one sign-in for a person entered in several races,
+    holding their language, devices and history; today each entry signs in on its own.
 
 ## Owner actions
 
-- **Runner language** (`claude/language`): when merged, production needs its migration first,
-  then the Worker: `npx wrangler d1 migrations apply sivoov-run --remote && npx wrangler deploy`
+- **Runner language** (merged 2026-09-29): production needs its migration first, then the Worker: `npx wrangler d1 migrations apply sivoov-run --remote && npx wrangler deploy`
   from `api/` (same for preview with `--env preview`). The app part is JS only (OTA).
 
 - **Stores** (STORES.md): Apple Developer Program as an organization (D-U-N-S), Play Console

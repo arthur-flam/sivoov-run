@@ -14,9 +14,9 @@ type Props = { race: Race; access: Access; runner: RunnerDetail; sent: Instructi
 const NBSP = String.fromCharCode(160);
 const LANGUAGE_NAMES: Record<Locale, string> = { fr: 'Français', en: 'Anglais' };
 
-/** The language the app and the emails use for this runner, and where it comes from. */
+/** The language the app and the emails use for this runner: theirs (chosen, or their phone's), else the race's. */
 const languageText = (locale: Locale | undefined, race: Race): string =>
-  locale ? `${LANGUAGE_NAMES[locale]}, choisie par le coureur` : `${LANGUAGE_NAMES[race.defaultLocale]}, celle de la course`;
+  locale ? `${LANGUAGE_NAMES[locale]}, celle du coureur` : `${LANGUAGE_NAMES[race.defaultLocale]}, celle de la course`;
 const km = (m: number) => `${(m / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 2 })}${NBSP}km`;
 
 /** The one sentence that says where the runner is, and what to do about it. */

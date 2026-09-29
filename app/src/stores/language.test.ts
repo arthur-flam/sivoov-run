@@ -18,10 +18,20 @@ describe('the app’s language', () => {
   beforeEach(() => {
     memory.clear();
     setLocale.mockReset().mockResolvedValue({ ok: true });
-    useLanguage.setState({ choice: null, unsynced: false, raceDefault: null, locale: 'fr' });
+    // A phone in a language Sivoov Run does not speak, unless a test says otherwise.
+    useLanguage.setState({ choice: null, unsynced: false, device: null, raceDefault: null, locale: 'fr' });
   });
 
-  it('is French before anyone chooses, then the race’s once signed in', async () => {
+  it('speaks an English phone’s language from the start, and saves it as the runner’s at sign-in', async () => {
+    useLanguage.setState({ device: 'en' });
+    await useLanguage.getState().load();
+    expect(useLanguage.getState().locale).toBe('en');
+    await useLanguage.getState().sync(me(undefined, 'fr'), 'tok');
+    expect(useLanguage.getState().locale).toBe('en');
+    expect(setLocale).toHaveBeenCalledWith('tok', 'en');
+  });
+
+  it('is French on a phone in another language, then the race’s once signed in', async () => {
     await useLanguage.getState().load();
     expect(useLanguage.getState().locale).toBe('fr');
     await useLanguage.getState().sync(me(undefined, 'en'), 'tok');
@@ -62,7 +72,7 @@ describe('the app’s language', () => {
   it('remembers the choice on the phone across a restart, and forgets the race when signed out', async () => {
     await useLanguage.getState().sync(me(undefined, 'en'), 'tok');
     await useLanguage.getState().choose('fr', 'tok');
-    useLanguage.setState({ choice: null, unsynced: false, raceDefault: null, locale: 'fr' });
+    useLanguage.setState({ choice: null, unsynced: false, device: null, raceDefault: null, locale: 'fr' });
     await useLanguage.getState().load();
     expect(useLanguage.getState().choice).toBe('fr');
     useLanguage.getState().signedOut();

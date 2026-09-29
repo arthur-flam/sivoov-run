@@ -154,15 +154,18 @@ entries in several races, the bib only when two entries of one race share it (40
 Older app builds still send race and bib and still sign in.
 
 ## Runner language
-French first. A runner reads `runnerLocale(entrant, race)` (shared `domain/locale.ts`): their own
-choice (`entrants.locale`), else the race's (`races.default_locale`, the organizer's « Langue des
-coureurs » card in Réglages), else French. It covers the app's screens and the runner emails;
-the audio stays the course's pack. The admin stays French.
+In the app, `appLocale`: the runner's choice, else the phone's language when it is French or
+English (`spokenLocale`), else the race's (`races.default_locale`, the organizer's « Langue des
+coureurs » card in Réglages), else French. The server keeps the runner's language
+(`entrants.locale`, per entry): what they chose, or their phone's, saved at their first sign-in
+in the app; emails use `runnerLocale` (that, else the race's). It covers the app's screens and
+the runner emails; the audio stays the course's pack. The admin stays French.
 - **The app** (`stores/language.ts`): the picker (Français | English, each in its own language) is
   on the sign-in screen and the race home. The choice is kept on the phone (the sign-in screen and
   an offline start speak it) and sent to `PUT /api/me/locale`; a choice made before sign-in, or
-  while the server was out of reach, is sent at the next `/me` (`reconcileLanguage`), and a choice
-  made elsewhere (the web, another phone) is taken from `/me`. `t()` reads the language at call
+  while the server was out of reach, is sent at the next `/me` (`reconcileLanguage`), a choice
+  made elsewhere (the web, another phone) is taken from `/me`, and a runner with none gets the
+  phone's language saved. `t()` reads the language at call
   time; each screen calls `useLocale()` once so everything it draws redraws on a change.
 - **The code email** is written in the language of the screen that asked for it (`CodeRequest.locale`:
   the app's language, or the web page's); older apps that do not say get `runnerLocale`.

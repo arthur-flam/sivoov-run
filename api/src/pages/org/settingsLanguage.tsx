@@ -8,9 +8,13 @@ const LANGUAGES: Array<ChoiceOption & { value: Locale }> = [
   { value: 'en', label: 'Anglais', hint: 'Pour une course dont les coureurs lisent surtout l’anglais.' },
 ];
 
-/** The language runners get until they choose their own (in the app or on the race page). The voice stays the race's. */
+/**
+ * The language of runners the app knows nothing else about: before they open it (the emails),
+ * or on a phone in neither language. A French or English phone speaks its own; each runner can
+ * also choose. The voice stays the race's.
+ */
 export const LanguageCard = ({ race, values, errors, flash }: SettingsCardProps) => (
-  <Card id="language" title="Langue des coureurs" sub="Chaque coureur peut ensuite choisir la sienne dans l’application ou sur la page de la course.">
+  <Card id="language" title="Langue des coureurs" sub="Pour les coureurs dont on ne connaît pas encore la langue. L’application prend celle du téléphone s’il est en français ou en anglais, et chacun peut choisir la sienne.">
     {flash ? <Flash tone="good">{flash}</Flash> : null}
     <form method="post" action={`/org/${race.slug}/settings/language#language`}>
       <Choices name="defaultLocale" legend="Langue par défaut" options={LANGUAGES} selected={[values.defaultLocale ?? race.defaultLocale]} error={errors.defaultLocale} />

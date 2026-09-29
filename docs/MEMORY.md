@@ -670,3 +670,14 @@
     `withSentry` also initialises a client per request even without a DSN: the Worker skips the
     wrapper when `SENTRY_DSN` is unset. Hono's `onError` swallows errors before the wrapper sees
     them, so it calls `captureException` itself.
+- 2026-09-29: the run map's look, decided: **Mapbox Standard stays.** Compared at the runner's eye
+  level (z17.1, pitch 72): Standard Satellite is flat (no 3D buildings or landmarks in its style or
+  config, whatever the overview guide says), hazy towards the horizon at that pitch, and its Paris
+  imagery still shows the 2024 Olympic stands at the Concorde; terrain fades out above z13.7 and
+  adds nothing on flat courses. Satellite plus Standard's own 3D landmark models (a composed style,
+  `batched-model` source `mapbox://mapbox.mapbox-3dbuildings-v1`) looks best but rests on undocumented
+  internals. **Idea for a later session (the owner's): Google Photorealistic 3D Tiles** (Map Tiles
+  API). About $0.01 a run (one root request covers 3 h), but offline use is forbidden and Google's
+  attribution must show in full; no Mapbox path, so CesiumJS in a WebView or a 3D Tiles renderer on
+  expo-gl (a native module), with the camera plan, course line and runner rebuilt on it, and the
+  current map kept as the offline and low-battery fallback. Weeks, not days.

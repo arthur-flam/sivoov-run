@@ -37,7 +37,7 @@ shared/          @sivoov/shared: schemas/, domain/ (course projection, splits, p
 api/             @sivoov/api: src/routes/ (api + pages), src/pages/ (Hono JSX), src/db/, src/lib/, migrations/, tools/ (seed, audio), wrangler.jsonc, test/ (workerd), e2e/ (Playwright)
 app/             @sivoov/app: app/ (expo-router screens), src/{components,stores,services/location,audio}, e2e/ (Playwright, web target)
 docs/
-.github/workflows/  ci.yml (PR checks), preview.yml (EAS Update per PR), deploy.yml (main → prod)
+.github/workflows/  ci.yml (PR checks), preview.yml (EAS Update per PR), deploy.yml (main → preview; production by manual promotion)
 .claude/         session hook + permissions for cloud sessions
 ```
 

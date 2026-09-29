@@ -1,8 +1,9 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
-import { CourseGeometrySchema, CourseSchema, DISTANCE_METERS, DistanceKeySchema, can, landmarksFromRows, metersFromKm, parseGpx } from '@sivoov/shared';
+import { CourseGeometrySchema, CourseSchema, DISTANCE_METERS, DistanceKeySchema, can, courseMoments, landmarksFromRows, metersFromKm, parseGpx, photoLine, photoLinesOf } from '@sivoov/shared';
 import type { AppEnv } from '../env';
 import { db } from '../db/queries';
+import { photoQueries } from '../db/photoQueries';
 import { scriptDb } from '../db/scriptQueries';
 import { requireCan, requireCourse, requireOrganizer } from '../lib/orgAuth';
 import type { CourseVars } from '../lib/orgAuth';
@@ -129,5 +130,19 @@ orgCourses.get('/:slug/courses/:courseId', requireOrganizer, requireCourse, asyn
   const full = await studioPageData(c.env, course, ctx, pace, { timezone: race.timezone, canEdit: can(c.get('access'), 'edit_audio') });
   // `?map=svg` forces the schematic fallback: no tiles, no network. The screenshot rig uses it.
   const data = c.req.query('map') === 'svg' ? { ...full, mapboxToken: null } : full;
-  return orgPage(c, 'courses', 'Annonces', <OrgStudioPage race={race} course={course} data={data} />);
+  const moments = courseMoments(await photoQueries(c.env.DB).moments(race.id), course);
+  return orgPage(c, 'courses', 'Annonces', <OrgStudioPage race={race} course={course} data={data} photoMoments={photoLinesOf(moments, ctx.script.lines)} />);
+});
+
+/** The announcements of the course's photo moments that the draft lacks, added to it as lines to reword. */
+orgCourses.post('/:slug/courses/:courseId/photo-lines', requireOrganizer, requireCan('edit_audio'), requireCourse, async (c) => {
+  const race = c.get('race');
+  const course = c.get('course');
+  const ctx = await loadStudioContext(c.env, course);
+  const moments = courseMoments(await photoQueries(c.env.DB).moments(race.id), course);
+  const added = photoLinesOf(moments, ctx.script.lines)
+    .filter((x) => x.line === null)
+    .map((x) => photoLine(x.moment, course.id, course.distanceM));
+  if (added.length > 0) await scriptDb(c.env.DB).saveDraft({ ...ctx.script, lines: [...ctx.script.lines, ...added] });
+  return c.redirect(`/org/${race.slug}/courses/${course.id}`, 303);
 });

@@ -15,12 +15,13 @@ const Chip = ({ label, dot, testID }: { label: string; dot?: string; testID?: st
 
 /**
  * Over the top of the map: the race, and only what needs the runner's attention: the GPS when
- * it is not good, the simulation badge in development. A good GPS says nothing.
+ * it is not good, the simulation badge in development. A good GPS says nothing. Passing a photo
+ * moment, the race's chip gives way to it for half a kilometre: the time to take a selfie.
  */
-export const StatusChips = ({ race, gps, simulation }: { race: string; gps: GpsSignal | null; simulation: boolean }) => (
+export const StatusChips = ({ race, gps, simulation, photo }: { race: string; gps: GpsSignal | null; simulation: boolean; photo?: string | null }) => (
   <View style={styles.row} pointerEvents="none">
     <View style={styles.side}>
-      <Chip label={race} />
+      {photo ? <Chip testID="photo-moment" label={t('run.photoMoment', { title: photo })} dot={colors.coral} /> : <Chip label={race} />}
     </View>
     <View style={[styles.side, styles.end]}>
       {gps && gps !== 'good' ? <Chip testID={`gps-${gps}`} label={t(`run.gps.${gps}`)} dot={gps === 'searching' ? colors.fog : colors.coral} /> : null}

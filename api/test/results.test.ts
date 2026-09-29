@@ -3,7 +3,6 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { CourseSchema, EntrantSchema, RaceSchema, RunSchema, deauvilleMarathonGeometry } from '@sivoov/shared';
 import { db } from '../src/db/queries';
 import { RETRY_AFTER_MS, cardKey, cardPng } from '../src/lib/cards';
-import { rankOf, ranks } from '../src/lib/results';
 import { deauvilleCourses, deauvilleRace } from '../src/seed/deauville';
 
 // A race of its own, so the runs other suites upload never change a rank here. Its window is
@@ -59,26 +58,25 @@ describe('the results table', () => {
   it('never ranks a run on another distance than the entrant’s own', async () => {
     expect(await db(env.DB).resultsForCourse(race.id, marathon.id)).toEqual([]);
   });
-  it('gives equal times the same rank', () => {
-    const rows = [1, 2, 2, 3].map((m) => ({ run: { elapsedMs: m * 60_000 } }));
-    expect(ranks(rows)).toEqual([1, 2, 2, 4]);
-    expect(rankOf(rows, 2 * 60_000)).toBe(2);
-  });
-  it('links every runner to their certificate', async () => {
+  it('lists the finishers by name, with no position: nobody is ranked', async () => {
     const html = await (await SELF.fetch(`${base}/results?distance=half`)).text();
     expect(html).toContain(`href="/${race.slug}/results/2001"`);
     expect(html).not.toContain('1:30:00');
+    expect(html).not.toContain('<th>#</th>');
+    // Dupont before Martin, whatever their times.
+    expect(html.indexOf('DUPONT')).toBeLessThan(html.indexOf('MARTIN'));
   });
 });
 
 describe('a finisher’s certificate', () => {
-  it('shows the official time, the rank and the pace', async () => {
+  it('shows the official time and the pace, and no rank', async () => {
     const res = await SELF.fetch(`${base}/results/2001`);
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).toContain('Marc <span>DUPONT</span>');
     expect(html).toContain('1:45:00');
-    expect(html).toContain('1er sur 2');
+    expect(html).not.toContain('Classement');
+    expect(html).not.toContain('1er sur');
     // 6 300 s over 21.0975 km.
     expect(html).toContain('4:59 /km');
   });
@@ -87,15 +85,28 @@ describe('a finisher’s certificate', () => {
     expect(html).toContain('<meta property="og:title" content="Marc DUPONT · 1:45:00 · Marathon International de Deauville"/>');
     expect(html).toContain(`<meta property="og:url" content="${base}/results/2001"/>`);
   });
-  it('speaks English when asked, ordinals included', async () => {
+  it('speaks English when asked', async () => {
     const html = await (await SELF.fetch(`${base}/results/2002?lang=en`)).text();
-    expect(html).toContain('2nd of 2');
+    expect(html).toContain('Half marathon');
     expect(html).toContain('crossed the finish line of');
   });
-  it('turns every visitor toward the race', async () => {
+  it('turns every visitor toward the race while it is open: they ran it, your turn', async () => {
     const html = await (await SELF.fetch(`${base}/results/2002`)).text();
-    expect(html).toContain('Courez Marathon International de Deauville, vous aussi.');
+    expect(html).toContain('Léa l’a courue. À votre tour.');
+    expect(html).toContain('Du 9 novembre au 15 novembre, courez la distance là où vous êtes.');
     expect(html).toContain(`href="/${race.slug}"`);
+  });
+  it('previews a finish as an invitation to run it too', async () => {
+    const html = await (await SELF.fetch(`${base}/results/2001`)).text();
+    expect(html).toContain('<meta property="og:description" content="Marc a bouclé le semi-marathon en 1:45:00, là où Marc était, avec la course dans les oreilles. Du 9 novembre au 15 novembre, courez-la vous aussi, où que vous soyez."/>');
+  });
+  it('shows the picture that is shared, in four formats to pick from', async () => {
+    const html = await (await SELF.fetch(`${base}/results/2001`)).text();
+    expect(html).toContain('data-share-studio=""');
+    expect([...html.matchAll(/data-format="(\w+)"/g)].map((m) => m[1])).toEqual(['og', 'post', 'story', 'sticker']);
+    // No renderer on this deployment: the card's own page shows in a frame, and nothing offers a download.
+    expect(html).toContain(`<iframe data-card-frame="" src="/${race.slug}/results/2001/card?format=og&amp;lang=fr"`);
+    expect(html).not.toContain('data-download=""');
   });
   it('is a bib page before the finish, inviting friends to run along', async () => {
     const res = await SELF.fetch(`${base}/results/2003`);
@@ -119,13 +130,29 @@ describe('a finisher’s certificate', () => {
 });
 
 describe('share cards', () => {
-  it('lays the finisher card out as a page Browser Rendering can photograph', async () => {
+  it('lays the finisher’s race report out as a page Browser Rendering can photograph', async () => {
     const res = await SELF.fetch(`${base}/results/2001/card?format=story`);
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).toContain('<body class="story"');
+    expect(html).toContain('Rapport de course');
     expect(html).toContain('Marc DUPONT');
     expect(html).toContain('1:45:00');
+    // No ranking on a picture: it is the runner's own race.
+    expect(html).not.toContain('Classement');
+    expect(html).not.toContain('1er');
+  });
+  it('has a row per timing point in the report, the finish as 21,1', async () => {
+    // Marc's splits stop at km 1: the report holds the finish alone.
+    const html = await (await SELF.fetch(`${base}/results/2001/card?format=og`)).text();
+    expect(html).toContain('<table class="splits">');
+    expect(html).toContain('>21,1</span>');
+  });
+  it('draws the sticker on a transparent ground, the time and the course alone', async () => {
+    const html = await (await SELF.fetch(`${base}/results/2001/card?format=sticker`)).text();
+    expect(html).toContain('<body class="sticker"');
+    expect(html).toContain('class="sticker-card"');
+    expect(html).not.toContain('<table');
   });
   it('shows the bib on the card of someone who has not finished yet', async () => {
     const html = await (await SELF.fetch(`${base}/results/2003/card?format=og`)).text();
@@ -161,7 +188,16 @@ describe('share cards', () => {
     expect(new Uint8Array(second!)).toEqual(pngBytes);
     expect(calls).toHaveLength(1);
     expect(calls[0]!.url).toBe('https://api.cloudflare.com/client/v4/accounts/acc/browser-rendering/screenshot');
-    expect(calls[0]!.body).toMatchObject({ url: 'https://run.test/card', viewport: { width: 1200 } });
+    expect(calls[0]!.body).toMatchObject({ url: 'https://run.test/card', viewport: { width: 1200 }, screenshotOptions: { omitBackground: false } });
+  });
+  it('asks the renderer for a transparent picture for the sticker only', async () => {
+    const bodies: Array<{ screenshotOptions: { omitBackground: boolean }; viewport: { height: number } }> = [];
+    const fetchImpl = (async (_url: RequestInfo | URL, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return new Response(pngBytes, { headers: { 'Content-Type': 'image/png' } });
+    }) as typeof fetch;
+    await cardPng({ files: env.FILES, accountId: 'acc', token: 'tok', fetchImpl }, 'marc-sticker-fr', 'sticker', 'https://run.test/card');
+    expect(bodies[0]).toMatchObject({ viewport: { width: 1080, height: 1920 }, screenshotOptions: { omitBackground: true } });
   });
   it('keeps nothing when the renderer fails, so the next request tries again', async () => {
     const fetchImpl = (async () => Response.json({ success: false }, { status: 401 })) as unknown as typeof fetch;

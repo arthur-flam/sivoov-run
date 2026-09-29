@@ -5,7 +5,7 @@ import { isRanked, windowPhase } from './raceWindow';
 
 /**
  * What the finish line says to the runner, decided on the phone before any network:
- * - official: the whole distance, inside the race window; the server will rank it.
+ * - official: the whole distance, inside the race window; it counts in the results.
  * - rehearsal: the whole distance, before the window opens. The same experience, no ranking.
  * - closed: the whole distance, after the window closed.
  * - incomplete: stopped short of the distance. Never ranked, whatever the date.
@@ -41,3 +41,12 @@ export const bestRankedRun = (race: Pick<Race, 'windowStart' | 'windowEnd'>, cou
     .map((run) => ({ ...run, status: officialStatus(run, courseDistanceM) }))
     .filter((run) => isRanked(race, run))
     .reduce<Run | null>((best, run) => (best === null || run.elapsedMs < best.elapsedMs ? run : best), null);
+
+/**
+ * The last run that reached the line, race, rehearsal or demo alike (the finish the home's
+ * photos belong to): the whole distance, by start time. Null before any.
+ */
+export const lastFinishedRun = (runs: readonly Run[], courseDistanceM: number): Run | null =>
+  runs
+    .filter((run) => (run.status === 'finished' || run.status === 'uploaded') && run.distanceM >= courseDistanceM)
+    .reduce<Run | null>((last, run) => (last === null || (run.startedAt ?? '') > (last.startedAt ?? '') ? run : last), null);

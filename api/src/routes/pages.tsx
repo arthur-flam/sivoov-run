@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { CodeRequestSchema, CodeVerifySchema, buildTrack, t, translator } from '@sivoov/shared';
 import type { Course, CourseTrack } from '@sivoov/shared';
@@ -14,7 +15,7 @@ import { LandingPage } from '../pages/landing';
 import { SigninPage } from '../pages/signin';
 import { InstallPage } from '../pages/install';
 import { CourseGeometrySchema } from '@sivoov/shared';
-import { entrantForToken, requestCode, signOut, verifyCode } from '../lib/authService';
+import { SESSION_TTL_MS, entrantForToken, requestCode, signOut, verifyCode } from '../lib/authService';
 import { sameSitePath } from '../lib/nextPath';
 import { signInNotice } from '../lib/notices';
 import { notify } from '../lib/telegram';
@@ -23,6 +24,10 @@ import { localeOf } from './locale';
 export const pages = new Hono<AppEnv>();
 
 export const SESSION_COOKIE = 'sivoov_session';
+
+/** The runner's web session in its cookie, for as long as the session lasts. */
+export const setRunnerCookie = (c: Context<AppEnv>, token: string): void =>
+  setCookie(c, SESSION_COOKIE, token, { path: '/', httpOnly: true, sameSite: 'Lax', secure: c.env.ENVIRONMENT !== 'local', maxAge: SESSION_TTL_MS / 1000 });
 
 /** The course line when the race has one; a new race shows no course until its GPX is in, never another race's. */
 export const trackFor = async (env: AppEnv['Bindings'], course: Course | undefined): Promise<CourseTrack | null> => {
@@ -135,7 +140,7 @@ pages.post('/:slug/signin', async (c) => {
   notify(c, signInNotice(result.entrant, result.race, 'web', null));
   // A language picked on the site (`?lang=`, remembered in its cookie) is the runner's choice: the app and the emails follow it.
   if (getCookie(c, 'lang')) await db(c.env.DB).setLocale(result.entrant.id, locale);
-  setCookie(c, SESSION_COOKIE, result.token, { path: '/', httpOnly: true, sameSite: 'Lax', secure: c.env.ENVIRONMENT !== 'local', maxAge: 180 * 86400 });
+  setRunnerCookie(c, result.token);
   return c.redirect(next ?? `/${race.slug}/app`);
 });
 

@@ -1,5 +1,5 @@
-import { AudioScriptSchema, CourseSchema, DISTANCE_METERS, EntrantSchema, OrganizerSchema, RaceSchema, deauvilleMarathonLandmarks } from '@sivoov/shared';
-import type { AudioScript, Course, Entrant, Organizer, Race } from '@sivoov/shared';
+import { AudioScriptSchema, CourseSchema, DISTANCE_METERS, EntrantSchema, OrganizerSchema, PhotoMomentSchema, RaceSchema, deauvilleMarathonLandmarks } from '@sivoov/shared';
+import type { AudioScript, Course, Entrant, Organizer, PhotoMoment, Race } from '@sivoov/shared';
 import { deauville2026MarathonScript } from './deauvilleScript';
 
 /**
@@ -71,3 +71,31 @@ export const deauvilleOrganizers: Organizer[] = (
  * where pack v1 is live, gets a draft v2 and nothing published moves.
  */
 export const deauvilleScripts: AudioScript[] = [AudioScriptSchema.parse(deauville2026MarathonScript)];
+
+/**
+ * Photo moments to start from (local and preview only: on production the organizer sets their
+ * own in the admin). Scenes only, no photos of the place: those are the organizer's to give.
+ */
+export const deauvillePhotoMoments: PhotoMoment[] = [
+  {
+    id: 'deauville-2026-photo-start',
+    title: 'Sur la ligne de départ',
+    at: 'start',
+    ask: 'Un selfie avant le coup de pistolet, dossard bien visible.',
+    scene: 'The start line of the Marathon International de Deauville on the seafront: a start arch, thousands of runners packed behind it, the race clock at zero, balloons and flags, the beach and the Channel in the background, early morning light.',
+  },
+  {
+    id: 'deauville-2026-photo-planches',
+    title: 'Sur les Planches',
+    at: 'planches',
+    ask: 'Un selfie, le sourire du départ. Ralentissez, ou prenez-la en marchant.',
+    scene: 'The Planches of Deauville: the famous wooden boardwalk along the beach, the Art Deco beach cabins with the names of film stars, the colourful parasols, the sea on one side. Soft morning light from the Channel, a crowd cheering behind barriers.',
+  },
+  {
+    id: 'deauville-2026-photo-finish',
+    title: 'La ligne d’arrivée',
+    at: 'finish',
+    ask: 'Votre tête d’arrivée, bras levés. Juste après la ligne, où que vous soyez.',
+    scene: 'The finish line of the Marathon International de Deauville on the Planches boardwalk by the sea: a big inflatable finish arch, the race clock above it, flags, spectators packed on both sides, the beach and the Channel behind.',
+  },
+].map((m, sort) => PhotoMomentSchema.parse({ ...m, raceId: deauvilleRace.id, sort, createdAt: '2026-09-29T00:00:00Z' }));

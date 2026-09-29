@@ -1,6 +1,8 @@
 {
   "ios": {
     "NSLocationWhenInUseUsageDescription": "Sivoov mesure la distance et le temps de votre course, même écran verrouillé, et déclenche les annonces aux bons endroits du parcours.",
-    "NSLocationAlwaysAndWhenInUseUsageDescription": "Sivoov mesure votre course même écran verrouillé, téléphone dans la poche."
+    "NSLocationAlwaysAndWhenInUseUsageDescription": "Sivoov mesure votre course même écran verrouillé, téléphone dans la poche.",
+    "NSCameraUsageDescription": "Sivoov prend votre selfie de départ, pour vous mettre ensuite dans les photos de la course.",
+    "NSPhotoLibraryUsageDescription": "Sivoov envoie les selfies que vous choisissez pour vous mettre dans les photos de la course."
   }
 }

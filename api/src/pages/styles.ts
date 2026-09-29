@@ -336,6 +336,46 @@ table.results { width: 100%; border-collapse: collapse; font-size: 15px; }
 .cert-facts dd { font-family: var(--font-num); font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .cert-course { width: 150px; margin: 20px auto 0; }
 .cert-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+/* A runner's photo moments: one card per moment, the picture as big as the column. */
+.photos-page { padding: 32px 0 20px; }
+.photos-page h1 { font-family: var(--font-display); font-weight: 500; font-size: clamp(30px, 6vw, 42px); line-height: 1.1; letter-spacing: -0.01em; }
+.photos-page .lede { color: var(--ink-2); max-width: 56ch; margin: 10px 0 22px; }
+.moments { list-style: none; display: grid; gap: 18px; margin-bottom: 20px; }
+.moment { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; display: grid; gap: 14px; }
+.moment-where { font-family: var(--font-num); font-weight: 700; font-size: 15px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--race-primary); }
+.moment-head h2 { font-family: var(--font-display); font-weight: 500; font-size: 26px; line-height: 1.15; margin: 2px 0 4px; }
+.moment-head p { color: var(--ink-2); }
+.moment-photo img, .moment-place img { display: block; width: 100%; height: auto; border-radius: var(--radius-sm); }
+.moment-place img { max-height: 240px; object-fit: cover; opacity: 0.9; }
+.photo-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.photo-actions .btn { min-height: 44px; padding: 0 16px; font-size: 15px; }
+.photo-form { display: grid; gap: 12px; }
+.photo-form .field { margin: 0; }
+.photo-form input[type=file] { font-size: 15px; }
+.consent { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: var(--ink-2); }
+.consent input { margin-top: 3px; width: 18px; height: 18px; flex: none; }
+.photo-form[aria-busy=true] { opacity: 0.7; }
+.moment-waiting { display: grid; gap: 10px; background: var(--surface-2); border-radius: var(--radius-sm); padding: 14px; }
+.photo-another summary { cursor: pointer; font-weight: 600; margin-bottom: 10px; }
+.link-button { font: inherit; font-size: 14px; background: none; border: 0; padding: 0; color: var(--ink-2); text-decoration: underline; cursor: pointer; }
+.result-photos { margin: 0 0 30px; }
+.result-photos h2 { font-family: var(--font-display); font-weight: 500; font-size: 26px; margin-bottom: 12px; }
+.result-photos ul { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.result-photos img { display: block; width: 100%; height: auto; border-radius: var(--radius-sm); }
+.result-photos figcaption { font-size: 14px; color: var(--ink-2); margin-top: 6px; }
+
+/* The picture a finisher shares, shown as it is posted. The sticker sits on the ink so its white reads. */
+.share-studio { margin: 20px 0 30px; }
+.share-stage { position: relative; width: 100%; margin: 0 auto; overflow: hidden; border-radius: var(--radius); background: var(--surface-2); box-shadow: var(--shadow); }
+.share-stage.fmt-post, .share-stage.fmt-story, .share-stage.fmt-sticker { max-width: 420px; }
+.share-stage.fmt-sticker { background: var(--ink); }
+.share-stage img { display: block; width: 100%; height: auto; }
+.share-stage iframe { position: absolute; top: 0; left: 0; border: 0; transform-origin: 0 0; pointer-events: none; }
+.share-formats { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 16px 0 6px; }
+.share-formats button { font: inherit; font-size: 15px; font-weight: 600; min-height: 40px; padding: 0 16px; border-radius: var(--radius-pill); border: 1px solid var(--border-strong); background: transparent; color: var(--ink); cursor: pointer; }
+.share-formats button[aria-checked=true] { background: var(--race-primary); border-color: var(--race-primary); color: var(--race-on-primary); }
+.share-formats button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.share-hint { text-align: center; font-size: 14px; color: var(--ink-2); margin: 4px auto 16px; max-width: 46ch; }
 .result-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 26px; }
 .result-actions .btn { flex: 1 1 auto; }
 @media (min-width: 640px) { .result-actions .btn { flex: 0 0 auto; } }
@@ -359,7 +399,7 @@ table.results { width: 100%; border-collapse: collapse; font-size: 15px; }
 @media print {
   @page { size: A4 landscape; margin: 10mm; }
   body { background: var(--surface); }
-  .topbar, footer, .result-actions, .result-splits, .result-cta { display: none !important; }
+  .topbar, footer, .result-actions, .result-splits, .result-cta, .share-studio { display: none !important; }
   .certificate { margin: 0; padding: 48px 40px 24px; }
 }
 

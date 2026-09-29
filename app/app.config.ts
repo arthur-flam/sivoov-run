@@ -31,6 +31,9 @@ const sentryPlugin: NonNullable<ExpoConfig['plugins']> = process.env.SENTRY_AUTH
 // ./locales/en.json (iOS picks the phone's language; anything else falls back to French).
 const LOCATION_WHEN_IN_USE = 'Sivoov mesure la distance et le temps de votre course, même écran verrouillé, et déclenche les annonces aux bons endroits du parcours.';
 const LOCATION_ALWAYS = 'Sivoov mesure votre course même écran verrouillé, téléphone dans la poche.';
+// The race photos (expo-image-picker): the start selfie, and the selfies picked after the run.
+const CAMERA = 'Sivoov prend votre selfie de départ, pour vous mettre ensuite dans les photos de la course.';
+const PHOTOS = 'Sivoov envoie les selfies que vous choisissez pour vous mettre dans les photos de la course.';
 
 const config: ExpoConfig = {
   name,
@@ -63,6 +66,8 @@ const config: ExpoConfig = {
       CFBundleDevelopmentRegion: 'fr',
       NSLocationWhenInUseUsageDescription: LOCATION_WHEN_IN_USE,
       NSLocationAlwaysAndWhenInUseUsageDescription: LOCATION_ALWAYS,
+      NSCameraUsageDescription: CAMERA,
+      NSPhotoLibraryUsageDescription: PHOTOS,
     },
   },
   locales: { fr: './locales/fr.json', en: './locales/en.json' },
@@ -98,6 +103,8 @@ const config: ExpoConfig = {
     'expo-secure-store',
     // The run screen's 3D map (ARCHITECTURE.md, native module list). Mapbox v11: no download token.
     '@rnmapbox/maps',
+    // The race photos: the system photo picker (no access to the whole library) and the front camera.
+    ['expo-image-picker', { photosPermission: PHOTOS, cameraPermission: CAMERA, microphonePermission: false }],
     ...sentryPlugin,
     ['expo-splash-screen', { image: './assets/splash-icon.png', imageWidth: 160, resizeMode: 'contain', backgroundColor: '#faf9f7' }],
   ],

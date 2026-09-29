@@ -1,7 +1,7 @@
 import { Linking, Platform, Share } from 'react-native';
 import { distanceLabel, formatOfficialTime } from '@sivoov/shared';
-import type { EntrantPublic, Race } from '@sivoov/shared';
-import { API_URL } from '@/api';
+import type { CardFormat, EntrantPublic, Race } from '@sivoov/shared';
+import { API_URL, api } from '@/api';
 import { diag } from '@/diag';
 import { currentLocale, t } from '@/i18n';
 
@@ -37,8 +37,24 @@ export const shareBib = (race: Race, entrant: Pick<EntrantPublic, 'bib' | 'dista
   return shareLink('bib', t('share.bibMessage', { race: race.theme.displayName, distance: distanceLabel(currentLocale(), entrant.distanceKey), bib: entrant.bib, start: day(race.windowStart), end: day(race.windowEnd), url }), url);
 };
 
+/** The race report as a picture (api: /results/:bib/card.png), in the phone's language; it redirects to the current card. */
+export const reportImageUrl = (race: Pick<Race, 'slug'>, bib: string, format: CardFormat): string =>
+  `${API_URL}/${race.slug}/results/${bib}/card.png?format=${format}&lang=${currentLocale()}`;
+
+/** The runner's page: the certificate, and the four pictures to share or save. */
 export const openCertificate = (race: Pick<Race, 'slug'>, bib: string): void => {
   void Linking.openURL(resultUrl(race, bib)).catch(() => undefined);
+};
+
+/**
+ * The runner's photos page, opened in the browser already signed in (a one-use link from the
+ * API); offline or refused, the page itself, which asks for the email code.
+ */
+export const openPhotos = async (race: Pick<Race, 'slug'>, token: string | null): Promise<void> => {
+  const fallback = `${API_URL}/${race.slug}/photos${currentLocale() === 'en' ? '?lang=en' : ''}`;
+  const url = token ? await api.webLink(token).then((r) => r.url).catch(() => fallback) : fallback;
+  diag('share', `photos ${url === fallback ? 'page' : 'link'}`);
+  await Linking.openURL(url).catch(() => undefined);
 };
 
 export const openResults = (race: Pick<Race, 'slug'>): void => {

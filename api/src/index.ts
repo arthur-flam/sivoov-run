@@ -13,6 +13,7 @@ import { results } from './routes/results';
 import { org } from './routes/org';
 import { organizers } from './routes/organizers';
 import { upload } from './routes/upload';
+import { photos } from './routes/photos';
 
 const app = new Hono<AppEnv>();
 
@@ -27,6 +28,7 @@ app.route('/org', org);
 // or /organisateurs first (it would be read as a race slug).
 app.route('/', results);
 app.route('/', upload);
+app.route('/', photos);
 app.route('/', organizers);
 app.route('/media', media);
 app.route('/', pages);

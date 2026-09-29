@@ -32,6 +32,12 @@ export type Bindings = Env & {
    */
   GEMINI_API_KEY?: string;
   /**
+   * The Gemini image model that puts runners into their race photos (photo moments), through the
+   * AI Gateway with GEMINI_API_KEY. A var, so a newer model is a config change. Default
+   * `gemini-2.5-flash-image`.
+   */
+  GEMINI_IMAGE_MODEL?: string;
+  /**
    * Cloudflare API token with Workers AI (and AI Gateway run) rights, for every LLM call: the AI
    * personal lines and the studio's « Proposer un texte » go through the AI Gateway below, never
    * to a provider directly (lib/llm.ts). `wrangler secret put CLOUDFLARE_AI_TOKEN`. Optional:

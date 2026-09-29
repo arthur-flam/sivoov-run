@@ -5,6 +5,7 @@ import {
   CodeRequestSchema,
   CodeVerifySchema,
   CourseGeometrySchema,
+  courseMoments,
   EntrantPublicSchema,
   LiveVoiceRequestSchema,
   LocaleSchema,
@@ -23,13 +24,16 @@ import { db } from '../db/queries';
 import { requireEntrant } from '../lib/auth';
 import type { AuthVars } from '../lib/auth';
 import { requestCode, verifyCode } from '../lib/authService';
+import { photoQueries } from '../db/photoQueries';
 import { forgetRunner } from '../lib/forget';
 import { finishNotice, signInNotice, startNotice } from '../lib/notices';
 import { liveVoice, personalDeps, personalVoices, runnerFacts } from '../lib/personal';
 import { loadGeometry } from '../lib/studio';
 import { notify } from '../lib/telegram';
 import { mayRehearse } from '../lib/testCode';
+import { createWebLink } from '../lib/webLink';
 import { weatherAt } from '../lib/weather';
+import { apiPhotos } from './apiPhotos';
 import { prewarmCards } from './results';
 
 export const api = new Hono<AppEnv & { Variables: Partial<AuthVars> }>();
@@ -73,7 +77,14 @@ api.get('/courses/:id/map.png', async (c) => {
   const course = await q.courseById(c.req.param('id'));
   if (!course) return c.json({ error: 'not_found' }, 404);
   const size = z
-    .object({ w: z.coerce.number().int().min(100).max(1280).default(720), h: z.coerce.number().int().min(100).max(1280).default(400), base: z.literal('1').optional() })
+    .object({
+      w: z.coerce.number().int().min(100).max(1280).default(720),
+      h: z.coerce.number().int().min(100).max(1280).default(400),
+      base: z.literal('1').optional(),
+      // The race report draws numbered circles along the course: it asks for room around it and a quieter ground.
+      pad: z.coerce.number().int().min(0).max(200).default(24),
+      style: z.literal('light').optional(),
+    })
     .safeParse(c.req.query());
   if (!size.success) return c.json({ error: 'invalid' }, 400);
   const cache = caches.default;
@@ -85,8 +96,9 @@ api.get('/courses/:id/map.png', async (c) => {
   const geometry = CourseGeometrySchema.parse(await object.json());
   const race = await q.raceById(course.raceId);
   const color = (race?.theme.primary ?? '#e63946').replace('#', '');
-  const { w: width, h: height, base } = size.data;
-  const upstream = await fetch(base ? baseMapUrl(fitView(geometry.points, width, height), token) : staticMapUrl({ points: geometry.points, token, width, height, color }));
+  const { w: width, h: height, base, pad, style } = size.data;
+  const ground = style === 'light' ? 'mapbox/light-v11' : undefined;
+  const upstream = await fetch(base ? baseMapUrl(fitView(geometry.points, width, height, pad), token, ground) : staticMapUrl({ points: geometry.points, token, width, height, color }));
   if (!upstream.ok) return c.json({ error: 'upstream', status: upstream.status }, 502);
   const res = new Response(upstream.body, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' } });
   c.executionCtx.waitUntil(cache.put(cacheKey, res.clone()));
@@ -131,10 +143,29 @@ api.use('/runs/*', requireEntrant);
 api.get('/me', async (c) => {
   const entrant = c.get('entrant')!;
   const q = db(c.env.DB);
-  const [race, course, runs] = await Promise.all([q.raceById(entrant.raceId), q.courseFor(entrant.raceId, entrant.distanceKey), q.runsForEntrant(entrant.id)]);
+  const [race, course, runs, moments] = await Promise.all([
+    q.raceById(entrant.raceId),
+    q.courseFor(entrant.raceId, entrant.distanceKey),
+    q.runsForEntrant(entrant.id),
+    photoQueries(c.env.DB).moments(entrant.raceId),
+  ]);
   const map = c.env.MAPBOX_TOKEN ? { token: c.env.MAPBOX_TOKEN } : null;
   const rehearsal = race ? mayRehearse(c.env, entrant.email, race) : false;
-  return c.json({ entrant: EntrantPublicSchema.parse(entrant), race, course, runs, map, rehearsal });
+  // Where on this course the runner is asked for a selfie: the run screen says it as they pass.
+  const photoMoments = course ? courseMoments(moments, course) : [];
+  return c.json({ entrant: EntrantPublicSchema.parse(entrant), race, course, runs, map, rehearsal, photoMoments });
+});
+
+/**
+ * A one-use link that opens the runner's photos page in the browser already signed in (the app's
+ * « Mes photos de course »): the browser has no session of its own, and typing an email code
+ * after a race is the moment people give up.
+ */
+api.post('/me/web-link', async (c) => {
+  const entrant = c.get('entrant')!;
+  const race = await db(c.env.DB).raceById(entrant.raceId);
+  if (!race) return c.json({ error: 'not_found' }, 404);
+  return c.json({ url: await createWebLink(c.env, race, entrant, `/${race.slug}/photos`) }, 200, { 'Cache-Control': 'private, no-store' });
 });
 
 const VoicesBody = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).partial();
@@ -245,3 +276,6 @@ api.post('/runs/:id/started', async (c) => {
 });
 
 api.get('/runs', async (c) => c.json({ runs: await db(c.env.DB).runsForEntrant(c.get('entrant')!.id) }));
+
+// The race photos, behind the same bearer session as `/me` (the `use` above covers `/me/*`).
+api.route('/', apiPhotos);

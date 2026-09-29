@@ -1,20 +1,26 @@
 import { Hono } from 'hono';
+import { getCookie } from 'hono/cookie';
 import type { Context } from 'hono';
 import type { Course, Locale, Race } from '@sivoov/shared';
 import { distanceLabel, formatOfficialTime, translator } from '@sivoov/shared';
 import type { AppEnv } from '../env';
 import { db } from '../db/queries';
-import { cardDeps, cardFormat, cardPng, cardsEnabled, courseMapUrl, previewImage } from '../lib/cards';
-import type { CardFormat } from '../lib/cards';
-import { fullName, raceCardId, resultForBib, runCardId, runnerCardFor, shortName } from '../lib/results';
-import { ShareCard } from '../pages/card';
+import { photoQueries } from '../db/photoQueries';
+import { entrantForToken } from '../lib/authService';
+import { picturePath } from '../lib/photos';
+import { CARD_SIZE, cardDeps, cardFormat, cardPng, cardsEnabled, courseMapUrl, previewImage } from '../lib/cards';
+import { CARD_FORMATS } from '@sivoov/shared';
+import type { CardFormat } from '@sivoov/shared';
+import { finisherReport, fullName, raceCardId, resultForBib, runCardId, runnerCardFor, shortName } from '../lib/results';
+import { ReportCard, ShareCard } from '../pages/card';
+import type { MapBase } from '../pages/card';
 import { fmtDate } from '../pages/dates';
 import { Layout } from '../pages/layout';
 import type { OpenGraph } from '../pages/layout';
 import { ResultPage } from '../pages/result';
 import { ResultsPage } from '../pages/results';
 import { localeOf } from './locale';
-import { trackFor } from './pages';
+import { SESSION_COOKIE, trackFor } from './pages';
 
 /** Results, a runner's certificate, and the share cards behind every link preview. */
 export const results = new Hono<AppEnv>();
@@ -34,6 +40,9 @@ const png = (body: ArrayBuffer, maxAge: number) =>
  */
 const runnerCardUrl = (page: string, format: CardFormat, locale: Locale, id: string): string =>
   `${page}/card.png?format=${format}&lang=${locale}&v=${encodeURIComponent(id)}`;
+
+/** The ground under a card's course: the Worker's own Mapbox picture, when it has a token. */
+const mapBaseFor = (c: Context<AppEnv>, course: Course | undefined): MapBase => (c.env.MAPBOX_TOKEN && course?.geometryKey ? `/api/courses/${course.id}/map.png` : null);
 
 /** When a card cannot be had, a link preview still gets a picture: the course map. */
 const mapOr404 = (c: Context<AppEnv>, course: Course | undefined): Response | Promise<Response> => {
@@ -75,15 +84,48 @@ results.get('/:slug/results/:bib', async (c) => {
   const title = result.best
     ? `${fullName(result.entrant)} · ${formatOfficialTime(result.best.run.elapsedMs)} · ${race.theme.displayName}`
     : t('result.bib.title', { firstName: shortName(result.entrant), race: race.theme.displayName });
+  const distance = distanceLabel(locale, result.entrant.distanceKey);
+  const window = { start: fmtDate(race.windowStart, locale, race.timezone), end: fmtDate(race.windowEnd, locale, race.timezone) };
   const og: OpenGraph = {
     title,
-    description: t('result.og.description', { distance: distanceLabel(locale, result.entrant.distanceKey) }),
+    // A finish is an invitation: the preview tells whoever sees it they can run it too.
+    description: result.best
+      ? t('result.og.finisher', { firstName: result.entrant.firstName, distance: distance.toLowerCase(), time: formatOfficialTime(result.best.run.elapsedMs), ...window })
+      : t('result.og.description', { distance }),
     url: page,
     image: previewImage(c.env, card ? runnerCardUrl(page, 'og', locale, card.id) : `${base}/${race.slug}/og.png?lang=${locale}`, result.course, base),
   };
+  // The pictures the runner chose to show, and whether the one reading is that runner.
+  const pq = photoQueries(c.env.DB);
+  const [mine, moments] = await Promise.all([pq.photos(result.entrant.id), pq.moments(race.id)]);
+  const titles = new Map(moments.map((m) => [m.id, m.title]));
+  const shown = mine
+    .filter((p) => p.shown && p.status === 'done' && p.resultKey)
+    .map((p) => ({ url: picturePath(`/${race.slug}/photos`, p)!, title: titles.get(p.momentId) ?? '' }));
+  const token = getCookie(c, SESSION_COOKIE);
+  const owner = token ? (await entrantForToken(c.env, token))?.id === result.entrant.id : false;
   return c.html(
     <Layout title={title} locale={locale} race={race} path={`/${race.slug}/results/${result.entrant.bib}`} og={og}>
-      <ResultPage race={race} result={result} track={await trackFor(c.env, result.course)} locale={locale} now={Date.now()} shareUrl={page} storyCardUrl={card && cardsEnabled(deps) ? runnerCardUrl(page, 'story', locale, card.id) : null} />
+      <ResultPage
+        photos={shown}
+        photosLink={owner && moments.length > 0 ? `/${race.slug}/photos` : null}
+        race={race}
+        result={result}
+        track={await trackFor(c.env, result.course)}
+        locale={locale}
+        now={Date.now()}
+        shareUrl={page}
+        cards={
+          card && result.course.geometryKey
+            ? (result.best ? CARD_FORMATS : (['og', 'post'] as const)).map((format) => ({
+                format,
+                ...CARD_SIZE[format],
+                png: cardsEnabled(deps) ? runnerCardUrl(page, format, locale, card.id) : null,
+                page: `/${race.slug}/results/${result.entrant.bib}/card?format=${format}&lang=${locale}`,
+              }))
+            : []
+        }
+      />
     </Layout>,
   );
 });
@@ -96,8 +138,18 @@ results.get('/:slug/results/:bib/card', async (c) => {
   const result = race ? await resultForBib(q, race, c.req.param('bib')) : null;
   const card = race && result ? runnerCardFor(race, result, locale, Date.now()) : null;
   const track = result ? await trackFor(c.env, result.course) : null;
-  if (!race || !card || !track) return c.notFound();
-  return c.html(<ShareCard race={race} track={track} format={cardFormat(c.req.query('format'))} locale={locale} host={new URL(c.req.url).host} runner={card.card} subtitle="" />);
+  if (!race || !result || !card || !track) return c.notFound();
+  const format = cardFormat(c.req.query('format'));
+  const host = new URL(c.req.url).host;
+  const mapBase = mapBaseFor(c, result.course);
+  const report = finisherReport(race, result, locale);
+  return c.html(
+    report ? (
+      <ReportCard race={race} track={track} format={format} locale={locale} host={host} runner={report} mapBase={mapBase} />
+    ) : (
+      <ShareCard race={race} track={track} format={format} locale={locale} host={host} runner={card.card} subtitle="" mapBase={mapBase} />
+    ),
+  );
 });
 
 results.get('/:slug/results/:bib/card.png', async (c) => {
@@ -114,7 +166,7 @@ results.get('/:slug/results/:bib/card.png', async (c) => {
   // No course file yet, no card page: never let the renderer photograph a 404.
   const body = result.course.geometryKey ? await cardPng(cardDeps(c.env), card.id, format, `${page}/card?format=${format}&lang=${locale}`) : null;
   if (body) return png(body, 31_536_000);
-  // The portrait card has no stand-in: the share button then shares the link alone.
+  // Only the link preview has a stand-in: the other formats' buttons then share the link alone.
   return format === 'og' ? mapOr404(c, result.course) : c.notFound();
 });
 
@@ -127,7 +179,7 @@ results.get('/:slug/card', async (c) => {
   const track = race ? await trackFor(c.env, courses[0]) : null;
   if (!race || !track) return c.notFound();
   const subtitle = raceSubtitle(race, courses.map((x) => x.distanceKey), locale);
-  return c.html(<ShareCard race={race} track={track} format={cardFormat(c.req.query('format'))} locale={locale} host={new URL(c.req.url).host} subtitle={subtitle} />);
+  return c.html(<ShareCard race={race} track={track} format={cardFormat(c.req.query('format'))} locale={locale} host={new URL(c.req.url).host} subtitle={subtitle} mapBase={mapBaseFor(c, courses[0])} />);
 });
 
 results.get('/:slug/og.png', async (c) => {
@@ -150,6 +202,7 @@ export const prewarmCards = async (env: AppEnv['Bindings'], base: string, race: 
   const result = await resultForBib(db(env.DB), race, bib);
   if (!result?.best) return;
   const run = result.best.run;
-  const formats: CardFormat[] = ['og', 'story'];
+  // The two a finisher reaches for first; the story and the sticker are taken when asked for.
+  const formats: CardFormat[] = ['og', 'post'];
   await Promise.all(formats.map((f) => cardPng(deps, runCardId(run, 'fr'), f, `${base}/${race.slug}/results/${bib}/card?format=${f}&lang=fr`)));
 };

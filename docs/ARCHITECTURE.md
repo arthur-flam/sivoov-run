@@ -57,6 +57,9 @@ audio_pack    course_id, version, manifest(json) → R2 objects (mp3), downloade
 audio_script  course_id, locale, version, script(json: lines with their French text + voice),
               updated_at                 (the organizer studio's draft; version = next publish)
 organizer     race_id, email, role(owner|editor|viewer), name, invited_by   (race team)
+photo_moment  race_id, title, at (start|finish|a landmark id), ask, scene, refs(json: R2 keys of the place's photos), sort
+runner_photo  entrant_id, moment_id, selfie_key (R2, private), status(waiting|rendering|done|failed), result_key, attempts (3 max), shown
+web_link      code_hash, entrant_id, expires_at, used_at   (the app opens a web page signed in, once, 5 min)
 admin_session email, token_hash, expires_at    (one organizer sign-in for every race; codes in admin_codes)
 lead          name, email, race, message, locale, handled_at   (the /organisateurs contact form)
 ```
@@ -71,15 +74,49 @@ Rows are validated by zod schemas in `shared/schemas/` on the way in and out of 
   photos uploaded in the admin (PNG, JPEG, WebP, immutable).
 - `/{race}`: landing, with « Écoutez la course » when the main course has a demo reel
   (`/api/courses/:id/reel`, `reel.mp3` with byte ranges). `/{race}/signin`: bib + email → code. `/{race}/app`: install.
-- `/{race}/prepare`: course, trailer, instructions. `/{race}/results` (ranked runs only: finished
-  and started inside the window), `/{race}/results/{bib}` (the certificate: prints to PDF,
+- `/{race}/prepare`: course, trailer, instructions. `/{race}/results` (runs that count only: finished
+  and started inside the window; the finishers by name, no position), `/{race}/results/{bib}` (the certificate: prints to PDF,
   shares the card, and invites every other visitor into the race).
-- Share cards: `/{race}/card` and `/{race}/results/{bib}/card?format=og|story` are fixed-size
-  pages; `/{race}/og.png` and `/{race}/results/{bib}/card.png` are those pages photographed by
+- Share cards: `/{race}/card` and `/{race}/results/{bib}/card?format=og|post|story|sticker` are
+  fixed-size pages (a finisher's is the race report: `raceReport` in `shared/`, timing points
+  every 5 km on a marathon or half, 2 on a 10 km; no rank anywhere, the results list finishers by name;
+  the sticker is photographed with a transparent ground); the result page shows the picture
+  itself above the certificate, with the four formats to pick from; `/{race}/og.png` and `/{race}/results/{bib}/card.png` are those pages photographed by
   Cloudflare Browser Rendering (REST API, `BROWSER_RENDERING_TOKEN`) and cached in R2 under
   `cards/`. They are the `og:image` of the landing and result pages; without the token the
   preview is the Mapbox course map. `/{race}/upload`: GPX fallback behind the web session, judged by
   the app's tracker (`evaluateUpload` in `shared/`), stored as a run with `source: upload`.
+- `/{race}/photos`: the runner's photo moments (behind the web session): a selfie per moment,
+  shrunk and stripped of EXIF in the browser (and EXIF stripped again in the Worker), sent with
+  the runner's agreement to Gemini's image model (`GEMINI_IMAGE_MODEL`, default
+  `gemini-2.5-flash-image`, through the AI Gateway) with the organizer's photos of the place and a
+  prompt from `remixPrompt` (shared). R2: `selfies/<race>/<entrant>/<id>.<ext>` (never served but to
+  its runner), `photos/<race>/<entrant>/<id>-<try>.<ext>` served by `/{race}/photos/<id>/picture`
+  to its runner, to everyone once shown. The picture is made while the request waits (20-40 s;
+  `claimRender` makes a double tap one render). A local Worker with no key hands the selfie back
+  as the "picture" (`standIn`), for the pages and the screenshots. `/{race}/link?c=` turns a
+  one-use code from `POST /api/me/web-link` into a web session (the app's « Mes photos de course »).
+  The admin's « Photos » (`/org/{race}/photos`, editing needs `edit_audio`): moments, the place's
+  photos, « Essayer avec votre photo » (rendered, shown once, kept nowhere). The app gets the
+  moments on its course with `/api/me` (`photoMoments`) and shows « Moment photo » on the run
+  screen for 500 m after each (`momentAt`).
+- **The photo flow, as the app runs it**: on the line, before Start, the ready screen lists the
+  moments and takes the start selfie. During the race, at each moment (from 50 m before to 500 m
+  after, `momentAt`), the chip over the map says it and the camera takes the « Vue » control's
+  place (the panel keeps its height): one tap, the front camera, back to the run. A photo taken in
+  the app is copied into the document dir and queued (`photos/queue.ts`) until it is sent, the
+  next app start included. Rehearsals are runs like the real ones: photos included. After the
+  finish (the finish screen, then the home) « Choisir mes photos » opens the system picker for
+  photos taken with the phone's own camera,
+  several at once; each photo goes to the moment it was taken closest to (`exifTakenAt`,
+  `momentPasses`, `assignPhotos` in shared: EXIF time against when the runner passed there),
+  is sent (`POST /api/me/photos/:momentId`, kept `waiting`), and the pictures are made in one call
+  (`POST /api/me/photos/render`, three at a time), for any finish, race or rehearsal.
+- **Photo moments in the studio**: each course's studio lists the moments it passes and whether
+  its script has the moment's line (`photo.<momentId>`); « Ajouter les annonces » appends the
+  missing ones (`photoLine`: a start moment is the last « Avant le départ » line, a finish one
+  waits after the finish call, the others play at the place). A demo race plays the real race's
+  moments (`demo_of`) and does not edit them.
 - `/{race}/signin?next=/…`: returns to a same-site path after the code instead of the install page.
 - `/org`: organizer admin. `/org/signin` (email + code, one session for every race of that
   email), `/org` (the person's races; staff see all, `/org/new` creates one, `/org/leads` lists
@@ -157,7 +194,10 @@ react-native-safe-area-context, expo-battery (pre-flight battery level check bef
 multi-hour run; added 2026-09-13), expo-file-system (downloads the audio pack to the
 document dir so a run never needs the network, a cold start included; added 2026-09-13), @rnmapbox/maps (the run screen's 3D map
 and its offline region; Mapbox Maps SDK v11, no download token needed; added 2026-09-29, needs a
-new EAS build to appear, older shells keep the diagram). Nothing else without a recorded decision.
+new EAS build to appear, older shells keep the diagram), expo-image-picker (the race photos: the
+system photo picker, no access to the whole library, and the front camera for the start selfie;
+the owner asked for a picker, 2026-09-29; needs a new EAS build, older shells open the photos web
+page instead, `app/src/photos/picker.ts`). Nothing else without a recorded decision.
 
 ## Identity and stores
 Bundle id and package `app.sivoov.run{,.preview,.dev}` (2026-09-28: nothing was ever published

@@ -2,10 +2,12 @@ import { Linking, ScrollView, StyleSheet, View, useWindowDimensions } from 'reac
 import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { daysUntilWindow, distanceLabel, formatDistanceLine, formatOfficialTime, windowPhase } from '@sivoov/shared';
+import { daysUntilWindow, distanceLabel, formatDistanceLine, formatOfficialTime, lastFinishedRun, windowPhase } from '@sivoov/shared';
 import { AccountActions } from '@/components/AccountActions';
 import { CourseMap } from '@/components/CourseMap';
 import { DemoRun } from '@/components/DemoRun';
+import { FinisherShare } from '@/components/FinisherShare';
+import { RacePhotos } from '@/components/RacePhotos';
 import { Body, Button, Card, Display, Eyebrow, Num, Screen } from '@/components/ui';
 import { useMyResult } from '@/hooks/useMyResult';
 import { useMapDownload } from '@/hooks/useMapDownload';
@@ -14,7 +16,7 @@ import { useTrack } from '@/hooks/useTrack';
 import { useRunRecovery } from '@/hooks/useRunRecovery';
 import { useUploadFlush } from '@/hooks/useUploadFlush';
 import { currentLocale, t, useLocale } from '@/i18n';
-import { openCertificate, openResults, shareBib, shareFinish } from '@/share';
+import { openResults, shareBib } from '@/share';
 import { useSession } from '@/stores/session';
 import { useUploads } from '@/stores/uploads';
 import { colors, fonts, space } from '@/theme';
@@ -55,6 +57,7 @@ export default function Home() {
   }
 
   const { entrant, race, course } = me;
+  const lastFinished = best ?? (course ? lastFinishedRun(me.runs, course.distanceM) : null);
   const now = Date.now();
   const phase = windowPhase(race, now);
   const days = daysUntilWindow(race, now);
@@ -71,19 +74,27 @@ export default function Home() {
             <Button label={t('common.retry')} ghost onPress={() => void refresh().catch(() => undefined)} />
           </Card>
         ) : null}
-        <Display>{t('signin.welcome', { firstName: entrant.firstName })}</Display>
+        <Display>{best ? t('home.finisher.title', { firstName: entrant.firstName }) : t('signin.welcome', { firstName: entrant.firstName })}</Display>
 
+        {/* After an official finish the home is the finish: the report, the share, the photos; running again comes after. */}
         {best ? (
-          <Card>
+          <Card style={styles.cardActions}>
             <Body muted>{t('home.finisher.body', { distance: distanceLabel(locale, entrant.distanceKey) })}</Body>
             <Num size={72} testID="finisher-time">
               {formatOfficialTime(best.elapsedMs)}
             </Num>
-            <View style={styles.cardActions}>
-              <Button label={t('finish.share')} color={race.theme.primary} onColor={race.theme.onPrimary} onPress={() => void shareFinish(race, entrant, best.elapsedMs)} />
-              <Button label={t('finish.certificate')} ghost onPress={() => openCertificate(race, entrant.bib)} />
-            </View>
+            <FinisherShare race={race} entrant={entrant} elapsedMs={best.elapsedMs} showReport={me.runs.some((r) => r.id === best.id)} />
           </Card>
+        ) : null}
+        {/* The photos of the last run that reached the line, race or rehearsal alike. */}
+        {lastFinished && course ? (
+          <RacePhotos
+            race={race}
+            token={token}
+            run={lastFinished.startedAt ? { startedAtMs: Date.parse(lastFinished.startedAt), elapsedMs: lastFinished.elapsedMs, splits: lastFinished.splits } : null}
+            officialM={course.distanceM}
+            finished
+          />
         ) : null}
 
         <Card style={styles.bibCard}>

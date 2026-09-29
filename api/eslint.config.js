@@ -1,7 +1,7 @@
 import base from '../eslint.config.js';
 
 /** The browser scripts (studio, result page) are plain ES2020 running in a page, not in the Worker. */
-const browserGlobals = ['document', 'window', 'fetch', 'File', 'setTimeout', 'Promise', 'console', 'navigator', 'Date', 'JSON', 'Math', 'Number', 'String', 'Array', 'Object', 'requestAnimationFrame', 'cancelAnimationFrame'].reduce(
+const browserGlobals = ['document', 'window', 'fetch', 'File', 'setTimeout', 'Promise', 'console', 'navigator', 'Date', 'JSON', 'Math', 'Number', 'String', 'Array', 'Object', 'requestAnimationFrame', 'cancelAnimationFrame', 'createImageBitmap', 'FormData', 'history'].reduce(
   (globals, name) => ({ ...globals, [name]: 'readonly' }),
   {},
 );

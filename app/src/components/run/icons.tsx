@@ -20,6 +20,14 @@ export const ViewIcon = ({ size = 22, color }: IconProps) => (
   </Svg>
 );
 
+/** A camera: the photo moment's selfie. */
+export const CameraIcon = ({ size = 22, color }: IconProps) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <Path d="M3 8.5a2 2 0 0 1 2-2h2.5L9 4.5h6l1.5 2H19a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    <Circle cx={12} cy={13} r={3.5} />
+  </Svg>
+);
+
 /** The stop square. */
 export const StopIcon = ({ size = 22, color }: IconProps) => (
   <Svg width={size} height={size} viewBox="0 0 24 24">

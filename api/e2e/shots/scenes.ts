@@ -185,19 +185,40 @@ export const scenes: Scene[] = [
   },
   {
     id: 'card-og',
-    title: 'Share card — 1200×630, the picture under a shared link',
+    title: 'Race report — 1200×630, the picture under a shared link',
     go: async (page, shoot) => {
       await page.setViewportSize({ width: 1200, height: 630 });
       await page.goto(`${RACE}/results/1003/card?format=og`);
+      await expect(page.getByTestId('card-time')).toBeVisible();
+      await shoot();
+    },
+  },
+  {
+    id: 'card-post',
+    title: 'Race report — 1080×1350, the feed post (Instagram, Facebook, Strava)',
+    go: async (page, shoot) => {
+      await page.setViewportSize({ width: 1080, height: 1350 });
+      await page.goto(`${RACE}/results/1003/card?format=post`);
       await shoot();
     },
   },
   {
     id: 'card-story',
-    title: 'Share card — 1080×1350, the image a finisher posts',
+    title: 'Race report — 1080×1920, the story (Instagram, WhatsApp status)',
     go: async (page, shoot) => {
-      await page.setViewportSize({ width: 1080, height: 1350 });
+      await page.setViewportSize({ width: 1080, height: 1920 });
       await page.goto(`${RACE}/results/1003/card?format=story`);
+      await shoot();
+    },
+  },
+  {
+    id: 'card-sticker',
+    title: 'Sticker — transparent, over a photo here to show it (the PNG has no ground)',
+    go: async (page, shoot) => {
+      await page.setViewportSize({ width: 1080, height: 1920 });
+      await page.goto(`${RACE}/results/1003/card?format=sticker`);
+      // Stands in for the runner's own photo: the card itself leaves the ground transparent.
+      await page.addStyleTag({ content: 'html { background: linear-gradient(160deg, #2f4f4f, #8a7f72 60%, #3b3f46); }' });
       await shoot();
     },
   },
@@ -207,6 +228,41 @@ export const scenes: Scene[] = [
     go: async (page, shoot) => {
       await page.setViewportSize({ width: 1200, height: 630 });
       await page.goto(`${RACE}/card?format=og`);
+      await shoot();
+    },
+  },
+  {
+    id: 'photos',
+    title: 'Race photos — a runner’s photo moments, one picture made (local stand-in: no image model)',
+    go: async (page, shoot) => {
+      // A stand-in "selfie": the local Worker has no image model and hands the photo back as the picture.
+      const painter = await page.context().newPage();
+      await painter.setViewportSize({ width: 800, height: 1000 });
+      await painter.setContent(
+        '<body style="margin:0;display:grid;place-items:center;height:100vh;background:linear-gradient(160deg,#2f5d7c,#e3b38a);font:600 42px system-ui;color:#fff;text-align:center">Photo de démonstration<br>(pas de modèle d’image en local)</body>',
+      );
+      const selfie = await painter.screenshot({ type: 'png' });
+      await painter.close();
+      await runnerSignIn(page, `${RACE}/photos`);
+      await expect(page.getByRole('heading', { level: 1 })).toContainText('Vos photos de course');
+      await shoot('empty');
+      const moment = page.getByTestId('moment-deauville-2026-photo-finish');
+      // A second pass finds a picture already there: the form is then behind « Une autre photo ».
+      if (await moment.locator('details.photo-another').count()) await moment.locator('details.photo-another summary').click();
+      await moment.getByLabel(/Votre photo|Une autre photo/).setInputFiles({ name: 'moi.png', mimeType: 'image/png', buffer: selfie });
+      await moment.getByRole('checkbox').check();
+      await moment.getByRole('button', { name: 'Me mettre dans la course' }).click();
+      await expect(page.getByTestId('runner-photo')).toBeVisible({ timeout: 20_000 });
+      await shoot();
+    },
+  },
+  {
+    id: 'org-photos',
+    title: 'Organizer — photo moments: where runners are asked for a selfie, and the scene',
+    go: async (page, shoot) => {
+      await orgSignIn(page);
+      await page.goto('/org/deauville-2026/photos');
+      await expect(page.getByRole('heading', { name: 'Photos' })).toBeVisible();
       await shoot();
     },
   },

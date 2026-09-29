@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import * as Haptics from 'expo-haptics';
-import { aheadOf, constantPace, finishOutcome, formatClock, formatKm, gpsSignal, lightPresetAt, parsePace, progress, readableOn } from '@sivoov/shared';
+import { aheadOf, constantPace, finishOutcome, formatClock, formatKm, gpsSignal, lightPresetAt, momentAt, parsePace, progress, readableOn } from '@sivoov/shared';
 import type { Course, CourseTrack, LightPreset } from '@sivoov/shared';
 import type { CeremonyHandlers } from '@/audio/ceremony';
 import { usePackStore } from '@/audio/packStore';
@@ -17,6 +17,9 @@ import { Caption } from '@/components/run/Caption';
 import { CountdownDigit } from '@/components/run/CountdownDigit';
 import { LivePanel } from '@/components/run/LivePanel';
 import { ReadyPanel } from '@/components/run/ReadyPanel';
+import { ReadyPhotos } from '@/components/run/ReadyPhotos';
+import { picker } from '@/photos/picker';
+import { takenMoments, usePhotos } from '@/stores/photos';
 import { ResumePanel } from '@/components/run/ResumePanel';
 import { Stage } from '@/components/run/Stage';
 import { StartPanel } from '@/components/run/StartPanel';
@@ -88,6 +91,10 @@ export default function Run() {
   useAudioPlayback();
   const run = useRun();
   const token = useSession((s) => s.token);
+  // Moments whose photo is taken (sent, or kept on the phone until it can be): the camera says « Une autre photo ».
+  const keptPhotos = usePhotos((s) => s.kept);
+  const sentPhotos = usePhotos((s) => s.photos);
+  const photosTaken = takenMoments({ kept: keptPhotos, photos: sentPhotos });
   const uploadStatus = useUploads((s) => s.statusOf(run.runId));
   // A finish out of signal is sent from the finish screen as soon as the signal is back.
   useUploadFlush(token);
@@ -228,12 +235,16 @@ export default function Run() {
           outcome={outcome}
           simulation={source.kind === 'simulation'}
           uploadStatus={uploadStatus}
+          photoMoments={me.photoMoments.length}
           onHome={() => router.dismissTo('/home')}
           onDiagnostics={() => router.push('/debug')}
         />
       </Screen>
     );
   }
+
+  // The photo moment the runner is at: the chip says it, the camera takes the view's place.
+  const moment = phase === 'running' ? momentAt(me?.photoMoments ?? [], state.distanceM, course.distanceM) : null;
 
   // The race colour lifted to read on the night ground: Deauville's navy vanished on black.
   const accent = readableOn(race.theme.primary, colors.night);
@@ -280,7 +291,12 @@ export default function Run() {
           onResetTurn={onResetTurn}
         />
         <View style={[styles.chips, { paddingTop: insets.top + space.sm }]}>
-          <StatusChips race={race.theme.displayName} gps={phase === 'running' ? gpsSignal(run.samples[run.samples.length - 1] ?? null, (run.source ?? source).now()) : null} simulation={simulation && phase !== 'idle'} />
+          <StatusChips
+            race={race.theme.displayName}
+            gps={phase === 'running' ? gpsSignal(run.samples[run.samples.length - 1] ?? null, (run.source ?? source).now()) : null}
+            simulation={simulation && phase !== 'idle'}
+            photo={moment?.title ?? null}
+          />
         </View>
         {phase === 'countdown' && run.cue !== 'armed' ? (
           <View style={styles.countdown} pointerEvents="none">
@@ -307,6 +323,8 @@ export default function Run() {
             onColor={race.theme.onPrimary}
             onStart={start}
             onBack={() => router.back()}
+            // A rehearsal is a run like the real one: photos included.
+            photos={<ReadyPhotos moments={me?.photoMoments ?? []} token={token} />}
           />
         ) : phase === 'recovered' ? (
           <ResumePanel
@@ -332,6 +350,11 @@ export default function Run() {
             onAnnouncements={() => setSheet('said')}
             onView={() => prefs.setView(nextView(prefs.view))}
             onStop={() => setSheet('stop')}
+            photo={
+              moment && token && picker
+                ? { title: moment.title, taken: photosTaken.includes(moment.id), onPress: () => void usePhotos.getState().snap(token, moment.id) }
+                : null
+            }
           />
         )}
       </View>

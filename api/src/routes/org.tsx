@@ -15,6 +15,7 @@ import { OrgSigninPage } from '../pages/org/signin';
 import type { OrgSigninState } from '../pages/org/signin';
 import { orgCourses } from './orgCourses';
 import { orgPage } from './orgPage';
+import { orgPhotos } from './orgPhotos';
 import { orgRace } from './orgRace';
 import { orgRunners } from './orgRunners';
 import { orgRuns } from './orgRuns';
@@ -88,6 +89,7 @@ org.route('/', orgRunners);
 org.route('/', orgRuns);
 org.route('/', orgCourses);
 org.route('/', orgScript);
+org.route('/', orgPhotos);
 org.route('/', orgRace);
 
 // The first admin had a sign-in page per race; its links still work.

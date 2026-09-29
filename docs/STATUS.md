@@ -11,6 +11,104 @@ Live: https://run.sivoov.app/deauville-2026 (production), https://preview.run.si
 on 2026-09-27 (below); M2 still needs a real finish. Production has the race and its courses;
 no real entrants yet.
 
+### No rank at all; the camera in the run; rehearsals get photos (2026-09-29, same branch)
+The owner: no rank anywhere (not everyone runs), a camera button during the race instead of
+leaving the app, and a rehearsal is a run like the real one, photos included.
+- **No rank**: the certificate shows distance, pace, bib, date; `/{race}/results` lists the
+  finishers by name with their time, no position. `rankOf`, `ranks`, `formatRank` and the report's
+  places are gone, with their tests (the behaviour itself was removed).
+- **The camera in the run**: at each photo moment the « Vue » control becomes « Ma photo » for
+  500 m (the map does not move); one tap opens the front camera. The photo is kept on the phone
+  (document dir) and sent when there is a network; the start selfie goes the same way. The start's
+  moment belongs to the line, the finish's to the finish screen.
+- **Rehearsals**: the ready screen, the camera and « Vos photos de course » after the finish work
+  for rehearsals too; the home shows the photos of the last run that reached the line.
+Seen in `npm run shots` (`run-photo`, `run-photo-ready`); the camera itself is the web target's
+file input there: on a phone it needs the EAS build.
+
+### Review pass (2026-09-29, same branch)
+A reviewer subagent read the whole branch for sprawl and bugs. Fixed:
+- **Bugs**:
+  - a render lost mid-way (page closed, timeout) left the photo stuck: it is now retried after 3 min (`canTryAgain`, `makeWaiting`);
+  - a photo deleted, or a runner's data erased, during a render came back: the render only writes if the photo is still there, else it deletes the picture it made (`finishRender`);
+  - the app asked for the pictures again and again when offline: now once per screen;
+  - removing a moment left runners' photos and files behind: they are erased with it;
+  - photos taken in the app were only retried from the photos card: they now go with the pending uploads, at app start, on foreground and every 30 s;
+  - the app link's `next` now goes through `sameSitePath`.
+- **Sprawl**:
+  - one `acceptSelfie`, `renderForMoment`, `picturePath` and `pictureResponse` for the web page, the app and the admin try;
+  - `startSession` and `setRunnerCookie` shared with sign-in;
+  - `courseRaceOf` for demo races;
+  - `CARD_FORMATS` in shared;
+  - one share-sheet helper for both page scripts;
+  - `card.tsx` split into `reportParts.tsx` and `cardStyles.ts`;
+  - unused app routes, fields and strings removed;
+  - screen logic moved out (`lastFinishedRun`, `takenMoments`).
+- Left as is: renaming `rankedRun`, `isRanked` and `bestRankedRun` to "counts" would touch results, uploads and the admin beyond this branch. They mean "counts as an official finish", and their docs say so.
+
+### Race photos in the app, the studio and the finisher's home (2026-09-29, same branch)
+The owner's review of the first pass: no ranking in the pictures, a photo before the start, the
+moments in the audio editor (they need their announcement), the share screen reachable after
+the run instead of « Courir », and a photo picker: during the race people only shoot, the model
+runs after.
+- **No ranking at all** (the owner: not everyone runs): not on the pictures, not on the
+  certificate; the results page lists the finishers by name with their time.
+- **The flow**: the ready screen lists the moments and takes the start selfie (front camera);
+  during the run the chip says « Moment photo »; after an official finish « Choisir mes photos »
+  (several at once) matches each photo to its moment by its EXIF time, sends them, and the
+  pictures are made in one go and shown on the finish screen. New native module:
+  **expo-image-picker** (ARCHITECTURE.md): needs a new EAS build; older shells open the web page.
+- **The finisher's home**: after an official finish the home opens on « Bravo, Marc. », the
+  report, share, « Mes images à partager » and the photos; « Recourir » stays below. A rehearsal
+  changes nothing.
+- **The studio** lists each course's moments with their announcement or « Pas encore
+  d'annonce », and « Ajouter les annonces » puts them in the draft at the right place, to reword,
+  record and publish. The admin « Photos » says per course whether the line is there.
+- Seeds: a « Sur la ligne de départ » moment for both races (local, preview).
+Seen in `npm run shots` (`run-finished-photos`: two selfies picked, sent and made by the local
+stand-in, on the web target; `org-studio`). The picker, the camera and the EXIF on a real phone
+are not tested (web target only, no EAS build yet); EXIF parsing is unit-tested on the shapes
+Android and iOS are documented to give.
+
+### Race photos: the runner put into their race (2026-09-29, branch `claude/post-run-share-image-8iw9d6`)
+The owner's idea: ask runners for a selfie or two, at chosen moments, and have an image model put
+them into the virtual race; organizers upload pictures of the places. JS and Worker only (OTA),
+no native module (the camera is the phone's own; the upload is a web page).
+- **Photo moments** (admin « Photos »): a title, where (start, a place of the course, finish),
+  what the runner is asked, the scene for the model, up to three photos of the place.
+  « Essayer avec votre photo » renders the organizer's own selfie into it, kept nowhere.
+  Seeded on local and preview: Deauville (Les Planches, the finish), Champs-Élysées (the Arc, the finish).
+- **During the run** the chip over the map reads « Moment photo : Sur les Planches » for 500 m.
+  The organizer can add a voice line at the same place in the studio (not automatic).
+- **After** (the finish screen's « Mes photos de course », opened signed in by a one-use link, or
+  `/{race}/photos`): a selfie per moment, agreement ticked, 20-40 s later the picture: download,
+  share, « Montrer sur ma page » (then on the public result page, « En course »), up to three versions.
+  Private by default; « Supprimer mes données » erases selfies and pictures; privacy page updated.
+Seen in `npm run shots` (`photos`, `org-photos`, `run-finished`) with the local stand-in (the
+selfie comes back as the picture: no key in the container). 15 API tests with Gemini stubbed.
+**Never run against the real model**: Owner actions.
+
+### The race report, the share cards and the share page (2026-09-29, branch `claude/post-run-share-image-8iw9d6`)
+The owner's brief: a share image like the Berlin Marathon's race report, a flow that makes
+people proud to share and makes whoever sees it want to run. JS and Worker only (OTA).
+- **The race report** (`raceReport` in shared): timing points every 5 km (marathon, half), 2 km
+  (10 km), 1 km (5 km), the finish; time and pace over each segment; the place at each point
+  from the other finishers' own splits; the two halves, a negative split, places gained.
+- **Four pictures** (`card.tsx`, DESIGN.md "share cards"): `og` 1200×630 race report (the link
+  preview), `post` 1080×1350, `story` 1080×1920, `sticker` (transparent, Strava-style, over one's
+  own photo). The map under the course is Mapbox `light-v11` framed by `fitView` (`pad=44`).
+- **The result page** shows the picture itself first, the very one under the link, with the four
+  formats to pick from, « Partager l'image » (the file where the browser can share files),
+  « Télécharger », « Copier le lien », then the certificate. Without a renderer the card's own
+  page shows in a scaled frame. The link preview now invites: « Marc a bouclé le semi-marathon en
+  1:45:00 … Du 9 au 15 novembre, courez-la vous aussi ». Visitors get « Marc l'a courue. À votre tour. »
+- **The app's finish**: a negative split is said, the report picture shows once the result is
+  uploaded (when the Worker renders cards), « Mes images à partager » opens the page.
+Seen in `npm run shots` (card-og, card-post, card-story, card-sticker, result, run-finished).
+**Still blocked on `BROWSER_RENDERING_TOKEN`** (Owner actions): until it is set, no PNG exists,
+so link previews fall back to the course map and nothing can be downloaded. Fonts in the shots
+are fallbacks (the container cannot reach Google Fonts).
+
 ### The rehearsal of 2026-09-29, fixed (branch `claude/rehearsal-run-issues-yugv8j`)
 The owner ran the Champs-Élysées 10 km as a rehearsal (preview, 46:34, run `mumtdgzg-uaew1q4g`).
 The trace was pulled through the admin (MEMORY.md) and replayed through the tracker. JS only (OTA).
@@ -436,6 +534,16 @@ Anchored to PRD milestones (M2 10 Oct, M3 17 Oct, M4 31 Oct).
     holding their language, devices and history; today each entry signs in on its own.
 
 ## Owner actions
+
+- **Share cards and race photos** (this branch): a new EAS build for the photo picker
+  (`expo-image-picker`), then run migration `0009_photos.sql` before the
+  Worker (`npx wrangler d1 migrations apply sivoov-run --remote --env preview`, then without
+  `--env` for production, then deploy). Set `BROWSER_RENDERING_TOKEN` (below) or no report PNG
+  ever exists. Check the Google AI Studio key's tier allows `gemini-2.5-flash-image` (not checked from here;
+  roughly 0.04 USD a picture at list price, three at most per runner and moment), then on
+  preview: `/org/deauville-2026/photos` → « Essayer avec votre photo » is the first real render.
+  Then add real photos of the places (the organizer's) to each moment. A newer model is the
+  `GEMINI_IMAGE_MODEL` var.
 
 - **Runner language** (merged 2026-09-29): production needs its migration first, then the Worker: `npx wrangler d1 migrations apply sivoov-run --remote && npx wrangler deploy`
   from `api/` (same for preview with `--env preview`). The app part is JS only (OTA).

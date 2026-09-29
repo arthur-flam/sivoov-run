@@ -524,6 +524,22 @@
   refuses `eas update --non-interactive` without `--environment` ("The `--environment` flag must
   be set"); the workflows pass it now. By hand:
   `APP_VARIANT=preview EXPO_PUBLIC_API_URL=https://preview.run.sivoov.app npx eas-cli update --channel preview --environment preview --message "…" --non-interactive`.
+- 2026-09-29: run edge cases (crash, restart, battery, GPS gaps). Worth knowing next time:
+  - `reset()` used to call `stop()`, whose async tail (after `await source.stop()`) turned the
+    run 'finished' after reset had set 'idle'. A later screen then showed a phantom finish and
+    uploaded it. reset now cleans up inline; never call an async action from reset.
+  - A missed backlog cannot be computed at resume: the dark kilometres only appear with the first
+    new fix. Drop stale lines on the fix that bridges the gap (`bridgedGap`), not before.
+  - `createX(now = Date.now)` captures the real `Date.now` before vitest's fake timers replace it:
+    default to `() => Date.now()`.
+  - expo-location Android: `LocationTaskService` returns `START_REDELIVER_INTENT` and only stops
+    itself in `onTaskRemoved` when `killServiceOnDestroy` is true; the FusedLocation request is a
+    `PendingIntent`, so fixes keep reaching the task (headless if need be) after the activity dies.
+    A foreground service cannot be (re)started while the app is in the background.
+  - expo-file-system (SDK 57) `File.write(text, { append: true })` appends on both platforms.
+  - Local stack from a session with other worktrees' servers alive: another checkout's `wrangler
+    dev` held 8788 (answering `internal`) and an Expo from 2026-09-13 held 8081, another 8082. Run
+    this checkout's Worker on 8789 and Metro on 8083 (`SHOTS_API_PORT`, `SHOTS_APP_PORT`).
 - 2026-09-29: the run screen's 3D map (`@rnmapbox/maps`, Mapbox Standard). Worth knowing next time:
   - An OTA update reaches shells built without a native module: `@rnmapbox/maps` reads its native
     module when imported and would crash them, so `mapboxSdk.ts` checks `NativeModules` /

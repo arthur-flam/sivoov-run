@@ -115,6 +115,31 @@ SDK**, which gets this JavaScript over the air without the native half: `mapboxS
 the native module before it even loads the package. The race home keeps the course on the phone
 for offline runs (`useMapDownload`: a Mapbox offline region over the course, zoom 11-16).
 
+## A run survives the app
+The phone keeps the run in progress on disk (`app/src/stores/runJournal.ts`, `journalFiles.ts`):
+`run/journal.json` (who, which course, the gun, the lines fired; rewritten) and `run/samples.jsonl`
+(one fix per line, appended every 10 s) in the document dir. The tracker is a pure fold, so the
+run *is* its fixes: when the app opens on a journal (`useRunRecovery` on the home screen), the run
+is rebuilt by replaying them (`recoveryFor` in `shared/domain/runJournal.ts`) and either offered
+back (« Votre course continue »: resume from where the runner is now, the clock never stopped; or
+stop and save) or, when it is over (stopped, finished, silent for 30 min, older than 8 h), queued
+for upload without a word. The journal is cleared only once the upload queue holds the trace.
+
+On Android the location service survives the app being swiped away (`killServiceOnDestroy:
+false`): if the app's JavaScript survives too, the run goes on untouched and the screens come back
+to it; if it does not, the background task runs on its own and appends the fixes to the journal
+(`orphanFixes`), or switches off a GPS that no run will ever read. iOS stops updates when the app
+is killed; the run resumes when it is reopened. A fix that bridges more than a minute without
+fixes (a tunnel, a dark phone, a resume) drops the lines that fell due in the gap, bar the finish
+(`bridgedGap`, `afterPause`): a late burst of old kilometres is worse than silence.
+
+## Battery
+The screen stays on before the gun and during the run, unless the battery is low (20 % off the
+charger, or power saving): then the phone's own sleep takes over and the GPS goes to its saver
+pace, once (Android: a fix every 2 s; iOS: best accuracy with a 5 m filter instead of the
+navigation mode). The run clock and the map's glide stop redrawing while the app is in the
+background. Readings are in the logbook (`batteryLog.ts`).
+
 ## Native module list (changing this needs a new EAS build and a note here)
 expo-location, expo-task-manager, expo-audio, expo-secure-store, expo-haptics,
 expo-keep-awake, expo-updates, @sentry/react-native, react-native-svg,

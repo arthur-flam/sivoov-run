@@ -9,6 +9,8 @@ import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold } from '@expo-g
 import { BarlowCondensed_600SemiBold, BarlowCondensed_700Bold } from '@expo-google-fonts/barlow-condensed';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { usePackDownload } from '@/hooks/usePackDownload';
+import { useUploadFlush } from '@/hooks/useUploadFlush';
+import { watchFinish } from '@/stores/runFinish';
 import { watchGun } from '@/stores/runStarted';
 import { useSession } from '@/stores/session';
 // Defines the background location task at startup, before any screen can start updates.
@@ -32,6 +34,8 @@ function RootLayout() {
   // The race's sound comes down as soon as the runner is known, whatever screen opens first
   // (a run coming back goes straight to the run screen), and is kept on the phone.
   usePackDownload(useSession((s) => s.me?.course ?? null));
+  // Runs and photos waiting to be sent go at start, on foreground and every half minute: once, for every screen.
+  useUploadFlush(useSession((s) => s.token));
 
   useEffect(() => {
     void restore();
@@ -39,6 +43,8 @@ function RootLayout() {
 
   // The Worker hears of each gun (the owner's Telegram), whichever screen starts the run.
   useEffect(() => watchGun(), []);
+  // Each finish goes in the upload queue, whether or not the run screen is there to see it.
+  useEffect(() => watchFinish(), []);
 
   useEffect(() => {
     if (fontsLoaded && status !== 'loading') void SplashScreen.hideAsync().catch(() => undefined);

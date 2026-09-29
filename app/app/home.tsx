@@ -11,10 +11,8 @@ import { RacePhotos } from '@/components/RacePhotos';
 import { Body, Button, Card, Display, Eyebrow, Num, Screen } from '@/components/ui';
 import { useMyResult } from '@/hooks/useMyResult';
 import { useMapDownload } from '@/hooks/useMapDownload';
-import { usePackDownload } from '@/hooks/usePackDownload';
 import { useTrack } from '@/hooks/useTrack';
 import { useRunRecovery } from '@/hooks/useRunRecovery';
-import { useUploadFlush } from '@/hooks/useUploadFlush';
 import { currentLocale, t, useLocale } from '@/i18n';
 import { openResults, shareBib } from '@/share';
 import { useSession } from '@/stores/session';
@@ -35,12 +33,11 @@ export default function Home() {
   const signOut = useSession((s) => s.signOut);
   const refresh = useSession((s) => s.refresh);
   const token = useSession((s) => s.token);
-  const pendingUploads = useUploadFlush(token);
+  const pendingUploads = useUploads((s) => s.pending.length);
   // Back in a run the app lost (killed, crashed, phone restarted), or its upload queued if it is over.
   useRunRecovery(me?.entrant.id ?? null, token);
   const best = useMyResult();
   const track = useTrack(me?.course ?? null);
-  usePackDownload(me?.course ?? null);
   // The run screen's map, kept on the phone while the runner is likely on Wi-Fi.
   useMapDownload(me?.course?.id ?? null, track, me?.map?.token ?? null);
   // Back from a run, the server may know something new: ask again whenever the screen returns.

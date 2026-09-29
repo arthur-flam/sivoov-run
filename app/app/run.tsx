@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BackHandler, Platform, StyleSheet, View } from 'react-native';
+import { AppState, BackHandler, Platform, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { useKeepAwake } from 'expo-keep-awake';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import * as Haptics from 'expo-haptics';
-import Constants from 'expo-constants';
-import { aheadOf, constantPace, finishOutcome, formatKm, gpsSignal, lightPresetAt, parsePace, progress, readableOn } from '@sivoov/shared';
+import { aheadOf, constantPace, finishOutcome, formatClock, formatKm, gpsSignal, lightPresetAt, parsePace, progress, readableOn } from '@sivoov/shared';
 import type { Course, CourseTrack, LightPreset } from '@sivoov/shared';
 import type { CeremonyHandlers } from '@/audio/ceremony';
 import { usePackStore } from '@/audio/packStore';
@@ -18,6 +17,7 @@ import { Caption } from '@/components/run/Caption';
 import { CountdownDigit } from '@/components/run/CountdownDigit';
 import { LivePanel } from '@/components/run/LivePanel';
 import { ReadyPanel } from '@/components/run/ReadyPanel';
+import { ResumePanel } from '@/components/run/ResumePanel';
 import { Stage } from '@/components/run/Stage';
 import { StartPanel } from '@/components/run/StartPanel';
 import { StatusChips } from '@/components/run/StatusChips';
@@ -27,23 +27,47 @@ import { useCaption } from '@/hooks/useCaption';
 import { useGlide } from '@/hooks/useGlide';
 import { useMapDownload } from '@/hooks/useMapDownload';
 import { useTrack } from '@/hooks/useTrack';
+import { useUploadFlush } from '@/hooks/useUploadFlush';
 import { diag, useDiag } from '@/diag';
 import { currentLocale, t, useLocale } from '@/i18n';
 import { deviceSource, simulationSource } from '@/services/location';
+import { usePower } from '@/stores/power';
 import { usePrefs } from '@/stores/prefs';
 import type { MapView } from '@/stores/prefs';
 import { useRun } from '@/stores/run';
 import { useSession } from '@/stores/session';
-import { newRunId, toUpload, useUploads } from '@/stores/uploads';
+import { deviceInfo, findRun } from '@/stores/runRecovery';
+import { toUpload, useUploads } from '@/stores/uploads';
 import { colors, space } from '@/theme';
 
 /**
- * The screen stays on during the run, on a phone. Not on the web target (development and the
- * screenshot rig), where the browser's wake lock throws when a reload unmounts it before it took.
+ * The screen stays on while `on`, on a phone: before the gun, and during the run unless the battery
+ * runs low, when the phone's own sleep takes over (a lit screen is the biggest drain there is). Not
+ * on the web target (development and the screenshot rig), where the browser's wake lock throws
+ * when a reload unmounts it before it took.
  */
-const useStayAwake: () => void = Platform.OS === 'web' ? () => undefined : useKeepAwake;
+const useStayAwake = (on: boolean): void => {
+  useEffect(() => {
+    if (Platform.OS === 'web' || !on) return;
+    void activateKeepAwakeAsync('run').catch(() => undefined);
+    return () => void deactivateKeepAwake('run').catch(() => undefined);
+  }, [on]);
+};
+
+/** Whether the app is on screen: nothing redraws a clock or glides a map in a pocket. */
+const useOnScreen = (): boolean => {
+  const [active, setActive] = useState(AppState.currentState !== 'background');
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => setActive(next === 'active'));
+    return () => sub.remove();
+  }, []);
+  return active;
+};
 
 const VIEWS: MapView[] = ['follow', 'overview', 'numbers'];
+
+/** How long a run coming back waits for its audio pack before resuming without it. */
+const PACK_WAIT_MS = 4000;
 const nextView = (view: MapView): MapView => VIEWS[(VIEWS.indexOf(view) + 1) % VIEWS.length]!;
 
 /** The map's light for the course's start, now, checked again every few minutes (a marathon can run into the night). */
@@ -61,7 +85,6 @@ const courseLabel = (course: Course) => formatKm(course.distanceM, currentLocale
 
 export default function Run() {
   const locale = useLocale();
-  useStayAwake();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ sim?: string; pace?: string; speed?: string; noise?: string }>();
@@ -73,8 +96,12 @@ export default function Run() {
   useAudioPlayback();
   const run = useRun();
   const token = useSession((s) => s.token);
-  const runId = useRef(newRunId());
-  const uploadStatus = useUploads((s) => s.statusOf(runId.current));
+  const uploadStatus = useUploads((s) => s.statusOf(run.runId));
+  // A finish out of signal is sent from the finish screen as soon as the signal is back.
+  useUploadFlush(token);
+  const low = usePower((s) => s.low);
+  const onScreen = useOnScreen();
+  useStayAwake(run.phase === 'idle' || run.phase === 'countdown' || run.phase === 'recovered' || (run.phase === 'running' && !low));
   const prefs = usePrefs();
   const said = useSaid();
   const caption = useCaption();
@@ -82,9 +109,10 @@ export default function Run() {
   const [mapFailed, setMapFailed] = useState(false);
   const onMapFail = useCallback(() => setMapFailed(true), []);
   const mapToken = me?.map?.token ?? null;
-  const mapDownload = useMapDownload(course?.id ?? null, track, mapToken);
+  // Kept on the phone quietly, in case the race home had no signal: nothing to show the runner.
+  useMapDownload(course?.id ?? null, track, mapToken);
   const light = useLight(track);
-  const glided = useGlide(run.state, run.phase === 'running');
+  const glided = useGlide(run.state, run.phase === 'running' && onScreen);
   const ceremonyLine = useRef<string | null>(null);
 
   useEffect(() => {
@@ -98,7 +126,19 @@ export default function Run() {
   useEffect(() => {
     if (course && track && pack) run.prepare(course, track, pack);
   }, [course, track, pack]);
-  useEffect(() => () => useRun.getState().reset(), []);
+  // Leaving the screen ends what has not started. A run in progress outlives it: on Android the
+  // screens go when the app is swiped away, while the GPS service and the run carry on.
+  useEffect(
+    () => () => {
+      const phase = useRun.getState().phase;
+      if (phase !== 'running') useRun.getState().reset();
+    },
+    [],
+  );
+
+
+  // The clock redraws only on screen; back on screen it catches up at once.
+  useEffect(() => useRun.getState().setVisible(onScreen), [onScreen]);
 
   // Android's back button would unmount the screen and drop the run: during the run it asks to
   // stop, like the stop control; during the countdown it does nothing.
@@ -118,14 +158,18 @@ export default function Run() {
     if (run.phase !== 'running') setSheet(null);
   }, [run.phase]);
 
-  // The finish path: queue the run and its trace; the store sends it now or when back online.
+  // The finish path: queue the run and its trace; the store sends it now or when back online. Once
+  // the trace is on file in the queue, the run's journal can go.
   useEffect(() => {
     if (run.phase !== 'finished' || !course || !me) return;
-    const { state, samples, fired, source: used } = useRun.getState();
-    const device = { platform: Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'web', osVersion: String(Platform.Version ?? ''), appVersion: Constants.expoConfig?.version } as const;
+    const { state, samples, fired, source: used, runId } = useRun.getState();
     diag('run', `finished: ${state.accepted} accepted, ${state.rejected} rejected, ${samples.length} samples, ${Math.round(state.distanceM)} m`);
-    const upload = toUpload({ id: runId.current, entrantId: me.entrant.id, courseId: course.id, state, samples, fired, source: used?.kind === 'simulation' ? 'simulation' : 'app', device, finishedAtMs: used?.now() ?? Date.now(), diagnostics: useDiag.getState().snapshot() });
-    void useUploads.getState().enqueue(upload, token).catch(() => undefined);
+    const upload = toUpload({ id: runId, entrantId: me.entrant.id, courseId: course.id, state, samples, fired, source: used?.kind === 'simulation' ? 'simulation' : 'app', device: deviceInfo(), finishedAtMs: used?.now() ?? Date.now(), diagnostics: useDiag.getState().snapshot() });
+    void useUploads
+      .getState()
+      .enqueue(upload, token)
+      .catch(() => undefined)
+      .then(() => useRun.getState().forget());
   }, [run.phase]);
 
   const source = useMemo(() => {
@@ -140,6 +184,29 @@ export default function Run() {
     }
     return deviceSource();
   }, [track, course, race?.demoOf, params.sim, params.pace, params.speed, params.noise]);
+
+  // A run the app lost (killed, crashed, phone restarted) comes back from its journal and goes
+  // on by itself: only the runner's hold-and-confirm ends a run. It waits for the pack (the one
+  // kept on the phone answers at once), or a few seconds at most, so the rest of the race is said
+  // from the real pack, not the stand-in. The resume panel only shows if the GPS will not restart.
+  const looked = useRef(false);
+  const entrantId = me?.entrant.id ?? null;
+  const packSettled = usePackStore((s) => s.status !== 'idle' && s.status !== 'loading');
+  const [packWaited, setPackWaited] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => setPackWaited(true), PACK_WAIT_MS);
+    return () => clearTimeout(id);
+  }, []);
+  useEffect(() => {
+    if (looked.current || !entrantId || !course || !track || !pack || !source || !(packSettled || packWaited) || useRun.getState().phase !== 'idle') return;
+    looked.current = true;
+    void findRun(entrantId).then((found) => {
+      if (found?.recovery.kind !== 'resume' || found.journal.courseId !== course.id) return;
+      diag('run', `found ${found.journal.runId} in the journal: ${Math.round(found.recovery.state.distanceM)} m, resuming`);
+      useRun.getState().restore({ journal: found.journal, samples: found.samples, state: found.recovery.state });
+      void useRun.getState().resume(source);
+    });
+  }, [entrantId, course, track, pack, source, packSettled, packWaited]);
 
   if (!course || !race || !track || !source) {
     return (
@@ -190,7 +257,7 @@ export default function Run() {
     saidNow.add({ key: `cue:${line.event.id}`, event: line.event, text: captionFor(line.event, usePackStore.getState().captions), distanceM: 0, elapsedMs: 0, sound: 'heard', uri: line.uri, at: Date.now() });
     saidNow.setSpeaking(line.event.id);
   };
-  const start = () => void run.start(source, { soundFor: usePackStore.getState().soundFor, uriFor: usePackStore.getState().uriFor, onLine });
+  const start = () => void run.start(source, { soundFor: usePackStore.getState().soundFor, uriFor: usePackStore.getState().uriFor, onLine, entrantId: me?.entrant.id });
 
   return (
     <View style={styles.screen}>
@@ -198,7 +265,7 @@ export default function Run() {
       <View style={styles.stage}>
         <Stage token={mapShown ? mapToken : null} track={track} course={course} runM={glided} accent={accent} view={view} light={light} failed={mapFailed} onFail={onMapFail} topInset={topInset} />
         <View style={[styles.chips, { paddingTop: insets.top + space.sm }]}>
-          <StatusChips race={race.theme.displayName} gps={phase === 'running' ? gpsSignal(run.samples[run.samples.length - 1] ?? null, source.now()) : null} simulation={simulation && phase !== 'idle'} />
+          <StatusChips race={race.theme.displayName} gps={phase === 'running' ? gpsSignal(run.samples[run.samples.length - 1] ?? null, (run.source ?? source).now()) : null} simulation={simulation && phase !== 'idle'} />
         </View>
         {phase === 'countdown' && run.cue !== 'armed' ? (
           <View style={styles.countdown} pointerEvents="none">
@@ -221,11 +288,21 @@ export default function Run() {
             who={`${me?.entrant.firstName ?? ''} · ${courseLabel(course)}`}
             error={run.startError}
             simulation={simulation ? `${t('run.sim.badge')} · ${params.pace ?? '5:30'} /km · ×${params.speed ?? 1}` : null}
-            map={mapDownload}
             color={race.theme.primary}
             onColor={race.theme.onPrimary}
             onStart={start}
             onBack={() => router.back()}
+          />
+        ) : phase === 'recovered' ? (
+          <ResumePanel
+            who={`${me?.entrant.firstName ?? ''} · ${courseLabel(course)}`}
+            distance={formatKm(state.distanceM, locale)}
+            clock={formatClock(Date.now() - (state.startedAt ?? Date.now()))}
+            error={run.startError}
+            color={race.theme.primary}
+            onColor={race.theme.onPrimary}
+            onResume={() => void run.resume(source)}
+            onStop={() => void run.stop()}
           />
         ) : phase === 'countdown' ? (
           <StartPanel cue={run.cue === 'armed' ? 'armed' : 'digits'} who={`${me?.entrant.firstName ?? ''} · ${courseLabel(course)}`} line={caption.line} speaking={caption.speaking} />

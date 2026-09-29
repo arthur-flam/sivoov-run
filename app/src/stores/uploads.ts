@@ -18,8 +18,7 @@ type PersistedUpload = z.infer<typeof PersistedUploadSchema>;
 export type PendingUpload = Omit<PersistedUpload, 'tracePath'> & { trace: RunTrace; tracePath?: string };
 export type UploadStatus = 'sent' | 'pending' | 'unknown';
 
-/** A run id without a native crypto module: time plus entropy is enough for one runner. */
-export const newRunId = (now = Date.now()): string => `${now.toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+export { newRunId } from './runId';
 
 /** Turns the run store's end state into what the API stores, validated by the shared schemas. */
 export const toUpload = (input: {
@@ -52,7 +51,8 @@ export const toUpload = (input: {
   const trace = RunTraceSchema.parse({
     runId: input.id,
     samples: input.samples,
-    audioFired: input.fired.map(({ eventId, distanceM, elapsedMs }) => ({ eventId, distanceM, elapsedMs: Math.round(elapsedMs) })),
+    // What the runner heard: a resumed run's backlog was never said.
+    audioFired: input.fired.filter((f) => !f.missed).map(({ eventId, distanceM, elapsedMs }) => ({ eventId, distanceM, elapsedMs: Math.round(elapsedMs) })),
     ...(input.diagnostics ? { diagnostics: input.diagnostics } : {}),
   });
   return { run, trace, queuedAt: new Date(input.finishedAtMs).toISOString(), attempts: 0 };

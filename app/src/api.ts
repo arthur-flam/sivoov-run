@@ -82,13 +82,17 @@ const request = async <T extends z.ZodType>(path: string, schema: T, init: Reque
 };
 
 const VerifySchema = z.object({ token: z.string(), expiresAt: z.string(), entrant: EntrantPublicSchema });
-/** `map`: the Mapbox public token for the run screen's map; null (or an older cache without it) draws the course diagram. */
+/**
+ * `map`: the Mapbox public token for the run screen's map; null (or an older cache without it) draws the course diagram.
+ * `rehearsal`: the home offers « Faire une répétition » before the race opens (test builds, test accounts, demo races).
+ */
 export const MeSchema = z.object({
   entrant: EntrantPublicSchema,
   race: RaceSchema,
   course: CourseSchema.nullable(),
   runs: z.array(RunSchema),
   map: z.object({ token: z.string().min(1) }).nullable().default(null),
+  rehearsal: z.boolean().default(false),
 });
 export type Me = z.infer<typeof MeSchema>;
 

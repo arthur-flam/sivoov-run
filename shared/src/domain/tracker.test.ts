@@ -3,7 +3,8 @@ import { deauvilleMarathonGeometry } from '../fixtures';
 import { firstRealRunSamples, firstRealRunWatchM } from '../fixtures/firstRealRun';
 import { buildTrack } from './course';
 import { constantPace, simulateRun } from './simulate';
-import { abandon, applySample, idleRun, progress, startRun, tick } from './tracker';
+import { fixTime } from './fixClock';
+import { abandon, applySample, bridgedGap, idleRun, progress, startRun, tick } from './tracker';
 import type { RunState } from './tracker';
 
 const track = buildTrack(deauvilleMarathonGeometry.points);
@@ -85,5 +86,41 @@ describe('run tracker', () => {
     const s = [home, start, onward].reduce((acc, sample) => applySample(acc, sample), startRun(idleRun(10000), gun));
     expect(s.rejected).toBe(1);
     expect(s.distanceM).toBeLessThan(20);
+  });
+
+  it('crosses a tunnel: two minutes of vague fixes, then the straight line once the sky is back', () => {
+    const samples = simulateRun({ track, targetM: 5000, pace: constantPace(300), startTime: 1000, noiseM: 3, seed: 5 });
+    const inside = (t: number) => t > 1000 + 8 * 60_000 && t < 1000 + 10 * 60_000;
+    // In the tunnel the phone still answers, with a position it is not sure of (and sometimes a wild one).
+    const tunnel = samples.map((s, i) => (inside(s.timestamp) ? { ...s, accuracy: 60, lat: s.lat + (i % 7 === 0 ? 0.01 : 0) } : s));
+    const clear = samples.reduce((acc, sample) => applySample(acc, sample), startRun(idleRun(5000), 1000));
+    const dark = tunnel.reduce((acc, sample) => applySample(acc, sample), startRun(idleRun(5000), 1000));
+    expect(dark.phase).toBe('running');
+    expect(Math.abs(dark.distanceM - clear.distanceM) / clear.distanceM).toBeLessThan(0.02);
+    // Nothing from inside counted, and the clock never stopped.
+    expect(dark.rejected).toBeGreaterThanOrEqual(115);
+    expect(dark.elapsedMs).toBe(clear.elapsedMs);
+  });
+
+  it('keeps measuring with a receiver whose clock is years off, once its fixes are dated on arrival', () => {
+    const samples = simulateRun({ track, targetM: 2000, pace: constantPace(300), startTime: 1000, noiseM: 3, seed: 2 });
+    const rolledBack = samples.map((s) => ({ ...s, timestamp: s.timestamp - 1024 * 7 * 24 * 3600_000 }));
+    const gun = 1024 * 7 * 24 * 3600_000 + 1000;
+    const arrived = rolledBack.map((s, i) => ({ ...s, timestamp: fixTime(s.timestamp, gun + i * 1000) }));
+    const raw = rolledBack.reduce((acc, sample) => applySample(acc, sample), startRun(idleRun(2000), gun));
+    const fixed = arrived.reduce((acc, sample) => applySample(acc, sample), startRun(idleRun(2000), gun));
+    expect(raw.distanceM).toBe(0);
+    expect(fixed.distanceM).toBeGreaterThan(1500);
+  });
+
+  it('tells a step that bridged a long silence from an ordinary one', () => {
+    const samples = simulateRun({ track, targetM: 2000, pace: constantPace(300), startTime: 1000, noiseM: 0, seed: 1 });
+    const upTo = (list: typeof samples) => list.reduce((acc, sample) => applySample(acc, sample), startRun(idleRun(2000), 1000));
+    const before = upTo(samples.slice(0, 100));
+    expect(bridgedGap(before, applySample(before, samples[100]!))).toBe(false);
+    // Ninety seconds without a fix, then one far along.
+    expect(bridgedGap(before, applySample(before, samples[190]!))).toBe(true);
+    // A rejected fix bridges nothing.
+    expect(bridgedGap(before, applySample(before, { ...samples[190]!, accuracy: 80 }))).toBe(false);
   });
 });

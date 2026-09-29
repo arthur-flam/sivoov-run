@@ -70,6 +70,17 @@ code 000000** — 1002 is on the marathon, which is the course that has the audi
    the screen off.
 5. Long-press stop to finish. The run uploads (run + GPS trace) when you come back.
 
+Then, once per build, the ways a run gets interrupted (each should land back in the same run):
+- **Swipe the app away** mid-run (Android): the notification stays, fixes keep coming. Reopen
+  from the notification or the icon: the run is on screen, distance still climbing.
+- **Force stop** it (Settings → Apps → Force stop), walk 200 m, reopen: « Votre course
+  continue », the distance at the moment it died; « Reprendre » bridges the 200 m.
+- **Restart the phone** mid-run, reopen: the same, then « Arrêter et enregistrer » closes it as
+  an interrupted run under the same id.
+- **Airplane mode** from the start line to the finish: the ceremony, the lines and the map as
+  with the network (personal live lines fall back to their offline version); the upload leaves
+  when the network is back, from the finish screen or the next opening.
+
 What to watch for and write down:
 - Did the distance drift while stopped at a traffic light?
 - Did the audio duck your music instead of stopping it?

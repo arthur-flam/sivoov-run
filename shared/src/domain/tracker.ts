@@ -147,6 +147,17 @@ export const applySample = (state: RunState, sample: LocationSample, config: Tra
   };
 };
 
+/** Longer than a GPS hiccup: the fixes stopped (a tunnel, a phone gone dark, an app killed). */
+export const GAP_MS = 60_000;
+
+/**
+ * The fix that moved the run from `prev` to `next` came after a long silence: the distance jumped
+ * over ground the runner covered unheard. The lines that fell due in between are stale (a landmark
+ * passed a kilometre ago); the app drops them, all but the finish (`afterPause`).
+ */
+export const bridgedGap = (prev: RunState, next: RunState, gapMs = GAP_MS): boolean =>
+  next.accepted > prev.accepted && prev.lastSample !== null && next.lastSample !== null && next.lastSample.timestamp - prev.lastSample.timestamp > gapMs;
+
 /** Clock tick without a fix: keeps elapsed time moving on the screen. */
 export const tick = (state: RunState, now: number): RunState =>
   state.phase === 'running' && state.startedAt !== null ? { ...state, elapsedMs: Math.max(state.elapsedMs, now - state.startedAt) } : state;

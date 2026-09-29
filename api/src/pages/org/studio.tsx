@@ -34,6 +34,7 @@ const blankStatus = (): LineStatus => ({
   rendered: false,
   bytes: 0,
   issues: [],
+  ceremony: [],
   problems: [],
   when: '',
   moment: 'course',

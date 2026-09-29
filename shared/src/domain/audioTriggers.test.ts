@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AudioEventSchema } from '../schemas/audio';
-import { afterPause, ceremonySequence, nextEvents } from './audioTriggers';
+import { afterPause, ceremonySequence, countdownDigit, nextEvents } from './audioTriggers';
 
 const ev = (id: string, trigger: unknown, extra: Record<string, unknown> = {}) =>
   AudioEventSchema.parse({ id, trigger, source: { kind: 'file', key: `${id}.mp3` }, category: 'course', ...extra });
@@ -69,6 +69,19 @@ describe('the start ceremony', () => {
     expect(ids(ceremony?.lines)).toEqual(['intro', 'marks', 'countdown', 'gun']);
     // The clock starts when the gun line starts playing, not when the countdown ends.
     expect(ceremony?.gunIndex).toBe(3);
+    expect(ceremony?.countdownIndex).toBe(2);
+  });
+
+  it('lets one countdown line drive the digits: the last one, the others play like the lines on the line', () => {
+    const intro10 = ev('ten', { kind: 'cue', at: 'countdown', order: 1 }, { category: 'ceremony' });
+    const last = ev('last', { kind: 'cue', at: 'countdown', order: 2 }, { category: 'ceremony' });
+    const ceremony = ceremonySequence({ events: [gun, last, intro10, intro] });
+    expect(ids(ceremony?.lines)).toEqual(['intro', 'ten', 'last', 'gun']);
+    expect(ceremony?.countdownIndex).toBe(2);
+  });
+
+  it('shows no digits for a ceremony with no countdown line', () => {
+    expect(ceremonySequence({ events: [gun, intro] })?.countdownIndex).toBeNull();
   });
 
   it('keeps pack order between lines of the same moment and order', () => {
@@ -87,6 +100,7 @@ describe('the start ceremony', () => {
     const ceremony = ceremonySequence({ events: [countdown, intro] });
     expect(ids(ceremony?.lines)).toEqual(['intro', 'countdown']);
     expect(ceremony?.gunIndex).toBe(2);
+    expect(ceremony?.countdownIndex).toBe(1);
   });
 
   it('is absent for a pack with no cue, whose ceremony still fires at the gun as before', () => {
@@ -105,5 +119,29 @@ describe('the start ceremony', () => {
       { phase: 'finished' as const, distanceM: 42_195, elapsedMs: 14_000_000, paceSecPerKm: 330 },
     ];
     expect(states.flatMap((s) => nextEvents(s, pack, none))).toEqual([]);
+  });
+});
+
+describe('the countdown digits', () => {
+  const digits = (durationS: number, times: number[]) => times.map((t) => countdownDigit(durationS - t, durationS));
+
+  it('follow the countdown file second by second, from ten to one', () => {
+    expect(digits(10, [0, 0.85, 1, 4.5, 8.85, 9, 9.99, 10])).toEqual([10, 10, 9, 6, 2, 1, 1, 1]);
+  });
+
+  it('never open on eleven when the file reports a little more than ten seconds (MP3 padding)', () => {
+    expect(digits(10.03, [0, 0.02, 1.03, 10.03])).toEqual([10, 10, 9, 1]);
+    expect(digits(10.4, [0, 0.3])).toEqual([10, 10]);
+  });
+
+  it('never exceed the file’s own whole seconds, whatever its length', () => {
+    expect(digits(5.02, [0, 1.02, 4.9])).toEqual([5, 4, 1]);
+    expect(digits(7.4, [0])).toEqual([7]);
+  });
+
+  it('never show zero: zero is the gun', () => {
+    expect(countdownDigit(0, 10)).toBe(1);
+    expect(countdownDigit(-0.5, 10)).toBe(1);
+    expect(countdownDigit(0.05, 0.4)).toBe(1);
   });
 });

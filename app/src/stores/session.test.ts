@@ -45,6 +45,27 @@ describe('session', () => {
     expect(useSession.getState()).toMatchObject({ status: 'signedIn', token: 'tok', me: ME, error: 'offline' });
   });
 
+  it('is signed in from the last /me it saw before the network answers, then takes the fresh one', async () => {
+    memory.set('sivoov.session', 'tok');
+    cached = ME;
+    const fresh = { ...ME, runs: [{ id: 'run1' }] };
+    let answer: (me: unknown) => void = () => undefined;
+    me.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+    const restoring = useSession.getState().restore();
+    await vi.waitFor(() => expect(useSession.getState()).toMatchObject({ status: 'signedIn', me: ME }));
+    answer(fresh);
+    await restoring;
+    expect(useSession.getState()).toMatchObject({ status: 'signedIn', me: fresh, error: null });
+    expect(cached).toEqual(fresh);
+  });
+
+  it('waits for /me when nothing is kept', async () => {
+    memory.set('sivoov.session', 'tok');
+    me.mockResolvedValueOnce(ME);
+    await useSession.getState().restore();
+    expect(useSession.getState()).toMatchObject({ status: 'signedIn', token: 'tok', me: ME, error: null });
+  });
+
   it('forgets the cache when the token is refused', async () => {
     memory.set('sivoov.session', 'tok');
     cached = ME;

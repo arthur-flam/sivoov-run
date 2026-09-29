@@ -6,6 +6,7 @@ import { useFonts, Fraunces_500Medium, Fraunces_500Medium_Italic } from '@expo-g
 import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold } from '@expo-google-fonts/dm-sans';
 import { BarlowCondensed_600SemiBold, BarlowCondensed_700Bold } from '@expo-google-fonts/barlow-condensed';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { usePackDownload } from '@/hooks/usePackDownload';
 import { useSession } from '@/stores/session';
 // Defines the background location task at startup, before any screen can start updates.
 import '@/services/location/device';
@@ -25,6 +26,9 @@ export default function RootLayout() {
   });
   const status = useSession((s) => s.status);
   const restore = useSession((s) => s.restore);
+  // The race's sound comes down as soon as the runner is known, whatever screen opens first
+  // (a run coming back goes straight to the run screen), and is kept on the phone.
+  usePackDownload(useSession((s) => s.me?.course ?? null));
 
   useEffect(() => {
     void restore();

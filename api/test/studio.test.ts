@@ -606,3 +606,44 @@ describe('les lieux du parcours', () => {
     expect(landing).not.toContain('Hôtel Le Normandy');
   });
 });
+
+describe('the countdown line', () => {
+  const MARATHON = `${SLUG}-marathon`;
+  const le32 = (n: number) => [n & 0xff, (n >> 8) & 0xff, (n >> 16) & 0xff, (n >>> 24) & 0xff];
+  const chars = (s: string) => [...s].map((c) => c.charCodeAt(0));
+  /** A mono 16-bit WAV of `seconds` of silence at 8 kHz. */
+  const silence = (seconds: number) => {
+    const data = seconds * 16_000;
+    const head = [...chars('RIFF'), ...le32(36 + data), ...chars('WAVEfmt '), ...le32(16), 1, 0, 1, 0, ...le32(8000), ...le32(16_000), 2, 0, 16, 0, ...chars('data'), ...le32(data)];
+    return Uint8Array.from([...head, ...new Array<number>(data).fill(0)]);
+  };
+  const upload = (lineId: string, bytes: Uint8Array) => {
+    const fd = new FormData();
+    fd.append('file', new File([bytes], 'rebours.wav'));
+    return SELF.fetch(`${base}/courses/${MARATHON}/script/lines/${lineId}/audio`, { method: 'POST', headers: { Cookie: cookie, Accept: 'application/json' }, body: fd });
+  };
+  type Line = { id: string; problems: string[]; issues: unknown[]; ceremony: { code: string }[] };
+
+  it('says under the line when its sound is not ten seconds long, and still lets the race publish', async () => {
+    const res = await upload('ceremony.countdown', silence(4));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { estimates: { lines: Line[] } };
+    const line = body.estimates.lines.find((l) => l.id === 'ceremony.countdown')!;
+    expect(line.ceremony).toEqual([{ code: 'countdown_length', seconds: 4 }]);
+    expect(line.issues).toEqual([]);
+    expect(line.problems.join(' ')).toContain('Ce son dure 4 s');
+
+    await Promise.all(['course.planches', 'ceremony.gun', 'ceremony.intro'].map((lineId) => send(`/courses/${MARATHON}/script/render`, { lineId })));
+    const published = await send(`/courses/${MARATHON}/script/publish`, {});
+    expect(published.status).toBe(200);
+    const outcome = (await published.json()) as { warnings: string[] };
+    expect(outcome.warnings).toHaveLength(1);
+    expect(outcome.warnings[0]).toMatch(/^ceremony\.countdown : Ce son dure 4 s/);
+  });
+
+  it('is quiet about a countdown of ten seconds', async () => {
+    const res = await upload('ceremony.countdown', silence(10));
+    const body = (await res.json()) as { estimates: { lines: Line[] } };
+    expect(body.estimates.lines.find((l) => l.id === 'ceremony.countdown')).toMatchObject({ ceremony: [], problems: [] });
+  });
+});

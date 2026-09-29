@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { batteryLine, createBatteryLog } from './batteryLog';
+import { batteryLine, createBatteryLog, isLow } from './batteryLog';
 import type { PowerReading } from './batteryLog';
 
 const reading = (level: number, extra: Partial<PowerReading> = {}): PowerReading => ({ level, charging: false, lowPower: false, ...extra });
@@ -68,5 +68,28 @@ describe('battery logbook', () => {
     const log = createBatteryLog({ read: () => new Promise(() => undefined), log: (m) => lines.push(m), now: () => 0, timeoutMs: 10 });
     await log.start();
     expect(lines).toEqual(['start: unreadable (no answer in 10 ms)']);
+  });
+
+  it('hands every reading on, so the run can spare a phone that runs low', async () => {
+    const seen: PowerReading[] = [];
+    const log = createBatteryLog({ read: async () => reading(0.18), log: () => undefined, onReading: (r) => seen.push(r), now: () => 0 });
+    await log.start();
+    expect(seen).toEqual([reading(0.18)]);
+  });
+});
+
+describe('a phone short of battery', () => {
+  it('is one at 20 % or under, off the charger', () => {
+    expect(isLow(reading(0.2))).toBe(true);
+    expect(isLow(reading(0.21))).toBe(false);
+    expect(isLow(reading(0.1, { charging: true }))).toBe(false);
+  });
+
+  it('is one whenever power saving is on, whatever the level', () => {
+    expect(isLow(reading(0.8, { lowPower: true }))).toBe(true);
+  });
+
+  it('is not one when the phone does not say', () => {
+    expect(isLow(reading(-1))).toBe(false);
   });
 });

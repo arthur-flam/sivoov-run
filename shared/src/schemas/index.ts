@@ -9,3 +9,4 @@ export * from './audioScript';
 export * from './auth';
 export * from './organizer';
 export * from './lead';
+export * from './runJournal';

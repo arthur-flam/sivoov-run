@@ -21,7 +21,7 @@
 | Location | expo-location + expo-task-manager (background) | |
 | Audio | expo-audio with background mode | |
 | Content | TTS by the script's voice: ElevenLabs (MP3) or Google Gemini TTS (native French, WAV, through the AI Gateway), cached in R2; produced sound mixed offline with ffmpeg (`api/tools/produce`: Gemini voice, BBC Sound Effects, Lyria music); LLM calls only through Cloudflare AI Gateway "sivoov" (Claude via `@anthropic-ai/sdk` on the gateway's Anthropic route with the key held by the gateway, Workers AI Llama 3.3 on the same gateway as the stand-in) for per-runner personal lines and the studio's suggestions; Open-Meteo (no key) for the weather in those lines | pre-produced per race; personal lines rendered per runner before the start or live, always with an offline version (AUDIO.md) |
-| Maps | Mapbox Static Images, rendered by the Worker at `/api/courses/:id/map.png`, for the web pages and the race home; the run screen draws the course in 3D with `@rnmapbox/maps` (Mapbox Standard), Mapbox GL JS on the web target | the run should feel like being there; the public token comes with `/api/me` (`map.token`), so it is rotated in the Worker |
+| Maps | Mapbox Static Images, rendered by the Worker at `/api/courses/:id/map.png`, for the web pages and the race home (`?base=1`: the ground alone, framed by `fitView` in `shared/`, which the app draws the course and its places on); the run screen draws the course in 3D with `@rnmapbox/maps` (Mapbox Standard), Mapbox GL JS on the web target | the run should feel like being there; the public token comes with `/api/me` (`map.token`), so it is rotated in the Worker |
 | Errors | Sentry (app + worker) | crash visibility without a laptop |
 | Builds | EAS Build (cloud), EAS Update (OTA), GitHub Actions | no Mac, no laptop |
 | Tests | Vitest everywhere (API tests run inside workerd via vitest-pool-workers), Playwright against the web target and the Worker | |
@@ -112,18 +112,46 @@ drives both maps (`mapConfig.ts`): `RunMap.tsx` (native) and `RunMap.web.tsx` (M
 Mapbox's CDN, same pinned version as the admin, for the web target and the screenshots).
 
 The course diagram (`CourseDiagram`, SVG, no tiles) stays the fallback: no token, no network with
-nothing kept, a style that does not load, the runner's choice, and **a shell built before the
+nothing kept, a style that does not load (an error, or nothing within 6 s: offline the SDK may
+never say), the runner's choice, and **a shell built before the
 SDK**, which gets this JavaScript over the air without the native half: `mapboxSdk.ts` checks for
 the native module before it even loads the package. The race home keeps the course on the phone
 for offline runs (`useMapDownload`: a Mapbox offline region over the course, zoom 11-16).
+
+## A run survives the app
+The phone keeps the run in progress on disk (`app/src/stores/runJournal.ts`, `journalFiles.ts`):
+`run/journal.json` (who, which course, the gun, the lines fired; rewritten) and `run/samples.jsonl`
+(one fix per line, appended every 10 s) in the document dir. The tracker is a pure fold, so the
+run *is* its fixes: when the app opens on a journal (`useRunRecovery` on the home screen), the run
+is rebuilt by replaying them (`recoveryFor` in `shared/domain/runJournal.ts`) and goes on by
+itself from where the runner is now, the clock never stopped: only the runner's hold-and-confirm
+ends a run. When it is over (stopped, finished, silent for 2 h, older than 8 h) it is queued for
+upload without a word. The panel « Votre course continue » (resume or stop and save) shows only
+when the GPS will not start again. The audio pack starts coming down from the app's root as soon
+as the runner is known, and the resume waits for it (4 s at most) so the race is said from it. The journal is cleared only once the upload queue holds the trace.
+
+On Android the location service survives the app being swiped away (`killServiceOnDestroy:
+false`): if the app's JavaScript survives too, the run goes on untouched and the screens come back
+to it; if it does not, the background task runs on its own and appends the fixes to the journal
+(`orphanFixes`), or switches off a GPS that no run will ever read. iOS stops updates when the app
+is killed; the run resumes when it is reopened. A fix that bridges more than a minute without
+fixes (a tunnel, a dark phone, a resume) drops the lines that fell due in the gap, bar the finish
+(`bridgedGap`, `afterPause`): a late burst of old kilometres is worse than silence.
+
+## Battery
+The screen stays on before the gun and during the run, unless the battery is low (20 % off the
+charger, or power saving): then the phone's own sleep takes over and the GPS goes to its saver
+pace, once (Android: a fix every 2 s; iOS: best accuracy with a 5 m filter instead of the
+navigation mode). The run clock and the map's glide stop redrawing while the app is in the
+background. Readings are in the logbook (`batteryLog.ts`).
 
 ## Native module list (changing this needs a new EAS build and a note here)
 expo-location, expo-task-manager, expo-audio, expo-secure-store, expo-haptics,
 expo-keep-awake, expo-updates, @sentry/react-native, react-native-svg,
 react-native-reanimated, react-native-gesture-handler, react-native-screens,
 react-native-safe-area-context, expo-battery (pre-flight battery level check before a
-multi-hour run; added 2026-09-13), expo-file-system (downloads the audio pack to the cache
-dir so a run never needs the network; added 2026-09-13), @rnmapbox/maps (the run screen's 3D map
+multi-hour run; added 2026-09-13), expo-file-system (downloads the audio pack to the
+document dir so a run never needs the network, a cold start included; added 2026-09-13), @rnmapbox/maps (the run screen's 3D map
 and its offline region; Mapbox Maps SDK v11, no download token needed; added 2026-09-29, needs a
 new EAS build to appear, older shells keep the diagram). Nothing else without a recorded decision.
 

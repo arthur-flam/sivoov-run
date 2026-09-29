@@ -16,11 +16,11 @@ export const MAP_STYLE = 'mapbox://styles/mapbox/standard';
  */
 export const FOLLOW = { zoom: 17.1, pitch: 72, padding: { top: 220, bottom: 24, left: 0, right: 0 } } as const;
 /** The whole course, tilted enough to show the buildings, clear of the chips at the top. */
-export const OVERVIEW = { pitch: 40, marginM: 120, padding: { top: 72, bottom: 40, left: 28, right: 28 } } as const;
+export const OVERVIEW = { pitch: 40, marginM: 30, padding: { top: 64, bottom: 24, left: 16, right: 16 } } as const;
 /** How often the followed camera moves: often enough to glide, rarely enough to spare the battery. */
 export const GLIDE_MS = 250;
 /** A change of view (overview to the start line, follow to overview) is a slow, visible move. */
-export const MOVE_MS = 1800;
+export const MOVE_MS = 2600;
 /** The map draws at most this often: a runner glances at it, a game would need more. */
 export const MAX_FPS = 30;
 
@@ -83,8 +83,8 @@ export const paint = (accent: string) => ({
 export type Padding = { top: number; bottom: number; left: number; right: number };
 
 export type CameraShot =
-  | { kind: 'follow'; center: [number, number]; bearing: number; zoom: number; pitch: number; padding: Padding; mode: 'ease' | 'linear'; durationMs: number }
-  | { kind: 'overview'; ne: [number, number]; sw: [number, number]; pitch: number; padding: Padding; mode: 'ease'; durationMs: number };
+  | { kind: 'follow'; center: [number, number]; bearing: number; zoom: number; pitch: number; padding: Padding; mode: 'fly' | 'linear'; durationMs: number }
+  | { kind: 'overview'; ne: [number, number]; sw: [number, number]; pitch: number; padding: Padding; mode: 'fly'; durationMs: number };
 
 export type CameraPlan = { view: RunMapView; until: number; shot: CameraShot };
 
@@ -96,10 +96,10 @@ export type CameraPlan = { view: RunMapView; until: number; shot: CameraShot };
 export const nextCameraPlan = (prev: CameraPlan | null, view: RunMapView, follow: { center: LatLng; bearing: number }, bounds: { ne: [number, number]; sw: [number, number] }, now: number): CameraPlan => {
   const changed = prev === null || prev.view !== view;
   if (!changed && (now < prev.until || view === 'overview')) return prev;
-  const mode = changed ? 'ease' : 'linear';
+  const mode = changed ? 'fly' : 'linear';
   const shot: CameraShot =
     view === 'overview'
-      ? { kind: 'overview', ...bounds, pitch: OVERVIEW.pitch, padding: OVERVIEW.padding, mode: 'ease', durationMs: MOVE_MS }
+      ? { kind: 'overview', ...bounds, pitch: OVERVIEW.pitch, padding: OVERVIEW.padding, mode: 'fly', durationMs: MOVE_MS }
       : { kind: 'follow', center: lngLat(follow.center), bearing: follow.bearing, zoom: FOLLOW.zoom, pitch: FOLLOW.pitch, padding: FOLLOW.padding, mode, durationMs: changed ? MOVE_MS : GLIDE_MS };
   return { view, until: changed ? now + MOVE_MS : now, shot };
 };

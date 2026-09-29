@@ -32,6 +32,58 @@ the choice is per entry (a runner in two races chooses in each). Later (the owne
 2026-09-29): a proper runner, signed in once and entered in several races, would hold the
 language, the sign-in and the history instead of each entry.
 
+### Race-day edge cases (2026-09-29, branch `claude/run-edge-cases`, merged)
+The owner asked for a review of what can go wrong mid-race: no network, the app closed or the
+phone restarted, a low battery, GPS gaps (tunnels), and whether the countdown follows the
+countdown file (it does). JS and Worker only, no new native module: it reaches `Sivoov
+(Preview)` by OTA. Built (ARCHITECTURE.md, "A run survives the app" and "Battery"):
+- **A run survives the app.** The run journals itself as it goes; a killed app, a crash or a
+  restarted phone reopens straight into the run, which carries on from where the runner is (the
+  clock never stopped); « Votre course continue » (resume or stop and save) only if the GPS will
+  not restart; after 2 h without a sign of life the run is closed and sent silently. The audio
+  pack now starts downloading at app start, not on the home screen. On Android the location
+  service outlives a swipe (`killServiceOnDestroy: false`) and fixes that arrive with no run
+  listening go to the journal, or switch off a GPS nobody reads.
+- **GPS gaps.** A tunnel is bridged by a straight line (tested); the lines that fell due in a
+  gap over a minute are dropped, bar the finish, instead of a late burst. Fix timestamps years
+  off (GPS week rollover) are dated on arrival.
+- **Battery.** At 20 % or with power saving: the screen may sleep and the GPS goes to its saver
+  pace. The clock and the map's glide no longer redraw 8 times a second in a pocket.
+- **Offline** (a subagent's pass, reviewed): the pack's manifest and files are kept in the
+  document dir, so a cold start with no network still has the whole ceremony and every line;
+  a phone never plays a remote URL; downloads have a 30 s deadline; a live line is downloaded
+  within its 7 s or the offline version plays, with a breaker after two failures; sign-in and
+  the course read their caches first; the native map falls back to the diagram after 6 s
+  without a style. Uploads retry every 30 s while on screen.
+- **The countdown**: the digits come from the countdown file only (one line, the last before
+  the gun), never above its whole seconds (an MP3's 10.03 s showed « 11 »); a gun file that
+  never loads starts the clock when « Un » ended, not 8 s later; the web reel counts to the gun
+  mark. The studio warns when a countdown is not 10 ± 0.3 s long (Deauville's TTS take is not),
+  when there are two, or no gun.
+- `reset()` could turn a left run 'finished' after the fact (a phantom finish uploaded later).
+Verified: all tests; on the web target with a mocked browser GPS: a real (non-simulated) run,
+reload mid-run → back in the run at the right distance, same id, clock continuous → stop and
+save → uploaded, journal cleared. Screenshot scene `run-resume` (reopens straight into the run). **Not yet on a phone** (DEVICE.md, "the ways a run gets
+interrupted").
+
+### The race home and the pre-flight, tidied (2026-09-29, branch `claude/post-login-page-layout-3f894a`)
+The owner's review of the page after sign-in. JS and Worker only (OTA).
+- **Home order**: welcome, the bib with its distance (« Semi-marathon · 21,1 km », no count of
+  places), the race window, then the action, then the course.
+- **« Faire une répétition »** before the race opens only where nobody real races: preview and
+  local, test accounts (App Review's too), demo races (`mayRehearse`, `rehearsal` in `/api/me`).
+  It says under it that registered runners do not see it. A real runner in production sees the
+  window and no button until it opens.
+- **The course card**: the course drawn by the app over a Mapbox map framed on it
+  (`map.png?base=1`, `fitView`), start, finish and numbered places (left off the map where they
+  would pile up), then the places with their distance, and what they are for: each is announced
+  at its distance.
+- **Pre-flight**: « Retour » replaces « Relancer les vérifications »; the GPS keeps looking while
+  the screen is open, a failed pack download retries every 15 s, the buttons stay at the bottom
+  on a small phone. A pack published since the app loaded replaces the one on the phone here.
+- **Start screen**: no more « Carte du parcours gardée sur le téléphone ».
+Seen in the web target (`npm run shots`, home, prepare, run-ready); not yet on a phone.
+
 ### The run screen, rebuilt (2026-09-29, branch `claude/run-screen`)
 The owner asked for a run screen that is highly functional, polished and clear, with the race's
 place in 3D at eye level, without deciding the identity (DESIGN.md, the run screen exception).
@@ -232,6 +284,17 @@ Anchored to PRD milestones (M2 10 Oct, M3 17 Oct, M4 31 Oct).
 Newest to oldest, durable ones only. Rationale already written up elsewhere is not
 repeated here (see ARCHITECTURE.md, AUDIO.md, WORKFLOW.md).
 
+- A run that died comes back as the same run with the clock still running (a real race's clock
+  never stops); the minutes the phone was dark count as a straight line. It resumes by itself
+  (owner's call: only the hold-to-stop ends a run) up to 2 h after its last sign of life, within
+  8 h of the gun; after that it is closed and sent.
+- Swiping the app away no longer ends a run on Android (the service stays, its notification
+  says so). Stopping is only ever the runner's hold-and-confirm.
+- The screen stays on during the run unless the battery is low (20 %, power saving); then the
+  phone's own sleep applies. GPS saver pace switches once and never back.
+- A countdown not 10 s long is a studio warning, not a publish blocker (a voice take never
+  lands on 10.0 s; blocking would stop every organizer).
+
 - The run screen shows the course in 3D with the native Mapbox SDK, camera behind the runner by
   default; the diagram is the fallback and the runner's battery choice (owner's request,
   2026-09-29; supersedes "course diagram, not a map" for the run screen).
@@ -307,6 +370,15 @@ repeated here (see ARCHITECTURE.md, AUDIO.md, WORKFLOW.md).
   showed the S23's reported speed reads 8-16 % low (MEMORY.md).
 
 ## Known gaps
+
+- Run recovery, the swipe-away service, the saver pace and the offline cold start are tested in
+  the store and on the web target only. On Android: does the JS survive a swipe (the run goes on
+  with its voice) or does the headless task journal the fixes? Does Samsung let the service
+  live? On iOS a killed app records nothing until reopened (the gap is a straight line).
+- Old audio pack versions are never deleted from the phone (a few MB per republish).
+- The native map gives up after 6 s without its style: a slow first load shows the diagram for
+  that run.
+- GPS lost is shown (the chip), never said: the pack has no « signal GPS perdu » line.
 
 - The run screen's map has only been seen in a browser (Mapbox GL JS). The native map, its
   offline region and its battery cost are untested until a new EAS build; the Standard style's

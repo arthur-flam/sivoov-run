@@ -8,10 +8,23 @@ import { sdk } from './mapboxSdk';
 /** Whether this build can draw the map at all. */
 export const mapAvailable = sdk !== null;
 
+/**
+ * A style that has not loaded by then is taken as failed: offline with nothing kept, the SDK
+ * may never report an error, and the runner would look at a blank map. The course is drawn.
+ */
+const STYLE_TIMEOUT_MS = 6000;
+
 /** The course in 3D, the camera behind the runner or over the whole course (mapConfig.ts). */
 export const RunMap = memo(function RunMap({ token, track, officialM, runM, landmarks, accent, view, light, onFail }: RunMapProps) {
   const [ready, setReady] = useState(false);
   const plan = useRef<CameraPlan | null>(null);
+  const styled = useRef(false);
+  const fail = useRef(onFail);
+  fail.current = onFail;
+  useEffect(() => {
+    const id = setTimeout(() => styled.current || fail.current(), STYLE_TIMEOUT_MS);
+    return () => clearTimeout(id);
+  }, []);
   useEffect(() => {
     if (!sdk) return onFail();
     let live = true;
@@ -55,13 +68,16 @@ export const RunMap = memo(function RunMap({ token, track, officialM, runM, land
       logoPosition={{ bottom: 8, left: 8 }}
       attributionPosition={{ bottom: 8, right: 8 }}
       onMapLoadingError={onFail}
+      onDidFinishLoadingStyle={() => {
+        styled.current = true;
+      }}
     >
       <StyleImport id="basemap" existing config={basemapConfig(light)} />
       <Camera
         defaultSettings={cameraProps}
         {...cameraProps}
         padding={{ paddingTop: shot.padding.top, paddingBottom: shot.padding.bottom, paddingLeft: shot.padding.left, paddingRight: shot.padding.right }}
-        animationMode={shot.mode === 'linear' ? 'linearTo' : 'easeTo'}
+        animationMode={shot.mode === 'linear' ? 'linearTo' : 'flyTo'}
         animationDuration={shot.durationMs}
       />
       <ShapeSource id="course" shape={line} lineMetrics>

@@ -524,6 +524,22 @@
   refuses `eas update --non-interactive` without `--environment` ("The `--environment` flag must
   be set"); the workflows pass it now. By hand:
   `APP_VARIANT=preview EXPO_PUBLIC_API_URL=https://preview.run.sivoov.app npx eas-cli update --channel preview --environment preview --message "…" --non-interactive`.
+- 2026-09-29: run edge cases (crash, restart, battery, GPS gaps). Worth knowing next time:
+  - `reset()` used to call `stop()`, whose async tail (after `await source.stop()`) turned the
+    run 'finished' after reset had set 'idle'. A later screen then showed a phantom finish and
+    uploaded it. reset now cleans up inline; never call an async action from reset.
+  - A missed backlog cannot be computed at resume: the dark kilometres only appear with the first
+    new fix. Drop stale lines on the fix that bridges the gap (`bridgedGap`), not before.
+  - `createX(now = Date.now)` captures the real `Date.now` before vitest's fake timers replace it:
+    default to `() => Date.now()`.
+  - expo-location Android: `LocationTaskService` returns `START_REDELIVER_INTENT` and only stops
+    itself in `onTaskRemoved` when `killServiceOnDestroy` is true; the FusedLocation request is a
+    `PendingIntent`, so fixes keep reaching the task (headless if need be) after the activity dies.
+    A foreground service cannot be (re)started while the app is in the background.
+  - expo-file-system (SDK 57) `File.write(text, { append: true })` appends on both platforms.
+  - Local stack from a session with other worktrees' servers alive: another checkout's `wrangler
+    dev` held 8788 (answering `internal`) and an Expo from 2026-09-13 held 8081, another 8082. Run
+    this checkout's Worker on 8789 and Metro on 8083 (`SHOTS_API_PORT`, `SHOTS_APP_PORT`).
 - 2026-09-29: the run screen's 3D map (`@rnmapbox/maps`, Mapbox Standard). Worth knowing next time:
   - An OTA update reaches shells built without a native module: `@rnmapbox/maps` reads its native
     module when imported and would crash them, so `mapboxSdk.ts` checks `NativeModules` /
@@ -558,3 +574,21 @@
   - `toMatchObject({ locale: undefined })` fails when the key is absent from the JSON: assert
     `toBeUndefined()` on the field.
 
+- 2026-09-29: the dev app's "Une erreur est survenue" at sign-in was a stale bundle: the laptop's
+  Metro from 2026-09-13 still held 8081, `npm run device` stopped at "Use port 8084 instead?", and
+  `adb reverse tcp:8081` fed the phone the old checkout's JS. Free 8081 first
+  (`lsof -iTCP:8081 -sTCP:LISTEN`); to point the dev app at a Metro without tapping:
+  `adb shell am start -a android.intent.action.VIEW -d "sivoov-dev://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"`.
+- 2026-09-29: the race home and the pre-flight, reworked. Worth knowing next time:
+  - Updates: `/api/me` (race, course, places) is fetched again every time the race home comes back
+    into view. The audio pack used to be fetched once per app process: a pack published while the
+    app sat in memory was missed until a restart. The pre-flight now calls `packStore.update`,
+    which checks the version and swaps once every file is down; the race home and the run screen
+    never swap (a run keeps the pack it started with).
+  - Mapbox Static Images take `lng,lat,zoom` with a fractional zoom in GL's 512-pixel tiles:
+    `fitView`/`projectOnView` (shared) put a drawn line exactly on Mapbox's own path (checked by
+    overlaying both). Drawing in the app beats Mapbox's pins, which overlap on a loop course.
+  - `expo start` with `CI=1` does not watch files: a Metro started that way serves the first
+    bundle until restarted. Start the shots' Metro by hand without `CI` to iterate.
+  - Another worktree's `wrangler dev` held 8788: the rig would have shot that checkout's Worker and
+    D1. `SHOTS_API_PORT` (SHOTS.md).

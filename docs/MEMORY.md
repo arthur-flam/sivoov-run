@@ -645,7 +645,7 @@
     before the tracker does. Distance lines now fire `LINE_LEAD_S` (3 s) early.
   - Android refuses `startLocationUpdatesAsync` from the background ("Foreground service cannot be
     started when the application is in the background"): the GPS saver pace waits for the app to
-    be on screen.
+    be on screen (fixed on main the same day by another session; both found it in the same trace).
   - Leaving the finish screen unmounted the run screen, which released the player and reset the
     run: the finish lines and the crowd were cut. The finish now plays out (`letFinish`).
   - A Galaxy S23 with the 3D map on screen went from 28 % to 7 % in 46 min (about 27 %/h).
@@ -681,3 +681,19 @@
   attribution must show in full; no Mapbox path, so CesiumJS in a WebView or a 3D Tiles renderer on
   expo-gl (a native module), with the camera plan, course line and runner rebuilt on it, and the
   current map kept as the offline and low-battery fallback. Weeks, not days.
+- 2026-09-29: second real run (10 km Champs-Élysées rehearsal, S23, run `mumtdgzg-uaew1q4g`)
+  against the Fenix 8. Worth knowing next time:
+  - `scripts/compare_garmin.py` (uv) replays a trace through a Python port of the tracker (checked:
+    the first run replays to 9 224.9 m, the TS tracker's 9 225 m) and compares with Strava streams.
+    The Strava MCP gives the streams; DotDot's public `/series` has the same Garmin run but no
+    timestamps. The admin's GPX and « Données brutes » downloads came back as the same JSON.
+  - Compare paces from the gun, not from the watch's start: a watch started 97 s early (walking)
+    made the app's spoken average look 14 s/km fast at km 1 and 2.5 s/km at km 9, while the
+    tracker was 1 s/km fast. The owner's "5 s/km" was that.
+  - The tracker leans long on clean traces: +0.39 % and +0.23 % on the two real runs. The 8 m
+    minimum step is where it comes from (15 m gives -0.04/-0.07 %), but larger steps break the
+    hairpin and clean-10 km tests. The Garmin's positions sum 0.7 % over its own distance.
+  - The saver pace restarts the location task from the background, which Android refuses
+    ("Couldn't start the foreground service"); the running updates survive the refusal.
+  - The logbook's battery lines work: 28 %/h on this run from a 28 % start. Measure from a full
+    phone before judging the budget; a Li-ion gauge is least linear near empty.

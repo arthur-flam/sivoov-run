@@ -98,12 +98,20 @@ if (Platform.OS !== 'web') {
 
 const FOREGROUND_OPTIONS: Location.LocationOptions = { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 0 };
 
+/**
+ * Off screen, Android hands the fixes over this often, in one batch: each hand-over is a job that
+ * wakes the JavaScript, and at 1 s the second real run woke it 2 133 times for 2 795 fixes. The GPS
+ * still fixes every second and every fix is kept, so the distance does not change; a line is said
+ * up to this late with the phone in a pocket. On screen expo-location hands each fix over at once.
+ */
+export const BACKGROUND_BATCH_MS = Platform.OS === 'android' ? 4000 : 1000;
+
 const BACKGROUND_OPTIONS: Location.LocationTaskOptions = {
   ...FOREGROUND_OPTIONS,
   activityType: Location.ActivityType.Fitness,
   pausesUpdatesAutomatically: false,
   showsBackgroundLocationIndicator: true,
-  deferredUpdatesInterval: 1000,
+  deferredUpdatesInterval: BACKGROUND_BATCH_MS,
   deferredUpdatesDistance: 0,
   foregroundService: {
     notificationTitle: t('location.notification.title'),
@@ -122,7 +130,7 @@ const BACKGROUND_OPTIONS: Location.LocationTaskOptions = {
  */
 const SAVER_OPTIONS: Location.LocationTaskOptions = {
   ...BACKGROUND_OPTIONS,
-  ...(Platform.OS === 'ios' ? { accuracy: Location.Accuracy.Highest, distanceInterval: 5 } : { timeInterval: 2000, deferredUpdatesInterval: 2000 }),
+  ...(Platform.OS === 'ios' ? { accuracy: Location.Accuracy.Highest, distanceInterval: 5 } : { timeInterval: 2000 }),
 };
 
 /** Where the permissions stand now, without prompting. */
@@ -161,31 +169,32 @@ export const deviceSource = (): DeviceLocationSource => {
 
   let saving = false;
   let unsubscribePower: () => void = () => undefined;
-
   let unsubscribeScreen: () => void = () => undefined;
+
+  const switchToSaver = async () => {
+    diag('location', 'battery low: GPS saver pace');
+    await Location.startLocationUpdatesAsync(LOCATION_TASK, SAVER_OPTIONS).catch((e: unknown) => diag('location', `saver pace refused: ${e instanceof Error ? e.message : String(e)}`));
+  };
 
   /**
    * Once, when the battery runs low mid-run: never back, a GPS switched to and fro costs more than it
-   * saves. Changing the pace restarts Android's location service, which Android refuses from the
-   * background ("Foreground service cannot be started when the application is in the background",
-   * the rehearsal of 2026-09-29, phone in a pocket): then it waits for the app to be on screen again.
+   * saves. Changing the pace restarts the foreground service, which Android refuses to an app off
+   * screen (the second real run, locked at 19 %): then it waits for the runner's next look at it.
    */
   const spare = async () => {
     if (!background || saving) return;
-    if (Platform.OS === 'android' && AppState.currentState !== 'active') {
-      unsubscribeScreen();
-      const sub = AppState.addEventListener('change', (next) => {
-        if (next !== 'active') return;
-        sub.remove();
-        void spare();
-      });
-      unsubscribeScreen = () => sub.remove();
-      diag('location', 'battery low: GPS saver pace when the app is back on screen');
-      return;
-    }
     saving = true;
-    diag('location', 'battery low: GPS saver pace');
-    await Location.startLocationUpdatesAsync(LOCATION_TASK, SAVER_OPTIONS).catch((e: unknown) => diag('location', `saver pace refused: ${e instanceof Error ? e.message : String(e)}`));
+    if (AppState.currentState === 'active') return switchToSaver();
+    diag('location', 'battery low: GPS saver pace when the app is next on screen');
+    const listener = AppState.addEventListener('change', (next) => {
+      if (next !== 'active') return;
+      unsubscribeScreen();
+      if (background) void switchToSaver();
+    });
+    unsubscribeScreen = () => {
+      listener.remove();
+      unsubscribeScreen = () => undefined;
+    };
   };
 
   const watchForeground = async (onSample: (sample: LocationSample) => void) => {

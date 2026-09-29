@@ -16,6 +16,15 @@ on:
         options: [publish-preview, promote-production, build-development, build-preview, build-production]
         required: true
 
+# One deploy at a time, in order: two quick merges must not migrate D1 and deploy the Worker side
+# by side, nor let the older commit land last. Never cancelled: a half-applied deploy is worse.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
 jobs:
   # `secrets` cannot be read in a job-level `if`, so it is turned into an output here. Without
   # this a repo with no secrets fails every push to main, and a red main from the phone is
@@ -112,7 +121,8 @@ jobs:
 
   promote-production:
     needs: secrets-check
-    if: github.event_name == 'workflow_dispatch' && inputs.action == 'promote-production'
+    # Production only ever gets main: the dispatch form lets anyone pick another branch.
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'promote-production' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

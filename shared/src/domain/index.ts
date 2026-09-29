@@ -37,3 +37,5 @@ export * from './team';
 export * from './raceDates';
 export * from './demoRace';
 export * from './signIn';
+export * from './runJournal';
+export * from './fixClock';

@@ -12,6 +12,7 @@ import { useMyResult } from '@/hooks/useMyResult';
 import { useMapDownload } from '@/hooks/useMapDownload';
 import { usePackDownload } from '@/hooks/usePackDownload';
 import { useTrack } from '@/hooks/useTrack';
+import { useRunRecovery } from '@/hooks/useRunRecovery';
 import { useUploadFlush } from '@/hooks/useUploadFlush';
 import { locale, t } from '@/i18n';
 import { openCertificate, openResults, shareBib, shareFinish } from '@/share';
@@ -33,6 +34,8 @@ export default function Home() {
   const refresh = useSession((s) => s.refresh);
   const token = useSession((s) => s.token);
   const pendingUploads = useUploadFlush(token);
+  // Back in a run the app lost (killed, crashed, phone restarted), or its upload queued if it is over.
+  useRunRecovery(me?.entrant.id ?? null, token);
   const best = useMyResult();
   const track = useTrack(me?.course ?? null);
   usePackDownload(me?.course ?? null);

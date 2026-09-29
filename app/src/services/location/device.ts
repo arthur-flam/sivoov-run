@@ -2,11 +2,14 @@ import { Platform } from 'react-native';
 import * as Battery from 'expo-battery';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
+import { fixTime, orphanFixes } from '@sivoov/shared';
 import type { LocationSample } from '@sivoov/shared';
 import { diag, diagCount } from '@/diag';
-import { createBatteryLog } from '@/services/batteryLog';
+import { createBatteryLog, isLow } from '@/services/batteryLog';
 import type { PowerReading } from '@/services/batteryLog';
 import { t } from '@/i18n';
+import { journalFiles } from '@/stores/journalFiles';
+import { usePower } from '@/stores/power';
 import { keepsTrackingLocked } from './permission';
 import type { DevicePlatform, LocationPermission } from './permission';
 import type { LocationSource } from './types';
@@ -35,8 +38,11 @@ const readPower = async (): Promise<PowerReading> => {
   return { level: power.batteryLevel, charging, lowPower: power.lowPowerMode, optimized };
 };
 
-/** Battery lines in the logbook for the whole run (the web target has no battery to read). */
-const battery = Platform.OS === 'web' ? null : createBatteryLog({ read: readPower, log: (m) => diag('battery', m), now: () => Date.now() });
+/** Battery lines in the logbook for the whole run (the web target has no battery to read); each reading also says whether the phone is short. */
+const battery =
+  Platform.OS === 'web'
+    ? null
+    : createBatteryLog({ read: readPower, log: (m) => diag('battery', m), onReading: (r) => usePower.setState({ low: isLow(r) }), now: () => Date.now() });
 
 export const toSample = (loc: Location.LocationObject): LocationSample => ({
   lat: loc.coords.latitude,
@@ -44,9 +50,26 @@ export const toSample = (loc: Location.LocationObject): LocationSample => ({
   accuracy: loc.coords.accuracy ?? undefined,
   altitude: loc.coords.altitude ?? undefined,
   speed: loc.coords.speed !== null && loc.coords.speed >= 0 ? loc.coords.speed : undefined,
-  // iOS reports fractional milliseconds; the trace schema wants whole ones.
-  timestamp: Math.round(loc.timestamp),
+  // Whole milliseconds (iOS reports fractions), and the arrival time when the receiver's clock is absurd.
+  timestamp: fixTime(loc.timestamp, Date.now()),
 });
+
+/**
+ * Fixes with no run listening: the app was killed or crashed and Android kept (or restarted) the
+ * location service, so the task runs on its own. A run still going gets them in its journal and
+ * finds them when the app comes back; otherwise the GPS nobody reads is switched off.
+ */
+const keepOrphans = async (samples: LocationSample[]): Promise<void> => {
+  const journal = await journalFiles.readMeta().catch(() => null);
+  if (orphanFixes(journal, Date.now()) === 'keep') {
+    diagCount('task.orphans', samples.length);
+    await journalFiles.append(samples).catch(() => diagCount('task.dropped', samples.length));
+    return;
+  }
+  diagCount('task.dropped', samples.length);
+  diag('location', `dropped ${samples.length} fixes: no run is listening, updates stopped`);
+  await Location.stopLocationUpdatesAsync(LOCATION_TASK).catch(() => undefined);
+};
 
 // Must be defined at module top level, before any screen starts updates (expo-task-manager).
 if (Platform.OS !== 'web') {
@@ -65,11 +88,7 @@ if (Platform.OS !== 'web') {
       diagCount('task.empty');
       return;
     }
-    if (!activeListener) {
-      diagCount('task.dropped', locations.length);
-      diag('location', `dropped ${locations.length} fixes: no run is listening`);
-      return;
-    }
+    if (!activeListener) return keepOrphans(locations.map(toSample));
     diagCount('task.fixes', locations.length);
     locations.map(toSample).forEach((sample) => activeListener?.(sample));
     battery?.due();
@@ -90,8 +109,20 @@ const BACKGROUND_OPTIONS: Location.LocationTaskOptions = {
     notificationTitle: t('location.notification.title'),
     notificationBody: t('location.notification.body'),
     notificationColor: '#1d1c1a',
-    killServiceOnDestroy: true,
+    // Swiping the app away must not end the race: the service and its fixes carry on, into the
+    // run if the app's JavaScript survived, into the run's journal otherwise (`keepOrphans`).
+    killServiceOnDestroy: false,
   },
+};
+
+/**
+ * The phone runs short (`isLow`): a fix every two seconds instead of every second on Android, and
+ * on iOS the plain best accuracy instead of the navigation mode Apple meant for a plugged-in phone,
+ * with a 5 m filter. The tracker counts steps of 8 m and more anyway (2-3 s of running).
+ */
+const SAVER_OPTIONS: Location.LocationTaskOptions = {
+  ...BACKGROUND_OPTIONS,
+  ...(Platform.OS === 'ios' ? { accuracy: Location.Accuracy.Highest, distanceInterval: 5 } : { timeInterval: 2000, deferredUpdatesInterval: 2000 }),
 };
 
 /** Where the permissions stand now, without prompting. */
@@ -128,6 +159,17 @@ export const deviceSource = (): DeviceLocationSource => {
   let background = false;
   let permission: LocationPermission | null = null;
 
+  let saving = false;
+  let unsubscribePower: () => void = () => undefined;
+
+  /** Once, when the battery runs low mid-run: never back, a GPS switched to and fro costs more than it saves. */
+  const spare = async () => {
+    if (!background || saving) return;
+    saving = true;
+    diag('location', 'battery low: GPS saver pace');
+    await Location.startLocationUpdatesAsync(LOCATION_TASK, SAVER_OPTIONS).catch((e: unknown) => diag('location', `saver pace refused: ${e instanceof Error ? e.message : String(e)}`));
+  };
+
   const watchForeground = async (onSample: (sample: LocationSample) => void) => {
     subscription = await Location.watchPositionAsync(FOREGROUND_OPTIONS, (loc) => onSample(toSample(loc)));
   };
@@ -140,6 +182,10 @@ export const deviceSource = (): DeviceLocationSource => {
       permission = await requestLocationPermission();
       diag('location', `permission: ${permission}`);
       if (permission === 'denied') throw new Error('location_denied');
+      // Not awaited: the gun has fired, the GPS must not wait. A low reading switches the pace when it
+      // lands; what an earlier session read no longer counts (the phone may have charged since).
+      usePower.setState({ low: false });
+      saving = false;
       void battery?.start();
       if (!keepsTrackingLocked(permission, platform)) {
         diag('location', 'foreground watch only: fixes stop when the screen locks');
@@ -159,8 +205,13 @@ export const deviceSource = (): DeviceLocationSource => {
       }
       background = true;
       diag('location', 'background updates started');
+      unsubscribePower = usePower.subscribe((power) => {
+        if (power.low) void spare();
+      });
+      if (usePower.getState().low) void spare();
     },
     async stop() {
+      unsubscribePower();
       await battery?.stop();
       subscription?.remove();
       subscription = null;

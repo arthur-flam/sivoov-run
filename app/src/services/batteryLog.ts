@@ -18,6 +18,15 @@ export type PowerReading = {
   optimized?: boolean;
 };
 
+/** At or under this level, off the charger, the run spares the phone (`isLow`). */
+export const LOW_BATTERY_LEVEL = 0.2;
+
+/**
+ * The phone is short of battery: power saving is on, or the level is low and it is not charging.
+ * The run then lets the screen sleep and asks the GPS for a fix every two seconds instead of one.
+ */
+export const isLow = (r: PowerReading): boolean => !r.charging && (r.lowPower || (r.level >= 0 && r.level <= LOW_BATTERY_LEVEL));
+
 export const batteryLine = (why: string, r: PowerReading): string =>
   [
     `${why}: ${r.level < 0 ? 'level unknown' : `${Math.round(r.level * 100)} %`}`,
@@ -29,6 +38,8 @@ export const batteryLine = (why: string, r: PowerReading): string =>
 type Deps = {
   read: () => Promise<PowerReading>;
   log: (message: string) => void;
+  /** Every reading that came back, for whatever acts on the level. */
+  onReading?: (reading: PowerReading) => void;
   now: () => number;
   everyMs?: number;
   timeoutMs?: number;
@@ -42,14 +53,16 @@ const within = <T>(ms: number, promise: Promise<T>): Promise<T> => {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 };
 
-export const createBatteryLog = ({ read, log, now, everyMs = BATTERY_EVERY_MS, timeoutMs = BATTERY_TIMEOUT_MS }: Deps) => {
+export const createBatteryLog = ({ read, log, onReading = () => undefined, now, everyMs = BATTERY_EVERY_MS, timeoutMs = BATTERY_TIMEOUT_MS }: Deps) => {
   // When the last reading was taken; null outside a run, so nothing is read between runs.
   let lastAt: number | null = null;
 
   const record = async (why: string): Promise<void> => {
     lastAt = now();
     try {
-      log(batteryLine(why, await within(timeoutMs, read())));
+      const reading = await within(timeoutMs, read());
+      log(batteryLine(why, reading));
+      onReading(reading);
     } catch (e) {
       log(`${why}: unreadable (${e instanceof Error ? e.message : String(e)})`);
     }

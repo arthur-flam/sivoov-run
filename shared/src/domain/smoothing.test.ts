@@ -62,4 +62,10 @@ describe('sample filter', () => {
     expect(v.ok).toBe(true);
     if (v.ok) expect(v.stepM).toBeCloseTo((3.3 * 7) / 1.15, 1);
   });
+  it('never lifts a step across a stop: the runner stood still between two running fixes', () => {
+    // Three minutes at a red light, the drift rejected as jitter: 11 m of ground, not 3 m/s for 180 s.
+    const v = judgeSample({ ...at(49, 0, 1000, 3), speed: 3 }, { ...at(49.0001, 0, 181_000, 3), speed: 3 });
+    expect(v.ok).toBe(true);
+    if (v.ok) expect(v.stepM).toBeCloseTo(11.1, 0);
+  });
 });

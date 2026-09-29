@@ -4,6 +4,7 @@ import { firstRealRunSamples, firstRealRunWatchM } from '../fixtures/firstRealRu
 import { buildTrack } from './course';
 import { constantPace, simulateRun } from './simulate';
 import { fixTime } from './fixClock';
+import { destination } from './geo';
 import { abandon, applySample, bridgedGap, idleRun, progress, startRun, tick } from './tracker';
 import type { RunState } from './tracker';
 
@@ -46,6 +47,34 @@ describe('run tracker', () => {
     const s = firstRealRunSamples(1000).reduce((acc, sample) => applySample(acc, sample), startRun(idleRun(42195), 1000));
     expect(Math.abs(s.distanceM / firstRealRunWatchM - 1)).toBeLessThan(0.005);
     expect(s.splits.map((x) => x.km)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  });
+
+  it('adds nothing for the time a runner stands still', () => {
+    // 300 s at 3 m/s, slow down, three minutes at a red light with the fix drifting 2 m and the
+    // speed at 0, set off again, 300 s more. The stop is ground not covered, whatever its length.
+    const stopped = (stopS: number) => {
+      type Leg = { v: number; still?: boolean };
+      const legs: Leg[] = [
+        ...Array.from({ length: 300 }, () => ({ v: 3 })),
+        ...[2, 1, 0.3].map((v) => ({ v })),
+        ...Array.from({ length: stopS }, () => ({ v: 0, still: true })),
+        ...[0.5, 1.5, 2.5].map((v) => ({ v })),
+        ...Array.from({ length: 300 }, () => ({ v: 3 })),
+      ];
+      const { state, truth } = legs.reduce(
+        (acc, leg, i) => {
+          const pos = destination(acc.pos, 0, leg.v);
+          const t = 1000 + (i + 1) * 1000;
+          const fix = leg.still ? destination(pos, (i * 97) % 360, 2) : pos;
+          return { pos, truth: acc.truth + leg.v, state: applySample(acc.state, { ...fix, accuracy: 4, speed: leg.v, timestamp: t }) };
+        },
+        { pos: { lat: 49.36, lng: 0.07 }, truth: 0, state: startRun(idleRun(100_000), 1000) },
+      );
+      return state.distanceM - truth;
+    };
+    expect(Math.abs(stopped(0))).toBeLessThan(20);
+    expect(Math.abs(stopped(180))).toBeLessThan(20);
+    expect(Math.abs(stopped(600))).toBeLessThan(20);
   });
 
   it('is not held back by a phone that reports its speed 15 % low', () => {

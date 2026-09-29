@@ -89,6 +89,12 @@ export type FilterConfig = {
   dopplerFloorFactor: number;
   /** A stall is a step short of that floor by more than this many times the fix's accuracy. */
   stallAccuracyFactor: number;
+  /**
+   * Only a short step can stall (a U-turn takes about 7 s). Across a longer one the runner may
+   * have stood still (a red light, a water station, the jitter in between rejected): the two
+   * running speeds at either end say nothing about it, and the straight line is all we know.
+   */
+  maxStallS: number;
 };
 
 export const DEFAULT_FILTER: FilterConfig = {
@@ -99,6 +105,7 @@ export const DEFAULT_FILTER: FilterConfig = {
   dopplerCeilingFactor: 1.5,
   dopplerFloorFactor: 1.15,
   stallAccuracyFactor: 2,
+  maxStallS: 10,
 };
 
 export type FilterVerdict = { ok: true; stepM: number } | { ok: false; reason: 'accuracy' | 'time' | 'speed' | 'jitter' };
@@ -121,6 +128,6 @@ export const judgeSample = (
     prev.speed !== undefined && next.speed !== undefined ? ((prev.speed + next.speed) / 2) * dtS : undefined;
   if (dopplerStepM === undefined) return { ok: true, stepM: positionStepM };
   const floorM = dopplerStepM / config.dopplerFloorFactor;
-  const stalled = next.accuracy !== undefined && floorM - positionStepM > config.stallAccuracyFactor * next.accuracy;
+  const stalled = dtS <= config.maxStallS && next.accuracy !== undefined && floorM - positionStepM > config.stallAccuracyFactor * next.accuracy;
   return { ok: true, stepM: stalled ? floorM : Math.min(positionStepM, dopplerStepM * config.dopplerCeilingFactor) };
 };

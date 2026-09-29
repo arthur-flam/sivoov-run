@@ -6,8 +6,10 @@ test('sign in, then run a simulated half at 5:00/km in accelerated time', async 
   await page.goto('/');
   await expect(page).toHaveURL(/signin/);
   await page.screenshot({ path: `${shots}/signin.png` });
-  await page.getByTestId('bib').fill('1001');
+  // Marc is entered in Deauville and in the Champs-Élysées: the email alone asks which race.
   await page.getByTestId('email').fill('marc@example.com');
+  await page.getByTestId('send').click();
+  await page.getByTestId('race-deauville-2026').click();
   await page.getByTestId('send').click();
   await expect(page.getByTestId('code')).toHaveValue(/\d{6}/, { timeout: 15_000 });
   await page.getByTestId('verify').click();

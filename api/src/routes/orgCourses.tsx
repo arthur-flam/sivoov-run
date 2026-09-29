@@ -40,7 +40,12 @@ const coursesPage = async (c: CoursesContext, state: PageState = {}) => {
   );
 };
 
-orgCourses.get('/:slug/courses', requireOrganizer, (c) => coursesPage(c));
+orgCourses.get('/:slug/courses', requireOrganizer, async (c) => {
+  // A demo race plays the real race's courses and sound: they are edited there.
+  const demoOf = c.get('race').demoOf;
+  const source = demoOf ? await db(c.env.DB).raceById(demoOf) : null;
+  return source ? c.redirect(`/org/${source.slug}/courses`) : coursesPage(c);
+});
 
 /**
  * A new distance of the race: id is `<race>-<distanceKey>`, so it is stable and readable.

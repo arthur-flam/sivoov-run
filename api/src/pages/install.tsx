@@ -3,10 +3,16 @@ import { distanceLabel, translator } from '@sivoov/shared';
 import type { Locale } from '@sivoov/shared';
 import { fmtDate } from './dates';
 
-type Props = { race: Race; entrant: Entrant; locale: Locale };
+/** Where the app can be had today: the stores, or the TestFlight and Play testing links during the beta. */
+export type AppLinks = { ios?: string; android?: string };
+
+type Props = { race: Race; entrant: Entrant; locale: Locale; links: AppLinks };
+
+/** A TestFlight public link is not the App Store: the button says so, so an iPhone owner knows to expect TestFlight. */
+const isTestFlight = (url: string): boolean => /^https:\/\/testflight\.apple\.com\//.test(url);
 
 /** After sign-in on the web: your bib, and where to get the app. */
-export const InstallPage = ({ race, entrant, locale }: Props) => {
+export const InstallPage = ({ race, entrant, locale, links }: Props) => {
   const t = translator(locale);
   return (
     <section class="welcome">
@@ -16,15 +22,23 @@ export const InstallPage = ({ race, entrant, locale }: Props) => {
       <p style="color:var(--ink-2)">
         {distanceLabel(locale, entrant.distanceKey)} · {t('home.window')}: {fmtDate(race.windowStart, locale, race.timezone)} → {fmtDate(race.windowEnd, locale, race.timezone)}
       </p>
-      <p style="margin-top:24px;max-width:46ch;margin-left:auto;margin-right:auto">
-        {locale === 'fr'
-          ? 'Installez l’app Sivoov et connectez-vous avec le même dossard et le même email. La course se court dans l’app, la suite se passe ici.'
-          : 'Install the Sivoov app and sign in with the same bib and email. The race is run in the app; everything else happens here.'}
-      </p>
-      <div class="stores">
-        <a class="btn btn-ghost" href="https://apps.apple.com/app/sivoov" rel="noopener">App Store</a>
-        <a class="btn btn-ghost" href="https://play.google.com/store/apps/details?id=com.arthur.flam.sivoov" rel="noopener">Google Play</a>
-      </div>
+      <p style="margin-top:24px;max-width:46ch;margin-left:auto;margin-right:auto">{t('install.lede')}</p>
+      {links.ios || links.android ? (
+        <div class="stores">
+          {links.ios ? (
+            <a class="btn btn-ghost" href={links.ios} rel="noopener">
+              {t(isTestFlight(links.ios) ? 'install.testFlight' : 'install.appStore')}
+            </a>
+          ) : null}
+          {links.android ? (
+            <a class="btn btn-ghost" href={links.android} rel="noopener">
+              {t('install.googlePlay')}
+            </a>
+          ) : null}
+        </div>
+      ) : (
+        <p class="hint">{t('install.soon')}</p>
+      )}
       <p style="margin-top:22px;font-size:15px;color:var(--ink-2)">
         <a href={`/${race.slug}/upload`}>{t('upload.installLink')}</a>
       </p>

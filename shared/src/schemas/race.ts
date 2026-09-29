@@ -78,5 +78,11 @@ export const RaceSchema = z.object({
   supportEmail: z.string().trim().toLowerCase().pipe(z.email()).optional(),
   theme: RaceThemeSchema,
   status: RaceStatusSchema.default('draft'),
+  /**
+   * A demonstration of another race (its id): the organizers' testers and App Review run it.
+   * It has its own runners, results and admin, and borrows the real race's courses and sound,
+   * so it always plays what the real race plays (docs/ARCHITECTURE.md, "Demo races").
+   */
+  demoOf: z.string().min(1).optional(),
 });
 export type Race = z.infer<typeof RaceSchema>;

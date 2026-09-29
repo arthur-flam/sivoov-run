@@ -49,7 +49,7 @@ results.get('/:slug/results', async (c) => {
   const courses = await q.coursesForRace(race.id);
   const course = courses.find((x) => x.distanceKey === c.req.query('distance')) ?? courses[0];
   if (!course) return c.notFound();
-  const rows = await q.resultsForCourse(course.id);
+  const rows = await q.resultsForCourse(race.id, course.id);
   return c.html(
     <Layout title={`${locale === 'fr' ? 'Résultats' : 'Results'} · ${race.theme.displayName}`} locale={locale} race={race} path={`/${race.slug}/results`}>
       <ResultsPage race={race} course={course} courses={courses} rows={rows} locale={locale} />

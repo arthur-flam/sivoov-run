@@ -496,6 +496,34 @@
     while `wrangler dev` did not care. Bound it (`lib/mapLimit.ts`).
   - Right after `wrangler deploy`, a request can still reach the previous version for a few
     seconds: a failure just after a deploy is worth one retry before debugging.
+- 2026-09-28: iOS readiness (email sign-in, demo races, privacy). Worth knowing next time:
+  - expo-location on iOS: `startLocationUpdatesAsync` checks only the foreground permission
+    (`LocationModule.swift`), and the task consumer sets `allowsBackgroundLocationUpdates = YES`,
+    so "while using" keeps a run started on screen measuring with the screen locked. Asking iOS
+    for "always" was only friction (iOS never offers it in the first prompt).
+  - `resultsForCourse` filtered by course only: a demo race running on the real race's courses
+    would have put its runs in the real race's public results. It takes the race now. Any new
+    query over runs must go through the entrant's race, never the course's.
+  - `dashboardDb.distances` counted entrants with `e.race_id = c.race_id`: for a demo that is the
+    real race. Bind the race id asked for (`?1`), and resolve the courses with `courseRaceOf`.
+  - A literal U+00A0 in JSX text fails lint (`no-irregular-whitespace`), and `\u00a0` typed in
+    JSX text is printed as six characters: write `{'\u00a0'}` in JSX, `\u00a0` in strings.
+  - `env.TEST_CODE!` is typed as the literal `'000000'` in workerd tests (from wrangler types): a
+    default parameter taking it needs `: string`.
+  - `api/vitest.tools.config.ts` includes `src/**/*.test.ts`, so `api/src/lib/testCode.test.ts`
+    does run (the 2026-09-25 note is out of date).
+  - An old `expo start --dev-client --port 8081` from the laptop (2026-09-13) was still serving:
+    the screenshot rig reuses whatever answers on 8081 (`reuseExistingServer`). Check what it
+    points at before trusting a shot. A second copy started by the preview tool with
+    `env EXPO_PUBLIC_API_URL=… npm run dev` still talked to preview.
+  - Expo `locales`: nest iOS keys under `"ios"` in the JSON, or the top-level keys also land in
+    Android's strings. `expo prebuild --platform ios --no-install` on the laptop (ios/ is
+    ignored) is a quick way to check the plist, `InfoPlist.strings` and `PrivacyInfo.xcprivacy`.
+- 2026-09-28: CI was out of GitHub Actions minutes, so the merge was deployed by hand from the
+  laptop: preview migration, `wrangler deploy --env preview`, then the OTA. Current eas-cli
+  refuses `eas update --non-interactive` without `--environment` ("The `--environment` flag must
+  be set"); the workflows pass it now. By hand:
+  `APP_VARIANT=preview EXPO_PUBLIC_API_URL=https://preview.run.sivoov.app npx eas-cli update --channel preview --environment preview --message "…" --non-interactive`.
 - 2026-09-29: the run screen's 3D map (`@rnmapbox/maps`, Mapbox Standard). Worth knowing next time:
   - An OTA update reaches shells built without a native module: `@rnmapbox/maps` reads its native
     module when imported and would crash them, so `mapboxSdk.ts` checks `NativeModules` /

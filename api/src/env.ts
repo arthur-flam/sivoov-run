@@ -3,6 +3,20 @@ export type Bindings = Env & {
   EMAIL_FROM?: string;
   /** Fixed sign-in code accepted for test accounts only (local and preview). See docs/ACCESS.md. */
   TEST_CODE?: string;
+  /**
+   * Fixed sign-in code for App Review: only the test accounts of demo races (`review@example.com`),
+   * on every environment. A production var (`000000`): it opens nothing but a demo. See docs/ACCESS.md.
+   */
+  REVIEW_CODE?: string;
+  /** Where the install page sends iPhones: the App Store page, or the TestFlight public link during the beta. A wrangler var. */
+  IOS_APP_URL?: string;
+  /** Where the install page sends Android phones: the Play Store page (or its testing opt-in link). A wrangler var. */
+  ANDROID_APP_URL?: string;
+  /** Who runs Sivoov Run, as the privacy page names it: the company's legal name, and its address. Wrangler vars. */
+  LEGAL_NAME?: string;
+  LEGAL_ADDRESS?: string;
+  /** Where people write about their data (the privacy page and the app's deletion notice). A wrangler var. */
+  PRIVACY_EMAIL?: string;
   /** Mapbox public token (pk.) for the Static Images API, `wrangler secret put MAPBOX_TOKEN`. */
   MAPBOX_TOKEN?: string;
   /**

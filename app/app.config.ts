@@ -1,8 +1,9 @@
 import type { ExpoConfig } from 'expo/config';
 
 /**
- * Same Expo project, bundle ids and EAS project as the previous app (ARCHITECTURE.md,
- * "Identity and stores"). APP_VARIANT picks the dev / preview / production shell.
+ * Same Expo and EAS project as the previous app; store ids of the company's own
+ * (`app.sivoov.run`, ARCHITECTURE.md "Identity and stores"). APP_VARIANT picks the dev /
+ * preview / production shell.
  */
 const variant = process.env.APP_VARIANT ?? 'production';
 const suffix = variant === 'development' ? '.dev' : variant === 'preview' ? '.preview' : '';
@@ -19,6 +20,11 @@ const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? (variant === 'production' ? 'h
 // phone with no cable (docs/WORKFLOW.md, loop 2b).
 const channel = variant === 'development' ? 'development' : variant === 'preview' ? 'preview' : 'production';
 
+// The location prompts, as iOS shows them: French here and in ./locales/fr.json, English in
+// ./locales/en.json (iOS picks the phone's language; anything else falls back to French).
+const LOCATION_WHEN_IN_USE = 'Sivoov mesure la distance et le temps de votre course, même écran verrouillé, et déclenche les annonces aux bons endroits du parcours.';
+const LOCATION_ALWAYS = 'Sivoov mesure votre course même écran verrouillé, téléphone dans la poche.';
+
 const config: ExpoConfig = {
   name,
   slug: 'sivoov',
@@ -30,15 +36,31 @@ const config: ExpoConfig = {
   userInterfaceStyle: 'light',
   ios: {
     supportsTablet: false,
-    bundleIdentifier: `com.arthur.flam.sivoov${suffix}`,
+    bundleIdentifier: `app.sivoov.run${suffix}`,
+    // Only HTTPS and the system's own crypto: no export compliance question on every upload.
+    config: { usesNonExemptEncryption: false },
+    // The required-reason APIs React Native and the Expo modules call, declared at the app level:
+    // static pods do not always carry their own manifests into the build, and App Store Connect
+    // refuses an upload that uses them undeclared (ITMS-91053). No tracking.
+    privacyManifests: {
+      NSPrivacyTracking: false,
+      NSPrivacyAccessedAPITypes: [
+        { NSPrivacyAccessedAPIType: 'NSPrivacyAccessedAPICategoryUserDefaults', NSPrivacyAccessedAPITypeReasons: ['CA92.1'] },
+        { NSPrivacyAccessedAPIType: 'NSPrivacyAccessedAPICategoryFileTimestamp', NSPrivacyAccessedAPITypeReasons: ['0A2A.1', '3B52.1', 'C617.1'] },
+        { NSPrivacyAccessedAPIType: 'NSPrivacyAccessedAPICategorySystemBootTime', NSPrivacyAccessedAPITypeReasons: ['35F9.1'] },
+        { NSPrivacyAccessedAPIType: 'NSPrivacyAccessedAPICategoryDiskSpace', NSPrivacyAccessedAPITypeReasons: ['E174.1', '85F4.1'] },
+      ],
+    },
     infoPlist: {
       UIBackgroundModes: ['audio', 'location'],
-      NSLocationWhenInUseUsageDescription: 'Sivoov mesure la distance de votre course.',
-      NSLocationAlwaysAndWhenInUseUsageDescription: 'Sivoov mesure votre course même écran verrouillé.',
+      CFBundleDevelopmentRegion: 'fr',
+      NSLocationWhenInUseUsageDescription: LOCATION_WHEN_IN_USE,
+      NSLocationAlwaysAndWhenInUseUsageDescription: LOCATION_ALWAYS,
     },
   },
+  locales: { fr: './locales/fr.json', en: './locales/en.json' },
   android: {
-    package: `com.arthur.flam.sivoov${suffix}`,
+    package: `app.sivoov.run${suffix}`,
     adaptiveIcon: {
       backgroundColor: '#faf9f7',
       foregroundImage: './assets/android-icon-foreground.png',
@@ -60,9 +82,9 @@ const config: ExpoConfig = {
         isIosBackgroundLocationEnabled: true,
         isAndroidBackgroundLocationEnabled: true,
         isAndroidForegroundServiceEnabled: true,
-        locationWhenInUsePermission: 'Sivoov mesure la distance de votre course.',
-        locationAlwaysAndWhenInUsePermission: 'Sivoov mesure votre course même écran verrouillé.',
-        locationAlwaysPermission: 'Sivoov mesure votre course même écran verrouillé.',
+        locationWhenInUsePermission: LOCATION_WHEN_IN_USE,
+        locationAlwaysAndWhenInUsePermission: LOCATION_ALWAYS,
+        locationAlwaysPermission: LOCATION_ALWAYS,
       },
     ],
     'expo-audio',

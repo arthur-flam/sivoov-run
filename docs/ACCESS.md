@@ -1,7 +1,11 @@
 # Access: signing in on local and preview
 
 How a session or a phone gets into the app, the web pages and the organizer admin without
-waiting for an email. Nothing here applies to production.
+waiting for an email. Nothing here applies to production, except App Review's code below.
+
+Runners sign in with their **email** only; the app asks for the race when the email is entered in
+several (the test runners are in Deauville and the Champs-Élysées), and for the bib only when two
+entries of one race share the email.
 
 ## The fixed test code
 Local and preview set the `TEST_CODE` var (`000000`, in `api/wrangler.jsonc`). The verify step
@@ -15,6 +19,15 @@ test accounts sign in with it and real people still get a real code. Production 
 | preview | https://preview.run.sivoov.app | `000000` for test accounts; real email (Cloudflare Email Sending) for everybody else |
 | production | https://run.sivoov.app | real email only |
 
+## App Review and demo races (every environment, production included)
+Staff create a race's demo in its settings (« Course de démonstration »): `<slug>-demo`, open every
+day, its own runners and results, the real race's courses and sound (ARCHITECTURE.md, "Demo
+races"). It comes with App Review's runner, `review@example.com`, bib 9999, on the shortest
+course. That account signs in with `REVIEW_CODE` (`000000`, a production var in
+`api/wrangler.jsonc`), accepted only for `@example.com` runners of a demo race, so knowing it
+opens nothing but a demo; no email is sent to it on production. On local and preview `000000` works as for any test account. Testers
+(organizers) are added to the demo's Coureurs with their real email and sign in with a real code.
+
 ## Test runners (race `deauville-2026`, seeded by `npm run seed -w api -- <local|preview>`)
 | Bib | Email | Course | Code |
 |---|---|---|---|
@@ -22,8 +35,8 @@ test accounts sign in with it and real people still get a real code. Production 
 | 1002 | lea@example.com | marathon | `000000` |
 | 1003 | arthur.flam@gmail.com | half | by email |
 
-Web: `/deauville-2026/signin`, bib + email, then the code. App: same three fields on the
-sign-in screen; point a dev build at preview with `EXPO_PUBLIC_API_URL=https://preview.run.sivoov.app`.
+Web: `/deauville-2026/signin`, the email, then the code. App: the email (then « Marathon
+International de Deauville » when it asks which race); point a dev build at preview with `EXPO_PUBLIC_API_URL=https://preview.run.sivoov.app`.
 Web target from a session: `npm run dev -w app`, then `/signin` (the simulation is
 `/run?sim=1&pace=5:00&speed=30` once signed in).
 
@@ -53,8 +66,8 @@ races. A script or the screenshot rig takes a session with one post:
 
 ## Curl
 ```bash
-curl -s -X POST https://preview.run.sivoov.app/api/auth/code -H 'content-type: application/json' -d '{"raceSlug":"deauville-2026","bib":"1001","email":"marc@example.com"}'
-curl -s -X POST https://preview.run.sivoov.app/api/auth/verify -H 'content-type: application/json' -d '{"raceSlug":"deauville-2026","bib":"1001","email":"marc@example.com","code":"000000"}'
+curl -s -X POST https://preview.run.sivoov.app/api/auth/code -H 'content-type: application/json' -d '{"email":"marc@example.com","raceSlug":"deauville-2026"}'
+curl -s -X POST https://preview.run.sivoov.app/api/auth/verify -H 'content-type: application/json' -d '{"email":"marc@example.com","raceSlug":"deauville-2026","code":"000000"}'
 ```
 The token in the reply is a bearer for `/api/me`, `/api/runs/...`. From the cloud sandbox
 these hosts are unreachable (docs/MEMORY.md); run the curl from a laptop or the phone.

@@ -3,8 +3,10 @@ import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { daysUntilWindow, distanceLabel, formatKm, formatOfficialTime, windowPhase } from '@sivoov/shared';
+import { AccountActions } from '@/components/AccountActions';
 import { CourseDiagram } from '@/components/CourseDiagram';
 import { CourseMap } from '@/components/CourseMap';
+import { DemoRun } from '@/components/DemoRun';
 import { Body, Button, Card, Display, Eyebrow, Num, Screen } from '@/components/ui';
 import { useMyResult } from '@/hooks/useMyResult';
 import { useMapDownload } from '@/hooks/useMapDownload';
@@ -17,7 +19,9 @@ import { useSession } from '@/stores/session';
 import { useUploads } from '@/stores/uploads';
 import { colors, radius, space } from '@/theme';
 
-const fmt = (iso: string, tz: string) => new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', { day: 'numeric', month: 'long', timeZone: tz }).format(new Date(iso));
+/** "9 novembre", or "27 septembre 2026" when the window spans more than one year (a demo race's). */
+const fmt = (iso: string, tz: string, year: boolean) =>
+  new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', { day: 'numeric', month: 'long', ...(year ? { year: 'numeric' } : {}), timeZone: tz }).format(new Date(iso));
 
 export default function Home() {
   const router = useRouter();
@@ -53,6 +57,7 @@ export default function Home() {
   const days = daysUntilWindow(race, now);
   const windowLine = phase === 'open' ? t('home.openNow') : phase === 'after' ? t('home.closed') : days <= 1 ? t('home.opensTomorrow') : t('home.opensIn', { count: days });
   const diagramW = width - 2 * space.md - 2;
+  const spansYears = new Date(race.windowStart).getUTCFullYear() !== new Date(race.windowEnd).getUTCFullYear();
 
   return (
     <Screen style={{ paddingTop: insets.top + space.lg }}>
@@ -115,7 +120,7 @@ export default function Home() {
           <Body muted>{t('home.window')}</Body>
           <Body style={styles.big}>{windowLine}</Body>
           <Body muted>
-            {fmt(race.windowStart, race.timezone)} → {fmt(race.windowEnd, race.timezone)}
+            {fmt(race.windowStart, race.timezone, spansYears)} → {fmt(race.windowEnd, race.timezone, spansYears)}
           </Body>
         </Card>
         {pendingUploads > 0 ? (
@@ -142,6 +147,7 @@ export default function Home() {
             ) : null}
           </View>
         ) : null}
+        {course ? <DemoRun race={race} course={course} /> : null}
         {phase === 'after' ? <Button testID="open-results" label={t('home.results')} color={race.theme.primary} onColor={race.theme.onPrimary} onPress={() => openResults(race)} /> : null}
         {race.supportEmail ? (
           <Card>
@@ -155,7 +161,7 @@ export default function Home() {
             {t('run.sim.badge')} · 5:00/km · ×30
           </Link>
         ) : null}
-        <Button label={t('home.signout')} ghost onPress={() => void signOut().then(() => router.replace('/signin'))} />
+        <AccountActions />
       </ScrollView>
     </Screen>
   );

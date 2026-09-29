@@ -20,14 +20,16 @@ export type Scene = {
   go: (page: Page, shoot: Shoot) => Promise<void>;
 };
 
-const BIB = '1001';
 const EMAIL = 'marc@example.com';
+/** Marc and Léa are entered in two races (Deauville, the Champs-Élysées): the sign-in asks which. */
+const RACE = 'deauville-2026';
 
 /** Signed-in state is captured once by the setup project and reused; this is that capture. */
 export const signIn = async (page: Page): Promise<void> => {
   await page.goto('/signin');
-  await page.getByTestId('bib').fill(BIB);
   await page.getByTestId('email').fill(EMAIL);
+  await page.getByTestId('send').click();
+  await page.getByTestId(`race-${RACE}`).click();
   await page.getByTestId('send').click();
   await expect(page.getByTestId('code')).toHaveValue(/\d{6}/, { timeout: 20_000 });
   await page.getByTestId('verify').click();
@@ -148,8 +150,12 @@ export const scenes: Scene[] = [
     go: async (page, shoot) => {
       await page.goto('/signin');
       // A different entrant from the one signIn() uses: codes are capped at 5 per hour each.
-      await page.getByTestId('bib').fill('1002');
       await page.getByTestId('email').fill('lea@example.com');
+      await page.getByTestId('send').click();
+      // Léa's email holds two entries: the race picker, then the code.
+      await expect(page.getByTestId(`race-${RACE}`)).toBeVisible({ timeout: 20_000 });
+      await page.getByTestId(`race-${RACE}`).click();
+      await shoot('race');
       await page.getByTestId('send').click();
       await expect(page.getByTestId('code')).toHaveValue(/\d{6}/, { timeout: 20_000 });
       await shoot();

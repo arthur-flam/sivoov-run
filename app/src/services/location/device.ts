@@ -7,7 +7,11 @@ import { diag, diagCount } from '@/diag';
 import { createBatteryLog } from '@/services/batteryLog';
 import type { PowerReading } from '@/services/batteryLog';
 import { t } from '@/i18n';
+import { keepsTrackingLocked } from './permission';
+import type { DevicePlatform, LocationPermission } from './permission';
 import type { LocationSource } from './types';
+
+export type { LocationPermission } from './permission';
 
 /**
  * Real GPS. On iOS and Android the fixes come from a background task (expo-task-manager) so
@@ -16,7 +20,8 @@ import type { LocationSource } from './types';
  */
 export const LOCATION_TASK = 'sivoov-run-location';
 
-export type LocationPermission = 'undetermined' | 'denied' | 'foreground' | 'always' | 'web';
+/** The platform as the permission rules see it. */
+export const platform: DevicePlatform = Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'web';
 
 /** The background task runs outside React: it fans out to whichever source is active. */
 let activeListener: ((sample: LocationSample) => void) | null = null;
@@ -99,12 +104,17 @@ export const currentLocationPermission = async (): Promise<LocationPermission> =
   return bg?.status === 'granted' ? 'always' : 'foreground';
 };
 
-/** Foreground first, then "always": the second prompt only shows once the first is granted. */
+/**
+ * Foreground first. Android then asks for "always" (its settings page: the only way the fixes
+ * survive a locked screen there). iOS is not asked for it: "while using" already keeps a run
+ * started on screen measuring (`keepsTrackingLocked`), and a second prompt is one more chance
+ * for the runner to refuse, and for App Review to ask why.
+ */
 export const requestLocationPermission = async (): Promise<LocationPermission> => {
   const fg = await Location.requestForegroundPermissionsAsync();
   if (fg.status !== 'granted') return 'denied';
   if (Platform.OS === 'web') return 'web';
-  const bg = await Location.requestBackgroundPermissionsAsync().catch(() => null);
+  const bg = await (Platform.OS === 'ios' ? Location.getBackgroundPermissionsAsync() : Location.requestBackgroundPermissionsAsync()).catch(() => null);
   return bg?.status === 'granted' ? 'always' : 'foreground';
 };
 
@@ -131,7 +141,7 @@ export const deviceSource = (): DeviceLocationSource => {
       diag('location', `permission: ${permission}`);
       if (permission === 'denied') throw new Error('location_denied');
       void battery?.start();
-      if (permission !== 'always') {
+      if (!keepsTrackingLocked(permission, platform)) {
         diag('location', 'foreground watch only: fixes stop when the screen locks');
         return watchForeground(onSample);
       }

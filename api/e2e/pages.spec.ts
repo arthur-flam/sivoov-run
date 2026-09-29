@@ -15,7 +15,7 @@ test('landing renders the race and the course, as a map or as the diagram', asyn
 test('sign-in with a magic code reaches the install page', async ({ page }) => {
   await page.goto('/deauville-2026/signin');
   await page.screenshot({ path: `${shots}/signin.png`, fullPage: true });
-  await page.getByLabel('Numéro de dossard').fill('1001');
+  // The race is the page's: the email is all it asks.
   await page.getByLabel('Email').fill('marc@example.com');
   await page.getByRole('button', { name: 'Recevoir mon code' }).click();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Votre code');

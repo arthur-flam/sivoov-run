@@ -131,12 +131,14 @@ export default function Run() {
     if (!track || !course) return null;
     // Simulation is a development tool (web target, dev client): a release build ignores ?sim,
     // so no deep link can put a made-up finish, with its Share button, on a runner's phone.
-    if (params.sim && __DEV__) {
+    // A demo race is the exception: its home offers the course in ten minutes (DemoRun), and
+    // its runs are never ranked anyway.
+    if (params.sim && (__DEV__ || race?.demoOf)) {
       const pace = parsePace(params.pace ?? '') ?? 330;
       return simulationSource({ track, targetM: course.distanceM, pace: constantPace(pace), speedFactor: Number(params.speed ?? 1) || 1, noiseM: Number(params.noise ?? 4) });
     }
     return deviceSource();
-  }, [track, course, params.sim, params.pace, params.speed, params.noise]);
+  }, [track, course, race?.demoOf, params.sim, params.pace, params.speed, params.noise]);
 
   if (!course || !race || !track || !source) {
     return (

@@ -22,7 +22,7 @@ export const resultForBib = async (q: Db, race: Race, bib: string): Promise<Runn
   const entrant = await q.entrantByBib(race.id, bib);
   const course = entrant ? await q.courseFor(race.id, entrant.distanceKey) : null;
   if (!entrant || !course) return null;
-  const rows = await q.resultsForCourse(course.id);
+  const rows = await q.resultsForCourse(race.id, course.id);
   const mine = rows.find((r) => r.entrant.id === entrant.id);
   return { entrant, course, best: mine ? { run: mine.run, rank: rankOf(rows, mine.run.elapsedMs), total: rows.length } : null };
 };

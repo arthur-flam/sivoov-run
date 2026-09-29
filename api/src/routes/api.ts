@@ -17,6 +17,7 @@ import { db } from '../db/queries';
 import { requireEntrant } from '../lib/auth';
 import type { AuthVars } from '../lib/auth';
 import { requestCode, verifyCode } from '../lib/authService';
+import { forgetRunner } from '../lib/forget';
 import { liveVoice, personalDeps, personalVoices, runnerFacts } from '../lib/personal';
 import { loadGeometry } from '../lib/studio';
 import { weatherAt } from '../lib/weather';
@@ -78,11 +79,15 @@ api.get('/courses/:id/map.png', async (c) => {
   return res;
 });
 
-/** Step 1: bib + email -> a code by email. */
+/**
+ * Step 1: the email -> a code by email. 409 `ambiguous` when the email holds more than one
+ * entry: the app asks for the race or the bib (`SignInAmbiguity`) and sends them with the email.
+ */
 api.post('/auth/code', async (c) => {
   const parsed = await parseBody(c, CodeRequestSchema);
   if (!parsed.success) return c.json({ error: 'invalid', issues: parsed.error.issues }, 400);
   const result = await requestCode(c.env, parsed.data, (p) => c.executionCtx.waitUntil(p));
+  if (!result.ok && result.error === 'ambiguous') return c.json({ error: result.error, races: result.races, bib: result.bib }, 409);
   if (!result.ok) return c.json({ error: result.error }, result.error === 'too_many_requests' ? 429 : 404);
   return c.json({ sent: true, ...(result.devCode ? { devCode: result.devCode } : {}) });
 });
@@ -92,6 +97,7 @@ api.post('/auth/verify', async (c) => {
   const parsed = await parseBody(c, CodeVerifySchema);
   if (!parsed.success) return c.json({ error: 'invalid', issues: parsed.error.issues }, 400);
   const result = await verifyCode(c.env, parsed.data, 'app');
+  if (!result.ok && result.error === 'ambiguous') return c.json({ error: result.error, races: result.races, bib: result.bib }, 409);
   if (!result.ok) return c.json({ error: result.error }, result.error === 'unknown_entrant' ? 404 : 401);
   return c.json({ token: result.token, expiresAt: result.expiresAt, entrant: EntrantPublicSchema.parse(result.entrant) });
 });
@@ -151,6 +157,12 @@ api.post('/me/voices/live', async (c) => {
   return c.json({ url: outcome.url, bytes: outcome.bytes, caption: outcome.caption }, 200, { 'Cache-Control': 'private, no-store' });
 });
 
+/** « Supprimer mes données »: the runner's runs, traces, cards, AI lines and sessions go (lib/forget.ts). The session ends with them. */
+api.delete('/me', async (c) => {
+  const { runs } = await forgetRunner(c.env, c.get('entrant')!);
+  return c.json({ ok: true, runs });
+});
+
 api.post('/me/signout', async (c) => {
   await db(c.env.DB).deleteSession(c.get('tokenHash')!);
   return c.json({ ok: true });
@@ -173,9 +185,10 @@ api.put('/runs/:id', async (c) => {
   const { run, trace } = parsed.data;
   if (run.id !== c.req.param('id') || run.entrantId !== entrant.id) return c.json({ error: 'forbidden' }, 403);
   const q = db(c.env.DB);
-  const course = await q.courseById(run.courseId);
-  // A run belongs on the entrant's own distance: another course would rank them in the wrong table.
-  if (!course || course.raceId !== entrant.raceId || course.distanceKey !== entrant.distanceKey) return c.json({ error: 'invalid_course' }, 400);
+  // A run belongs on the entrant's own distance: another course would rank them in the wrong
+  // table. A demo race's runners run on the real race's courses (`courseFor` follows `demoOf`).
+  const course = await q.courseFor(entrant.raceId, entrant.distanceKey);
+  if (!course || course.id !== run.courseId) return c.json({ error: 'invalid_course' }, 400);
   // Run ids come from the client: one that already belongs to someone else is not theirs to overwrite.
   const existing = await q.runById(run.id);
   if (existing && existing.entrantId !== entrant.id) return c.json({ error: 'forbidden' }, 403);

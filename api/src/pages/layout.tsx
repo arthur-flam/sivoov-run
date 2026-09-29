@@ -11,6 +11,8 @@ export type OpenGraph = { title: string; description: string; url: string; image
 type Props = { title: string; description?: string; locale: Locale; race?: Race; path: string; og?: OpenGraph; children: Child };
 
 export const ORGANIZERS_PATH = '/organisateurs';
+/** The privacy page; `/privacy` redirects to it, like `/organizers`. */
+export const PRIVACY_PATH = '/confidentialite';
 
 export const Layout = ({ title, description, locale, race, path, og, children }: Props) => {
   const t = translator(locale);
@@ -23,6 +25,7 @@ export const Layout = ({ title, description, locale, race, path, og, children }:
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>{title}</title>
         {description ? <meta name="description" content={description} /> : null}
+        {race?.demoOf ? <meta name="robots" content="noindex" /> : null}
         <meta name="theme-color" content={race?.theme.primary ?? THEME_COLOR} />
         {og ? (
           <>
@@ -63,6 +66,7 @@ export const Layout = ({ title, description, locale, race, path, og, children }:
             <span>{t('landing.poweredBy')}</span>
             <span class="footer-links">
               <a href="/org">{t('site.footer.organizerSpace')}</a>
+              <a href={locale === 'en' ? `${PRIVACY_PATH}?lang=en` : PRIVACY_PATH}>{t('site.footer.privacy')}</a>
               <a href="https://sivoov.app">sivoov.app</a>
             </span>
           </footer>

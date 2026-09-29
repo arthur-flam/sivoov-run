@@ -89,7 +89,7 @@ jobs:
           MESSAGE: ${{ github.event.head_commit.message || format('manual from {0}', github.sha) }}
           APP_VARIANT: preview
           EXPO_PUBLIC_API_URL: https://preview.run.sivoov.app
-        run: eas update --channel preview --message "$MESSAGE" --non-interactive
+        run: eas update --channel preview --environment preview --message "$MESSAGE" --non-interactive
 
   promote-production:
     needs: secrets-check
@@ -123,7 +123,7 @@ jobs:
         env:
           APP_VARIANT: production
           EXPO_PUBLIC_API_URL: https://run.sivoov.app
-        run: eas update --channel production --message "${{ github.sha }}" --non-interactive
+        run: eas update --channel production --environment production --message "${{ github.sha }}" --non-interactive
 
   native-build:
     needs: secrets-check

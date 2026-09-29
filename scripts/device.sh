@@ -15,7 +15,7 @@ APP="$ROOT/app"
 # Every command but `preview` drives the dev shell; VARIANT=preview points prep/logs/doctor at
 # the standalone one, which is a different package and can sit on the phone alongside it.
 VARIANT="${VARIANT:-development}"
-PKG="com.arthur.flam.sivoov$([ "$VARIANT" = preview ] && echo .preview || echo .dev)"
+PKG="app.sivoov.run$([ "$VARIANT" = preview ] && echo .preview || echo .dev)"
 
 export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home -v 17 2>/dev/null || true)}"
@@ -71,7 +71,7 @@ case "${1:-run}" in
     # changes; everything else now ships over the air.
     need_device
     VARIANT=preview
-    PKG="com.arthur.flam.sivoov.preview"
+    PKG="app.sivoov.run.preview"
     cd "$APP"
     export APP_VARIANT=preview
     # android/ is generated and carries the dev package name: regenerate it for this variant.

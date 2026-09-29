@@ -371,4 +371,8 @@ table.results { width: 100%; border-collapse: collapse; font-size: 15px; }
 .form-page .upload-contact { margin: 10px 0 0; color: inherit; font-weight: 600; }
 .upload-accepted { font-family: var(--font-display); font-weight: 500; font-size: 22px; letter-spacing: -0.01em; margin: 38px 0 14px; }
 .upload-accepted + .what li { font-size: 15px; color: var(--ink-2); }
+.prose { max-width: 680px; margin: 0 auto; padding: 40px 0; }
+.prose h1 { font-family: var(--font-display); font-weight: 500; font-size: 34px; letter-spacing: -0.02em; margin-bottom: 14px; }
+.prose h2 { font-family: var(--font-display); font-weight: 500; font-size: 22px; letter-spacing: -0.01em; margin: 30px 0 8px; }
+.prose p { color: var(--ink-2); margin-bottom: 12px; line-height: 1.6; }
 `;

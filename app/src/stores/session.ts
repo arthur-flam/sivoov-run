@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { CodeRequest } from '@sivoov/shared';
 import { api, ApiError } from '@/api';
 import type { Me } from '@/api';
 import { storage } from '@/storage';
@@ -6,19 +7,18 @@ import { meCache } from '@/stores/meCache';
 
 const TOKEN_KEY = 'sivoov.session';
 
-/** The race asked for when the list of races cannot be read (and the first one ever). */
-export const DEFAULT_RACE_SLUG = 'deauville-2026';
-
 type SessionState = {
   status: 'loading' | 'signedOut' | 'signedIn';
   token: string | null;
   me: Me | null;
   error: string | null;
   restore: () => Promise<void>;
-  requestCode: (raceSlug: string, bib: string, email: string) => Promise<{ devCode?: string }>;
-  verifyCode: (raceSlug: string, bib: string, email: string, code: string) => Promise<void>;
+  requestCode: (who: CodeRequest) => Promise<{ devCode?: string }>;
+  verifyCode: (who: CodeRequest, code: string) => Promise<void>;
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
+  /** « Supprimer mes données », then signed out: the server has ended every session anyway. */
+  deleteData: () => Promise<void>;
 };
 
 export const useSession = create<SessionState>((set, get) => ({
@@ -45,13 +45,13 @@ export const useSession = create<SessionState>((set, get) => ({
     }
   },
 
-  async requestCode(raceSlug, bib, email) {
-    const res = await api.requestCode(raceSlug, bib, email);
+  async requestCode(who) {
+    const res = await api.requestCode(who);
     return { devCode: res.devCode };
   },
 
-  async verifyCode(raceSlug, bib, email, code) {
-    const { token } = await api.verifyCode(raceSlug, bib, email, code);
+  async verifyCode(who, code) {
+    const { token } = await api.verifyCode(who, code);
     await storage.set(TOKEN_KEY, token);
     const me = await api.me(token);
     await meCache.write(me);
@@ -69,6 +69,14 @@ export const useSession = create<SessionState>((set, get) => ({
   async signOut() {
     const { token } = get();
     if (token) await api.signOut(token).catch(() => undefined);
+    await storage.remove(TOKEN_KEY);
+    await meCache.clear();
+    set({ status: 'signedOut', token: null, me: null });
+  },
+
+  async deleteData() {
+    const { token } = get();
+    if (token) await api.deleteMe(token);
     await storage.remove(TOKEN_KEY);
     await meCache.clear();
     set({ status: 'signedOut', token: null, me: null });

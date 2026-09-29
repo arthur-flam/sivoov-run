@@ -1,5 +1,6 @@
 import type { AudioPack, Course, Entrant, Race, Run } from '@sivoov/shared';
 import { audioPackFromRow, courseFromRow, entrantFromRow, raceFromRow, runFromRow } from './rows';
+import { courseRaceOf } from './courseRace';
 import { rankedRun } from './ranked';
 
 /** Typed D1 access. Every read goes through a row schema; every write takes a domain object. */
@@ -12,26 +13,34 @@ export const db = (d1: D1Database) => ({
     const row = await d1.prepare('SELECT * FROM races WHERE id = ?').bind(id).first();
     return row ? raceFromRow(row) : null;
   },
+  /** The races on the home page and the app's list: published, and never a demo. */
+  /** The demo race of a real race, if staff made one (`races.demo_of`). */
+  async demoFor(raceId: string): Promise<Race | null> {
+    const row = await d1.prepare('SELECT * FROM races WHERE demo_of = ? ORDER BY created_at LIMIT 1').bind(raceId).first();
+    return row ? raceFromRow(row) : null;
+  },
   async races(): Promise<Race[]> {
-    const { results } = await d1.prepare("SELECT * FROM races WHERE status != 'draft' ORDER BY date_start").all();
+    const { results } = await d1.prepare("SELECT * FROM races WHERE status != 'draft' AND demo_of IS NULL ORDER BY date_start").all();
     return results.map(raceFromRow);
   },
   async upsertRace(race: Race): Promise<void> {
     await d1
       .prepare(
-        `INSERT INTO races (id, slug, name, city, country, date_start, date_end, window_start, window_end, timezone, organizer_url, support_email, theme, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO races (id, slug, name, city, country, date_start, date_end, window_start, window_end, timezone, organizer_url, support_email, theme, status, demo_of)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET slug=excluded.slug, name=excluded.name, city=excluded.city, country=excluded.country,
            date_start=excluded.date_start, date_end=excluded.date_end, window_start=excluded.window_start, window_end=excluded.window_end,
-           timezone=excluded.timezone, organizer_url=excluded.organizer_url, support_email=excluded.support_email, theme=excluded.theme, status=excluded.status`,
+           timezone=excluded.timezone, organizer_url=excluded.organizer_url, support_email=excluded.support_email, theme=excluded.theme, status=excluded.status,
+           demo_of=excluded.demo_of`,
       )
       .bind(race.id, race.slug, race.name, race.city, race.country, race.dateStart, race.dateEnd, race.windowStart, race.windowEnd,
-        race.timezone, race.organizerUrl ?? null, race.supportEmail ?? null, JSON.stringify(race.theme), race.status)
+        race.timezone, race.organizerUrl ?? null, race.supportEmail ?? null, JSON.stringify(race.theme), race.status, race.demoOf ?? null)
       .run();
   },
 
+  /** A race's courses, longest first; a demo race runs on the real race's (`courseRaceOf`). */
   async coursesForRace(raceId: string): Promise<Course[]> {
-    const { results } = await d1.prepare('SELECT * FROM courses WHERE race_id = ? ORDER BY distance_m DESC').bind(raceId).all();
+    const { results } = await d1.prepare(`SELECT * FROM courses WHERE race_id = ${courseRaceOf('?1')} ORDER BY distance_m DESC`).bind(raceId).all();
     return results.map(courseFromRow);
   },
   async courseById(id: string): Promise<Course | null> {
@@ -39,7 +48,7 @@ export const db = (d1: D1Database) => ({
     return row ? courseFromRow(row) : null;
   },
   async courseFor(raceId: string, distanceKey: string): Promise<Course | null> {
-    const row = await d1.prepare('SELECT * FROM courses WHERE race_id = ? AND distance_key = ?').bind(raceId, distanceKey).first();
+    const row = await d1.prepare(`SELECT * FROM courses WHERE race_id = ${courseRaceOf('?1')} AND distance_key = ?2`).bind(raceId, distanceKey).first();
     return row ? courseFromRow(row) : null;
   },
   async upsertCourse(course: Course): Promise<void> {
@@ -60,6 +69,25 @@ export const db = (d1: D1Database) => ({
   async entrantByBibEmail(raceId: string, bib: string, email: string): Promise<Entrant | null> {
     const row = await d1.prepare('SELECT * FROM entrants WHERE race_id = ? AND bib = ? AND email = ?').bind(raceId, bib, email).first();
     return row ? entrantFromRow(row) : null;
+  },
+  /**
+   * Every entry an email holds, with its race, for the sign-in to tell which one it is. Draft
+   * races are left out: nobody runs them yet.
+   */
+  async entriesForEmail(email: string): Promise<Array<{ entrant: Entrant; race: Race }>> {
+    const { results } = await d1
+      .prepare(
+        `SELECT e.*, r.id AS r_id, r.slug AS r_slug, r.name AS r_name, r.city AS r_city, r.country AS r_country, r.date_start AS r_date_start,
+                r.date_end AS r_date_end, r.window_start AS r_window_start, r.window_end AS r_window_end, r.timezone AS r_timezone,
+                r.organizer_url AS r_organizer_url, r.support_email AS r_support_email, r.theme AS r_theme, r.status AS r_status, r.demo_of AS r_demo_of
+         FROM entrants e JOIN races r ON r.id = e.race_id
+         WHERE e.email = ? AND r.status != 'draft' ORDER BY r.date_start, CAST(e.bib AS INTEGER), e.bib`,
+      )
+      .bind(email)
+      .all<Record<string, unknown>>();
+    const raceOf = (row: Record<string, unknown>) =>
+      raceFromRow(Object.fromEntries(Object.entries(row).filter(([k]) => k.startsWith('r_')).map(([k, v]) => [k.slice(2), v])));
+    return results.map((row) => ({ entrant: entrantFromRow(row), race: raceOf(row) }));
   },
   async entrantByBib(raceId: string, bib: string): Promise<Entrant | null> {
     const row = await d1.prepare('SELECT * FROM entrants WHERE race_id = ? AND bib = ?').bind(raceId, bib).first();
@@ -154,6 +182,20 @@ export const db = (d1: D1Database) => ({
         JSON.stringify(run.splits), run.source, run.device ? JSON.stringify(run.device) : null, traceKey)
       .run();
   },
+  /**
+   * « Supprimer mes données »: the runner's runs, codes and sessions, and their chosen slot, go.
+   * The entry itself stays (the organizer's record). Returns what the runs left in R2.
+   */
+  async forgetEntrant(entrantId: string): Promise<{ runIds: string[]; traceKeys: string[] }> {
+    const { results } = await d1.prepare('SELECT id, trace_key FROM runs WHERE entrant_id = ?').bind(entrantId).all<{ id: string; trace_key: string | null }>();
+    await d1.batch([
+      d1.prepare('DELETE FROM runs WHERE entrant_id = ?').bind(entrantId),
+      d1.prepare('DELETE FROM auth_codes WHERE entrant_id = ?').bind(entrantId),
+      d1.prepare('DELETE FROM sessions WHERE entrant_id = ?').bind(entrantId),
+      d1.prepare('UPDATE entrants SET slot_at = NULL WHERE id = ?').bind(entrantId),
+    ]);
+    return { runIds: results.map((r) => r.id), traceKeys: results.flatMap((r) => (r.trace_key ? [r.trace_key] : [])) };
+  },
   async runsForEntrant(entrantId: string): Promise<Run[]> {
     const { results } = await d1.prepare('SELECT * FROM runs WHERE entrant_id = ? ORDER BY created_at DESC').bind(entrantId).all();
     return results.map(runFromRow);
@@ -167,18 +209,18 @@ export const db = (d1: D1Database) => ({
    * aside, started inside the race window, on the entrant's own distance). A faster rehearsal
    * the week before never hides the real run, and a set-aside time is nobody's best.
    */
-  async resultsForCourse(courseId: string): Promise<Array<{ run: Run; entrant: Entrant }>> {
+  async resultsForCourse(raceId: string, courseId: string): Promise<Array<{ run: Run; entrant: Entrant }>> {
     const { results } = await d1
       .prepare(
         `SELECT r.*, e.id AS e_id, e.race_id AS e_race_id, e.bib AS e_bib, e.email AS e_email, e.first_name AS e_first_name,
                 e.last_name AS e_last_name, e.distance_key AS e_distance_key, e.address AS e_address, e.source AS e_source, e.slot_at AS e_slot_at
          FROM runs r JOIN entrants e ON e.id = r.entrant_id
-         WHERE r.course_id = ? AND ${rankedRun('r')}
+         WHERE r.course_id = ?1 AND e.race_id = ?2 AND ${rankedRun('r')}
            AND r.id = (SELECT r2.id FROM runs r2 WHERE r2.entrant_id = r.entrant_id AND r2.course_id = r.course_id AND ${rankedRun('r2')}
                        ORDER BY r2.elapsed_ms ASC, r2.id ASC LIMIT 1)
          ORDER BY r.elapsed_ms ASC, r.id ASC`,
       )
-      .bind(courseId)
+      .bind(courseId, raceId)
       .all<Record<string, unknown>>();
     return results.map((row) => ({
       run: runFromRow(row),

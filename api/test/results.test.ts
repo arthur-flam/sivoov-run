@@ -50,14 +50,14 @@ beforeAll(async () => {
 
 describe('the results table', () => {
   it('ranks only runs started during race week, best one per runner', async () => {
-    const rows = await db(env.DB).resultsForCourse(half.id);
+    const rows = await db(env.DB).resultsForCourse(race.id, half.id);
     expect(rows.map((r) => [r.entrant.bib, r.run.id])).toEqual([
       ['2001', 'marc-race'],
       ['2002', 'lea-race'],
     ]);
   });
   it('never ranks a run on another distance than the entrant’s own', async () => {
-    expect(await db(env.DB).resultsForCourse(marathon.id)).toEqual([]);
+    expect(await db(env.DB).resultsForCourse(race.id, marathon.id)).toEqual([]);
   });
   it('gives equal times the same rank', () => {
     const rows = [1, 2, 2, 3].map((m) => ({ run: { elapsedMs: m * 60_000 } }));

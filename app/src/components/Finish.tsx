@@ -19,7 +19,7 @@ type Props = {
   outcome: FinishOutcome;
   simulation: boolean;
   uploadStatus: UploadStatus;
-  /** How many photo moments the runner's course has: an official finish offers the race photos when there are some. */
+  /** How many photo moments the runner's course has: a finish (race or rehearsal) offers the race photos when there are some. */
   photoMoments: number;
   onHome: () => void;
   onDiagnostics: () => void;
@@ -53,7 +53,7 @@ export const Finish = ({ race, course, entrant, state, outcome, simulation, uplo
     incomplete: t('finish.incomplete.body'),
   }[outcome];
   // The halves need no network: they come from the run's own splits.
-  const halves = outcome === 'official' ? raceReport({ id: 'local', elapsedMs: state.elapsedMs, splits: state.splits }, course.distanceM, [], null).halves : null;
+  const halves = outcome === 'official' ? raceReport({ elapsedMs: state.elapsedMs, splits: state.splits }, course.distanceM).halves : null;
   const facts = finished
     ? [formatOfficialKm(course.distanceM, course.distanceKey, currentLocale()), `${formatPace(averagePace(state.elapsedMs, course.distanceM))} /km`, `${t('result.bib')} ${entrant.bib}`]
     : [formatClock(state.elapsedMs), `${formatPace(averagePace(state.elapsedMs, state.distanceM))} /km`, `${t('result.bib')} ${entrant.bib}`];
@@ -90,8 +90,8 @@ export const Finish = ({ race, course, entrant, state, outcome, simulation, uplo
       ) : null}
 
       {outcome === 'official' ? <FinisherShare race={race} entrant={entrant} elapsedMs={state.elapsedMs} showReport={uploadStatus === 'sent'} dark /> : null}
-      {/* Rehearsals and closed-window runs get no pictures: only an official finish is put into the race. */}
-      {outcome === 'official' && photoMoments > 0 ? (
+      {/* A rehearsal is a run like the real one: its photos are put into the race too. */}
+      {finished && photoMoments > 0 ? (
         <RacePhotos race={race} token={token} run={state.startedAt ? { startedAtMs: state.startedAt, elapsedMs: state.elapsedMs, splits: state.splits } : null} officialM={course.distanceM} finished dark />
       ) : null}
       <Body dark muted testID="upload-status">

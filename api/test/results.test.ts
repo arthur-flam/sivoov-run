@@ -3,7 +3,6 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { CourseSchema, EntrantSchema, RaceSchema, RunSchema, deauvilleMarathonGeometry } from '@sivoov/shared';
 import { db } from '../src/db/queries';
 import { RETRY_AFTER_MS, cardKey, cardPng } from '../src/lib/cards';
-import { rankOf, ranks } from '../src/lib/results';
 import { deauvilleCourses, deauvilleRace } from '../src/seed/deauville';
 
 // A race of its own, so the runs other suites upload never change a rank here. Its window is
@@ -59,26 +58,25 @@ describe('the results table', () => {
   it('never ranks a run on another distance than the entrant’s own', async () => {
     expect(await db(env.DB).resultsForCourse(race.id, marathon.id)).toEqual([]);
   });
-  it('gives equal times the same rank', () => {
-    const rows = [1, 2, 2, 3].map((m) => ({ run: { elapsedMs: m * 60_000 } }));
-    expect(ranks(rows)).toEqual([1, 2, 2, 4]);
-    expect(rankOf(rows, 2 * 60_000)).toBe(2);
-  });
-  it('links every runner to their certificate', async () => {
+  it('lists the finishers by name, with no position: nobody is ranked', async () => {
     const html = await (await SELF.fetch(`${base}/results?distance=half`)).text();
     expect(html).toContain(`href="/${race.slug}/results/2001"`);
     expect(html).not.toContain('1:30:00');
+    expect(html).not.toContain('<th>#</th>');
+    // Dupont before Martin, whatever their times.
+    expect(html.indexOf('DUPONT')).toBeLessThan(html.indexOf('MARTIN'));
   });
 });
 
 describe('a finisher’s certificate', () => {
-  it('shows the official time, the rank and the pace', async () => {
+  it('shows the official time and the pace, and no rank', async () => {
     const res = await SELF.fetch(`${base}/results/2001`);
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).toContain('Marc <span>DUPONT</span>');
     expect(html).toContain('1:45:00');
-    expect(html).toContain('1er sur 2');
+    expect(html).not.toContain('Classement');
+    expect(html).not.toContain('1er sur');
     // 6 300 s over 21.0975 km.
     expect(html).toContain('4:59 /km');
   });
@@ -87,9 +85,9 @@ describe('a finisher’s certificate', () => {
     expect(html).toContain('<meta property="og:title" content="Marc DUPONT · 1:45:00 · Marathon International de Deauville"/>');
     expect(html).toContain(`<meta property="og:url" content="${base}/results/2001"/>`);
   });
-  it('speaks English when asked, ordinals included', async () => {
+  it('speaks English when asked', async () => {
     const html = await (await SELF.fetch(`${base}/results/2002?lang=en`)).text();
-    expect(html).toContain('2nd of 2');
+    expect(html).toContain('Half marathon');
     expect(html).toContain('crossed the finish line of');
   });
   it('turns every visitor toward the race while it is open: they ran it, your turn', async () => {

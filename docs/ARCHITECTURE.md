@@ -73,12 +73,12 @@ Rows are validated by zod schemas in `shared/schemas/` on the way in and out of 
   photos uploaded in the admin (PNG, JPEG, WebP, immutable).
 - `/{race}`: landing, with « Écoutez la course » when the main course has a demo reel
   (`/api/courses/:id/reel`, `reel.mp3` with byte ranges). `/{race}/signin`: bib + email → code. `/{race}/app`: install.
-- `/{race}/prepare`: course, trailer, instructions. `/{race}/results` (ranked runs only: finished
-  and started inside the window), `/{race}/results/{bib}` (the certificate: prints to PDF,
+- `/{race}/prepare`: course, trailer, instructions. `/{race}/results` (runs that count only: finished
+  and started inside the window; the finishers by name, no position), `/{race}/results/{bib}` (the certificate: prints to PDF,
   shares the card, and invites every other visitor into the race).
 - Share cards: `/{race}/card` and `/{race}/results/{bib}/card?format=og|post|story|sticker` are
   fixed-size pages (a finisher's is the race report: `raceReport` in `shared/`, timing points
-  every 5 km on a marathon or half, 2 on a 10 km, the place at each from the field's own splits;
+  every 5 km on a marathon or half, 2 on a 10 km; no rank anywhere, the results list finishers by name;
   the sticker is photographed with a transparent ground); the result page shows the picture
   itself above the certificate, with the four formats to pick from; `/{race}/og.png` and `/{race}/results/{bib}/card.png` are those pages photographed by
   Cloudflare Browser Rendering (REST API, `BROWSER_RENDERING_TOKEN`) and cached in R2 under
@@ -99,14 +99,18 @@ Rows are validated by zod schemas in `shared/schemas/` on the way in and out of 
   photos, « Essayer avec votre photo » (rendered, shown once, kept nowhere). The app gets the
   moments on its course with `/api/me` (`photoMoments`) and shows « Moment photo » on the run
   screen for 500 m after each (`momentAt`).
-- **The photo flow, as the app runs it**: during the race the runner only takes selfies with the
-  phone's own camera (the run screen's chip, the moment's announcement in the pack). On the line,
-  before Start, the ready screen lists the moments and takes the start selfie. After the finish
-  (the finish screen, then the finisher's home) « Choisir mes photos » opens the system picker,
+- **The photo flow, as the app runs it**: on the line, before Start, the ready screen lists the
+  moments and takes the start selfie. During the race, at each moment (from 50 m before to 500 m
+  after, `momentAt`), the chip over the map says it and the camera takes the « Vue » control's
+  place (the panel keeps its height): one tap, the front camera, back to the run. A photo taken in
+  the app is copied into the document dir and queued (`photos/queue.ts`) until it is sent, the
+  next app start included. Rehearsals are runs like the real ones: photos included. After the
+  finish (the finish screen, then the home) « Choisir mes photos » opens the system picker for
+  photos taken with the phone's own camera,
   several at once; each photo goes to the moment it was taken closest to (`exifTakenAt`,
   `momentPasses`, `assignPhotos` in shared: EXIF time against when the runner passed there),
   is sent (`POST /api/me/photos/:momentId`, kept `waiting`), and the pictures are made in one call
-  (`POST /api/me/photos/render`, three at a time). Only an official finish offers them.
+  (`POST /api/me/photos/render`, three at a time), for any finish, race or rehearsal.
 - **Photo moments in the studio**: each course's studio lists the moments it passes and whether
   its script has the moment's line (`photo.<momentId>`); « Ajouter les annonces » appends the
   missing ones (`photoLine`: a start moment is the last « Avant le départ » line, a finish one

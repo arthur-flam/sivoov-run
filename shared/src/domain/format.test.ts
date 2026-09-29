@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatClock, formatDistanceAway, formatDistanceLine, formatKm, formatOfficialKm, formatPlaceKm, formatMegabytes, formatOfficialTime, formatPace, formatRank, parsePace } from './format';
+import { formatClock, formatDistanceAway, formatDistanceLine, formatKm, formatOfficialKm, formatPlaceKm, formatMegabytes, formatOfficialTime, formatPace, parsePace } from './format';
 
 describe('format', () => {
   it('clock', () => {
@@ -45,12 +45,3 @@ describe('format', () => {
   });
 });
 
-describe('rank on a results page', () => {
-  it('reads like a French results table', () => {
-    expect(formatRank(1, 'fr')).toBe('1er');
-    expect(formatRank(12, 'fr')).toBe('12e');
-  });
-  it('uses English ordinals, teens included', () => {
-    expect([1, 2, 3, 4, 11, 12, 13, 21, 22, 101, 111].map((n) => formatRank(n, 'en'))).toEqual(['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '101st', '111th']);
-  });
-});

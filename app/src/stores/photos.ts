@@ -5,7 +5,9 @@ import type { CourseMoment, Split } from '@sivoov/shared';
 import { api } from '@/api';
 import type { PhotoView } from '@/api';
 import { diag } from '@/diag';
+import { takeSelfie } from '@/photos/picker';
 import type { PickedPhoto } from '@/photos/picker';
+import { photoQueue } from '@/photos/queue';
 
 /** The run the photos are matched against: when it started, how long, and its kilometres. */
 export type PhotoRun = { startedAtMs: number; elapsedMs: number; splits: Split[] };
@@ -27,6 +29,15 @@ type PhotosStore = {
   send: (token: string, picked: PickedPhoto[], run: PhotoRun | null, officialM: number, momentId?: string) => Promise<{ sent: number; unmatched: number }>;
   /** After the run: every photo sent gets its picture. */
   make: (token: string) => Promise<void>;
+  /**
+   * The camera, from the run screen or the line: the photo is kept on the phone for `momentId`
+   * and sent as soon as it can be. False when the runner closed the camera.
+   */
+  snap: (token: string, momentId: string) => Promise<boolean>;
+  /** Sends what the camera kept; stops at the first failure (no network) and tries again later. */
+  flush: (token: string) => Promise<void>;
+  /** Moments whose photo was taken in the app and is still on the phone. */
+  kept: string[];
 };
 
 /** The photo as a form part: a File on the web target, a file URI on a phone. */
@@ -45,6 +56,9 @@ const merge = (photos: PhotoView[], changed: PhotoView[]): PhotoView[] => {
   return [...kept, ...changed];
 };
 
+/** One flush at a time: the camera and the screens all ask for one. */
+const flushing = { now: false };
+
 /** The runner's race photos: the moments of their course, what they sent, the pictures made. */
 export const usePhotos = create<PhotosStore>((set, get) => ({
   enabled: false,
@@ -52,11 +66,13 @@ export const usePhotos = create<PhotosStore>((set, get) => ({
   photos: [],
   busy: null,
   error: null,
+  kept: [],
   async load(token) {
     set({ busy: get().busy ?? 'loading', error: null });
     try {
       const { enabled, moments, photos } = await api.photos(token);
       set({ enabled, moments, photos });
+      void get().flush(token);
     } catch (e) {
       diag('photos', `load failed: ${e instanceof Error ? e.message : String(e)}`);
       set({ error: 'offline' });
@@ -92,6 +108,36 @@ export const usePhotos = create<PhotosStore>((set, get) => ({
       return { sent: 0, unmatched: picked.length };
     } finally {
       set({ busy: null });
+    }
+  },
+  async snap(token, momentId) {
+    const photo = await takeSelfie();
+    if (!photo) return false;
+    await photoQueue.add(momentId, photo);
+    set({ kept: [...new Set([...get().kept, momentId])] });
+    void get().flush(token);
+    return true;
+  },
+  async flush(token) {
+    if (flushing.now) return;
+    flushing.now = true;
+    try {
+      const queued = await photoQueue.list();
+      set({ kept: queued.map((q) => q.momentId) });
+      await queued.reduce<Promise<boolean>>(async (going, q) => {
+        if (!(await going)) return false;
+        try {
+          const { photo } = await api.sendPhoto(token, q.momentId, formFor(q.photo));
+          await photoQueue.done(q);
+          set({ photos: merge(get().photos, [photo]), kept: get().kept.filter((id) => id !== q.momentId) });
+          return true;
+        } catch (e) {
+          diag('photos', `flush stopped: ${e instanceof Error ? e.message : String(e)}`);
+          return false;
+        }
+      }, Promise.resolve(true));
+    } finally {
+      flushing.now = false;
     }
   },
   async make(token) {

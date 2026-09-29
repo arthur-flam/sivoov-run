@@ -269,6 +269,19 @@ export const scenes: Scene[] = [
     },
   },
   {
+    id: 'run-photo',
+    title: 'Run — at a photo moment (Les Planches, km 0,2): the camera in place of the view',
+    go: async (page, shoot) => {
+      await withView(page, 'numbers');
+      await openRun(page, 10);
+      await expect(page.getByTestId('ready-photos')).toBeVisible();
+      await shoot('ready');
+      await page.getByTestId('start').click();
+      await expect(page.getByTestId('take-photo')).toBeVisible({ timeout: 90_000 });
+      await shoot();
+    },
+  },
+  {
     id: 'run-controls',
     title: 'Run — the announcements and the voice level, the whole-course view, then hold to stop and confirm',
     go: async (page, shoot) => {

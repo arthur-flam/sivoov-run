@@ -1,6 +1,6 @@
 import type { CourseTrack, Locale, Race } from '@sivoov/shared';
 import type { CardFormat } from '../lib/cards';
-import { averagePace, distanceLabel, formatClock, formatOfficialTime, formatPace, formatRank, translator, windowPhase } from '@sivoov/shared';
+import { averagePace, distanceLabel, formatClock, formatOfficialTime, formatPace, translator, windowPhase } from '@sivoov/shared';
 import type { RunnerResult } from '../lib/results';
 import { runDate, shortName } from '../lib/results';
 import { CourseDiagram } from './courseDiagram';
@@ -66,8 +66,8 @@ export const ResultPage = ({ race, result, track, locale, now, shareUrl, cards, 
             </div>
             <dl class="cert-facts">
               <div>
-                <dt>{t('result.rank')}</dt>
-                <dd>{t('result.rankOf', { rank: formatRank(best.rank, locale), total: best.total })}</dd>
+                <dt>{t('result.distance')}</dt>
+                <dd>{distance}</dd>
               </div>
               <div>
                 <dt>{t('common.pace')}</dt>

@@ -2,9 +2,8 @@ import type { Run, Split } from '../schemas/run';
 
 /**
  * The race report a finisher shares: their time at each timing point of the course, the pace
- * between two points, their place in the field at each one (from the other finishers' own
- * kilometre splits), the two halves, and how many places they made up. Pure: the share cards
- * and the result page only draw it.
+ * between two points, and the two halves. No ranking (the owner's call): everyone runs their
+ * own race, somewhere, during the week. Pure: the share cards only draw it.
  */
 
 /** Every how many kilometres a timing point stands: 5 km on a marathon or a half, 2 on a 10 km, 1 below. */
@@ -52,51 +51,26 @@ export type ReportCheckpoint = {
   segmentMs: number;
   /** Seconds per kilometre over that segment. */
   paceSecPerKm: number;
-  /** Place in the field when passing here: 1 + the finishers who passed earlier. Null when the field is unknown. */
-  place: number | null;
 };
 
 /** `negative`: the second half at least a second quicker than the first (an even run is not one). */
 export type ReportHalves = { firstMs: number; secondMs: number; negative: boolean };
 
-export type RaceReport = {
-  checkpoints: ReportCheckpoint[];
-  halves: ReportHalves | null;
-  /** Place at the first timing point minus the final place: positive when the runner moved up. */
-  placesGained: number | null;
-  fastestKm: Split | null;
-};
+export type RaceReport = { checkpoints: ReportCheckpoint[]; halves: ReportHalves | null };
 
-type Field = ReadonlyArray<Pick<Run, 'id' | 'elapsedMs' | 'splits'>>;
-
-/**
- * The report of `run` among `field` (the course's ranked finishers, the runner included or
- * not). `rank` is the runner's official place, which the finish row carries as it is.
- */
-export const raceReport = (run: Pick<Run, 'id' | 'elapsedMs' | 'splits'>, officialM: number, field: Field, rank: number | null): RaceReport => {
-  const others = field.filter((r) => r.id !== run.id);
+/** The report of one run: its timing points and its halves. No place, no field: nobody is ranked. */
+export const raceReport = (run: Pick<Run, 'elapsedMs' | 'splits'>, officialM: number): RaceReport => {
   const passed = checkpointMeters(officialM)
     .map((meters) => ({ meters, elapsedMs: elapsedAt(run, officialM, meters) }))
     .filter((p): p is { meters: number; elapsedMs: number } => p.elapsedMs !== null);
   const checkpoints = passed.map((p, i): ReportCheckpoint => {
     const prev = passed[i - 1] ?? { meters: 0, elapsedMs: 0 };
     const segmentMs = p.elapsedMs - prev.elapsedMs;
-    const finish = p.meters >= officialM;
-    const placeHere = (): number | null => {
-      if (finish) return rank;
-      if (field.length === 0) return null;
-      const ahead = others.map((r) => elapsedAt(r, officialM, p.meters)).filter((ms): ms is number => ms !== null && ms < p.elapsedMs);
-      return ahead.length + 1;
-    };
-    return { meters: p.meters, finish, elapsedMs: p.elapsedMs, segmentMs, paceSecPerKm: segmentMs / Math.max(1, p.meters - prev.meters), place: placeHere() };
+    return { meters: p.meters, finish: p.meters >= officialM, elapsedMs: p.elapsedMs, segmentMs, paceSecPerKm: segmentMs / Math.max(1, p.meters - prev.meters) };
   });
   const half = elapsedAt(run, officialM, officialM / 2);
   const halves = half !== null && run.splits.length >= 2 ? { firstMs: half, secondMs: run.elapsedMs - half, negative: run.elapsedMs - half <= half - 1000 } : null;
-  const firstPlace = checkpoints[0]?.place ?? null;
-  const last = checkpoints[checkpoints.length - 1];
-  const placesGained = checkpoints.length >= 2 && firstPlace !== null && last?.finish && last.place !== null ? firstPlace - last.place : null;
-  const fastestKm = run.splits.reduce<Split | null>((best, s) => (best === null || s.splitMs < best.splitMs ? s : best), null);
-  return { checkpoints, halves, placesGained, fastestKm };
+  return { checkpoints, halves };
 };
 
 /** "5", "10", … and the finish as its distance: "42,195" on a marathon (the number every runner knows), "21,1", "10". */

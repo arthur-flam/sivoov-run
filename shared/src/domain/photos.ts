@@ -30,10 +30,13 @@ export const MOMENT_SHOWN_M = 500;
 
 /**
  * The moment the runner is at now, while running: from 50 m before it to `MOMENT_SHOWN_M`
- * after. The finish's moment is not one: the finish screen asks for it.
+ * after; of two that overlap, the one reached last. The start's is taken on the line (the ready
+ * screen) and the finish's after it (the finish screen): neither is one here.
  */
 export const momentAt = (moments: readonly CourseMoment[], distanceM: number, officialM: number): CourseMoment | null =>
-  moments.find((m) => m.meters < officialM && distanceM >= m.meters - 50 && distanceM <= m.meters + MOMENT_SHOWN_M) ?? null;
+  moments
+    .filter((m) => m.meters > 0 && m.meters < officialM && distanceM >= m.meters - 50 && distanceM <= m.meters + MOMENT_SHOWN_M)
+    .reduce<CourseMoment | null>((last, m) => (last === null || m.meters > last.meters ? m : last), null);
 
 /** A runner may have a picture made this many times per moment (the first and two more tries). */
 export const MAX_PHOTO_ATTEMPTS = 3;

@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import * as Haptics from 'expo-haptics';
-import { aheadOf, constantPace, finishOutcome, formatClock, formatKm, gpsSignal, lightPresetAt, momentAt, parsePace, progress, readableOn, windowPhase } from '@sivoov/shared';
+import { aheadOf, constantPace, finishOutcome, formatClock, formatKm, gpsSignal, lightPresetAt, momentAt, parsePace, progress, readableOn } from '@sivoov/shared';
 import type { Course, CourseTrack, LightPreset } from '@sivoov/shared';
 import type { CeremonyHandlers } from '@/audio/ceremony';
 import { usePackStore } from '@/audio/packStore';
@@ -18,6 +18,8 @@ import { CountdownDigit } from '@/components/run/CountdownDigit';
 import { LivePanel } from '@/components/run/LivePanel';
 import { ReadyPanel } from '@/components/run/ReadyPanel';
 import { ReadyPhotos } from '@/components/run/ReadyPhotos';
+import { picker } from '@/photos/picker';
+import { usePhotos } from '@/stores/photos';
 import { ResumePanel } from '@/components/run/ResumePanel';
 import { Stage } from '@/components/run/Stage';
 import { StartPanel } from '@/components/run/StartPanel';
@@ -98,6 +100,10 @@ export default function Run() {
   useAudioPlayback();
   const run = useRun();
   const token = useSession((s) => s.token);
+  // Moments whose photo is taken (sent, or kept on the phone until it can be): the camera says « Une autre photo ».
+  const keptPhotos = usePhotos((s) => s.kept);
+  const sentPhotos = usePhotos((s) => s.photos);
+  const photosTaken = [...keptPhotos, ...sentPhotos.map((p) => p.momentId)];
   const uploadStatus = useUploads((s) => s.statusOf(run.runId));
   // A finish out of signal is sent from the finish screen as soon as the signal is back.
   useUploadFlush(token);
@@ -246,6 +252,9 @@ export default function Run() {
     );
   }
 
+  // The photo moment the runner is at: the chip says it, the camera takes the view's place.
+  const moment = phase === 'running' ? momentAt(me?.photoMoments ?? [], state.distanceM, course.distanceM) : null;
+
   // The race colour lifted to read on the night ground: Deauville's navy vanished on black.
   const accent = readableOn(race.theme.primary, colors.night);
   const simulation = source.kind === 'simulation';
@@ -295,7 +304,7 @@ export default function Run() {
             race={race.theme.displayName}
             gps={phase === 'running' ? gpsSignal(run.samples[run.samples.length - 1] ?? null, (run.source ?? source).now()) : null}
             simulation={simulation && phase !== 'idle'}
-            photo={phase === 'running' ? (momentAt(me?.photoMoments ?? [], state.distanceM, course.distanceM)?.title ?? null) : null}
+            photo={moment?.title ?? null}
           />
         </View>
         {phase === 'countdown' && run.cue !== 'armed' ? (
@@ -323,7 +332,8 @@ export default function Run() {
             onColor={race.theme.onPrimary}
             onStart={start}
             onBack={() => router.back()}
-            photos={!simulation && windowPhase(race, Date.now()) === 'open' ? <ReadyPhotos moments={me?.photoMoments ?? []} token={token} officialM={course.distanceM} /> : null}
+            // A rehearsal is a run like the real one: photos included.
+            photos={<ReadyPhotos moments={me?.photoMoments ?? []} token={token} />}
           />
         ) : phase === 'recovered' ? (
           <ResumePanel
@@ -349,6 +359,11 @@ export default function Run() {
             onAnnouncements={() => setSheet('said')}
             onView={() => prefs.setView(nextView(prefs.view))}
             onStop={() => setSheet('stop')}
+            photo={
+              moment && token && picker
+                ? { title: moment.title, taken: photosTaken.includes(moment.id), onPress: () => void usePhotos.getState().snap(token, moment.id) }
+                : null
+            }
           />
         )}
       </View>

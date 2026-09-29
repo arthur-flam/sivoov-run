@@ -84,7 +84,8 @@ the Berlin Marathon's race report, "make people want to share and feel proud"). 
   from light at the first to the race colour at the finish, and the same circles heading the
   splits (time over the segment, pace). The two halves in a box over the map, with a negative
   split said when there is one. No ranking on any picture (owner's call, 2026-09-29): it is the
-  runner's own race; the rank stays on the certificate and the results.
+  runner's own race and not everyone runs. Nowhere else either: the certificate has none, the
+  results list the finishers by name.
 - Four formats: `og` 1200×630 (the link preview, landscape), `post` 1080×1350 (the splits laid
   across), `story` 1080×1920, and `sticker`: white, shadowed, on a transparent ground, the course
   line, the time, distance and pace, to lay over one's own photo (Strava's overlay idea).

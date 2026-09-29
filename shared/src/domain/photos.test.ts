@@ -43,8 +43,12 @@ describe('the moment the runner is at', () => {
     expect(momentAt(moments, 690, 42195)?.id).toBe('planches');
     expect(momentAt(moments, 710, 42195)).toBeNull();
   });
-  it('leaves the finish to the finish screen', () => {
+  it('leaves the finish to the finish screen, and the start to the line', () => {
     expect(momentAt(moments, 42195, 42195)).toBeNull();
+    const withStart = courseMoments([moment('start', 'start'), moment('planches', 'planches')], marathon);
+    expect(momentAt(withStart, 20, 42195)).toBeNull();
+    // Past the Planches (200 m), still inside the start's first 500 m: the Planches it is.
+    expect(momentAt(withStart, 180, 42195)?.id).toBe('planches');
   });
 });
 

@@ -136,7 +136,7 @@ const ReportMap = ({ track, officialM, report, width, height, mapBase, locale, r
 
 /**
  * The two halves, and a negative split when there is one. No ranking on a picture (the
- * owner's call, 2026-09-29): it is the runner's own race, the certificate carries the rank.
+ * owner's call, 2026-09-29): not everyone runs, and each runs their own race.
  */
 const Highlights = ({ report, locale }: { report: RaceReport; locale: Locale }) => {
   const t = translator(locale);

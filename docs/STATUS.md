@@ -11,12 +11,28 @@ Live: https://run.sivoov.app/deauville-2026 (production), https://preview.run.si
 on 2026-09-27 (below); M2 still needs a real finish. Production has the race and its courses;
 no real entrants yet.
 
+### No rank at all; the camera in the run; rehearsals get photos (2026-09-29, same branch)
+The owner: no rank anywhere (not everyone runs), a camera button during the race instead of
+leaving the app, and a rehearsal is a run like the real one, photos included.
+- **No rank**: the certificate shows distance, pace, bib, date; `/{race}/results` lists the
+  finishers by name with their time, no position. `rankOf`, `ranks`, `formatRank` and the report's
+  places are gone, with their tests (the behaviour itself was removed).
+- **The camera in the run**: at each photo moment the « Vue » control becomes « Ma photo » for
+  500 m (the map does not move); one tap opens the front camera. The photo is kept on the phone
+  (document dir) and sent when there is a network; the start selfie goes the same way. The start's
+  moment belongs to the line, the finish's to the finish screen.
+- **Rehearsals**: the ready screen, the camera and « Vos photos de course » after the finish work
+  for rehearsals too; the home shows the photos of the last run that reached the line.
+Seen in `npm run shots` (`run-photo`, `run-photo-ready`); the camera itself is the web target's
+file input there: on a phone it needs the EAS build.
+
 ### Race photos in the app, the studio and the finisher's home (2026-09-29, same branch)
 The owner's review of the first pass: no ranking in the pictures, a photo before the start, the
 moments in the audio editor (they need their announcement), the share screen reachable after
 the run instead of « Courir », and a photo picker: during the race people only shoot, the model
 runs after.
-- **No ranking** on the four pictures (rank, places, places gained gone); the certificate keeps it.
+- **No ranking at all** (the owner: not everyone runs): not on the pictures, not on the
+  certificate; the results page lists the finishers by name with their time.
 - **The flow**: the ready screen lists the moments and takes the start selfie (front camera);
   during the run the chip says « Moment photo »; after an official finish « Choisir mes photos »
   (several at once) matches each photo to its moment by its EXIF time, sends them, and the

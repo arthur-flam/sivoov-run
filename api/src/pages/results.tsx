@@ -2,13 +2,16 @@ import type { Course, Entrant, Race, Run } from '@sivoov/shared';
 import { distanceLabel, formatOfficialTime, translator } from '@sivoov/shared';
 import type { Locale } from '@sivoov/shared';
 import { fmtDate } from './dates';
-import { ranks } from '../lib/results';
 
 type Props = { race: Race; course: Course; courses: Course[]; rows: Array<{ run: Run; entrant: Entrant }>; locale: Locale };
 
+/**
+ * The finishers of a distance, by name: no ranking (the owner's call, 2026-09-29). Everyone runs
+ * their own race, somewhere, some day of the week: a position among them would mean nothing.
+ */
 export const ResultsPage = ({ race, course, courses, rows, locale }: Props) => {
   const t = translator(locale);
-  const rank = ranks(rows);
+  const byName = [...rows].sort((a, b) => a.entrant.lastName.localeCompare(b.entrant.lastName, 'fr') || a.entrant.firstName.localeCompare(b.entrant.firstName, 'fr'));
   return (
     <section class="section" style="border-bottom:0">
       <div class="eyebrow">{race.theme.displayName}</div>
@@ -26,16 +29,14 @@ export const ResultsPage = ({ race, course, courses, rows, locale }: Props) => {
         <table class="results">
           <thead>
             <tr>
-              <th>#</th>
               <th>{locale === 'fr' ? 'Dossard' : 'Bib'}</th>
               <th>{locale === 'fr' ? 'Coureur' : 'Runner'}</th>
               <th>{t('common.time')}</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ run, entrant }, i) => (
+            {byName.map(({ run, entrant }) => (
               <tr>
-                <td class="num">{rank[i]}</td>
                 <td class="num">{entrant.bib}</td>
                 <td>
                   <a class="runner" href={`/${race.slug}/results/${entrant.bib}`}>

@@ -57,6 +57,7 @@ export default function Home() {
   }
 
   const { entrant, race, course } = me;
+  const lastFinished = best ?? [...me.runs].filter((r) => r.status === 'finished' || r.status === 'uploaded').sort((a, b) => (b.startedAt ?? '').localeCompare(a.startedAt ?? ''))[0] ?? null;
   const now = Date.now();
   const phase = windowPhase(race, now);
   const days = daysUntilWindow(race, now);
@@ -85,11 +86,12 @@ export default function Home() {
             <FinisherShare race={race} entrant={entrant} elapsedMs={best.elapsedMs} showReport={me.runs.some((r) => r.id === best.id)} />
           </Card>
         ) : null}
-        {best && course ? (
+        {/* The photos of the last run that reached the line, race or rehearsal alike. */}
+        {lastFinished && course ? (
           <RacePhotos
             race={race}
             token={token}
-            run={best.startedAt ? { startedAtMs: Date.parse(best.startedAt), elapsedMs: best.elapsedMs, splits: best.splits } : null}
+            run={lastFinished.startedAt ? { startedAtMs: Date.parse(lastFinished.startedAt), elapsedMs: lastFinished.elapsedMs, splits: lastFinished.splits } : null}
             officialM={course.distanceM}
             finished
           />

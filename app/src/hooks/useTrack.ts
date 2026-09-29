@@ -35,25 +35,30 @@ const geometryCache = {
   },
 };
 
+const samePoints = (a: CourseGeometry, b: CourseGeometry): boolean => JSON.stringify(a.points) === JSON.stringify(b.points);
+
 /**
- * Loads the course geometry and keeps it for the next start with no signal. Offline with
- * nothing kept: the bundled Deauville trace, the only course the app ships with.
+ * The course geometry kept on the phone at once (a weak signal must not hold the screen for the
+ * network), then the API's, kept for the next start with no signal and shown only if the course
+ * changed. Offline with nothing kept: the bundled Deauville trace, the only course the app ships with.
  */
 export const useTrack = (course: Course | null): CourseTrack | null => {
   const [track, setTrack] = useState<CourseTrack | null>(null);
   useEffect(() => {
     if (!course) return;
     let cancelled = false;
-    api
-      .geometry(course.id)
-      .then((g) => {
-        void geometryCache.write(g);
-        if (!cancelled) setTrack(buildTrack(g.points));
-      })
-      .catch(async () => {
-        const kept = await geometryCache.read(course.id);
-        if (!cancelled) setTrack(buildTrack((kept ?? deauvilleMarathonGeometry).points));
-      });
+    const show = (g: CourseGeometry) => {
+      if (!cancelled) setTrack(buildTrack(g.points));
+    };
+    void (async () => {
+      const kept = await geometryCache.read(course.id);
+      if (kept) show(kept);
+      const fetched = await api.geometry(course.id).catch(() => null);
+      if (fetched) {
+        void geometryCache.write(fetched);
+        if (!kept || !samePoints(kept, fetched)) show(fetched);
+      } else if (!kept) show(deauvilleMarathonGeometry);
+    })();
     return () => {
       cancelled = true;
     };

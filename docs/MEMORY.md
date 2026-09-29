@@ -544,3 +544,16 @@
     worktree it started the main checkout's Worker. Run a worktree's servers by hand.
   - The seeded half (`deauville-2026-half`) uses the marathon's 42 km geometry, so on the map a
     half runner moves twice as fast as they run (progress is proportional). Seen in the local seed; preview and production not checked.
+- 2026-09-29: the race home and the pre-flight, reworked. Worth knowing next time:
+  - Updates: `/api/me` (race, course, places) is fetched again every time the race home comes back
+    into view. The audio pack used to be fetched once per app process: a pack published while the
+    app sat in memory was missed until a restart. The pre-flight now calls `packStore.update`,
+    which checks the version and swaps once every file is down; the race home and the run screen
+    never swap (a run keeps the pack it started with).
+  - Mapbox Static Images take `lng,lat,zoom` with a fractional zoom in GL's 512-pixel tiles:
+    `fitView`/`projectOnView` (shared) put a drawn line exactly on Mapbox's own path (checked by
+    overlaying both). Drawing in the app beats Mapbox's pins, which overlap on a loop course.
+  - `expo start` with `CI=1` does not watch files: a Metro started that way serves the first
+    bundle until restarted. Start the shots' Metro by hand without `CI` to iterate.
+  - Another worktree's `wrangler dev` held 8788: the rig would have shot that checkout's Worker and
+    D1. `SHOTS_API_PORT` (SHOTS.md).

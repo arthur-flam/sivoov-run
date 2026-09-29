@@ -11,6 +11,24 @@ Live: https://run.sivoov.app/deauville-2026 (production), https://preview.run.si
 on 2026-09-27 (below); M2 still needs a real finish. Production has the race and its courses;
 no real entrants yet.
 
+### The race home and the pre-flight, tidied (2026-09-29, branch `claude/post-login-page-layout-3f894a`)
+The owner's review of the page after sign-in. JS and Worker only (OTA).
+- **Home order**: welcome, the bib with its distance (« Semi-marathon · 21,1 km », no count of
+  places), the race window, then the action, then the course.
+- **« Faire une répétition »** before the race opens only where nobody real races: preview and
+  local, test accounts (App Review's too), demo races (`mayRehearse`, `rehearsal` in `/api/me`).
+  It says under it that registered runners do not see it. A real runner in production sees the
+  window and no button until it opens.
+- **The course card**: the course drawn by the app over a Mapbox map framed on it
+  (`map.png?base=1`, `fitView`), start, finish and numbered places (left off the map where they
+  would pile up), then the places with their distance, and what they are for: each is announced
+  at its distance.
+- **Pre-flight**: « Retour » replaces « Relancer les vérifications »; the GPS keeps looking while
+  the screen is open, a failed pack download retries every 15 s, the buttons stay at the bottom
+  on a small phone. A pack published since the app loaded replaces the one on the phone here.
+- **Start screen**: no more « Carte du parcours gardée sur le téléphone ».
+Seen in the web target (`npm run shots`, home, prepare, run-ready); not yet on a phone.
+
 ### The run screen, rebuilt (2026-09-29, branch `claude/run-screen`)
 The owner asked for a run screen that is highly functional, polished and clear, with the race's
 place in 3D at eye level, without deciding the identity (DESIGN.md, the run screen exception).

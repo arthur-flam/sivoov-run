@@ -29,6 +29,12 @@ type PackStore = {
   /** The pack version and whether a position went with it, so a later call only refetches what can improve. */
   personalFor: { version: number; here: boolean; at: number } | null;
   load: (course: Course) => Promise<void>;
+  /**
+   * The pre-flight's call: like `load`, and when a pack is already on the phone, asks whether a
+   * newer one was published since (the organizer may have changed a line) and swaps to it once
+   * all its files are down. Never from the run screen: a run keeps the pack it started with.
+   */
+  update: (course: Course) => Promise<void>;
   /** Fetches and downloads the runner's own lines for the loaded pack. Never throws, never blocks a run. */
   loadPersonal: (token: string, here?: { lat: number; lng: number }) => Promise<void>;
   uriFor: (key: string) => string | null;
@@ -100,6 +106,18 @@ export const usePackStore = create<PackStore>((set, get) => ({
     const { uris, complete } = await downloadAll(fetched).catch(() => ({ uris: get().uris, complete: false }));
     if (get().courseId !== course.id) return;
     set({ uris, status: complete ? 'ready' : 'error' });
+  },
+
+  async update(course) {
+    const { courseId, status, pack } = get();
+    if (courseId !== course.id || status !== 'ready' || !pack) return get().load(course);
+    const latest = await api.pack(course.id).catch(() => null);
+    if (!latest || latest.version === pack.version || get().pack?.version !== pack.version) return;
+    set({ status: 'loading', bytes: packBytes(latest) });
+    const { uris, complete } = await downloadAll(latest).catch(() => ({ uris: {}, complete: false }));
+    if (get().courseId !== course.id || get().pack?.version !== pack.version) return;
+    // A newer pack that did not fully come down leaves the one on the phone in place.
+    set(complete ? { pack: latest, uris, status: 'ready', personal: {}, captions: {}, personalFor: null } : { status: 'ready', bytes: packBytes(pack) });
   },
 
   async loadPersonal(token, here) {

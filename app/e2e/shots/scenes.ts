@@ -112,7 +112,7 @@ const withCeremonyPack = async (page: Page): Promise<void> => {
         version: 1,
         locale: 'fr',
         events: lines.map((l) => ({ id: l.id, title: l.title, caption: l.caption, trigger: { kind: 'cue', at: l.at, order: 1 }, source: { kind: 'file', key: `${l.key}.wav` }, mix: 'wait', priority: 10, category: 'ceremony', once: true })),
-        files: Object.fromEntries(lines.map((l) => [`${l.key}.wav`, { url: `http://localhost:8788/shots-audio/${l.key}.wav`, bytes: files[l.key].length, sha256: 'silent' }])),
+        files: Object.fromEntries(lines.map((l) => [`${l.key}.wav`, { url: `http://localhost:${process.env.SHOTS_API_PORT ?? '8788'}/shots-audio/${l.key}.wav`, bytes: files[l.key].length, sha256: 'silent' }])),
       },
     }),
   );

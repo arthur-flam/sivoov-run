@@ -137,6 +137,56 @@ describe('the audio pack on the phone', () => {
   });
 });
 
+describe('a pack published after the phone has one', () => {
+  const v3Url = 'https://run.test/api/packs/m/3/intro.mp3';
+  const republished = AudioPackSchema.parse({ ...published, version: 3, files: { 'intro.mp3': { url: v3Url, bytes: 900_000, sha256: 'y' }, 'gun.mp3': published.files['gun.mp3'] } });
+  beforeEach(() => {
+    disk.clear();
+    offline.clear();
+    pack.mockReset();
+    platform.OS = 'android';
+    usePackStore.setState({ courseId: null, pack: null, status: 'idle', bytes: 0, uris: {}, personal: {}, captions: {}, personalFor: null });
+    sizes.set(v3Url, 900_000);
+  });
+
+  it('replaces the one on the phone when the pre-flight asks, once its files are down', async () => {
+    pack.mockResolvedValueOnce(published).mockResolvedValueOnce(republished);
+    await usePackStore.getState().load(course);
+    await usePackStore.getState().update(course);
+    expect(usePackStore.getState()).toMatchObject({ status: 'ready', bytes: 1_550_000 });
+    expect(usePackStore.getState().pack?.version).toBe(3);
+    expect(usePackStore.getState().uriFor('intro.mp3')).toBe('file://cache/packs/deauville-2026-marathon/3/intro.mp3');
+  });
+
+  it('is never looked for by the race home or the run screen, which keep the pack they have', async () => {
+    pack.mockResolvedValueOnce(published).mockResolvedValueOnce(republished);
+    await usePackStore.getState().load(course);
+    await usePackStore.getState().load(course);
+    expect(pack).toHaveBeenCalledTimes(1);
+    expect(usePackStore.getState().pack?.version).toBe(2);
+  });
+
+  it('keeps the pack on the phone when the newer one cannot come down, or the server cannot be reached', async () => {
+    pack.mockResolvedValueOnce(published).mockResolvedValueOnce(republished).mockRejectedValueOnce(new Error('timeout'));
+    offline.add(v3Url);
+    await usePackStore.getState().load(course);
+    await usePackStore.getState().update(course);
+    expect(usePackStore.getState()).toMatchObject({ status: 'ready', bytes: 1_850_000 });
+    expect(usePackStore.getState().uriFor('intro.mp3')).toBe('file://cache/packs/deauville-2026-marathon/2/intro.mp3');
+    await usePackStore.getState().update(course);
+    expect(usePackStore.getState().pack?.version).toBe(2);
+  });
+
+  it('retries a pack that did not come down, as a first load would', async () => {
+    pack.mockRejectedValueOnce(new Error('timeout')).mockResolvedValueOnce(published);
+    await usePackStore.getState().load(course);
+    expect(usePackStore.getState().status).toBe('error');
+    await usePackStore.getState().update(course);
+    expect(usePackStore.getState()).toMatchObject({ status: 'ready' });
+    expect(usePackStore.getState().pack?.version).toBe(2);
+  });
+});
+
 describe('the runner’s own lines', () => {
   const personalPack = AudioPackSchema.parse({
     ...published,

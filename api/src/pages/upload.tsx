@@ -1,6 +1,6 @@
 import type { Course, Entrant, Locale, Race, UploadRefusal } from '@sivoov/shared';
 import { distanceLabel, formatClock, formatKm, formatOfficialTime, translator } from '@sivoov/shared';
-import { fmtDate } from './dates';
+import { fmtDate, fmtSpan } from './dates';
 
 /** What can go wrong with an upload: the file never reached the tracker, or the tracker refused it. */
 export type UploadProblem = { reason: 'no_file' } | { reason: 'too_large' } | UploadRefusal;
@@ -12,8 +12,7 @@ const TO_ORGANIZER: ReadonlySet<UploadProblem['reason']> = new Set(['no_position
 
 const ProblemMessage = ({ race, course, locale, problem }: Required<Omit<Props, 'entrant'>>) => {
   const t = translator(locale);
-  const day = (iso: string) => fmtDate(iso, locale, race.timezone);
-  const window = { start: day(race.windowStart), end: day(race.windowEnd) };
+  const window = fmtSpan(race.windowStart, race.windowEnd, locale, race.timezone);
   const courseKm = formatKm(course.distanceM, locale, 1);
   switch (problem.reason) {
     case 'before_window':
@@ -38,7 +37,6 @@ const ProblemMessage = ({ race, course, locale, problem }: Required<Omit<Props, 
 /** The GPX fallback: one file, one button, and what the file has to be. */
 export const UploadPage = ({ race, entrant, course, locale, problem }: Props) => {
   const t = translator(locale);
-  const day = (iso: string) => fmtDate(iso, locale, race.timezone);
   return (
     <section class="form-page">
       <a class="race-chip" href={`/${race.slug}`}>
@@ -72,7 +70,7 @@ export const UploadPage = ({ race, entrant, course, locale, problem }: Props) =>
       <h2 class="upload-accepted">{t('upload.accepted.title')}</h2>
       <ul class="what">
         <li>{t('upload.accepted.sources')}</li>
-        <li>{t('upload.accepted.window', { start: day(race.windowStart), end: day(race.windowEnd) })}</li>
+        <li>{t('upload.accepted.window', fmtSpan(race.windowStart, race.windowEnd, locale, race.timezone))}</li>
         <li>{t('upload.accepted.distance', { distance: formatKm(course.distanceM, locale, 1) })}</li>
       </ul>
       <p class="hint">

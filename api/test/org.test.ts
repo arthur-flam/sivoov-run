@@ -211,7 +211,7 @@ describe('import and export', () => {
     expect(entrantsCsv).toContain('Dossard;Prénom;Nom;Email;Distance;Adresse;Complément;Code postal;Ville;Pays;Connecté;Dans l’application;Meilleur temps');
     expect(entrantsCsv).toContain('2002;Bob;Leroy;bob@example.com;Marathon;;;;;;Non;Non;3:30:00');
     const results = await (await get(`${base}/export/results.csv`, cookie)).text();
-    expect(results).toContain('2002;Bob;Leroy;Marathon;3:30:00;12600;42195;Arrivé;2026-11-10 12:30');
+    expect(results).toContain('2002;Bob;Leroy;Marathon;3:30:00;12600;42195;Temps officiel;2026-11-10 12:30');
     expect(results).toContain('2001;Anna;Durand;Semi-marathon;;;;Pas encore couru;');
     expect((await get(`${base}/export/results.csv`)).status).toBe(302);
   });
@@ -229,7 +229,7 @@ describe('import and export', () => {
       null,
     );
     const results = await (await get(`${base}/export/results.csv`, cookie)).text();
-    expect(results).toContain('2001;Anna;Durand;Semi-marathon;1:40:00;6000;21098;Hors classement;');
+    expect(results).toContain('2001;Anna;Durand;Semi-marathon;1:40:00;6000;21098;Non officiel;');
     const entrants = await (await get(`${base}/export/entrants.csv`, cookie)).text();
     // No best time: the rehearsal is nobody's official finish.
     expect(entrants).toMatch(/^2001;Anna;Durand;.*;$/m);

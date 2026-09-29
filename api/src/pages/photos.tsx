@@ -25,7 +25,7 @@ const SendForm = ({ race, moment, locale, again }: { race: Race; moment: Moment;
     <form class="photo-form" method="post" action={`/${race.slug}/photos/${moment.id}`} enctype="multipart/form-data" data-photo-form="" data-wait={t('photos.wait')}>
       <label class="field">
         <span>{again ? t('photos.another') : t('photos.yours')}</span>
-        <input type="file" name="photo" accept="image/*" required />
+        <input type="file" name="photo" accept="image/*" class="upload-file" required />
       </label>
       <label class="consent">
         <input type="checkbox" name="consent" required />

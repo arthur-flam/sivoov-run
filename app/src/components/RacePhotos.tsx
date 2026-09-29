@@ -47,7 +47,7 @@ export const RacePhotos = ({ race, token, run, officialM, finished, dark = false
     const picked = await pickPhotos(moments.length);
     if (!picked || picked.length === 0) return;
     const { sent, unmatched } = await send(token, picked, run, officialM);
-    setNote(unmatched > 0 ? t('racePhotos.unmatched', { count: unmatched }) : sent > 0 ? t('racePhotos.sent', { count: sent }) : null);
+    setNote(unmatched > 0 ? t(unmatched === 1 ? 'racePhotos.unmatched.one' : 'racePhotos.unmatched', { count: unmatched }) : sent > 0 ? t(sent === 1 ? 'racePhotos.sent.one' : 'racePhotos.sent', { count: sent }) : null);
     if (finished) void make(token);
   };
   const byMoment = new Map(photos.map((p) => [p.momentId, p]));

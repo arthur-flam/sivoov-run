@@ -61,7 +61,9 @@ export const scenes: Scene[] = [
       await page.goto('/organisateurs');
       await expect(page.getByRole('heading', { level: 1 })).toContainText('complète');
       await shoot();
-      // A fresh address each pass: leads are capped at five a day per email.
+      // A fresh address and network each pass: leads are capped at five a day per email and three
+      // per network (the address `wrangler dev` passes on as CF-Connecting-IP).
+      await page.setExtraHTTPHeaders({ 'CF-Connecting-IP': `198.51.100.${Date.now() % 250}` });
       await page.getByLabel('Votre nom').fill('Claire Dubois');
       await page.getByLabel('Votre email').fill(`claire+${Date.now()}@example.com`);
       await page.getByLabel('Nom de la course').fill('Trail des Falaises');

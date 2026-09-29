@@ -22,7 +22,8 @@ type Props = {
   /** How many photo moments the runner's course has: a finish (race or rehearsal) offers the race photos when there are some. */
   photoMoments: number;
   onHome: () => void;
-  onDiagnostics: () => void;
+  /** The GPS counters and the Diagnostic screen: for test builds and test accounts, never a runner's finish. */
+  onDiagnostics: (() => void) | null;
 };
 
 const dateOf = (iso: string, race: Race) => new Intl.DateTimeFormat(currentLocale() === 'fr' ? 'fr-FR' : 'en-GB', { day: 'numeric', month: 'long', timeZone: race.timezone }).format(new Date(iso));
@@ -106,7 +107,7 @@ export const Finish = ({ race, course, entrant, state, outcome, simulation, uplo
           {state.splits.map((s) => (
             <View key={s.km} style={styles.splitRow}>
               <Body dark muted style={styles.splitKm}>
-                km {s.km}
+                {t('run.finished.km', { km: s.km })}
               </Body>
               <Body dark style={styles.splitNum}>
                 {formatClock(s.splitMs)}
@@ -121,10 +122,14 @@ export const Finish = ({ race, course, entrant, state, outcome, simulation, uplo
 
       <Button label={t('finish.home')} ghost dark onPress={onHome} testID="finish-home" />
       {/* The walk test is read here, outdoors, with no cable (docs/WORKFLOW.md, loop 2b). */}
-      <Body dark muted>
-        {t('run.gpsCounts', { accepted: state.accepted, rejected: state.rejected })}
-      </Body>
-      <Button label={t('debug.open')} ghost dark testID="open-debug" onPress={onDiagnostics} />
+      {onDiagnostics ? (
+        <>
+          <Body dark muted>
+            {t('run.gpsCounts', { accepted: state.accepted, rejected: state.rejected })}
+          </Body>
+          <Button label={t('debug.open')} ghost dark testID="open-debug" onPress={onDiagnostics} />
+        </>
+      ) : null}
     </ScrollView>
   );
 };

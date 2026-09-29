@@ -223,7 +223,7 @@ export default function Run() {
           uploadStatus={uploadStatus}
           photoMoments={me.photoMoments.length}
           onHome={() => router.dismissTo('/home')}
-          onDiagnostics={() => router.push('/debug')}
+          onDiagnostics={__DEV__ || me.rehearsal ? () => router.push('/debug') : null}
         />
       </Screen>
     );

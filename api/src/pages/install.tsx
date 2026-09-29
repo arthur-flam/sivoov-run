@@ -1,7 +1,7 @@
 import type { Entrant, Race } from '@sivoov/shared';
 import { distanceLabel, translator } from '@sivoov/shared';
 import type { Locale } from '@sivoov/shared';
-import { fmtDate } from './dates';
+import { fmtSpan } from './dates';
 
 /** Where the app can be had today: the stores, or the TestFlight and Play testing links during the beta. */
 export type AppLinks = { ios?: string; android?: string };
@@ -20,7 +20,7 @@ export const InstallPage = ({ race, entrant, locale, links }: Props) => {
       <h1 style="font-family:var(--font-display);font-weight:500;font-size:34px">{t('signin.welcome', { firstName: entrant.firstName })}</h1>
       <div class="bib">{entrant.bib}</div>
       <p style="color:var(--ink-2)">
-        {distanceLabel(locale, entrant.distanceKey)} · {t('home.window')}: {fmtDate(race.windowStart, locale, race.timezone)} → {fmtDate(race.windowEnd, locale, race.timezone)}
+        {distanceLabel(locale, entrant.distanceKey)} · {t('install.window', fmtSpan(race.windowStart, race.windowEnd, locale, race.timezone))}
       </p>
       <p style="margin-top:24px;max-width:46ch;margin-left:auto;margin-right:auto">{t('install.lede')}</p>
       {links.ios || links.android ? (

@@ -14,7 +14,7 @@ import type { CardFormat } from '@sivoov/shared';
 import { finisherReport, fullName, raceCardId, resultForBib, runCardId, runnerCardFor, shortName } from '../lib/results';
 import { ReportCard, ShareCard } from '../pages/card';
 import type { MapBase } from '../pages/card';
-import { fmtDate } from '../pages/dates';
+import { fmtDate, fmtSpan } from '../pages/dates';
 import { Layout } from '../pages/layout';
 import type { OpenGraph } from '../pages/layout';
 import { ResultPage } from '../pages/result';
@@ -85,7 +85,7 @@ results.get('/:slug/results/:bib', async (c) => {
     ? `${fullName(result.entrant)} · ${formatOfficialTime(result.best.run.elapsedMs)} · ${race.theme.displayName}`
     : t('result.bib.title', { firstName: shortName(result.entrant), race: race.theme.displayName });
   const distance = distanceLabel(locale, result.entrant.distanceKey);
-  const window = { start: fmtDate(race.windowStart, locale, race.timezone), end: fmtDate(race.windowEnd, locale, race.timezone) };
+  const window = fmtSpan(race.windowStart, race.windowEnd, locale, race.timezone);
   const og: OpenGraph = {
     title,
     // A finish is an invitation: the preview tells whoever sees it they can run it too.

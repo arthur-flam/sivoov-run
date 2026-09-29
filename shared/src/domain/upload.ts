@@ -1,5 +1,5 @@
 import type { Course } from '../schemas/course';
-import type { DistanceKey, Race } from '../schemas/race';
+import type { Race } from '../schemas/race';
 import type { LocationSample, Split } from '../schemas/run';
 import type { GpxPoint } from './gpx';
 import { FASTEST_KILOMETRE_MS, RECORD_FLOOR_MS } from './official';

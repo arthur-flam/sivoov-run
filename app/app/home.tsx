@@ -120,7 +120,7 @@ export default function Home() {
         </Card>
         {pendingUploads > 0 ? (
           <Card>
-            <Body testID="pending-uploads">{t('upload.pendingCount', { count: pendingUploads })}</Body>
+            <Body testID="pending-uploads">{t(pendingUploads === 1 ? 'upload.pendingCount.one' : 'upload.pendingCount', { count: pendingUploads })}</Body>
             <Button label={t('upload.retry')} ghost onPress={() => token && void useUploads.getState().flush(token).catch(() => undefined)} />
           </Card>
         ) : null}

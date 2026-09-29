@@ -15,13 +15,14 @@ import {
   runMetersForTrack,
   whenInWords,
 } from '@sivoov/shared';
-import type { AudioScript, Course, CourseGeometry, CourseTrack, CueMoment, EstimatedFiring, LatLng, LineIssue, Moment, PlaceholderPhase, ScriptLine } from '@sivoov/shared';
+import type { AudioScript, CeremonyIssue, Course, CourseGeometry, CourseTrack, CueMoment, EstimatedFiring, LatLng, LineIssue, Moment, PlaceholderPhase, ScriptLine } from '@sivoov/shared';
 import type { Bindings } from '../env';
 import { scriptDb } from '../db/scriptQueries';
 import type { PackSummary } from '../db/scriptQueries';
-import { issueText, lineStatusView, publishView, summaryText } from '../pages/org/studioCopy';
+import { ceremonyIssueText, issueText, lineStatusView, publishView, summaryText } from '../pages/org/studioCopy';
 import type { AudioSummary, LineSource } from '../pages/org/studioCopy';
 import type { Tone } from '../pages/org/ui';
+import { checkCeremony } from './ceremonyChecks';
 import { sha256Hex } from './crypto';
 import { canRender, renderKey, ttsDepsFor, ttsHash } from './tts';
 import { uploadKey } from './uploads';
@@ -84,7 +85,9 @@ export type LineStatus = {
   rendered: boolean;
   bytes: number;
   issues: LineIssue[];
-  /** The issues in the organizer's words (studioCopy `issueText`). */
+  /** What the start ceremony's checks say about this line: warnings, publishing goes ahead. */
+  ceremony: CeremonyIssue[];
+  /** The issues, then the ceremony's warnings, in the organizer's words (studioCopy `issueText`, `ceremonyIssueText`). */
   problems: string[];
   when: string;
   moment: Moment;
@@ -107,6 +110,7 @@ const lineStatus = async (files: R2Bucket, script: AudioScript, line: ScriptLine
     personal: line.personal && phase ? { kind: line.personal.kind, phase } : null,
     cue: line.trigger.kind === 'cue' ? { at: line.trigger.at, order: line.trigger.order } : null,
     issues,
+    ceremony: [],
     problems: issues.map((i) => issueText(i, source === 'personal')),
     when: whenInWords(line.trigger),
     moment: momentOf(line.trigger, officialM),
@@ -122,8 +126,13 @@ const lineStatus = async (files: R2Bucket, script: AudioScript, line: ScriptLine
   return { ...common, ...view, hash, rendered: head !== null, bytes: head?.size ?? 0, audioPath: head ? `/audio/${hash}` : null };
 };
 
-export const lineStatuses = (files: R2Bucket, script: AudioScript, officialM: number): Promise<LineStatus[]> =>
-  Promise.all(script.lines.map((line) => lineStatus(files, script, line, officialM)));
+export const lineStatuses = async (files: R2Bucket, script: AudioScript, officialM: number): Promise<LineStatus[]> => {
+  const [statuses, ceremony] = await Promise.all([Promise.all(script.lines.map((line) => lineStatus(files, script, line, officialM))), checkCeremony(files, script)]);
+  return statuses.map((s) => {
+    const found = ceremony[s.id] ?? [];
+    return found.length === 0 ? s : { ...s, ceremony: found, problems: [...s.problems, ...found.map(ceremonyIssueText)] };
+  });
+};
 
 /** The studio's order: by moment, then by where each line first plays (pace ones last, as written). */
 export const inRunningOrder = (lines: LineStatus[], firings: EstimatedFiring[]): LineStatus[] => {

@@ -57,9 +57,14 @@ export const afterPause = (firings: Firing[]): Firing[] => firings.filter((f) =>
 type Triggered = Pick<AudioEvent, 'trigger'>;
 export type CueLine<E extends Triggered = AudioEvent> = E & { trigger: CueTrigger };
 
-/** The start ceremony: its lines in play order, and which one is the gun. */
+/** The start ceremony: its lines in play order, which one drives the digits and which one is the gun. */
 export type Ceremony<E extends Triggered = AudioEvent> = {
   lines: CueLine<E>[];
+  /**
+   * The one line whose remaining time the screen shows as digits: the last `countdown` line (they
+   * all play before the gun). Any other `countdown` line plays like an `armed` one. Null: no digits.
+   */
+  countdownIndex: number | null;
   /** The line whose first second starts the clock; `lines.length` when there is no gun line, the clock then starts as the last line ends. */
   gunIndex: number;
 };
@@ -82,5 +87,19 @@ export const ceremonySequence = <E extends Triggered>(pack: { events: readonly E
     .map(({ event }) => event);
   if (lines.length === 0) return null;
   const gun = lines.findIndex((line) => line.trigger.at === 'gun');
-  return { lines, gunIndex: gun < 0 ? lines.length : gun };
+  const countdown = lines.reduce<number | null>((last, line, i) => (line.trigger.at === 'countdown' ? i : last), null);
+  return { lines, countdownIndex: countdown, gunIndex: gun < 0 ? lines.length : gun };
+};
+
+/** How far ahead of the number it names a digit may turn: a status arrives up to one update late. */
+const DIGIT_LEAD_S = 0.1;
+
+/**
+ * Pure: the digit the screen shows while the countdown file plays, from its own remaining time.
+ * Never more than the file's nominal whole seconds: MP3 padding makes a ten-second file report
+ * 10.03 s, which would otherwise open on « 11 ». Never less than 1: « 0 » is the gun's.
+ */
+export const countdownDigit = (remainingS: number, durationS: number): number => {
+  const nominal = Math.max(1, Math.round(durationS));
+  return Math.min(nominal, Math.max(1, Math.ceil(remainingS - DIGIT_LEAD_S)));
 };

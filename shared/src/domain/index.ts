@@ -9,6 +9,8 @@ export * from './color';
 export * from './simulate';
 export * from './audioTriggers';
 export * from './audioScript';
+export * from './audioLength';
+export * from './ceremonyChecks';
 export * from './audioEditor';
 export * from './landmarks';
 export * from './audioEstimates';

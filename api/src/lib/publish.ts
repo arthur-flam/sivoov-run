@@ -1,17 +1,21 @@
 import { AUDIO_CONTENT_TYPES, buildScript, lineIssues, manifestFor, packFileKey, packPrefix, personalDefsFor, underFileKey, voiceFormat } from '@sivoov/shared';
-import type { AudioScript, RenderedFile, ScriptLine } from '@sivoov/shared';
+import type { AudioScript, RenderedFile } from '@sivoov/shared';
 import type { Db } from '../db/queries';
 import type { ScriptDb } from '../db/scriptQueries';
 import { sha256HexBytes } from './crypto';
+import { ceremonyIssueText } from '../pages/org/studioCopy';
+import { checkCeremony, sourceKey } from './ceremonyChecks';
 import { storeDefs } from './personal';
 import { scriptFingerprint } from './studio';
-import { renderKey, ttsHash } from './tts';
 import { uploadKey } from './uploads';
 import { mapLimit } from './mapLimit';
 
-/** `fix`: a line has nothing to read or something to correct. `missing`: a line's sound is not there yet. */
+/**
+ * `fix`: a line has nothing to read or something to correct. `missing`: a line's sound is not there yet.
+ * `warnings`: what went out but deserves a look (a countdown that is not ten seconds long), in the organizer's words.
+ */
 export type PublishOutcome =
-  | { ok: true; version: number; files: number; bytes: number }
+  | { ok: true; version: number; files: number; bytes: number; warnings: string[] }
   | { ok: false; reason: 'fix' | 'missing'; missing: { id: string; title: string }[] };
 
 /** The sentence the admin shows when a publish is refused. */
@@ -19,10 +23,6 @@ export const refusalText = (outcome: Extract<PublishOutcome, { ok: false }>): st
   const names = outcome.missing.map((m) => m.title || m.id).join(', ');
   return outcome.reason === 'fix' ? `Annonces à compléter avant de publier : ${names}.` : `Il manque le son de : ${names}.`;
 };
-
-/** Where a line's sound waits before publishing: the organizer's upload, or the voice cache for its text. */
-const sourceKey = async (script: AudioScript, line: ScriptLine): Promise<string> =>
-  line.audio ? uploadKey(line.audio) : renderKey(script.voice, await ttsHash(script.voice, line.text));
 
 /**
  * Publishing turns the draft into the pack the app downloads: every line's sound (the rendered
@@ -65,5 +65,7 @@ export const publishScript = async (deps: { db: Db; scripts: ScriptDb; files: R2
   await deps.db.upsertAudioPack(pack);
   const published = { version: pack.version, at: now.toISOString(), fingerprint: await scriptFingerprint(script) };
   await deps.scripts.saveDraft({ ...script, version: script.version + 1, published });
-  return { ok: true, version: pack.version, files: rendered.length, bytes: rendered.reduce((n, r) => n + r.bytes, 0) };
+  const ceremony = await checkCeremony(deps.files, built);
+  const warnings = built.lines.flatMap((l) => (ceremony[l.id] ?? []).map((issue) => `${l.title || l.id} : ${ceremonyIssueText(issue)}`));
+  return { ok: true, version: pack.version, files: rendered.length, bytes: rendered.reduce((n, r) => n + r.bytes, 0), warnings };
 };

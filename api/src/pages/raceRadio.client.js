@@ -85,7 +85,8 @@
       clockNode.textContent = fmtClock(raceKm * pace);
       clockNode.classList.remove('is-count', 'is-words');
     } else if (countdown && t >= countdown.t) {
-      clockNode.textContent = String(Math.max(1, 10 - Math.floor(t - countdown.t)));
+      // The seconds left to the gun, never more than the countdown's ten (a gap may sit before the gun).
+      clockNode.textContent = String(gun ? Math.min(10, Math.max(1, Math.ceil(gun.t - t))) : Math.max(1, 10 - Math.floor(t - countdown.t)));
       clockNode.classList.remove('is-words');
       clockNode.classList.add('is-count');
     } else {

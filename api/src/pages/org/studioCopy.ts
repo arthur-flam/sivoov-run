@@ -1,4 +1,5 @@
-import type { AudioCategory, AudioTrigger, LineIssue, Moment, PlaceholderPhase } from '@sivoov/shared';
+import { COUNTDOWN_SECONDS } from '@sivoov/shared';
+import type { AudioCategory, AudioTrigger, CeremonyIssue, LineIssue, Moment, PlaceholderPhase } from '@sivoov/shared';
 import { plural } from './format';
 import type { Tone } from './ui';
 
@@ -76,6 +77,18 @@ export const issueText = (issue: LineIssue, personal: boolean): string => {
       return `${names} n’existe pas. Choisissez un champ dans la liste.`;
     case 'live_before_start':
       return `${names} n’est connu que pendant la course : pas avant le départ.`;
+  }
+};
+
+/** What the start ceremony's checks say under the countdown line (they warn, publishing goes ahead). */
+export const ceremonyIssueText = (issue: CeremonyIssue): string => {
+  switch (issue.code) {
+    case 'countdown_length':
+      return `Ce son dure ${String(issue.seconds).replace('.', ',')} s : les chiffres à l’écran suivent ce son, un par seconde, et ne correspondront pas à la voix. Il doit durer ${COUNTDOWN_SECONDS} s : envoyez un fichier de ${COUNTDOWN_SECONDS} secondes.`;
+    case 'countdown_twice':
+      return 'Un seul compte à rebours affiche les chiffres, le dernier : celui-ci est joué comme une annonce sur la ligne.';
+    case 'countdown_without_gun':
+      return 'Pas de coup de pistolet après ce compte à rebours : le chrono démarre à la fin de la dernière annonce du départ.';
   }
 };
 

@@ -544,6 +544,11 @@
     worktree it started the main checkout's Worker. Run a worktree's servers by hand.
   - The seeded half (`deauville-2026-half`) uses the marathon's 42 km geometry, so on the map a
     half runner moves twice as fast as they run (progress is proportional). Seen in the local seed; preview and production not checked.
+- 2026-09-29: the dev app's "Une erreur est survenue" at sign-in was a stale bundle: the laptop's
+  Metro from 2026-09-13 still held 8081, `npm run device` stopped at "Use port 8084 instead?", and
+  `adb reverse tcp:8081` fed the phone the old checkout's JS. Free 8081 first
+  (`lsof -iTCP:8081 -sTCP:LISTEN`); to point the dev app at a Metro without tapping:
+  `adb shell am start -a android.intent.action.VIEW -d "sivoov-dev://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"`.
 - 2026-09-29: the race home and the pre-flight, reworked. Worth knowing next time:
   - Updates: `/api/me` (race, course, places) is fetched again every time the race home comes back
     into view. The audio pack used to be fetched once per app process: a pack published while the

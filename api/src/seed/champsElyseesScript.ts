@@ -1,4 +1,4 @@
-import { GEMINI_TTS_MODEL } from '@sivoov/shared';
+import { GEMINI_TTS_MODEL, champsElysees10kLandmarks } from '@sivoov/shared';
 import type { AudioScriptInput } from '@sivoov/shared';
 
 /**
@@ -17,6 +17,16 @@ export const CHAMPS_DIRECTION =
   'Le speaker officiel du 10 km des Champs-Élysées. Voix d’homme mûre, chaleureuse et radiophonique. Enthousiaste sans jamais crier, précis, complice avec les coureurs. Français de France, les nombres dits avec netteté.';
 
 const line = (l: AudioScriptInput['lines'][number]) => l;
+
+/**
+ * A line about a place is said at the place, as the course card and the run screen place it: the
+ * Concorde and Madeleine lines were set 50 m past theirs and started 14 s late at 4:40/km.
+ */
+const at = (placeId: string) => {
+  const place = champsElysees10kLandmarks.find((l) => l.id === placeId);
+  if (!place) throw new Error(`no place ${placeId} on the course`);
+  return { kind: 'distance' as const, meters: place.meters };
+};
 
 export const champsElysees2027Script: AudioScriptInput = {
   courseId: '10km-champs-elysees-2027-10k',
@@ -66,12 +76,12 @@ export const champsElysees2027Script: AudioScriptInput = {
     // The course.
     line({
       id: 'course.concorde', title: 'La Concorde', category: 'course', mix: 'duck', priority: 6,
-      trigger: { kind: 'distance', meters: 300 }, key: 'course-concorde',
+      trigger: at('concorde'), key: 'course-concorde',
       text: 'La Concorde. L’Obélisque vous regarde passer : trois mille ans qu’il en voit d’autres. Laissez partir les pressés… votre course commence à la Madeleine.',
     }),
     line({
       id: 'course.madeleine', title: 'La Madeleine', category: 'course', mix: 'duck', priority: 6,
-      trigger: { kind: 'distance', meters: 700 }, key: 'course-madeleine',
+      trigger: at('madeleine'), key: 'course-madeleine',
       text: 'La Madeleine et ses cinquante-deux colonnes. Maintenant, le boulevard Malesherbes : un long faux plat jusqu’au parc Monceau. Trouvez votre allure. Je vous laisse tranquille… on se retrouve au parc.',
     }),
     line({
@@ -82,12 +92,12 @@ export const champsElysees2027Script: AudioScriptInput = {
     }),
     line({
       id: 'course.monceau', title: 'Parc Monceau', category: 'course', mix: 'duck', priority: 6,
-      trigger: { kind: 'distance', meters: 2100 }, key: 'course-monceau',
+      trigger: at('monceau'), key: 'course-monceau',
       text: 'Parc Monceau. Les grilles dorées, les allées, et enfin un peu de calme. C’est ici qu’en 1797, André-Jacques Garnerin a sauté d’un ballon avec le tout premier parachute. Il s’est posé sain et sauf, sur cette pelouse. Respirez… ça ne durera pas.',
     }),
     line({
       id: 'course.lisbonne', title: 'Rue de Lisbonne', category: 'coaching', mix: 'duck', priority: 5,
-      trigger: { kind: 'distance', meters: 3300 }, key: 'course-lisbonne',
+      trigger: at('lisbonne'), key: 'course-lisbonne',
       text: 'Rue de Lisbonne : le point le plus haut de la première boucle. Ce qui vient descend. Laissez rouler les jambes, sans forcer.',
     }),
     line({
@@ -97,27 +107,27 @@ export const champsElysees2027Script: AudioScriptInput = {
     }),
     line({
       id: 'course.rond-point', title: 'La montée des Champs', category: 'course', mix: 'duck', priority: 7,
-      trigger: { kind: 'distance', meters: 5950 }, key: 'course-rond-point',
+      trigger: at('rond-point'), key: 'course-rond-point',
       text: 'Le Rond-Point. Levez les yeux : tout en haut, l’Arc de Triomphe. Neuf cents mètres de pavés pour aller le chercher. Petits pas… et laissez la foule vous porter.',
     }),
     line({
       id: 'course.arc', title: 'Demi-tour sous l’Arc', category: 'ceremony', mix: 'interrupt', priority: 8,
-      trigger: { kind: 'distance', meters: 6900 }, key: 'course-arc',
+      trigger: at('arc'), key: 'course-arc',
       text: 'Demi-tour sous l’Arc de Triomphe ! Le point le plus haut de la course. À partir d’ici… tout redescend. Les Champs-Élysées sont à vous !',
     }),
     line({
       id: 'course.montaigne', title: 'Avenue Montaigne', category: 'course', mix: 'duck', priority: 6,
-      trigger: { kind: 'distance', meters: 7950 }, key: 'course-montaigne',
+      trigger: at('montaigne'), key: 'course-montaigne',
       text: 'Avenue Montaigne. Au numéro trente, un matin de février 1947, Christian Dior présentait le New Look. Quatre-vingts ans plus tard, la tenue qu’on regarde sur cette avenue… c’est la vôtre.',
     }),
     line({
       id: 'course.alma', title: 'L’Alma et la Seine', category: 'course', mix: 'duck', priority: 6,
-      trigger: { kind: 'distance', meters: 8600 }, key: 'course-alma',
+      trigger: at('alma'), key: 'course-alma',
       text: 'Place de l’Alma. De l’autre côté de la Seine, la tour Eiffel. Retenez-la : c’est à ses pieds que se court la dernière étape du Paris Masters Circuit, en décembre. Pour l’instant… suivez la Seine.',
     }),
     line({
       id: 'course.golden', title: 'Le Golden km', category: 'ceremony', mix: 'interrupt', priority: 8,
-      trigger: { kind: 'distance', meters: 9000 }, key: 'course-golden',
+      trigger: at('golden'), key: 'course-golden',
       text: 'Le Golden km ! Le dernier kilomètre est chronométré à part. Tout ce qui vous reste… c’est maintenant.',
     }),
     line({

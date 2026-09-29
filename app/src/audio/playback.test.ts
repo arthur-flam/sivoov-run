@@ -107,6 +107,25 @@ describe('the run’s voice', () => {
     expect(released).toEqual(['file://planches.mp3']);
   });
 
+  it('lets the finish play to its end when the runner leaves the finish screen, and gives way to the next run', () => {
+    screenMounted();
+    const running = startRun(idleRun(10_000), 0);
+    useRun.setState({ state: running });
+    fire(fired('port'));
+    useRun.setState({ phase: 'finished', state: { ...running, phase: 'finished' } });
+    // « Accueil »: the screen goes, then the run is reset.
+    screenUnmounted();
+    useRun.setState({ phase: 'idle', fired: [], state: idleRun(10_000) });
+    expect(released).toEqual([]);
+    // Nothing new is said by the run that is over.
+    useRun.setState({ phase: 'running', fired: [fired('casino')] });
+    expect(played).toEqual(['file://port.mp3']);
+    // A new run screen cuts the tail of the last finish.
+    screenMounted();
+    expect(released).toEqual(['file://port.mp3']);
+    screenUnmounted();
+  });
+
   it('lets the finish line play to its end', () => {
     bindPlayback();
     const running = startRun(idleRun(10_000), 0);

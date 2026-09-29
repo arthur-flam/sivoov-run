@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AudioEventSchema } from '../schemas/audio';
-import { afterPause, ceremonySequence, countdownDigit, nextEvents } from './audioTriggers';
+import { LINE_LEAD_MAX_M, afterPause, ceremonySequence, countdownDigit, lineLeadM, nextEvents } from './audioTriggers';
 
 const ev = (id: string, trigger: unknown, extra: Record<string, unknown> = {}) =>
   AudioEventSchema.parse({ id, trigger, source: { kind: 'file', key: `${id}.mp3` }, category: 'course', ...extra });
@@ -52,6 +52,29 @@ describe('nextEvents', () => {
     const firings = nextEvents(s, pack, new Set(['gun']));
     expect(firings.map((f) => f.key)).toContain('finish');
     expect(afterPause(firings).map((f) => f.key)).toEqual(['finish']);
+  });
+});
+
+describe('a line set at a place', () => {
+  const running = (distanceM: number, paceSecPerKm: number | null) => ({ phase: 'running' as const, distanceM, elapsedMs: 60_000, paceSecPerKm });
+  const said = new Set(['gun']);
+
+  it('starts three seconds of running before the tracker reaches it, so the voice names the place as the runner gets there', () => {
+    // 5:00/km is 3.33 m/s: the line at 200 m starts at 190 m.
+    expect(lineLeadM(300)).toBeCloseTo(10, 5);
+    expect(nextEvents(running(189, 300), pack, said).map((f) => f.key)).toEqual([]);
+    expect(nextEvents(running(191, 300), pack, said).map((f) => f.key)).toEqual(['planches']);
+  });
+  it('waits for the mark itself until the run has a pace', () => {
+    expect(nextEvents(running(199, null), pack, said)).toEqual([]);
+    expect(nextEvents(running(200, null), pack, said).map((f) => f.key)).toEqual(['planches']);
+  });
+  it('is never more than a few seconds early, whatever the pace says', () => {
+    expect(lineLeadM(60)).toBe(LINE_LEAD_MAX_M);
+    expect(nextEvents(running(200 - LINE_LEAD_MAX_M - 1, 60), pack, said)).toEqual([]);
+  });
+  it('leaves the kilometres to the tracker: a split names the time at the mark', () => {
+    expect(nextEvents(running(995, 300), pack, said).map((f) => f.key)).toEqual(['planches']);
   });
 });
 

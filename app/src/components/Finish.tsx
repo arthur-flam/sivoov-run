@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Image, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { averagePace, formatClock, formatKm, formatOfficialKm, formatPace, raceReport } from '@sivoov/shared';
 import type { Course, EntrantPublic, FinishOutcome, Race, RunState } from '@sivoov/shared';
 import { Body, Button, Card, Display, Eyebrow, Num } from '@/components/ui';
 import { currentLocale, t } from '@/i18n';
-import { openCertificate, openPhotos, reportImageUrl, shareFinish } from '@/share';
+import { FinisherShare } from '@/components/FinisherShare';
+import { RacePhotos } from '@/components/RacePhotos';
 import { useSession } from '@/stores/session';
 import type { UploadStatus } from '@/stores/uploads';
 import { fonts, space } from '@/theme';
@@ -18,7 +19,7 @@ type Props = {
   outcome: FinishOutcome;
   simulation: boolean;
   uploadStatus: UploadStatus;
-  /** How many photo moments the runner's course has: the finish offers their photos page when there are some. */
+  /** How many photo moments the runner's course has: an official finish offers the race photos when there are some. */
   photoMoments: number;
   onHome: () => void;
   onDiagnostics: () => void;
@@ -53,8 +54,6 @@ export const Finish = ({ race, course, entrant, state, outcome, simulation, uplo
   }[outcome];
   // The halves need no network: they come from the run's own splits.
   const halves = outcome === 'official' ? raceReport({ id: 'local', elapsedMs: state.elapsedMs, splits: state.splits }, course.distanceM, [], null).halves : null;
-  // The report is drawn by the Worker from the result: it exists once the run is uploaded.
-  const [reportShown, setReportShown] = useState(true);
   const facts = finished
     ? [formatOfficialKm(course.distanceM, course.distanceKey, currentLocale()), `${formatPace(averagePace(state.elapsedMs, course.distanceM))} /km`, `${t('result.bib')} ${entrant.bib}`]
     : [formatClock(state.elapsedMs), `${formatPace(averagePace(state.elapsedMs, state.distanceM))} /km`, `${t('result.bib')} ${entrant.bib}`];
@@ -90,33 +89,10 @@ export const Finish = ({ race, course, entrant, state, outcome, simulation, uplo
         </Body>
       ) : null}
 
-      {outcome === 'official' && uploadStatus === 'sent' && reportShown ? (
-        <Image
-          testID="finish-report"
-          source={{ uri: reportImageUrl(race, entrant.bib, 'post') }}
-          style={styles.report}
-          resizeMode="contain"
-          accessibilityLabel={t('report.title')}
-          onError={() => setReportShown(false)}
-        />
-      ) : null}
-      {outcome === 'official' ? (
-        <>
-          <Button testID="share-finish" label={t('finish.share')} color={race.theme.primary} onColor={race.theme.onPrimary} onPress={() => void shareFinish(race, entrant, state.elapsedMs)} />
-          <Button testID="open-certificate" label={t('finish.images')} ghost dark onPress={() => openCertificate(race, entrant.bib)} />
-          <Body dark muted>
-            {t('finish.images.hint')}
-          </Body>
-        </>
-      ) : null}
-      {finished && photoMoments > 0 ? (
-        <Card dark>
-          <Body dark>{t('finish.photos.title')}</Body>
-          <Body dark muted>
-            {t('finish.photos.body')}
-          </Body>
-          <Button testID="open-photos" label={t('photos.cta')} ghost dark onPress={() => void openPhotos(race, token)} />
-        </Card>
+      {outcome === 'official' ? <FinisherShare race={race} entrant={entrant} elapsedMs={state.elapsedMs} showReport={uploadStatus === 'sent'} dark /> : null}
+      {/* Rehearsals and closed-window runs get no pictures: only an official finish is put into the race. */}
+      {outcome === 'official' && photoMoments > 0 ? (
+        <RacePhotos race={race} token={token} run={state.startedAt ? { startedAtMs: state.startedAt, elapsedMs: state.elapsedMs, splits: state.splits } : null} officialM={course.distanceM} finished dark />
       ) : null}
       <Body dark muted testID="upload-status">
         {uploadStatus === 'sent' ? t('upload.sent') : t('upload.pending')}
@@ -158,7 +134,6 @@ const styles = StyleSheet.create({
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space.md },
   badge: { fontSize: 12 },
   medal: { width: '100%', height: 200 },
-  report: { width: '100%', aspectRatio: 1080 / 1350, borderRadius: 8 },
   splitRow: { flexDirection: 'row', alignItems: 'baseline', paddingVertical: 4 },
   splitKm: { width: 64 },
   splitNum: { flex: 1, textAlign: 'right', fontFamily: fonts.num, fontSize: 20, fontVariant: ['tabular-nums'] },

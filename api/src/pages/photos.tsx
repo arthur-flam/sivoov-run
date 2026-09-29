@@ -87,6 +87,15 @@ export const PhotosPage = ({ race, entrant, officialM, locale, enabled, moments,
                   </figcaption>
                   <p class="hint">{photo.shown ? t('photos.shown') : t('photos.private')}</p>
                 </figure>
+              ) : photo?.status === 'waiting' ? (
+                <div class="moment-waiting" data-testid="photo-waiting">
+                  <p>{t('photos.waiting')}</p>
+                  <form method="post" action={`/${race.slug}/photos/${photo.id}/again`} data-photo-form="" data-wait={t('photos.wait')}>
+                    <button type="submit" class="btn btn-race" disabled={!enabled}>
+                      {t('photos.makeNow')}
+                    </button>
+                  </form>
+                </div>
               ) : m.place ? (
                 <figure class="moment-place">
                   <img src={m.place} alt={t('photos.place', { title: m.title })} loading="lazy" />
@@ -94,7 +103,7 @@ export const PhotosPage = ({ race, entrant, officialM, locale, enabled, moments,
               ) : null}
               {enabled && (!photo || photo.again) ? (
                 <>
-                  {photo?.url ? (
+                  {photo?.url && photo.status !== 'waiting' ? (
                     <form method="post" action={`/${race.slug}/photos/${photo.id}/again`} data-photo-form="" data-wait={t('photos.wait')} class="photo-again">
                       <button type="submit" class="btn btn-ghost">
                         {t('photos.again', { n: left })}

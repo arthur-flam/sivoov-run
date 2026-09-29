@@ -1,6 +1,7 @@
 import { coursePlaces, decimalFr, momentMeters } from '@sivoov/shared';
 import type { Course, PhotoMoment, Race } from '@sivoov/shared';
-import { Card, ConfirmButton, Empty, Field, Flash, ImageFrame, PageHead } from './ui';
+import { distanceName } from './format';
+import { Badge, Card, ConfirmButton, Empty, Field, Flash, ImageFrame, PageHead } from './ui';
 
 /** What the moment form sends back on an error. */
 export type MomentForm = { id?: string; title: string; at: string; ask: string; scene: string; error?: string };
@@ -12,6 +13,8 @@ type Props = {
   race: Race;
   course: Course | undefined;
   moments: PhotoMoment[];
+  /** Per moment, each course that passes it and whether its script has the moment's announcement. */
+  audio: Map<string, Array<{ courseId: string; distanceKey: Course['distanceKey']; ready: boolean }>>;
   done: Map<string, number>;
   canEdit: boolean;
   enabled: boolean;
@@ -75,7 +78,7 @@ const MomentFields = ({ course, values, submit }: { course: Course | undefined; 
  * The race's photo moments: where runners are asked for a selfie, what the picture shows, the
  * organizer's photos of the place, and a try with the organizer's own photo.
  */
-export const OrgPhotosPage = ({ race, course, moments, done, canEdit, enabled, mediaUrl, form, tried, flash }: Props) => {
+export const OrgPhotosPage = ({ race, course, moments, audio, done, canEdit, enabled, mediaUrl, form, tried, flash }: Props) => {
   const base = `/org/${race.slug}/photos`;
   return (
     <>
@@ -105,6 +108,14 @@ export const OrgPhotosPage = ({ race, course, moments, done, canEdit, enabled, m
             ) : (
               <p class="small muted">Pas de photo du lieu : l’image l’imagine d’après la scène.</p>
             )}
+            <p class="small">
+              L’annonce :{' '}
+              {(audio.get(m.id) ?? []).map((a) => (
+                <a href={`/org/${race.slug}/courses/${a.courseId}`}>
+                  <Badge tone={a.ready ? 'good' : 'warn'}>{`${distanceName(a.distanceKey)} · ${a.ready ? 'prête' : 'à ajouter'}`}</Badge>
+                </a>
+              ))}
+            </p>
             <p class="small">{`${done.get(m.id) ?? 0} photo${(done.get(m.id) ?? 0) > 1 ? 's' : ''} de coureurs faite${(done.get(m.id) ?? 0) > 1 ? 's' : ''}`}</p>
 
             {tried?.momentId === m.id ? (

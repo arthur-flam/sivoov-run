@@ -1,5 +1,8 @@
 import type { Course } from '../schemas/course';
 import type { CourseMoment, PhotoMoment, RunnerPhoto } from '../schemas/photo';
+import type { Run } from '../schemas/run';
+import type { ScriptLine } from '../schemas/audioScript';
+import { elapsedAt } from './raceReport';
 
 /**
  * Photo moments, pure: where each falls on a course, which one the runner is at, how many
@@ -62,3 +65,86 @@ export const remixPrompt = ({ raceName, city, title, scene, bib, refs, finish }:
   ]
     .filter((line): line is string => line !== null)
     .join('\n');
+
+/**
+ * When a photo was taken, from its EXIF: `DateTimeOriginal` ("2026:11:12 08:31:05") is the
+ * phone's local time; `OffsetTimeOriginal` ("+01:00") says which, else the phone's own offset
+ * now (`offsetMinutes`, east of UTC positive). iOS nests the fields under "{Exif}". Null without.
+ */
+export const exifTakenAt = (exif: Record<string, unknown> | null | undefined, offsetMinutes: number): number | null => {
+  const nested = exif?.['{Exif}'];
+  const fields = { ...(nested && typeof nested === 'object' ? (nested as Record<string, unknown>) : {}), ...(exif ?? {}) };
+  const when = /^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/.exec(String(fields.DateTimeOriginal ?? fields.DateTime ?? ''));
+  if (!when) return null;
+  const [, y, mo, d, h, mi, sec] = when.map(Number) as [number, number, number, number, number, number, number];
+  const zone = /^([+-])(\d{2}):?(\d{2})$/.exec(String(fields.OffsetTimeOriginal ?? fields.OffsetTime ?? ''));
+  const offset = zone ? (zone[1] === '-' ? -1 : 1) * (Number(zone[2]) * 60 + Number(zone[3])) : offsetMinutes;
+  return Date.UTC(y, mo - 1, d, h, mi, sec) - offset * 60_000;
+};
+
+/** When the runner passed each moment on this run: the gun for the start, the line for the finish, the splits between. */
+export const momentPasses = (moments: readonly CourseMoment[], run: Pick<Run, 'elapsedMs' | 'splits'> & { startedAtMs: number }, officialM: number): Array<{ momentId: string; atMs: number }> =>
+  moments
+    .map((m) => ({ momentId: m.id, elapsed: m.meters <= 0 ? 0 : elapsedAt(run, officialM, m.meters) }))
+    .filter((p): p is { momentId: string; elapsed: number } => p.elapsed !== null)
+    .map((p) => ({ momentId: p.momentId, atMs: run.startedAtMs + p.elapsed }));
+
+/** How far from the moment a photo still belongs to it: the runner slows down, finds the phone, tries twice. */
+export const PHOTO_MATCH_MS = 20 * 60_000;
+/** The start's photo may be taken on the line well before the gun; the finish's long after, at home. */
+export const START_PHOTO_BEFORE_MS = 90 * 60_000;
+export const FINISH_PHOTO_AFTER_MS = 6 * 60 * 60_000;
+
+type Picked = { id: string; takenAtMs: number | null };
+
+/**
+ * Which picked photo goes with which moment: each moment takes the photo taken closest to
+ * when the runner passed it (the start's may be earlier, the finish's later), one photo per
+ * moment. Photos with no time left over fill the moments still empty, in course order.
+ * Returns momentId → photo id.
+ */
+export const assignPhotos = (photos: readonly Picked[], passes: ReadonlyArray<{ momentId: string; atMs: number }>, moments: readonly CourseMoment[], officialM: number): Map<string, string> => {
+  const kind = new Map(moments.map((m) => [m.id, m.meters <= 0 ? 'start' : m.meters >= officialM ? 'finish' : 'course']));
+  const distance = (photo: number, pass: { momentId: string; atMs: number }): number | null => {
+    const gap = photo - pass.atMs;
+    const k = kind.get(pass.momentId);
+    if (k === 'start' && gap < 0) return -gap <= START_PHOTO_BEFORE_MS ? -gap : null;
+    if (k === 'finish' && gap > 0) return gap <= FINISH_PHOTO_AFTER_MS ? gap / 10 : null;
+    return Math.abs(gap) <= PHOTO_MATCH_MS ? Math.abs(gap) : null;
+  };
+  const pairs = photos
+    .flatMap((p) => (p.takenAtMs === null ? [] : passes.map((pass) => ({ photo: p.id, moment: pass.momentId, d: distance(p.takenAtMs!, pass) }))))
+    .filter((x): x is { photo: string; moment: string; d: number } => x.d !== null)
+    .sort((a, b) => a.d - b.d);
+  const timed = pairs.reduce((chosen, x) => {
+    const used = [...chosen.values()];
+    return chosen.has(x.moment) || used.includes(x.photo) ? chosen : new Map([...chosen, [x.moment, x.photo]]);
+  }, new Map<string, string>());
+  const untimed = photos.filter((p) => p.takenAtMs === null).map((p) => p.id);
+  const empty = moments.map((m) => m.id).filter((id) => !timed.has(id));
+  return new Map([...timed, ...empty.slice(0, untimed.length).map((id, i) => [id, untimed[i]!] as const)]);
+};
+
+/** A photo moment's announcement in a course's script: found by this id, so the studio knows it is there. */
+export const photoLineId = (momentId: string): string => `photo.${momentId}`;
+
+/**
+ * The announcement that comes with a photo moment, ready for the organizer to reword: at the
+ * start it is the last line before the countdown (the runner is on the line, phone in hand); at
+ * the finish it waits for the finish call; elsewhere it plays at the place.
+ */
+export const photoLine = (moment: CourseMoment, courseId: string, officialM: number): ScriptLine => ({
+  id: photoLineId(moment.id),
+  title: `Moment photo : ${moment.title}`,
+  category: 'course',
+  mix: moment.meters >= officialM ? 'wait' : 'duck',
+  priority: 6,
+  once: true,
+  trigger: moment.meters <= 0 ? { kind: 'cue', at: 'armed', order: 90 } : moment.meters >= officialM ? { kind: 'finish' } : { kind: 'distance', meters: Math.round(moment.meters) },
+  key: `${courseId}-photo-${moment.id}`.replace(/[^A-Za-z0-9._-]/g, '-'),
+  text: `Moment photo ! ${moment.title}. ${moment.ask}`,
+});
+
+/** The course's photo moments, each with its announcement when the script has one. */
+export const photoLinesOf = (moments: readonly CourseMoment[], lines: readonly Pick<ScriptLine, 'id' | 'title'>[]): Array<{ moment: CourseMoment; line: Pick<ScriptLine, 'id' | 'title'> | null }> =>
+  moments.map((moment) => ({ moment, line: lines.find((l) => l.id === photoLineId(moment.id)) ?? null }));

@@ -11,6 +11,29 @@ Live: https://run.sivoov.app/deauville-2026 (production), https://preview.run.si
 on 2026-09-27 (below); M2 still needs a real finish. Production has the race and its courses;
 no real entrants yet.
 
+### Race photos in the app, the studio and the finisher's home (2026-09-29, same branch)
+The owner's review of the first pass: no ranking in the pictures, a photo before the start, the
+moments in the audio editor (they need their announcement), the share screen reachable after
+the run instead of « Courir », and a photo picker: during the race people only shoot, the model
+runs after.
+- **No ranking** on the four pictures (rank, places, places gained gone); the certificate keeps it.
+- **The flow**: the ready screen lists the moments and takes the start selfie (front camera);
+  during the run the chip says « Moment photo »; after an official finish « Choisir mes photos »
+  (several at once) matches each photo to its moment by its EXIF time, sends them, and the
+  pictures are made in one go and shown on the finish screen. New native module:
+  **expo-image-picker** (ARCHITECTURE.md): needs a new EAS build; older shells open the web page.
+- **The finisher's home**: after an official finish the home opens on « Bravo, Marc. », the
+  report, share, « Mes images à partager » and the photos; « Recourir » stays below. A rehearsal
+  changes nothing.
+- **The studio** lists each course's moments with their announcement or « Pas encore
+  d'annonce », and « Ajouter les annonces » puts them in the draft at the right place, to reword,
+  record and publish. The admin « Photos » says per course whether the line is there.
+- Seeds: a « Sur la ligne de départ » moment for both races (local, preview).
+Seen in `npm run shots` (`run-finished-photos`: two selfies picked, sent and made by the local
+stand-in, on the web target; `org-studio`). The picker, the camera and the EXIF on a real phone
+are not tested (web target only, no EAS build yet); EXIF parsing is unit-tested on the shapes
+Android and iOS are documented to give.
+
 ### Race photos: the runner put into their race (2026-09-29, branch `claude/post-run-share-image-8iw9d6`)
 The owner's idea: ask runners for a selfie or two, at chosen moments, and have an image model put
 them into the virtual race; organizers upload pictures of the places. JS and Worker only (OTA),
@@ -344,7 +367,8 @@ Anchored to PRD milestones (M2 10 Oct, M3 17 Oct, M4 31 Oct).
 
 ## Owner actions
 
-- **Share cards and race photos** (this branch): run migration `0009_photos.sql` before the
+- **Share cards and race photos** (this branch): a new EAS build for the photo picker
+  (`expo-image-picker`), then run migration `0009_photos.sql` before the
   Worker (`npx wrangler d1 migrations apply sivoov-run --remote --env preview`, then without
   `--env` for production, then deploy). Set `BROWSER_RENDERING_TOKEN` (below) or no report PNG
   ever exists. Check the Google AI Studio key's tier allows `gemini-2.5-flash-image` (not checked from here;

@@ -4,6 +4,7 @@ import { PhotoMomentSchema } from '@sivoov/shared';
 import { adminDb } from '../src/db/adminQueries';
 import { photoQueries } from '../src/db/photoQueries';
 import { db } from '../src/db/queries';
+import { scriptDb } from '../src/db/scriptQueries';
 import { renderRemix } from '../src/lib/photos';
 import { deauvilleCourses, deauvilleOrganizers, deauvilleRace, deauvilleTestEntrants } from '../src/seed/deauville';
 
@@ -212,6 +213,23 @@ describe('the organizer’s photo moments', () => {
     expect(parts[0]!.text).toContain('The next image shows the real place');
   });
 
+  it('puts each moment’s announcement in the course’s studio, once', async () => {
+    const owner = await orgCookie('orga@example.com');
+    const studio = `http://run.test/org/${SLUG}/courses/deauville-2026-half`;
+    const before = await (await SELF.fetch(studio, { headers: { Cookie: owner } })).text();
+    expect(before).toContain('Moments photo');
+    expect(before).toContain('Pas encore d’annonce');
+    const add = () => SELF.fetch(`${studio}/photo-lines`, { method: 'POST', headers: { Cookie: owner }, redirect: 'manual' });
+    expect((await add()).status).toBe(303);
+    const draft = await scriptDb(env.DB).draft('deauville-2026-half', 'fr');
+    const line = draft!.script.lines.find((l) => l.id === `photo.${finish.id}`);
+    expect(line).toMatchObject({ trigger: { kind: 'finish' }, title: 'Moment photo : La ligne', text: 'Moment photo ! La ligne. Bras levés.' });
+    const count = draft!.script.lines.length;
+    await add();
+    expect((await scriptDb(env.DB).draft('deauville-2026-half', 'fr'))!.script.lines.length).toBe(count);
+    expect(await (await SELF.fetch(`http://run.test/org/${SLUG}/photos`, { headers: { Cookie: owner } })).text()).toContain('Semi-marathon · prête');
+  });
+
   it('lets a viewer look but not change', async () => {
     const viewer = await orgCookie('lecture@example.com');
     expect((await SELF.fetch(`http://run.test/org/${SLUG}/photos`, { headers: { Cookie: viewer } })).status).toBe(200);
@@ -231,6 +249,54 @@ describe('the organizer’s photo moments', () => {
     expect(html).toContain('data-testid="tried-photo"');
     expect(html).toContain('data:image/png;base64,');
     expect(calls[calls.length - 1]!.body.contents[0]!.parts[0]!.text).toContain('number 1234');
+  });
+});
+
+describe('the app’s photos: sent any time, made after the run', () => {
+  const bearer = async (email: string) => ({ Authorization: `Bearer ${await sessionFor(email)}` });
+  const sendFromApp = async (headers: Record<string, string>, momentId: string, consent = true) => {
+    const form = new FormData();
+    form.append('photo', new File([png(4)], 'IMG_0042.png', { type: 'image/png' }));
+    if (consent) form.append('consent', 'on');
+    return SELF.fetch(`http://run.test/api/me/photos/${momentId}`, { method: 'POST', headers, body: form });
+  };
+
+  it('keeps a photo sent during the race waiting, and calls no model', async () => {
+    const headers = await bearer('lea@example.com');
+    const before = calls.length;
+    expect((await sendFromApp(headers, racecourse.id, false)).status).toBe(400);
+    const res = await sendFromApp(headers, racecourse.id);
+    expect(res.status).toBe(200);
+    expect((await res.json<{ photo: { status: string; picture: string | null } }>()).photo).toMatchObject({ status: 'waiting', picture: null });
+    expect(calls.length).toBe(before);
+  });
+
+  it('lists the moments of the runner’s course and their photos', async () => {
+    const res = await SELF.fetch('http://run.test/api/me/photos', { headers: await bearer('lea@example.com') });
+    const body = await res.json<{ enabled: boolean; moments: Array<{ id: string }>; photos: Array<{ momentId: string; status: string }> }>();
+    expect(body.enabled).toBe(true);
+    expect(body.moments.map((m) => m.id)).toContain(racecourse.id);
+    expect(body.photos.find((p) => p.momentId === racecourse.id)?.status).toBe('waiting');
+  });
+
+  it('makes every waiting picture once the run is over, for the runner’s eyes only', async () => {
+    const headers = await bearer('lea@example.com');
+    const before = calls.length;
+    const res = await SELF.fetch('http://run.test/api/me/photos/render', { method: 'POST', headers });
+    const { photos } = await res.json<{ photos: Array<{ momentId: string; status: string; picture: string | null }> }>();
+    const made = photos.find((p) => p.momentId === racecourse.id)!;
+    expect(made.status).toBe('done');
+    expect(calls.length).toBe(before + 1);
+    expect(calls[calls.length - 1]!.body.contents[0]!.parts[0]!.text).toContain('number 1002');
+    expect((await SELF.fetch(`http://run.test${made.picture}`, { headers })).status).toBe(200);
+    expect((await SELF.fetch(`http://run.test${made.picture}`, { headers: await bearer('marc@example.com') })).status).toBe(404);
+    // Nothing left waiting: asking again makes nothing.
+    await SELF.fetch('http://run.test/api/me/photos/render', { method: 'POST', headers });
+    expect(calls.length).toBe(before + 1);
+  });
+
+  it('refuses a moment that is not on the runner’s course', async () => {
+    expect((await sendFromApp(await bearer('marc@example.com'), racecourse.id)).status).toBe(404);
   });
 });
 

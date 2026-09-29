@@ -82,11 +82,12 @@ the Berlin Marathon's race report, "make people want to share and feel proud"). 
 - Race report: a row of boxes (label strip in the race colour lifted 20 % toward white, the value
   on white), the course on a light Mapbox map with a numbered circle at each timing point, shaded
   from light at the first to the race colour at the finish, and the same circles heading the
-  splits (time over the segment, pace, place there). The two halves in a box over the map, with
-  a negative split or the places gained said in a line when there is one.
+  splits (time over the segment, pace). The two halves in a box over the map, with a negative
+  split said when there is one. No ranking on any picture (owner's call, 2026-09-29): it is the
+  runner's own race; the rank stays on the certificate and the results.
 - Four formats: `og` 1200×630 (the link preview, landscape), `post` 1080×1350 (the splits laid
   across), `story` 1080×1920, and `sticker`: white, shadowed, on a transparent ground, the course
-  line, the time, distance, pace and place, to lay over one's own photo (Strava's overlay idea).
+  line, the time, distance and pace, to lay over one's own photo (Strava's overlay idea).
 - Colours are `--race-primary`/`--race-on-primary` and the tokens, mixed with `color-mix`; no
   new hex values. A new identity changes the fonts and the Sivoov marks, not this layout.
 

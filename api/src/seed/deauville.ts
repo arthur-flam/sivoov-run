@@ -78,6 +78,13 @@ export const deauvilleScripts: AudioScript[] = [AudioScriptSchema.parse(deauvill
  */
 export const deauvillePhotoMoments: PhotoMoment[] = [
   {
+    id: 'deauville-2026-photo-start',
+    title: 'Sur la ligne de départ',
+    at: 'start',
+    ask: 'Un selfie avant le coup de pistolet, dossard bien visible.',
+    scene: 'The start line of the Marathon International de Deauville on the seafront: a start arch, thousands of runners packed behind it, the race clock at zero, balloons and flags, the beach and the Channel in the background, early morning light.',
+  },
+  {
     id: 'deauville-2026-photo-planches',
     title: 'Sur les Planches',
     at: 'planches',

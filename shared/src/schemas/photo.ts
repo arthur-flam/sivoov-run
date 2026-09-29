@@ -26,7 +26,8 @@ export const PhotoMomentSchema = z.object({
 });
 export type PhotoMoment = z.infer<typeof PhotoMomentSchema>;
 
-export const PhotoStatusSchema = z.enum(['rendering', 'done', 'failed']);
+/** waiting: the runner's photo is in, the picture is made after their run (the app sends photos before and during). */
+export const PhotoStatusSchema = z.enum(['waiting', 'rendering', 'done', 'failed']);
 export type PhotoStatus = z.infer<typeof PhotoStatusSchema>;
 
 export const RunnerPhotoSchema = z.object({

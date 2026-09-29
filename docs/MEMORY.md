@@ -645,4 +645,10 @@
   `imageConfig.aspectRatio`, pictures as `inlineData` parts, the answer's first `inlineData`) is
   from Google's docs and the tests' stub, never yet from a real call: the container has no key.
   The first real render is the check (Owner actions).
+- 2026-09-29: a photo picked on a phone carries its capture time only in EXIF, and only when
+  `exif: true` is asked: `DateTimeOriginal` is local time with no zone (`OffsetTimeOriginal` when
+  the camera wrote it), and iOS nests the fields under `{Exif}`. A photo that went through a chat
+  app has none: `assignPhotos` then fills the empty moments in course order. RN's `Image` sends
+  headers (`source.headers`) on a phone but not on the web target, where a private picture has to
+  be fetched and shown from a blob URL (`AuthedImage`).
 

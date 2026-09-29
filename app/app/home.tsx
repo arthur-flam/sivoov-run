@@ -6,6 +6,8 @@ import { daysUntilWindow, distanceLabel, formatDistanceLine, formatOfficialTime,
 import { AccountActions } from '@/components/AccountActions';
 import { CourseMap } from '@/components/CourseMap';
 import { DemoRun } from '@/components/DemoRun';
+import { FinisherShare } from '@/components/FinisherShare';
+import { RacePhotos } from '@/components/RacePhotos';
 import { Body, Button, Card, Display, Eyebrow, Num, Screen } from '@/components/ui';
 import { useMyResult } from '@/hooks/useMyResult';
 import { useMapDownload } from '@/hooks/useMapDownload';
@@ -14,7 +16,7 @@ import { useTrack } from '@/hooks/useTrack';
 import { useRunRecovery } from '@/hooks/useRunRecovery';
 import { useUploadFlush } from '@/hooks/useUploadFlush';
 import { currentLocale, t, useLocale } from '@/i18n';
-import { openCertificate, openResults, shareBib, shareFinish } from '@/share';
+import { openResults, shareBib } from '@/share';
 import { useSession } from '@/stores/session';
 import { useUploads } from '@/stores/uploads';
 import { colors, fonts, space } from '@/theme';
@@ -71,19 +73,26 @@ export default function Home() {
             <Button label={t('common.retry')} ghost onPress={() => void refresh().catch(() => undefined)} />
           </Card>
         ) : null}
-        <Display>{t('signin.welcome', { firstName: entrant.firstName })}</Display>
+        <Display>{best ? t('home.finisher.title', { firstName: entrant.firstName }) : t('signin.welcome', { firstName: entrant.firstName })}</Display>
 
+        {/* After an official finish the home is the finish: the report, the share, the photos; running again comes after. */}
         {best ? (
-          <Card>
+          <Card style={styles.cardActions}>
             <Body muted>{t('home.finisher.body', { distance: distanceLabel(locale, entrant.distanceKey) })}</Body>
             <Num size={72} testID="finisher-time">
               {formatOfficialTime(best.elapsedMs)}
             </Num>
-            <View style={styles.cardActions}>
-              <Button label={t('finish.share')} color={race.theme.primary} onColor={race.theme.onPrimary} onPress={() => void shareFinish(race, entrant, best.elapsedMs)} />
-              <Button label={t('finish.certificate')} ghost onPress={() => openCertificate(race, entrant.bib)} />
-            </View>
+            <FinisherShare race={race} entrant={entrant} elapsedMs={best.elapsedMs} showReport={me.runs.some((r) => r.id === best.id)} />
           </Card>
+        ) : null}
+        {best && course ? (
+          <RacePhotos
+            race={race}
+            token={token}
+            run={best.startedAt ? { startedAtMs: Date.parse(best.startedAt), elapsedMs: best.elapsedMs, splits: best.splits } : null}
+            officialM={course.distanceM}
+            finished
+          />
         ) : null}
 
         <Card style={styles.bibCard}>

@@ -140,7 +140,9 @@ describe('share cards', () => {
     expect(html).toContain('Rapport de course');
     expect(html).toContain('Marc DUPONT');
     expect(html).toContain('1:45:00');
-    expect(html).toContain('1er / 2');
+    // No ranking on a picture: it is the runner's own race.
+    expect(html).not.toContain('Classement');
+    expect(html).not.toContain('1er');
   });
   it('has a row per timing point in the report, the finish as 21,1', async () => {
     // Marc's splits stop at km 1: the report holds the finish alone.

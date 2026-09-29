@@ -21,8 +21,6 @@ export type FinisherCard = {
   bib: string;
   time: string;
   pace: string;
-  /** "2e / 148", or null when the run is not ranked (never on a shared result). */
-  rank: string | null;
   date: string;
   distance: string;
   officialM: number;
@@ -136,15 +134,14 @@ const ReportMap = ({ track, officialM, report, width, height, mapBase, locale, r
   );
 };
 
-/** The two halves, and what the runner can be proud of: a negative split, the places gained. */
+/**
+ * The two halves, and a negative split when there is one. No ranking on a picture (the
+ * owner's call, 2026-09-29): it is the runner's own race, the certificate carries the rank.
+ */
 const Highlights = ({ report, locale }: { report: RaceReport; locale: Locale }) => {
   const t = translator(locale);
-  const { halves, placesGained, checkpoints } = report;
-  const firstKm = Math.round((checkpoints[0]?.meters ?? 0) / 1000);
-  const notes = [
-    halves?.negative ? t('report.negative', { time: formatClock(halves.firstMs - halves.secondMs) }) : null,
-    placesGained && placesGained > 0 && checkpoints.length > 1 ? t('report.gained', { n: placesGained, km: firstKm }) : null,
-  ].filter((n): n is string => n !== null);
+  const { halves } = report;
+  const notes = halves?.negative ? [t('report.negative', { time: formatClock(halves.firstMs - halves.secondMs) })] : [];
   if (!halves && notes.length === 0) return null;
   return (
     <div class="highlights">
@@ -169,10 +166,9 @@ const Highlights = ({ report, locale }: { report: RaceReport; locale: Locale }) 
   );
 };
 
-/** One row per timing point: the circle, the time over the segment, its pace, the place there. */
+/** One row per timing point: the circle, the time over the segment, its pace. */
 const SplitsTable = ({ report, officialM, locale }: { report: RaceReport; officialM: number; locale: Locale }) => {
   const t = translator(locale);
-  const withPlace = report.checkpoints.some((c) => c.place !== null);
   const n = report.checkpoints.length;
   return (
     <table class="splits">
@@ -181,7 +177,6 @@ const SplitsTable = ({ report, officialM, locale }: { report: RaceReport; offici
           <th>km</th>
           <th>{t('common.time')}</th>
           <th>{t('common.pace')}</th>
-          {withPlace ? <th>{t('report.place')}</th> : null}
         </tr>
       </thead>
       <tbody>
@@ -197,7 +192,6 @@ const SplitsTable = ({ report, officialM, locale }: { report: RaceReport; offici
               </td>
               <td>{formatClock(c.segmentMs)}</td>
               <td>{formatPace(c.paceSecPerKm)}</td>
-              {withPlace ? <td>{c.place ?? ''}</td> : null}
             </tr>
           );
         })}
@@ -209,7 +203,6 @@ const SplitsTable = ({ report, officialM, locale }: { report: RaceReport; offici
 /** The same splits laid across, one column per timing point: the portrait card's strip. */
 const SplitsStrip = ({ report, officialM, locale }: { report: RaceReport; officialM: number; locale: Locale }) => {
   const t = translator(locale);
-  const withPlace = report.checkpoints.some((c) => c.place !== null);
   const n = report.checkpoints.length;
   return (
     <table class="strip">
@@ -240,14 +233,6 @@ const SplitsStrip = ({ report, officialM, locale }: { report: RaceReport; offici
             <td>{formatPace(c.paceSecPerKm)}</td>
           ))}
         </tr>
-        {withPlace ? (
-          <tr>
-            <th>{t('report.place')}</th>
-            {report.checkpoints.map((c) => (
-              <td>{c.place ?? ''}</td>
-            ))}
-          </tr>
-        ) : null}
       </tbody>
     </table>
   );
@@ -266,7 +251,6 @@ export const ReportCard = ({ race, track, format, locale, host, runner, mapBase 
     <Stat k={t('result.bib')} v={runner.bib} />,
     <Stat k={t('report.time')} v={runner.time} testId="card-time" />,
     <Stat k={t('common.pace')} v={`${runner.pace} /km`} />,
-    runner.rank ? <Stat k={t('result.rank')} v={runner.rank} /> : null,
     <Stat k={t('result.date')} v={runner.date} />,
   ];
   if (format === 'sticker') {
@@ -281,7 +265,6 @@ export const ReportCard = ({ race, track, format, locale, host, runner, mapBase 
           <div class="s-facts">
             <span>{runner.distance}</span>
             <span>{runner.pace} /km</span>
-            {runner.rank ? <span>{runner.rank}</span> : null}
           </div>
           <div class="s-foot">{t('landing.eyebrow')}</div>
           <div class="s-url">{address}</div>

@@ -32,12 +32,19 @@ const photoFromRow = (row: Record<string, unknown>): RunnerPhoto =>
   });
 
 export const photoQueries = (d1: D1Database) => ({
+  /** A demo race plays the real race's moments (`demo_of`), like its courses. */
   async moments(raceId: string): Promise<PhotoMoment[]> {
-    const { results } = await d1.prepare('SELECT * FROM photo_moments WHERE race_id = ? ORDER BY sort, created_at').bind(raceId).all<Record<string, unknown>>();
+    const { results } = await d1
+      .prepare('SELECT * FROM photo_moments WHERE race_id = COALESCE((SELECT demo_of FROM races WHERE id = ?1), ?1) ORDER BY sort, created_at')
+      .bind(raceId)
+      .all<Record<string, unknown>>();
     return results.map(momentFromRow);
   },
   async moment(raceId: string, id: string): Promise<PhotoMoment | null> {
-    const row = await d1.prepare('SELECT * FROM photo_moments WHERE race_id = ? AND id = ?').bind(raceId, id).first<Record<string, unknown>>();
+    const row = await d1
+      .prepare('SELECT * FROM photo_moments WHERE race_id = COALESCE((SELECT demo_of FROM races WHERE id = ?1), ?1) AND id = ?2')
+      .bind(raceId, id)
+      .first<Record<string, unknown>>();
     return row ? momentFromRow(row) : null;
   },
   async upsertMoment(m: PhotoMoment): Promise<void> {

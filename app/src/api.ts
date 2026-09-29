@@ -15,6 +15,7 @@ import {
   SignInAmbiguitySchema,
   formatClientHeader,
   CourseMomentSchema,
+  PhotoStatusSchema,
 } from '@sivoov/shared';
 import type { CodeRequest, LiveVoiceRequest, Locale, Run, RunTrace, SignInAmbiguity } from '@sivoov/shared';
 
@@ -69,7 +70,8 @@ const request = async <T extends z.ZodType>(path: string, schema: T, init: Reque
     const res = await fetch(`${API_URL}/api${path}`, {
       ...init,
       signal: controller.signal,
-      headers: { 'Content-Type': 'application/json', [CLIENT_HEADER]: CLIENT, ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(init.headers ?? {}) },
+      // A form (a photo) sets its own multipart type and boundary.
+      headers: { ...(init.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), [CLIENT_HEADER]: CLIENT, ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(init.headers ?? {}) },
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new ApiError(res.status, (body as { error?: string }).error ?? 'unknown', body);
@@ -99,6 +101,22 @@ export const MeSchema = z.object({
 });
 export type Me = z.infer<typeof MeSchema>;
 
+/** A race photo as the app sees it: `picture` is an `/api/...` path, read with the runner's token. */
+export const PhotoViewSchema = z.object({
+  id: z.string(),
+  momentId: z.string(),
+  status: PhotoStatusSchema,
+  attempts: z.number(),
+  again: z.boolean(),
+  shown: z.boolean(),
+  picture: z.string().nullable(),
+});
+export type PhotoView = z.infer<typeof PhotoViewSchema>;
+const PhotosSchema = z.object({ enabled: z.boolean(), moments: z.array(CourseMomentSchema), photos: z.array(PhotoViewSchema) });
+export type Photos = z.infer<typeof PhotosSchema>;
+/** Making the pictures: 20 to 40 s each, three at a time. */
+const RENDER_TIMEOUT_MS = 180_000;
+
 export const api = {
   /** The email, and the race or the bib once the server asked for them (`ambiguityOf`). */
   requestCode: (who: CodeRequest) => request('/auth/code', z.object({ sent: z.boolean(), devCode: z.string().optional() }), { method: 'POST', body: JSON.stringify(who) }),
@@ -106,6 +124,12 @@ export const api = {
   /** « Supprimer mes données »: the runs, traces and sessions go; the entry stays with the organizer. */
   deleteMe: (token: string) => request('/me', z.object({ ok: z.boolean(), runs: z.number() }), { method: 'DELETE' }, token),
   me: (token: string) => request('/me', MeSchema, {}, token),
+  photos: (token: string) => request('/me/photos', PhotosSchema, {}, token),
+  /** A photo for a moment, kept waiting for its picture. The runner agreed in the app before it is sent. */
+  sendPhoto: (token: string, momentId: string, form: FormData) =>
+    request(`/me/photos/${encodeURIComponent(momentId)}`, z.object({ photo: PhotoViewSchema }), { method: 'POST', body: form }, token, UPLOAD_TIMEOUT_MS),
+  /** After the run: every waiting photo gets its picture. */
+  renderPhotos: (token: string) => request('/me/photos/render', z.object({ photos: z.array(PhotoViewSchema) }), { method: 'POST' }, token, RENDER_TIMEOUT_MS),
   /** A one-use link that opens the runner's photos page (or result page) in the browser, signed in. */
   webLink: (token: string, page: 'photos' | 'result') => request('/me/web-link', z.object({ url: z.url() }), { method: 'POST', body: JSON.stringify({ page }) }, token),
   /** The runner's language: the app's screens and their emails from now on. */

@@ -77,7 +77,8 @@ const read = async (files: R2Bucket, key: string): Promise<Picture | null> => {
 export type StoredSelfie = { ok: true; photo: RunnerPhoto } | { ok: false; error: 'empty' | 'type' | 'too_big' };
 
 /**
- * The runner's photo for a moment, stored privately. A photo sent again for the same moment
+ * The runner's photo for a moment, stored privately, `waiting` for its picture (made right
+ * after on the web, after the run from the app). A photo sent again for the same moment
  * replaces the first, and its picture is made again: the tries left carry over.
  */
 export const storeSelfie = async (env: Bindings, entrant: Entrant, moment: PhotoMoment, file: File, nowIso: string): Promise<StoredSelfie> => {
@@ -97,9 +98,9 @@ export const storeSelfie = async (env: Bindings, entrant: Entrant, moment: Photo
     entrantId: entrant.id,
     momentId: moment.id,
     selfieKey,
-    status: 'failed',
+    status: 'waiting',
     resultKey: existing?.resultKey,
-    error: 'not rendered yet',
+    error: undefined,
     attempts: existing?.attempts ?? 0,
     shown: existing?.shown ?? false,
     createdAt: existing?.createdAt ?? nowIso,
@@ -138,4 +139,25 @@ export const makePhoto = async (env: Bindings, deps: RemixDeps, race: Race, entr
   await env.FILES.put(resultKey, rendered.picture.bytes, { httpMetadata: { contentType: rendered.picture.contentType } });
   if (photo.resultKey && photo.resultKey !== resultKey) await env.FILES.delete(photo.resultKey);
   return done({ status: 'done', resultKey, error: undefined });
+};
+
+/** How many pictures one runner's request makes at once: a Worker holds six connections, R2 included. */
+const AT_ONCE = 3;
+
+/**
+ * After the run: every photo still waiting gets its picture, three at a time. The app calls it
+ * from the finish screen and the finisher's home; a photo already being made is left to finish.
+ */
+export const makeWaiting = async (env: Bindings, deps: RemixDeps, race: Race, entrant: Entrant): Promise<RunnerPhoto[]> => {
+  const q = photoQueries(env.DB);
+  const [photos, moments] = await Promise.all([q.photos(entrant.id), q.moments(race.id)]);
+  const byId = new Map(moments.map((m) => [m.id, m]));
+  const waiting = photos.filter((p) => p.status === 'waiting' && byId.has(p.momentId));
+  const batches = Array.from({ length: Math.ceil(waiting.length / AT_ONCE) }, (_, i) => waiting.slice(i * AT_ONCE, (i + 1) * AT_ONCE));
+  const made = await batches.reduce<Promise<RunnerPhoto[]>>(
+    async (done, batch) => [...(await done), ...(await Promise.all(batch.map((p) => makePhoto(env, deps, race, entrant, byId.get(p.momentId)!, p))))],
+    Promise.resolve([]),
+  );
+  const remade = new Map(made.map((p) => [p.id, p]));
+  return photos.map((p) => remade.get(p.id) ?? p);
 };

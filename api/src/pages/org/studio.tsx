@@ -1,5 +1,5 @@
 import { MOMENTS, SPEECH_CHARS_PER_SECOND, buildTrack, formatKm, formatPace, supportsAudioTags } from '@sivoov/shared';
-import type { Course, Race, ScriptLine } from '@sivoov/shared';
+import type { Course, CourseMoment, Race, ScriptLine } from '@sivoov/shared';
 import type { LineStatus, PlacedFiring, StudioPageData } from '../../lib/studio';
 import { CourseDiagram } from '../courseDiagram';
 import { distanceName } from './format';
@@ -8,9 +8,44 @@ import { CEREMONY_COPY, CLIENT_COPY, MOMENT_COPY, PHASE_COPY, PUBLISH_CONFIRM } 
 import { StudioLine } from './studioLine';
 import { studioStyles } from './studioStyles';
 import { studioClient } from './studioClient';
-import { Icon, PageHead } from './ui';
+import { Badge, Card, Icon, PageHead, Row, Rows } from './ui';
 
-type Props = { race: Race; course: Course; data: StudioPageData };
+/** A photo moment of this course and its announcement, when the script has one. */
+export type StudioPhotoMoment = { moment: CourseMoment; line: Pick<ScriptLine, 'id' | 'title'> | null };
+
+type Props = { race: Race; course: Course; data: StudioPageData; photoMoments?: StudioPhotoMoment[] };
+
+/**
+ * The race's photo moments on this course, above the studio: each needs its announcement (the
+ * runner is told to take the photo), and one button adds the missing ones to the draft, ready
+ * to reword, record and publish like any line.
+ */
+const PhotoMoments = ({ base, race, moments, canEdit, distanceM }: { base: string; race: Race; moments: StudioPhotoMoment[]; canEdit: boolean; distanceM: number }) => {
+  const missing = moments.filter((m) => m.line === null).length;
+  return (
+    <Card title="Moments photo" sub="Chaque moment a besoin de son annonce : c’est elle qui dit au coureur de sortir son téléphone." actions={<a href={`/org/${race.slug}/photos`}>Gérer les moments photo</a>}>
+      <Rows>
+        {moments.map(({ moment, line }) => (
+          <Row
+            title={moment.title}
+            sub={moment.meters <= 0 ? 'Avant le départ, dans la cérémonie' : moment.meters >= distanceM ? 'À l’arrivée, après l’annonce de l’arrivée' : `km ${(moment.meters / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1 })}`}
+            aside={line ? <Badge tone="good">Annonce prête</Badge> : <Badge tone="warn">Pas encore d’annonce</Badge>}
+          />
+        ))}
+      </Rows>
+      {canEdit && missing > 0 ? (
+        <form method="post" action={`${base}/photo-lines`}>
+          <div class="form-actions">
+            <button class="btn btn-primary" type="submit">
+              {missing > 1 ? `Ajouter les ${missing} annonces` : 'Ajouter l’annonce'}
+            </button>
+            <span class="small muted">Elles arrivent dans la liste, au bon endroit, avec un texte à relire. Enregistrez la voix et publiez comme d’habitude.</span>
+          </div>
+        </form>
+      ) : null}
+    </Card>
+  );
+};
 
 /** The blank line the "Ajouter" buttons clone; the client fills in the trigger for the moment. */
 export const blankLine = (courseId: string): ScriptLine => ({
@@ -100,7 +135,7 @@ const Timeline = ({ firings, distanceM, categoryOf }: { firings: PlacedFiring[];
  * screenshot rig), the map falls back to the SVG course diagram carrying the same markers.
  * Viewers get the same page read-only: they listen, they do not edit.
  */
-export const OrgStudioPage = ({ race, course, data }: Props) => {
+export const OrgStudioPage = ({ race, course, data, photoMoments = [] }: Props) => {
   const { script, firings, lines, points, distanceM, mapboxToken, summary, canEdit } = data;
   const track = points.length >= 2 ? buildTrack(points) : null;
   const withMap = Boolean(mapboxToken && track);
@@ -144,6 +179,7 @@ export const OrgStudioPage = ({ race, course, data }: Props) => {
           }
         />
       </div>
+      {photoMoments.length > 0 ? <PhotoMoments base={base} race={race} moments={photoMoments} canEdit={canEdit} distanceM={distanceM} /> : null}
       <div class="studio">
         <div class="studio-map">
           <div class="map-card">

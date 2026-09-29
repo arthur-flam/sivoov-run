@@ -28,6 +28,7 @@ import { loadGeometry } from '../lib/studio';
 import { mayRehearse } from '../lib/testCode';
 import { createWebLink } from '../lib/webLink';
 import { weatherAt } from '../lib/weather';
+import { apiPhotos } from './apiPhotos';
 import { prewarmCards } from './results';
 
 export const api = new Hono<AppEnv & { Variables: Partial<AuthVars> }>();
@@ -253,3 +254,6 @@ api.put('/runs/:id', async (c) => {
 });
 
 api.get('/runs', async (c) => c.json({ runs: await db(c.env.DB).runsForEntrant(c.get('entrant')!.id) }));
+
+// The race photos, behind the same bearer session as `/me` (the `use` above covers `/me/*`).
+api.route('/', apiPhotos);

@@ -355,6 +355,7 @@ table.results { width: 100%; border-collapse: collapse; font-size: 15px; }
 .consent { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: var(--ink-2); }
 .consent input { margin-top: 3px; width: 18px; height: 18px; flex: none; }
 .photo-form[aria-busy=true] { opacity: 0.7; }
+.moment-waiting { display: grid; gap: 10px; background: var(--surface-2); border-radius: var(--radius-sm); padding: 14px; }
 .photo-another summary { cursor: pointer; font-weight: 600; margin-bottom: 10px; }
 .link-button { font: inherit; font-size: 14px; background: none; border: 0; padding: 0; color: var(--ink-2); text-decoration: underline; cursor: pointer; }
 .result-photos { margin: 0 0 30px; }

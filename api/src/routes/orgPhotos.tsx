@@ -1,11 +1,12 @@
 import { Buffer } from 'node:buffer';
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { IMAGE_TYPES, PhotoMomentSchema, can, checkImage, remixPrompt, stripJpegMetadata } from '@sivoov/shared';
+import { IMAGE_TYPES, PhotoMomentSchema, can, checkImage, courseMoments, photoLineId, remixPrompt, stripJpegMetadata } from '@sivoov/shared';
 import type { PhotoMoment } from '@sivoov/shared';
 import type { AppEnv } from '../env';
 import { db } from '../db/queries';
 import { photoQueries } from '../db/photoQueries';
+import { scriptDb } from '../db/scriptQueries';
 import { newId } from '../lib/crypto';
 import { requireCan, requireOrganizer } from '../lib/orgAuth';
 import type { OrgVars } from '../lib/orgAuth';
@@ -39,6 +40,16 @@ const page = async (c: OrgContext, { form, tried, status = 200 }: PageState = {}
   const [moments, done, courses] = await Promise.all([q.moments(race.id), q.doneByMoment(race.id), db(c.env.DB).coursesForRace(race.id)]);
   // The longest course names every place a moment can stand on.
   const course = [...courses].sort((a, b) => b.distanceM - a.distanceM)[0];
+  // Whether each course's script has the moment's announcement (the studio adds them).
+  const drafts = await Promise.all(courses.map((k) => scriptDb(c.env.DB).draft(k.id, 'fr')));
+  const audio = new Map(
+    moments.map((m) => [
+      m.id,
+      courses.flatMap((k, i) =>
+        courseMoments([m], k).length > 0 ? [{ courseId: k.id, distanceKey: k.distanceKey, ready: Boolean(drafts[i]?.script.lines.some((l) => l.id === photoLineId(m.id))) }] : [],
+      ),
+    ]),
+  );
   const flash = DONE[c.req.query('done') ?? ''];
   return orgPage(
     c,
@@ -48,8 +59,10 @@ const page = async (c: OrgContext, { form, tried, status = 200 }: PageState = {}
       race={race}
       course={course}
       moments={moments}
+      audio={audio}
       done={done}
-      canEdit={can(c.get('access'), 'edit_audio')}
+      // A demo race shows the real race's moments; they are edited there.
+      canEdit={can(c.get('access'), 'edit_audio') && !race.demoOf}
       enabled={remixEnabled(remixDeps(c.env))}
       mediaUrl={(key) => mediaUrl(c.env.BASE_URL, key)}
       form={form}
@@ -92,6 +105,7 @@ const readMoment = async (c: OrgContext, existing: PhotoMoment | null): Promise<
 orgPhotos.get('/:slug/photos', requireOrganizer, (c) => page(c));
 
 orgPhotos.post('/:slug/photos', requireOrganizer, requireCan('edit_audio'), async (c) => {
+  if (c.get('race').demoOf) return c.redirect(`/org/${c.get('race').slug}/photos`, 303);
   const read = await readMoment(c, null);
   if (!read.ok) return page(c, { form: read.form, status: 400 });
   await photoQueries(c.env.DB).upsertMoment(read.moment);
@@ -99,6 +113,7 @@ orgPhotos.post('/:slug/photos', requireOrganizer, requireCan('edit_audio'), asyn
 });
 
 orgPhotos.post('/:slug/photos/:id', requireOrganizer, requireCan('edit_audio'), async (c) => {
+  if (c.get('race').demoOf) return c.redirect(`/org/${c.get('race').slug}/photos`, 303);
   const existing = await photoQueries(c.env.DB).moment(c.get('race').id, c.req.param('id'));
   if (!existing) return c.notFound();
   const read = await readMoment(c, existing);
@@ -108,6 +123,7 @@ orgPhotos.post('/:slug/photos/:id', requireOrganizer, requireCan('edit_audio'), 
 });
 
 orgPhotos.post('/:slug/photos/:id/delete', requireOrganizer, requireCan('edit_audio'), async (c) => {
+  if (c.get('race').demoOf) return c.redirect(`/org/${c.get('race').slug}/photos`, 303);
   await photoQueries(c.env.DB).deleteMoment(c.get('race').id, c.req.param('id'));
   return c.redirect(`/org/${c.get('race').slug}/photos?done=removed`, 303);
 });

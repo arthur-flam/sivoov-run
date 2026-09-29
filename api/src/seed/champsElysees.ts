@@ -84,6 +84,13 @@ export const champsElyseesScripts: AudioScript[] = [AudioScriptSchema.parse(cham
 /** Photo moments to start from, on local and preview (see `deauvillePhotoMoments`). */
 export const champsElyseesPhotoMoments: PhotoMoment[] = [
   {
+    id: 'champs-2027-photo-start',
+    title: 'Sur la ligne de départ',
+    at: 'start',
+    ask: 'Un selfie avant le départ, dossard bien visible.',
+    scene: 'The start line of the 10 km des Champs-Élysées at the bottom of the avenue, a start arch, runners packed behind it, the Champs-Élysées rising towards the Arc de Triomphe, a February morning.',
+  },
+  {
     id: 'champs-2027-photo-arc',
     title: 'Sous l’Arc de Triomphe',
     at: 'arc',

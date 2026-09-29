@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import * as Haptics from 'expo-haptics';
-import { aheadOf, constantPace, finishOutcome, formatClock, formatKm, gpsSignal, lightPresetAt, momentAt, parsePace, progress, readableOn } from '@sivoov/shared';
+import { aheadOf, constantPace, finishOutcome, formatClock, formatKm, gpsSignal, lightPresetAt, momentAt, parsePace, progress, readableOn, windowPhase } from '@sivoov/shared';
 import type { Course, CourseTrack, LightPreset } from '@sivoov/shared';
 import type { CeremonyHandlers } from '@/audio/ceremony';
 import { usePackStore } from '@/audio/packStore';
@@ -17,6 +17,7 @@ import { Caption } from '@/components/run/Caption';
 import { CountdownDigit } from '@/components/run/CountdownDigit';
 import { LivePanel } from '@/components/run/LivePanel';
 import { ReadyPanel } from '@/components/run/ReadyPanel';
+import { ReadyPhotos } from '@/components/run/ReadyPhotos';
 import { ResumePanel } from '@/components/run/ResumePanel';
 import { Stage } from '@/components/run/Stage';
 import { StartPanel } from '@/components/run/StartPanel';
@@ -322,6 +323,7 @@ export default function Run() {
             onColor={race.theme.onPrimary}
             onStart={start}
             onBack={() => router.back()}
+            photos={!simulation && windowPhase(race, Date.now()) === 'open' ? <ReadyPhotos moments={me?.photoMoments ?? []} token={token} officialM={course.distanceM} /> : null}
           />
         ) : phase === 'recovered' ? (
           <ResumePanel

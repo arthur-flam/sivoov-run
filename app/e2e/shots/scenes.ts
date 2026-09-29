@@ -315,6 +315,27 @@ export const scenes: Scene[] = [
       await page.getByTestId('start').click();
       await expect(page.getByTestId('final-time')).toBeVisible({ timeout: 180_000 });
       await shoot();
+      // The race photos: two selfies picked at once (no EXIF, so they fill the first moments),
+      // sent, then made by the local Worker's stand-in (it hands each photo back as the picture).
+      const pick = page.getByTestId('pick-photos');
+      if (await pick.count()) {
+        const painter = await page.context().newPage();
+        const paint = async (label: string, colours: string) => {
+          await painter.setContent(`<body style="margin:0;display:grid;place-items:center;height:100vh;background:linear-gradient(160deg,${colours});font:600 40px system-ui;color:#fff">${label}</body>`);
+          return painter.screenshot({ type: 'png' });
+        };
+        const files = [
+          { name: 'depart.png', mimeType: 'image/png', buffer: await paint('Selfie de départ', '#2f5d7c,#e3b38a') },
+          { name: 'planches.png', mimeType: 'image/png', buffer: await paint('Selfie des Planches', '#7c2f5d,#8ae3b3') },
+        ];
+        await painter.close();
+        const chooser = page.waitForEvent('filechooser');
+        await pick.click();
+        await (await chooser).setFiles(files);
+        await expect(page.getByTestId('race-photo-deauville-2026-photo-planches').getByRole('img')).toBeVisible({ timeout: 60_000 });
+        await page.getByTestId('pick-photos').scrollIntoViewIfNeeded();
+        await shoot('photos');
+      }
       if (await scrollToEnd(page)) await shoot('splits');
     },
   },

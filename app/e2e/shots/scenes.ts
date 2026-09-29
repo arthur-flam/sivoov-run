@@ -112,7 +112,7 @@ const withCeremonyPack = async (page: Page): Promise<void> => {
         version: 1,
         locale: 'fr',
         events: lines.map((l) => ({ id: l.id, title: l.title, caption: l.caption, trigger: { kind: 'cue', at: l.at, order: 1 }, source: { kind: 'file', key: `${l.key}.wav` }, mix: 'wait', priority: 10, category: 'ceremony', once: true })),
-        files: Object.fromEntries(lines.map((l) => [`${l.key}.wav`, { url: `http://localhost:8788/shots-audio/${l.key}.wav`, bytes: files[l.key].length, sha256: 'silent' }])),
+        files: Object.fromEntries(lines.map((l) => [`${l.key}.wav`, { url: `http://localhost:${process.env.SHOTS_API_PORT ?? '8788'}/shots-audio/${l.key}.wav`, bytes: files[l.key].length, sha256: 'silent' }])),
       },
     }),
   );
@@ -218,6 +218,36 @@ export const scenes: Scene[] = [
       // takes a few seconds with the map, so any digit but the last will do.
       await expect(page.getByTestId('countdown')).toHaveText(/^([2-9]|10)$/, { timeout: 15_000 });
       await shoot();
+    },
+  },
+  {
+    id: 'run-resume',
+    title: 'Run — back in a run the app lost (killed, crashed, phone restarted): resume or stop and save',
+    go: async (page, shoot) => {
+      await withView(page, 'follow');
+      await page.goto('/home');
+      await expect(page.getByTestId('bib-number')).toBeVisible({ timeout: 20_000 });
+      // The runner's journal as the phone keeps it: eleven minutes in, the last fix a minute ago.
+      await page.evaluate(() => {
+        const me = JSON.parse(globalThis.localStorage.getItem('sivoov.me') ?? '{}') as { entrant?: { id: string }; course?: { id: string; distanceM: number } };
+        const now = Date.now();
+        const startedAt = now - 12 * 60_000;
+        const fixes = Array.from({ length: 660 }, (_, i) => ({ lat: 49.36, lng: 0.07 + (i * 2.8) / (111_320 * Math.cos((49.36 * Math.PI) / 180)), accuracy: 4, speed: 2.8, timestamp: startedAt + 1000 + i * 1000 }));
+        const journal = { version: 1, runId: 'shots-resume', entrantId: me.entrant!.id, courseId: me.course!.id, targetM: me.course!.distanceM, startedAt, updatedAt: now - 60_000, fired: [] };
+        globalThis.localStorage.setItem('sivoov.run.journal', JSON.stringify(journal));
+        globalThis.localStorage.setItem('sivoov.run.samples', fixes.map((f) => `${JSON.stringify(f)}\n`).join(''));
+      });
+      // Opening the app again lands in the run.
+      await page.goto('/');
+      await expect(page.getByTestId('resume-panel')).toBeVisible({ timeout: 20_000 });
+      await page.waitForTimeout(2500);
+      await shoot();
+      // Stop and save: the run closes as it stood, and its journal goes.
+      await page.getByTestId('resume-stop').click();
+      await expect(page.getByTestId('finish')).toBeVisible({ timeout: 20_000 });
+      await page.waitForTimeout(1000);
+      await shoot('closed');
+      expect(await page.evaluate(() => globalThis.localStorage.getItem('sivoov.run.journal'))).toBeNull();
     },
   },
   {

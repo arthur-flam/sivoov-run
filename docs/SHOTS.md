@@ -34,6 +34,8 @@ npm run shots -- --presets phone-en
 
 Another checkout's Metro already on 8081 (a second worktree): `SHOTS_APP_PORT=8082 npm run shots`.
 Start that Metro yourself with `EXPO_PUBLIC_API_URL=http://localhost:8788` and `--clear` (MEMORY.md).
+Another checkout's Worker on 8788 too: `SHOTS_API_PORT=8789 SHOTS_APP_PORT=8083 npm run shots`, with
+that Metro started on `EXPO_PUBLIC_API_URL=http://localhost:8789`; the rig starts the Worker itself.
 
 The run scenes draw the 3D map when the local Worker has a `MAPBOX_TOKEN` (`api/.dev.vars`).
 Headless Chromium draws it in software, which slows an accelerated run about fifteen-fold:

@@ -32,6 +32,13 @@ npm run shots -- run-live home     # only the scenes whose name matches
 npm run shots -- --presets phone-en
 ```
 
+Another checkout's Metro already on 8081 (a second worktree): `SHOTS_APP_PORT=8082 npm run shots`.
+Start that Metro yourself with `EXPO_PUBLIC_API_URL=http://localhost:8788` and `--clear` (MEMORY.md).
+
+The run scenes draw the 3D map when the local Worker has a `MAPBOX_TOKEN` (`api/.dev.vars`).
+Headless Chromium draws it in software, which slows an accelerated run about fifteen-fold:
+scenes that only need the numbers or the finish take the numbers view (`withView`).
+
 ## Presets
 
 | Preset | Viewport | File size | For |

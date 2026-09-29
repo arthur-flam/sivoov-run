@@ -58,6 +58,25 @@ Surfaces waiting for the identity, all deliberately plain today:
 Kept because they are legibility, not identity: the race colour lifted to 3:1 on the night run
 screen (`readableOn`) and the untrodden course line (`colors.nightLine`).
 
+The run screen is the exception the owner asked for (2026-09-29: "highly functional, highly
+polished, extremely clear", "a rich Mapbox representation … at eye level"): it has motion and a
+real map, still built from the tokens only, so an identity can be laid on it later.
+- Layout: the stage (the map, or the course drawing) above, an opaque night panel below with the
+  thumb's controls at the bottom. A 3 px progress seam between them in the race colour.
+- Hierarchy in the panel: what is next on the course and how far, the distance (96), the race
+  clock and the pace (64), then « Annonces », « Vue » and the stop control, apart on the right.
+- Over the map, only what needs attention: the race, the GPS when it is not good, the caption
+  of what the voice says (under the chips, over the sky, clear of the runner and of the Mapbox
+  logo and attribution, which must stay visible).
+- Motion, all functional: the camera's moves, the countdown digit landing, the caption rising
+  and fading, three bars while the voice speaks, sheets sliding up, the stop ring filling.
+- Stop: hold 1.5 s (a ring fills, a light tap then a firm one, the instruction shows if let go
+  early), then a confirmation where carrying on is the big button. Android's back does the same.
+- Sheets (announcements, stop) come up from the bottom over a dimmed run and close by a button
+  or a tap outside, never a swipe.
+- Translucent night (`rgba(12,12,12,…)`) behind chips, the caption and the sheets' backdrop is
+  legibility over a map, not a new colour.
+
 ## Conventions
 - Web pages: server-rendered, one CSS file with the tokens above, no framework. Mobile
   first, gutter 16px minimum, works at 360px wide.
@@ -65,7 +84,7 @@ screen (`readableOn`) and the untrodden course line (`colors.nightLine`).
 - Run screen: font sizes for distance and time at least 64pt; controls at the bottom
   under the thumb; stop requires a long press; nothing swipeable.
 - Every screen has a loading, empty and error state, and a French and English string set.
-- Motion: Reanimated only for the run screen (progress, countdown). Elsewhere, none.
+- Motion: Reanimated only for the run screen (camera, countdown, caption, sheets, the stop ring). Elsewhere, none.
 - Assets: SVG for icons and the course diagram, no icon font.
 
 ## Voice and copy (all surfaces)

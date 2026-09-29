@@ -496,3 +496,23 @@
     while `wrangler dev` did not care. Bound it (`lib/mapLimit.ts`).
   - Right after `wrangler deploy`, a request can still reach the previous version for a few
     seconds: a failure just after a deploy is worth one retry before debugging.
+- 2026-09-29: the run screen's 3D map (`@rnmapbox/maps`, Mapbox Standard). Worth knowing next time:
+  - An OTA update reaches shells built without a native module: `@rnmapbox/maps` reads its native
+    module when imported and would crash them, so `mapboxSdk.ts` checks `NativeModules` /
+    `TurboModuleRegistry` for `RNMBXModule` before `require`. Same pattern for any future native SDK.
+  - rnmapbox 10.3 is Mapbox v11 only and needs no secret download token any more.
+  - The camera's look-ahead decides whether it looks down the road or across it: 90 m of course
+    turned it half a minute before a corner; 40 m ahead, 10 m behind reads right in Deauville.
+  - Mapbox GL JS ignores `pitch` when a map is built with `bounds`: build it on a centre, then
+    `fitBounds` with the pitch. It also needs `resize()` when its container changes height.
+  - Headless Chromium draws WebGL in software: with the 3D map on screen an accelerated
+    simulation ran ~15x slower (the sim steps by timers). The shots and e2e use the numbers view
+    where the map is not the point. In a normal browser (GPU) the map costs nothing noticeable.
+  - `expo-keep-awake` on the web throws "wake lock … has not activated yet" when a hot reload
+    unmounts it early: the run screen keeps the screen on only on phones.
+  - Metro's cache is shared between checkouts: a web bundle started with a new
+    `EXPO_PUBLIC_API_URL` kept the old one until `expo start --clear`.
+  - The desktop app's preview tool reads the main checkout's `.claude/launch.json`: from a
+    worktree it started the main checkout's Worker. Run a worktree's servers by hand.
+  - The seeded half (`deauville-2026-half`) uses the marathon's 42 km geometry, so on the map a
+    half runner moves twice as fast as they run (progress is proportional). Seen in the local seed; preview and production not checked.

@@ -1,6 +1,6 @@
 # Status
 
-Updated: 2026-09-27. Race week: 14-15 November 2026 (Marathon International de Deauville).
+Updated: 2026-09-29. Race week: 14-15 November 2026 (Marathon International de Deauville).
 Second race: 10 km des Champs-Élysées, 7 February 2027 (docs/CHAMPS_ELYSEES.md).
 Milestones: PRD.md section 8 (M1 26 Sep, M2 10 Oct, M3 17 Oct, M4 31 Oct, freeze 7 Nov).
 
@@ -10,6 +10,26 @@ Live: https://run.sivoov.app/deauville-2026 (production), https://preview.run.si
 (preview). Test sign-in and roles: docs/ACCESS.md. M1 is done. The first real run happened
 on 2026-09-27 (below); M2 still needs a real finish. Production has the race and its courses;
 no real entrants yet.
+
+### The run screen, rebuilt (2026-09-29, branch `claude/run-screen`)
+The owner asked for a run screen that is highly functional, polished and clear, with the race's
+place in 3D at eye level, without deciding the identity (DESIGN.md, the run screen exception).
+- **The map**: `@rnmapbox/maps` (new native module, ARCHITECTURE.md), Mapbox Standard, 3D
+  buildings, lit by the sun over the course now. Ready: the whole course, tilted. On Start the
+  camera flies to the start line at eye level; during the run it stands behind the runner and
+  moves along the course with the real distance, gliding between GPS fixes. « Vue » switches to
+  the whole course or to the numbers alone. The course is kept offline from the race home.
+  Older shells (no native SDK) keep the course diagram. The token comes with `/api/me`.
+- **Clarity**: next place and how far, distance, clock, pace; GPS state only when not good;
+  subtitles of what the voice says; the start ceremony's words written out on the line, its
+  countdown digits over the start line (they follow the ceremony's own countdown file).
+- **The voice**: « Annonces » opens everything said so far (km, time, words, « Réécouter ») and
+  « moins de voix » (Tout / Le parcours / L'essentiel). Packs now carry each line's caption.
+- **Stopping**: hold 1.5 s with a filling ring and haptics, then a confirmation; Android's back
+  asks the same. The gun is a firm haptic tap.
+Seen in the web target (`npm run shots`, run scenes); **not yet on a phone**: needs a new EAS
+build (the SDK is native), then a real run to look at the map in daylight, the battery with
+the map on screen, and the offline region.
 
 ### The 10 km des Champs-Élysées (2026-09-27, branch `claude/champs-elysees`)
 The owner's call: convince the organizer (SCO, who also run Deauville, sold out, already
@@ -105,9 +125,10 @@ Anchored to PRD milestones (M2 10 Oct, M3 17 Oct, M4 31 Oct).
    ~38 events), "moins de voix", beds (a crowd loop under the voice needs the player to mix),
    the rehearsal pack, the post-run race report. Not built: `interval` trigger, number
    fragments (live splits need a network; offline they play the generic line).
-8. **Native Mapbox in the app**: replace the static PNG race-home map with
-   `@rnmapbox/maps` (course line, a live runner dot as an option next to the diagram).
-   Needs a new build; record it in ARCHITECTURE.md's native module list when it lands.
+8. **The run screen's map on a phone**: merge `claude/run-screen`, make a new `preview` EAS
+   build (native SDK), run with it: the map in daylight on a real screen, the
+   battery with the map shown against the numbers view, the offline region (airplane mode at
+   the start). The race home could use the same map later instead of its PNG.
 9. **Web polish**: hero photo and real theme from the organizer, English copy review, OG
    image, English admin variant.
 
@@ -145,6 +166,15 @@ Anchored to PRD milestones (M2 10 Oct, M3 17 Oct, M4 31 Oct).
 
 Newest to oldest, durable ones only. Rationale already written up elsewhere is not
 repeated here (see ARCHITECTURE.md, AUDIO.md, WORKFLOW.md).
+
+- The run screen shows the course in 3D with the native Mapbox SDK, camera behind the runner by
+  default; the diagram is the fallback and the runner's battery choice (owner's request,
+  2026-09-29; supersedes "course diagram, not a map" for the run screen).
+- The public pack carries each line's caption (its words, as the files say them aloud), never
+  the script's authoring (templates, AI instructions, voice); supersedes "titles and keys only".
+- « Moins de voix » is the runner's, three levels; a silenced line is still logged and listed.
+- The run screen gets motion and a map without an identity decision: tokens only, motion only
+  where it says something (DESIGN.md).
 
 - The race page carries the race's identity (its colours, an accent, its photo, logo): the
   owner asked for a good landing page, which lifts "no opinionated design" for the race layer
@@ -202,6 +232,12 @@ repeated here (see ARCHITECTURE.md, AUDIO.md, WORKFLOW.md).
   showed the S23's reported speed reads 8-16 % low (MEMORY.md).
 
 ## Known gaps
+
+- The run screen's map has only been seen in a browser (Mapbox GL JS). The native map, its
+  offline region and its battery cost are untested until a new EAS build; the Standard style's
+  offline region in particular (style imports) may need adjusting.
+- Mapbox usage: every run screen opening loads a map (Mapbox counts map loads); check the
+  account's free tier against the number of runners before race week.
 
 - Champs-Élysées: the BBC sounds are for a draft only (RemArc licence); Lyria's commercial
   terms are unchecked; the photos and logo are hot-linked from the organizer's site.

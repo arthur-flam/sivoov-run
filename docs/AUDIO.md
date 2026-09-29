@@ -222,7 +222,18 @@ R2 layout: `courses/<id>/geometry.json`; `tts/<hash>.mp3` (studio renders, priva
   `/api/me/voices/live` with `liveFactsFor(state)`, waits at most 7 s, and plays the answer or
   the offline file.
 - Files play through `playSequence` (all or nothing, with a watchdog). Interruptions drop the
-  backlog except `finish`. "Moins de voix" (by category) is not built yet.
+  backlog except `finish`.
+- « Moins de voix » (AUDIO_EXPERIENCE.md X1), the runner's choice on the run screen, kept on the
+  phone: `all`, `course` (the places and every kilometre call, whatever the split's category),
+  `essential` (ceremony, start, finish, safety). `audibleAt` in `shared/domain/voiceLevel.ts`. A
+  silenced line still fires, goes to the trace and shows in the list, marked « En silence ».
+- Captions: every pack event carries `caption`, the line's words without voice tags (for a
+  personal line, its offline version); `/api/me/voices` returns `captions` for the runner's own
+  lines and `/api/me/voices/live` a `caption` with the file. The public pack never carries the
+  script itself (templates, AI instructions, voice settings). The run screen shows what the voice
+  is saying as subtitles, the start ceremony's lines large under « Sur la ligne » (not the
+  countdown line: its digits are on screen), and lists every line with « Réécouter »
+  (`app/src/audio/said.ts`, `replay` in `usePlayback.ts`).
 - Each fired event is logged with distance and time for the run trace.
 
 ## The CLI (laptop path)

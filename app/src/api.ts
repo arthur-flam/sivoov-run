@@ -17,7 +17,7 @@ import {
   CourseMomentSchema,
   PhotoStatusSchema,
 } from '@sivoov/shared';
-import type { CodeRequest, LiveVoiceRequest, Locale, Run, RunTrace, SignInAmbiguity } from '@sivoov/shared';
+import type { CodeRequest, LiveVoiceRequest, Locale, Run, RunStart, RunTrace, SignInAmbiguity } from '@sivoov/shared';
 
 export const API_URL: string = (Constants.expoConfig?.extra as { apiUrl?: string } | undefined)?.apiUrl ?? 'https://run.sivoov.app';
 
@@ -132,6 +132,9 @@ export const api = {
   myVoices: (token: string, here?: { lat: number; lng: number }) =>
     request('/me/voices', PersonalVoicesSchema, { method: 'POST', body: JSON.stringify(here ?? {}) }, token, VOICES_TIMEOUT_MS),
   liveVoice: (token: string, req: LiveVoiceRequest) => request('/me/voices/live', LiveVoiceSchema, { method: 'POST', body: JSON.stringify(req) }, token, LIVE_VOICE_TIMEOUT_MS),
+  /** The gun, for the owner's notice; nothing is stored and nothing waits for it. */
+  runStarted: (token: string, runId: string, start: RunStart) =>
+    request(`/runs/${encodeURIComponent(runId)}/started`, z.object({ ok: z.boolean() }), { method: 'POST', body: JSON.stringify(start) }, token),
   uploadRun: (token: string, run: Run, trace?: RunTrace) =>
     request(`/runs/${run.id}`, z.object({ ok: z.boolean() }), { method: 'PUT', body: JSON.stringify({ run, trace: trace ? RunTraceSchema.parse(trace) : undefined }) }, token, UPLOAD_TIMEOUT_MS),
 };

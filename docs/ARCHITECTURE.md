@@ -22,7 +22,8 @@
 | Audio | expo-audio with background mode | |
 | Content | TTS by the script's voice: ElevenLabs (MP3) or Google Gemini TTS (native French, WAV, through the AI Gateway), cached in R2; produced sound mixed offline with ffmpeg (`api/tools/produce`: Gemini voice, BBC Sound Effects, Lyria music); LLM calls only through Cloudflare AI Gateway "sivoov" (Claude via `@anthropic-ai/sdk` on the gateway's Anthropic route with the key held by the gateway, Workers AI Llama 3.3 on the same gateway as the stand-in) for per-runner personal lines and the studio's suggestions; Open-Meteo (no key) for the weather in those lines | pre-produced per race; personal lines rendered per runner before the start or live, always with an offline version (AUDIO.md) |
 | Maps | Mapbox Static Images, rendered by the Worker at `/api/courses/:id/map.png`, for the web pages and the race home (`?base=1`: the ground alone, framed by `fitView` in `shared/`, which the app draws the course and its places on); the run screen draws the course in 3D with `@rnmapbox/maps` (Mapbox Standard), Mapbox GL JS on the web target | the run should feel like being there; the public token comes with `/api/me` (`map.token`), so it is rotated in the Worker |
-| Errors | Sentry (app + worker) | crash visibility without a laptop |
+| Errors | Sentry (app + worker): `@sentry/react-native` (`app/src/sentry.ts`), `@sentry/cloudflare` (`api/src/lib/sentry.ts`); errors only, no tracing, no replay, no personal data; off without a DSN | crash visibility without a laptop |
+| Owner notices | Telegram Bot API from the Worker (`lib/telegram.ts`, lines in `lib/notices.ts`): runner and admin sign-ins, run starts (`POST /api/runs/:id/started`, sent by the app at the gun), finishes (once per run), organizer leads, 500s; after the response, never failing it; `[preview]`/`[local]` prefix | first line of defense and analytics, on the owner's phone; no secrets, no sends |
 | Builds | EAS Build (cloud), EAS Update (OTA), GitHub Actions | no Mac, no laptop |
 | Tests | Vitest everywhere (API tests run inside workerd via vitest-pool-workers), Playwright against the web target and the Worker | |
 | Tools | `tsx` to run TypeScript scripts under `api/tools/` (dev dependency) | Node cannot load the shared package unaided |
@@ -184,7 +185,10 @@ background. Readings are in the logbook (`batteryLog.ts`).
 
 ## Native module list (changing this needs a new EAS build and a note here)
 expo-location, expo-task-manager, expo-audio, expo-secure-store, expo-haptics,
-expo-keep-awake, expo-updates, @sentry/react-native, react-native-svg,
+expo-keep-awake, expo-updates, @sentry/react-native (crash and error reports; configured
+2026-09-29, its native half rides the same new EAS build as @rnmapbox/maps: native crashes and
+the native transport need it, while older shells report JavaScript errors alone over fetch, see
+`app/src/sentry.ts`), react-native-svg,
 react-native-reanimated, react-native-gesture-handler, react-native-screens,
 react-native-safe-area-context, expo-battery (pre-flight battery level check before a
 multi-hour run; added 2026-09-13), expo-file-system (downloads the audio pack to the

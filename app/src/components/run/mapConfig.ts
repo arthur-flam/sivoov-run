@@ -112,6 +112,11 @@ export type CameraPlan = { view: RunMapView; turn: number; until: number; shot: 
 /** Where the runner is on the map and which way the course goes from there. */
 export type Pose = { center: LatLng; bearing: number };
 
+/**
+ * A followed camera whose next move was due longer ago than this was not driven: the app was in
+ * the background (no moves are planned there) or its JavaScript stood still.
+ */
+export const STALE_MS = 3000;
 /** A turn let go of settles quickly; a big one at once (back to the course's way) is a visible swing. */
 export const TURN_MS = 250;
 export const SWING_MS = 700;
@@ -143,6 +148,9 @@ export const nextCameraPlan = (prev: CameraPlan | null, view: RunMapView, at: (m
   const changed = prev === null || prev.view !== view;
   const turned = prev !== null && prev.turn !== turn;
   if (!changed && !turned && (now < prev.until || view === 'overview')) return prev;
+  // Nobody drove the camera for a while (the app was away): it is wherever the map left it, off
+  // the course maybe, and a move from there would cut across town. It goes to the runner at once.
+  if (!changed && !turned && now - prev.until > STALE_MS) return { view, turn, until: now, shot: shotOf(view, at(0), bounds, turn, 'linear', 0) };
   const swing = turned && Math.abs(normalizeTurn(turn - prev.turn)) > SWING_DEG;
   const [mode, durationMs] = changed ? (['fly', MOVE_MS] as const) : turned ? (['ease', swing ? SWING_MS : TURN_MS] as const) : (['linear', CAMERA_STEP_MS] as const);
   // The next steady move is sent a frame of the glide before this one ends: the camera never stands still between two.

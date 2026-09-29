@@ -88,11 +88,16 @@ What still needs the laptop, and nothing else does:
 |---|---|---|
 | `EXPO_TOKEN` | GitHub Actions secret (optionally the cloud environment) | EAS Update, EAS Build |
 | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | GitHub Actions secret | `wrangler deploy` |
-| ElevenLabs, Sentry DSNs | Worker secrets via `wrangler secret put`, `.dev.vars` locally | api |
+| ElevenLabs | Worker secret via `wrangler secret put`, `.dev.vars` locally | api |
+| `SENTRY_DSN` (the Worker's Sentry project, Cloudflare Workers) | Worker secret, production and preview (`wrangler secret put SENTRY_DSN [--env preview]`); none locally | api: error reports (`lib/sentry.ts`); without it nothing is sent |
+| `SENTRY_DSN_APP` (the app's Sentry project, React Native) | GitHub Actions secret, inlined as `EXPO_PUBLIC_SENTRY_DSN` into every `eas update` (deploy.yml, preview.yml) | app: error reports (`src/sentry.ts`); without it the update sends nothing |
+| `EXPO_PUBLIC_SENTRY_DSN` (same value) | EAS environment variable, environments development, preview and production (`eas env:create`) | EAS Build: the JS bundled inside a shell, before any update; `eas update --environment` reads it too |
+| `SENTRY_AUTH_TOKEN` (optional; with `SENTRY_ORG`, `SENTRY_PROJECT`) | GitHub Actions secret (org and project as Actions variables) and EAS environment variables | source maps: CI uploads each update's (`sentry-expo-upload-sourcemaps`); in an EAS build it adds Sentry's config plugin (`app.config.ts`), which uploads the build's. Without it stack traces stay minified and nothing fails |
 | `CLOUDFLARE_AI_TOKEN` (Workers AI, AI Gateway run) | Worker secret, production and preview; `.env` and `api/.dev.vars` locally | api: every LLM call, through the AI Gateway named in the `AI_GATEWAY` var (`lib/llm.ts`) |
 | Anthropic key | stored in the AI Gateway "sivoov" (provider keys), never in the Worker | Claude through the gateway |
 | `GEMINI_API_KEY` | Worker secret, production and preview | api: Gemini voices and the race photos' image model, through the AI Gateway |
 | `BROWSER_RENDERING_TOKEN` (Browser Rendering - Edit) | Worker secret, production and preview | api: share cards (`lib/cards.ts`) |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Worker secrets, production and preview (`--env preview`); none locally | api: the owner's Telegram lines (`lib/telegram.ts`); without both nothing is sent |
 | Apple / Google credentials | EAS servers | EAS Build |
 Cloud sessions need none of these for loop 1. Adding `EXPO_TOKEN` to the environment lets a
 session publish an update directly (loop 2 without CI).

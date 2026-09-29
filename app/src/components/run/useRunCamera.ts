@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
 import { followCamera } from '@sivoov/shared';
 import type { CourseTrack } from '@sivoov/shared';
+import { useOnScreen } from '@/hooks/useOnScreen';
 import { focusOf, jumpShot, nextCameraPlan, normalizeTurn, overviewBounds } from './mapConfig';
 import type { CameraPlan, CameraShot, Pose, RunMapView } from './mapConfig';
 
@@ -35,9 +36,12 @@ export const useRunCamera = ({ track, officialM, runM, speedMps, view, turn, onT
   const letGo = useRef<number | null>(null);
   if (letGo.current !== null && letGo.current === turn) letGo.current = null;
 
+  // Off screen the map is not drawn: no moves are sent to it, and back on screen the plan, gone
+  // stale, puts the camera on the runner at once (nextCameraPlan).
+  const onScreen = useOnScreen();
   const here = followCamera(track, officialM, runM);
   const at = (ms: number): Pose => (ms === 0 || speedMps === 0 ? here : followCamera(track, officialM, Math.min(officialM, runM + (speedMps * ms) / 1000)));
-  if (drag.current === null) plan.current = nextCameraPlan(plan.current, view, at, bounds, Date.now(), { turn: letGo.current ?? turn });
+  if (drag.current === null && (onScreen || plan.current === null)) plan.current = nextCameraPlan(plan.current, view, at, bounds, Date.now(), { turn: letGo.current ?? turn });
   const shot = plan.current!.shot;
 
   const jumpNow = () => {

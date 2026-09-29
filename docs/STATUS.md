@@ -109,6 +109,103 @@ Seen in `npm run shots` (card-og, card-post, card-story, card-sticker, result, r
 so link previews fall back to the course map and nothing can be downloaded. Fonts in the shots
 are fallbacks (the container cannot reach Google Fonts).
 
+### The rehearsal of 2026-09-29, fixed (branch `claude/rehearsal-run-issues-yugv8j`)
+The owner ran the Champs-Élysées 10 km as a rehearsal (preview, 46:34, run `mumtdgzg-uaew1q4g`).
+The trace was pulled through the admin (MEMORY.md) and replayed through the tracker. JS only (OTA).
+- **The audio late at the first places**: every line fired on its trigger, but the Concorde and
+  Madeleine lines were set 50 m past their places (300/700 m for 250/650 m): 13 s late. The seed
+  now takes place lines' distances from the course's places. Preview's pack was republished as
+  v3 with the two lines at 250/650 m (through the studio's API; the seed never overwrites a
+  draft). Production has no Champs pack yet; Deauville's lines sit on their places.
+- **The other places, 2-3 s late**: the tracker counts ground a step behind the runner, the dot on
+  the map shows where the runner is. Distance lines now start 3 s of running early (at most 20 m,
+  `lineLeadM`), and « Prochain » follows the dot, so the dot, the name and the voice agree.
+- **Back in the app, the runner off the course**: in the background the camera kept being sent
+  moves the paused map never made; back on screen it moved in a straight line from where it was
+  left, across town, with the runner drawn at its centre. No moves are planned off screen now, and
+  a plan gone stale (3 s) jumps to the runner (`STALE_MS`); the glide snaps on the first frame.
+- **The finish cut short**: « Accueil » on the finish screen cut the finish lines and the crowd.
+  They play to their end now; a new run screen cuts the tail.
+- **The GPS saver never applied**: at 19 % the phone was in a pocket and Android refused the
+  switch from the background. It now waits for the app to be on screen (main's `506cb70` did the
+  same; its version was kept at the merge).
+- **Battery**: 28 % to 7 % in 46 minutes with the 3D map on screen (about 27 %/h). A marathon at
+  that rate needs a full phone; the numbers view is the fallback. Not changed yet.
+- **Not done: the rehearsal's finish.** The owner wants a rehearsal to end like a real race (the
+  medal, the time, the share screen, the race report) and the race home to offer « see my
+  rehearsal » and « rehearse again » afterwards. That is `Finish.tsx`, the result and card pages,
+  all rewritten on `claude/post-run-share-image-8iw9d6` (not merged yet). To build on it once it
+  lands: `finishOutcome` 'rehearsal' gets the official screen with a « Répétition » mark; the result
+  page shows a runner's latest rehearsal when asked (`?run=<id>`, `noindex`, never in the ranking);
+  the home shows the last rehearsal (time, « Voir », « Refaire la répétition »).
+Verified: tests (shared lead, camera plan, playback drain); the replay of the trace. Not yet on a phone.
+
+### Telegram lines for the owner (2026-09-29, branch `claude/rehearsal-run-issues-yugv8j`)
+The Worker posts one short French line to the owner's Telegram on what people do: a first line
+of defense and a live feed. Sent after the response (`waitUntil`), never failing or slowing a
+request; a failed send is a `console.warn`. Plain text, prefixed `[preview]` / `[local]` outside
+production. Runners are named by name, bib and race, never email; « test » (`@example.com`),
+« démo » (demo race) and « simulation » say so. Lines in `api/src/lib/notices.ts`, sender in
+`lib/telegram.ts`.
+- 🔑 Runner sign-in, web or app, with the phone the app reports: « Connexion de Léa MARTIN
+  (dossard 2002, 10 km des Champs-Élysées) sur l’app Android 16 · samsung SM-S911B · v2.0.0 ».
+- ▶️ Run start: the app calls `POST /api/runs/:id/started` at the gun (`{ courseId, source }`,
+  fire and forget, nothing stored; `app/src/stores/runStarted.ts` watches the run store): « Départ
+  de … sur 10 km : course officielle | répétition, avant l’ouverture | hors délai | simulation ».
+  Needs the app's JS (OTA); older builds just say nothing.
+- 🏁 Finish, once per run id (a re-sent upload is silent), app or GPX: « … a couru 10 km en 46:34 :
+  officiel | répétition, hors classement | hors délai, hors classement | simulation »; a run cut
+  short says how far it went (« a couru 3,4 km en 18:02 : abandon »).
+- ✉️ Organizer lead (name, email, race, first 200 characters of the message), 👤 admin sign-in
+  (email, « staff »), 🔥 any 500 (method, path, start of the error).
+
+**For the owner to switch it on**: in Telegram, talk to @BotFather, `/newbot`, keep the token.
+Send your new bot any message, then open `https://api.telegram.org/bot<token>/getUpdates` and read
+`message.chat.id` (for a group: add the bot to it, write in it, same page; group ids are negative).
+Then, in `api/`: `npx wrangler secret put TELEGRAM_BOT_TOKEN` and `npx wrangler secret put
+TELEGRAM_CHAT_ID` for production, and the same with `--env preview` for preview. No deploy needed
+for the secrets; the code ships with the next Worker deploy. Without them, nothing is sent.
+
+### Sentry, app and Worker (2026-09-29, branch `claude/rehearsal-run-issues-yugv8j`)
+Configured, off until the owner adds the DSNs: nothing is sent without them (local, tests, the web
+target, screenshots).
+- **App** (`app/src/sentry.ts`, imported first in `app/_layout.tsx`, which it wraps for touch
+  breadcrumbs): `@sentry/react-native` 7.11, loaded only when the bundle has
+  `EXPO_PUBLIC_SENTRY_DSN` and not on web. Environment = the channel (development in Metro),
+  release `sivoov@<version>`, tag `update` = the update id. Errors only: no tracing, no replay,
+  `sendDefaultPii: false`; the user is the entrant id alone, set and cleared from the session
+  store. An error carries the last 60 logbook lines (`diag.ts`) as breadcrumbs, read only then.
+  **Old shells**: the JS arrives over the air in shells without Sentry's native module; `enableNative`
+  follows the module's presence (as `mapboxSdk.ts` does) and the SDK then sends JavaScript errors
+  over fetch, with no native crash handler. JS only until the next EAS build, which carries the
+  native half with @rnmapbox/maps (ARCHITECTURE.md, native module list).
+- **Metro** uses `getSentryExpoConfig` (a debug id in each bundle, for source maps). The config
+  plugin `@sentry/react-native/expo` is added only when the build has `SENTRY_AUTH_TOKEN`: it fails
+  a native build that cannot upload.
+- **Worker** (`api/src/lib/sentry.ts`): `@sentry/cloudflare` 11 wraps the handler only when
+  `SENTRY_DSN` is set; `app.onError` reports the error (one line). Errors only; no headers,
+  cookies, bodies, query strings or user info collected (v11 collects them by default).
+- **CI**: every `eas update` (deploy.yml, preview.yml) gets `EXPO_PUBLIC_SENTRY_DSN` from the
+  GitHub secret `SENTRY_DSN_APP` when it exists, and uploads the update's source maps when
+  `SENTRY_AUTH_TOKEN` exists. Neither missing fails a workflow.
+Proven in the container: typecheck, tests, lint; `npm run shots -- --app` (Metro with Sentry's
+config, Worker without DSN); a web and an Android export (DSN inlined, debug id in the map);
+`expo config` and an Android prebuild with and without the token; `wrangler dev` with a fake DSN
+captured a temporary throwing route's error from `onError` and sent it. Not yet on a phone.
+
+**The owner, to switch it on:**
+1. Create two Sentry projects: React Native (the app) and Cloudflare Workers (the Worker).
+2. Worker: `npx wrangler secret put SENTRY_DSN` and `npx wrangler secret put SENTRY_DSN --env
+   preview` in `api/` (the Workers project's DSN).
+3. App updates: GitHub secret `SENTRY_DSN_APP` (the React Native project's DSN).
+4. App builds: EAS environment variable `EXPO_PUBLIC_SENTRY_DSN`, same value, for development,
+   preview and production (`eas env:create`, visibility sensitive). A laptop build
+   (`npm run device:preview`) takes it from the shell's environment.
+5. Optional, readable stack traces: a Sentry auth token as the GitHub secret `SENTRY_AUTH_TOKEN`
+   with Actions variables `SENTRY_ORG` and `SENTRY_PROJECT`, and the same three as EAS
+   environment variables for builds.
+6. The next EAS build (already needed for the map) carries Sentry's native half.
+
 ### Second real run: a full 10 km, against the Fenix 8 (2026-09-29)
 The owner rehearsed the 10 km des Champs-Élysées (bib 2002, run `mumtdgzg-uaew1q4g`) on the
 Galaxy S23 with the tracker fix from 2026-09-27, the Fenix 8 recording (DotDot run `25a17856`,

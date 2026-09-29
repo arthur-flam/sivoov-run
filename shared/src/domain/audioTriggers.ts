@@ -11,6 +11,20 @@ export type TriggerState = {
 
 export type Firing = { event: AudioEvent; key: string };
 
+/**
+ * A line set at a distance starts this long before the tracker reaches it. The tracker counts
+ * ground a step behind the runner (a step every few fixes), and the map shows where the runner
+ * is now, so a line fired on the tracker's mark started 2 to 3 s after the runner, and the dot
+ * on the map, passed the place it names (the rehearsal of 2026-09-29).
+ */
+export const LINE_LEAD_S = 3;
+/** Never more than this early, whatever the pace (a bad pace reading must not fire a line far ahead). */
+export const LINE_LEAD_MAX_M = 20;
+
+/** How far ahead of its mark a distance line fires, at the runner's current pace; 0 with no pace yet. */
+export const lineLeadM = (paceSecPerKm: number | null): number =>
+  paceSecPerKm !== null && paceSecPerKm > 0 && Number.isFinite(paceSecPerKm) ? Math.min(LINE_LEAD_MAX_M, (1000 / paceSecPerKm) * LINE_LEAD_S) : 0;
+
 /** Split and repeating pace events fire once per bucket; the key tells them apart. */
 const keyFor = (event: AudioEvent, state: TriggerState): string | null => {
   const { trigger } = event;
@@ -23,7 +37,7 @@ const keyFor = (event: AudioEvent, state: TriggerState): string | null => {
     case 'finish':
       return state.phase === 'finished' ? event.id : null;
     case 'distance':
-      return state.phase !== 'idle' && state.distanceM >= trigger.meters ? event.id : null;
+      return state.phase !== 'idle' && state.distanceM + lineLeadM(state.paceSecPerKm) >= trigger.meters ? event.id : null;
     case 'elapsed':
       return state.phase !== 'idle' && state.elapsedMs >= trigger.seconds * 1000 ? event.id : null;
     case 'split': {

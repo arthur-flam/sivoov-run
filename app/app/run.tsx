@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, BackHandler, Platform, StyleSheet, View } from 'react-native';
+import { BackHandler, Platform, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -30,6 +30,7 @@ import { Body, Screen } from '@/components/ui';
 import { useCaption } from '@/hooks/useCaption';
 import { useGlide } from '@/hooks/useGlide';
 import { useMapDownload } from '@/hooks/useMapDownload';
+import { useOnScreen } from '@/hooks/useOnScreen';
 import { useTrack } from '@/hooks/useTrack';
 import { useUploadFlush } from '@/hooks/useUploadFlush';
 import { diag, useDiag } from '@/diag';
@@ -56,16 +57,6 @@ const useStayAwake = (on: boolean): void => {
     void activateKeepAwakeAsync('run').catch(() => undefined);
     return () => void deactivateKeepAwake('run').catch(() => undefined);
   }, [on]);
-};
-
-/** Whether the app is on screen: nothing redraws a clock or glides a map in a pocket. */
-const useOnScreen = (): boolean => {
-  const [active, setActive] = useState(AppState.currentState !== 'background');
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (next) => setActive(next === 'active'));
-    return () => sub.remove();
-  }, []);
-  return active;
 };
 
 const VIEWS: MapView[] = ['follow', 'overview', 'numbers'];
@@ -352,7 +343,7 @@ export default function Run() {
           <LivePanel
             state={state}
             ofLabel={courseLabel(course)}
-            ahead={aheadOf(course.landmarks, course.distanceM, state.distanceM)}
+            ahead={aheadOf(course.landmarks, course.distanceM, glided.m)}
             accent={accent}
             voice={t(`run.voice.${prefs.voice}`)}
             view={mapShown ? prefs.view : null}

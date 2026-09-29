@@ -45,7 +45,8 @@ const playRecord = (player: EventPlayer, pack: AudioPack, state: RunState, recor
 /** The runner ended the run before the line: nothing more is said (a finish still is, to its end). */
 const stoppedByRunner = (state: RunState): boolean => state.phase === 'abandoned';
 
-type Binding = { player: EventPlayer; unsubscribe: () => void };
+/** `draining`: the run is over and gone from the store, its last lines are playing out. */
+type Binding = { player: EventPlayer; unsubscribe: () => void; draining: boolean };
 
 /** The one binding of the run store to the speaker: it outlives the run screen while a run is on. */
 let binding: Binding | null = null;
@@ -60,9 +61,14 @@ let screens = 0;
  * in one go is played from where the previous list ended, like any new records.
  */
 export const bindPlayback = (): void => {
-  if (binding) return;
+  if (binding && !binding.draining) return;
+  // A new run screen: the last run's finish, still playing out, gives way.
+  releasePlayback();
   const player = createEventPlayer(
-    (item) => useSaid.getState().setSpeaking(item?.event.id ?? null),
+    (item) => {
+      useSaid.getState().setSpeaking(item?.event.id ?? null);
+      if (!item && binding?.player === player && binding.draining) binding = null;
+    },
     undefined,
     (item, heard) => useSaid.getState().setHeard(item.event.id, heard),
   );
@@ -79,11 +85,33 @@ export const bindPlayback = (): void => {
     // Stopped by the runner: the voice and the music under it stop with the run.
     if (s.phase === 'finished' && prev.phase !== 'finished' && stoppedByRunner(s.state)) player.stop();
     if (s.phase === 'idle' && prev.phase !== 'idle') {
+      if (crossedTheLine(prev.state)) {
+        if (screens === 0) letFinish();
+        return;
+      }
       player.stop();
       if (screens === 0) releasePlayback();
     }
   });
-  binding = { player, unsubscribe };
+  binding = { player, unsubscribe, draining: false };
+};
+
+/** The run ended on the line, not stopped short: what it says there is the race's last word. */
+const crossedTheLine = (state: RunState): boolean => state.phase === 'finished';
+
+/**
+ * The run is over and its screen gone (« Accueil » pressed during the finish): the finish lines
+ * and the crowd under them play to their end, nothing new is taken, and the binding goes when
+ * the voice falls quiet. Cutting them there made the end of the race feel short.
+ */
+const letFinish = (): void => {
+  if (!binding || binding.draining) return;
+  binding.unsubscribe();
+  if (!binding.player.busy()) {
+    binding = null;
+    return;
+  }
+  binding.draining = true;
 };
 
 /** Stops everything and lets the run store go. */
@@ -100,11 +128,16 @@ export const screenMounted = (): void => {
   bindPlayback();
 };
 
-/** A run screen unmounts: the sound stops unless a run is on (the countdown or the race), which keeps its voice. */
+/**
+ * A run screen unmounts: the sound stops unless a run is on (the countdown or the race), which
+ * keeps its voice, or has just crossed the line, whose finish plays to its end.
+ */
 export const screenUnmounted = (): void => {
   screens = Math.max(0, screens - 1);
-  const { phase } = useRun.getState();
-  if (screens === 0 && phase !== 'running' && phase !== 'countdown') releasePlayback();
+  const { phase, state } = useRun.getState();
+  if (screens > 0 || phase === 'running' || phase === 'countdown') return;
+  if (phase === 'finished' && crossedTheLine(state)) letFinish();
+  else releasePlayback();
 };
 
 /** Plays a line again, now, over whatever is speaking. Its ambiance does not come back. */

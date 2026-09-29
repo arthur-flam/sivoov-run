@@ -19,6 +19,13 @@ const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? (variant === 'production' ? 'h
 // named here too. Same mapping either way — this is what lets a cloud session ship JS to a
 // phone with no cable (docs/WORKFLOW.md, loop 2b).
 const channel = variant === 'development' ? 'development' : variant === 'preview' ? 'preview' : 'production';
+// Sentry's config plugin only uploads source maps and debug symbols from a native build, and
+// fails the build when it cannot: it is added when the build has a SENTRY_AUTH_TOKEN (an EAS
+// environment variable, with SENTRY_ORG and SENTRY_PROJECT; docs/WORKFLOW.md, Secrets). Reports
+// work without it; the native module links itself (ARCHITECTURE.md, native module list).
+const sentryPlugin: NonNullable<ExpoConfig['plugins']> = process.env.SENTRY_AUTH_TOKEN
+  ? [['@sentry/react-native/expo', { organization: process.env.SENTRY_ORG, project: process.env.SENTRY_PROJECT }]]
+  : [];
 
 // The location prompts, as iOS shows them: French here and in ./locales/fr.json, English in
 // ./locales/en.json (iOS picks the phone's language; anything else falls back to French).
@@ -98,6 +105,7 @@ const config: ExpoConfig = {
     '@rnmapbox/maps',
     // The race photos: the system photo picker (no access to the whole library) and the front camera.
     ['expo-image-picker', { photosPermission: PHOTOS, cameraPermission: CAMERA, microphonePermission: false }],
+    ...sentryPlugin,
     ['expo-splash-screen', { image: './assets/splash-icon.png', imageWidth: 160, resizeMode: 'contain', backgroundColor: '#faf9f7' }],
   ],
   updates: {

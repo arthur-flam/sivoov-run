@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CAMERA_STEP_MS, GLIDE_MS, MOVE_MS, SWING_MS, TURN_MS, basemapConfig, focusOf, jumpShot, nextCameraPlan, normalizeTurn } from './mapConfig';
+import { CAMERA_STEP_MS, GLIDE_MS, MOVE_MS, STALE_MS, SWING_MS, TURN_MS, basemapConfig, focusOf, jumpShot, nextCameraPlan, normalizeTurn } from './mapConfig';
 import type { Pose } from './mapConfig';
 
 /** A runner going due north at 5 m/s, the course's way 350° from north. */
@@ -18,6 +18,16 @@ describe('the run map’s camera', () => {
     // Nothing new until that move is done: the map carries it out alone, evenly.
     expect(nextCameraPlan(step, 'follow', at, bounds, MOVE_MS + 500)).toBe(step);
     expect(nextCameraPlan(step, 'follow', at, bounds, MOVE_MS + CAMERA_STEP_MS - GLIDE_MS)).not.toBe(step);
+  });
+
+  it('goes straight to the runner when the app comes back, instead of moving across town from where it was left', () => {
+    const first = nextCameraPlan(null, 'follow', at, bounds, 0);
+    const step = nextCameraPlan(first, 'follow', at, bounds, MOVE_MS);
+    const later = (ms: number) => ({ ...at(ms), center: { lat: 49.4, lng: 0.1 } });
+    const back = nextCameraPlan(step, 'follow', later, bounds, step.until + STALE_MS + 1);
+    expect(back.shot).toMatchObject({ kind: 'follow', mode: 'linear', durationMs: 0, center: [0.1, 49.4] });
+    // Then the steady moves carry on from there.
+    expect(nextCameraPlan(back, 'follow', later, bounds, back.until + GLIDE_MS).shot).toMatchObject({ mode: 'linear', durationMs: CAMERA_STEP_MS });
   });
 
   it('settles a turn let go of at once, on top of the course’s way, and keeps it', () => {

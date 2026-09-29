@@ -114,6 +114,8 @@ export type EventPlayer = {
   /** `under`: the event's ambiance, started with it (AudioEvent.under). */
   play: (event: AudioEvent, uri: string, under?: string) => void;
   stop: () => void;
+  /** A line is playing or waiting to. */
+  busy: () => boolean;
 };
 
 /** Where a file is once it sounds: seconds played, seconds to go. */
@@ -162,5 +164,6 @@ export const createEventPlayer = (
       ambiance.stop();
       onChange(null);
     },
+    busy: () => queue.current !== null,
   };
 };

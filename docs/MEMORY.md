@@ -652,6 +652,57 @@
   headers (`source.headers`) on a phone but not on the web target, where a private picture has to
   be fetched and shown from a blob URL (`AuthedImage`).
 
+- 2026-09-29: the owner's first rehearsal with the 3D run screen (10 km des Champs-Élysées, preview,
+  run `mumtdgzg-uaew1q4g`). Worth knowing next time:
+  - A preview trace can be read from a session without Cloudflare credentials: `POST /org/signin`
+    with `step=code&email=orga@example.com&code=000000` (cookie jar), then the runs list at
+    `/org/<race>/runs` and `/org/<race>/runs/<id>/trace.json`. The hosts are reachable from the
+    sandbox now (ACCESS.md still says otherwise).
+  - "The audio is 15 s late": the lines fired exactly on their trigger. The Champs seed set the
+    Concorde and Madeleine lines at 300 and 700 m while the places are at 250 and 650 m (50 m is
+    14 s at 4:40/km). Place lines now take their distance from the landmark (`at()` in the seed);
+    the studio cannot catch this, the lines are not tied to places.
+  - Replaying a trace through `applySample` + `glideStep` (`npx tsx` on a script importing
+    `shared/src/index`) tells the dot on the map from the tracker: the dot passes a place 1-4 s
+    before the tracker does. Distance lines now fire `LINE_LEAD_S` (3 s) early.
+  - Android refuses `startLocationUpdatesAsync` from the background ("Foreground service cannot be
+    started when the application is in the background"): the GPS saver pace waits for the app to
+    be on screen (fixed on main the same day by another session; both found it in the same trace).
+  - Leaving the finish screen unmounted the run screen, which released the player and reset the
+    run: the finish lines and the crowd were cut. The finish now plays out (`letFinish`).
+  - A Galaxy S23 with the 3D map on screen went from 28 % to 7 % in 46 min (about 27 %/h).
+- 2026-09-29: a workerd test that needs a secret the suite must not have (the Telegram bot): call
+  the Hono app itself, `app.request(url, init, { ...env, SECRET: 'x' }, createExecutionContext())`,
+  then `waitOnExecutionContext(ctx)` for what runs after the response (both from `cloudflare:test`);
+  SELF only ever has the config's bindings. Blank every such secret in `vitest.config.ts`, or a
+  laptop's `api/.dev.vars` makes the suite post for real.
+- 2026-09-29: Sentry. Worth knowing next time:
+  - `@sentry/react-native` without its native module (a shell older than the module, OTA JS):
+    `init` sets `enableNative` from `NATIVE.isNativeAvailable()` (`TurboModuleRegistry.get`, not
+    `getEnforcing`, so importing it never throws), the transport falls back to fetch and the native
+    integrations are left out. `NativeRNSentry.js` does use `getEnforcing` but is only the codegen
+    spec, imported by nothing.
+  - Any `tracesSampleRate`, 0 included, turns on the RN tracing integrations (stall tracking has a
+    timer): leave it out for errors only.
+  - The Expo config plugin `@sentry/react-native/expo` only uploads source maps and debug symbols,
+    and fails the Gradle/Xcode build without `SENTRY_AUTH_TOKEN` (unless
+    `SENTRY_DISABLE_AUTO_UPLOAD=true`). The native module links without it.
+  - `@sentry/cloudflare` 11 dropped `sendDefaultPii` for `dataCollection`, whose defaults collect
+    request headers, cookies and bodies (sign-in emails and codes, bearer tokens): turn each off.
+    `withSentry` also initialises a client per request even without a DSN: the Worker skips the
+    wrapper when `SENTRY_DSN` is unset. Hono's `onError` swallows errors before the wrapper sees
+    them, so it calls `captureException` itself.
+- 2026-09-29: the run map's look, decided: **Mapbox Standard stays.** Compared at the runner's eye
+  level (z17.1, pitch 72): Standard Satellite is flat (no 3D buildings or landmarks in its style or
+  config, whatever the overview guide says), hazy towards the horizon at that pitch, and its Paris
+  imagery still shows the 2024 Olympic stands at the Concorde; terrain fades out above z13.7 and
+  adds nothing on flat courses. Satellite plus Standard's own 3D landmark models (a composed style,
+  `batched-model` source `mapbox://mapbox.mapbox-3dbuildings-v1`) looks best but rests on undocumented
+  internals. **Idea for a later session (the owner's): Google Photorealistic 3D Tiles** (Map Tiles
+  API). About $0.01 a run (one root request covers 3 h), but offline use is forbidden and Google's
+  attribution must show in full; no Mapbox path, so CesiumJS in a WebView or a 3D Tiles renderer on
+  expo-gl (a native module), with the camera plan, course line and runner rebuilt on it, and the
+  current map kept as the offline and low-battery fallback. Weeks, not days.
 - 2026-09-29: second real run (10 km Champs-Élysées rehearsal, S23, run `mumtdgzg-uaew1q4g`)
   against the Fenix 8. Worth knowing next time:
   - `scripts/compare_garmin.py` (uv) replays a trace through a Python port of the tracker (checked:

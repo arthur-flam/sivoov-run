@@ -1,4 +1,6 @@
 import { useEffect } from 'react';
+// Before the screens, so that their errors are reported (when this build has a DSN: src/sentry.ts).
+import { wrapRoot } from '@/sentry';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -7,6 +9,7 @@ import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold } from '@expo-g
 import { BarlowCondensed_600SemiBold, BarlowCondensed_700Bold } from '@expo-google-fonts/barlow-condensed';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { usePackDownload } from '@/hooks/usePackDownload';
+import { watchGun } from '@/stores/runStarted';
 import { useSession } from '@/stores/session';
 // Defines the background location task at startup, before any screen can start updates.
 import '@/services/location/device';
@@ -14,7 +17,7 @@ import { colors } from '@/theme';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
-export default function RootLayout() {
+function RootLayout() {
   const [fontsLoaded] = useFonts({
     Fraunces_500Medium,
     Fraunces_500Medium_Italic,
@@ -34,6 +37,9 @@ export default function RootLayout() {
     void restore();
   }, [restore]);
 
+  // The Worker hears of each gun (the owner's Telegram), whichever screen starts the run.
+  useEffect(() => watchGun(), []);
+
   useEffect(() => {
     if (fontsLoaded && status !== 'loading') void SplashScreen.hideAsync().catch(() => undefined);
   }, [fontsLoaded, status]);
@@ -50,3 +56,5 @@ export default function RootLayout() {
     </SafeAreaProvider>
   );
 }
+
+export default wrapRoot(RootLayout);

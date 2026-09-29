@@ -38,6 +38,13 @@ brutes »; the GPX button gave the same JSON).
 - **The GPS saver pace never engaged**: at 19 % `startLocationUpdatesAsync(SAVER_OPTIONS)` was
   refused ("Couldn't start the foreground service"), Android's ban on starting a foreground service
   from the background. The 1 Hz updates carried on, so nothing was lost, but nothing was spared.
+  The owner locked the phone by hand when it neared empty; Samsung's own figure for the app that
+  day is 14 % (the logbook saw 21 points go during the run, screen and system included).
+- **Two small battery changes on this branch** (JS only, OTA; not yet on the phone, battery not
+  yet measured): off screen, Android hands the fixes over every 4 s instead of every second
+  (`BACKGROUND_BATCH_MS`; the GPS still fixes at 1 Hz and every fix is kept, so a line is said up
+  to 4 s late in a pocket, never on screen), and the saver pace, when the battery runs low off
+  screen, waits for the app's next moment on screen instead of being refused.
 
 ### The run map, smooth under the finger (2026-09-29, branch `claude/run-map-feel`)
 The owner's second pass on the phone: turning the map did not follow the finger, house numbers

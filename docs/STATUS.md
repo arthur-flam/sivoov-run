@@ -11,6 +11,27 @@ Live: https://run.sivoov.app/deauville-2026 (production), https://preview.run.si
 on 2026-09-27 (below); M2 still needs a real finish. Production has the race and its courses;
 no real entrants yet.
 
+### The race report, the share cards and the share page (2026-09-29, branch `claude/post-run-share-image-8iw9d6`)
+The owner's brief: a share image like the Berlin Marathon's race report, a flow that makes
+people proud to share and makes whoever sees it want to run. JS and Worker only (OTA).
+- **The race report** (`raceReport` in shared): timing points every 5 km (marathon, half), 2 km
+  (10 km), 1 km (5 km), the finish; time and pace over each segment; the place at each point
+  from the other finishers' own splits; the two halves, a negative split, places gained.
+- **Four pictures** (`card.tsx`, DESIGN.md "share cards"): `og` 1200×630 race report (the link
+  preview), `post` 1080×1350, `story` 1080×1920, `sticker` (transparent, Strava-style, over one's
+  own photo). The map under the course is Mapbox `light-v11` framed by `fitView` (`pad=44`).
+- **The result page** shows the picture itself first, the very one under the link, with the four
+  formats to pick from, « Partager l'image » (the file where the browser can share files),
+  « Télécharger », « Copier le lien », then the certificate. Without a renderer the card's own
+  page shows in a scaled frame. The link preview now invites: « Marc a bouclé le semi-marathon en
+  1:45:00 … Du 9 au 15 novembre, courez-la vous aussi ». Visitors get « Marc l'a courue. À votre tour. »
+- **The app's finish**: a negative split is said, the report picture shows once the result is
+  uploaded (when the Worker renders cards), « Mes images à partager » opens the page.
+Seen in `npm run shots` (card-og, card-post, card-story, card-sticker, result, run-finished).
+**Still blocked on `BROWSER_RENDERING_TOKEN`** (Owner actions): until it is set, no PNG exists,
+so link previews fall back to the course map and nothing can be downloaded. Fonts in the shots
+are fallbacks (the container cannot reach Google Fonts).
+
 ### The run map, smooth under the finger (2026-09-29, branch `claude/run-map-feel`)
 The owner's second pass on the phone: turning the map did not follow the finger, house numbers
 cluttered the view, the simulation stuttered. JS only (OTA).

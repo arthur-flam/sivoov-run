@@ -1,10 +1,8 @@
 import type { Entrant } from '@sivoov/shared';
 import type { Bindings } from '../env';
 import { db } from '../db/queries';
-import { cardKey } from './cards';
-import type { CardFormat } from './cards';
+import { CARD_FORMATS, cardKey } from './cards';
 
-const CARD_FORMATS: readonly CardFormat[] = ['og', 'story'];
 const CARD_LOCALES = ['fr', 'en'] as const;
 /** R2 deletes at most this many keys per call. */
 const R2_DELETE_BATCH = 1000;

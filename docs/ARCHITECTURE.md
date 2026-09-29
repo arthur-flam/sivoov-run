@@ -73,8 +73,11 @@ Rows are validated by zod schemas in `shared/schemas/` on the way in and out of 
 - `/{race}/prepare`: course, trailer, instructions. `/{race}/results` (ranked runs only: finished
   and started inside the window), `/{race}/results/{bib}` (the certificate: prints to PDF,
   shares the card, and invites every other visitor into the race).
-- Share cards: `/{race}/card` and `/{race}/results/{bib}/card?format=og|story` are fixed-size
-  pages; `/{race}/og.png` and `/{race}/results/{bib}/card.png` are those pages photographed by
+- Share cards: `/{race}/card` and `/{race}/results/{bib}/card?format=og|post|story|sticker` are
+  fixed-size pages (a finisher's is the race report: `raceReport` in `shared/`, timing points
+  every 5 km on a marathon or half, 2 on a 10 km, the place at each from the field's own splits;
+  the sticker is photographed with a transparent ground); the result page shows the picture
+  itself above the certificate, with the four formats to pick from; `/{race}/og.png` and `/{race}/results/{bib}/card.png` are those pages photographed by
   Cloudflare Browser Rendering (REST API, `BROWSER_RENDERING_TOKEN`) and cached in R2 under
   `cards/`. They are the `og:image` of the landing and result pages; without the token the
   preview is the Mapbox course map. `/{race}/upload`: GPX fallback behind the web session, judged by

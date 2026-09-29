@@ -37,6 +37,11 @@ export const shareBib = (race: Race, entrant: Pick<EntrantPublic, 'bib' | 'dista
   return shareLink('bib', t('share.bibMessage', { race: race.theme.displayName, distance: distanceLabel(currentLocale(), entrant.distanceKey), bib: entrant.bib, start: day(race.windowStart), end: day(race.windowEnd), url }), url);
 };
 
+/** The race report as a picture (api: /results/:bib/card.png), in the phone's language; it redirects to the current card. */
+export const reportImageUrl = (race: Pick<Race, 'slug'>, bib: string, format: 'og' | 'post' | 'story' | 'sticker'): string =>
+  `${API_URL}/${race.slug}/results/${bib}/card.png?format=${format}&lang=${currentLocale()}`;
+
+/** The runner's page: the certificate, and the four pictures to share or save. */
 export const openCertificate = (race: Pick<Race, 'slug'>, bib: string): void => {
   void Linking.openURL(resultUrl(race, bib)).catch(() => undefined);
 };

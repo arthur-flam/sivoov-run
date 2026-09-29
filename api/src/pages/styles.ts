@@ -336,6 +336,18 @@ table.results { width: 100%; border-collapse: collapse; font-size: 15px; }
 .cert-facts dd { font-family: var(--font-num); font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .cert-course { width: 150px; margin: 20px auto 0; }
 .cert-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+/* The picture a finisher shares, shown as it is posted. The sticker sits on the ink so its white reads. */
+.share-studio { margin: 20px 0 30px; }
+.share-stage { position: relative; width: 100%; margin: 0 auto; overflow: hidden; border-radius: var(--radius); background: var(--surface-2); box-shadow: var(--shadow); }
+.share-stage.fmt-post, .share-stage.fmt-story, .share-stage.fmt-sticker { max-width: 420px; }
+.share-stage.fmt-sticker { background: var(--ink); }
+.share-stage img { display: block; width: 100%; height: auto; }
+.share-stage iframe { position: absolute; top: 0; left: 0; border: 0; transform-origin: 0 0; pointer-events: none; }
+.share-formats { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 16px 0 6px; }
+.share-formats button { font: inherit; font-size: 15px; font-weight: 600; min-height: 40px; padding: 0 16px; border-radius: var(--radius-pill); border: 1px solid var(--border-strong); background: transparent; color: var(--ink); cursor: pointer; }
+.share-formats button[aria-checked=true] { background: var(--race-primary); border-color: var(--race-primary); color: var(--race-on-primary); }
+.share-formats button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.share-hint { text-align: center; font-size: 14px; color: var(--ink-2); margin: 4px auto 16px; max-width: 46ch; }
 .result-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 26px; }
 .result-actions .btn { flex: 1 1 auto; }
 @media (min-width: 640px) { .result-actions .btn { flex: 0 0 auto; } }
@@ -359,7 +371,7 @@ table.results { width: 100%; border-collapse: collapse; font-size: 15px; }
 @media print {
   @page { size: A4 landscape; margin: 10mm; }
   body { background: var(--surface); }
-  .topbar, footer, .result-actions, .result-splits, .result-cta { display: none !important; }
+  .topbar, footer, .result-actions, .result-splits, .result-cta, .share-studio { display: none !important; }
   .certificate { margin: 0; padding: 48px 40px 24px; }
 }
 

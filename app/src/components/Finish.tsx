@@ -1,11 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Image, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { averagePace, formatClock, formatKm, formatOfficialKm, formatPace } from '@sivoov/shared';
+import { averagePace, formatClock, formatKm, formatOfficialKm, formatPace, raceReport } from '@sivoov/shared';
 import type { Course, EntrantPublic, FinishOutcome, Race, RunState } from '@sivoov/shared';
 import { Body, Button, Card, Display, Eyebrow, Num } from '@/components/ui';
 import { currentLocale, t } from '@/i18n';
-import { openCertificate, shareFinish } from '@/share';
+import { openCertificate, reportImageUrl, shareFinish } from '@/share';
 import type { UploadStatus } from '@/stores/uploads';
 import { fonts, space } from '@/theme';
 
@@ -24,10 +24,10 @@ type Props = {
 const dateOf = (iso: string, race: Race) => new Intl.DateTimeFormat(currentLocale() === 'fr' ? 'fr-FR' : 'en-GB', { day: 'numeric', month: 'long', timeZone: race.timezone }).format(new Date(iso));
 
 /**
- * The finish line: the time, what it counts for, and for an official finish two ways to tell
- * people. Built from the existing components only: the visual identity is not decided yet
- * (docs/DESIGN.md), so this screen carries no decoration of its own. The organizer's medal
- * photo shows when the race theme has one.
+ * The finish line: the time, what it counts for, and for an official finish what the runner
+ * can be proud of (a negative split) and the race report they share, once it has reached the
+ * results. Built from the existing components; the organizer's medal photo shows when the race
+ * theme has one.
  */
 export const Finish = ({ race, course, entrant, state, outcome, simulation, uploadStatus, onHome, onDiagnostics }: Props) => {
   const finished = outcome !== 'incomplete';
@@ -47,6 +47,10 @@ export const Finish = ({ race, course, entrant, state, outcome, simulation, uplo
     closed: t('finish.closed.body', { date: dateOf(race.windowEnd, race) }),
     incomplete: t('finish.incomplete.body'),
   }[outcome];
+  // The halves need no network: they come from the run's own splits.
+  const halves = outcome === 'official' ? raceReport({ id: 'local', elapsedMs: state.elapsedMs, splits: state.splits }, course.distanceM, [], null).halves : null;
+  // The report is drawn by the Worker from the result: it exists once the run is uploaded.
+  const [reportShown, setReportShown] = useState(true);
   const facts = finished
     ? [formatOfficialKm(course.distanceM, course.distanceKey, currentLocale()), `${formatPace(averagePace(state.elapsedMs, course.distanceM))} /km`, `${t('result.bib')} ${entrant.bib}`]
     : [formatClock(state.elapsedMs), `${formatPace(averagePace(state.elapsedMs, state.distanceM))} /km`, `${t('result.bib')} ${entrant.bib}`];
@@ -76,11 +80,29 @@ export const Finish = ({ race, course, entrant, state, outcome, simulation, uplo
         {body}
       </Body>
       <Body dark>{facts.join(' · ')}</Body>
+      {halves?.negative ? (
+        <Body dark testID="finish-negative">
+          {t('report.negative', { time: formatClock(halves.firstMs - halves.secondMs) })}
+        </Body>
+      ) : null}
 
+      {outcome === 'official' && uploadStatus === 'sent' && reportShown ? (
+        <Image
+          testID="finish-report"
+          source={{ uri: reportImageUrl(race, entrant.bib, 'post') }}
+          style={styles.report}
+          resizeMode="contain"
+          accessibilityLabel={t('report.title')}
+          onError={() => setReportShown(false)}
+        />
+      ) : null}
       {outcome === 'official' ? (
         <>
           <Button testID="share-finish" label={t('finish.share')} color={race.theme.primary} onColor={race.theme.onPrimary} onPress={() => void shareFinish(race, entrant, state.elapsedMs)} />
-          <Button testID="open-certificate" label={t('finish.certificate')} ghost dark onPress={() => openCertificate(race, entrant.bib)} />
+          <Button testID="open-certificate" label={t('finish.images')} ghost dark onPress={() => openCertificate(race, entrant.bib)} />
+          <Body dark muted>
+            {t('finish.images.hint')}
+          </Body>
         </>
       ) : null}
       <Body dark muted testID="upload-status">
@@ -123,6 +145,7 @@ const styles = StyleSheet.create({
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space.md },
   badge: { fontSize: 12 },
   medal: { width: '100%', height: 200 },
+  report: { width: '100%', aspectRatio: 1080 / 1350, borderRadius: 8 },
   splitRow: { flexDirection: 'row', alignItems: 'baseline', paddingVertical: 4 },
   splitKm: { width: 64 },
   splitNum: { flex: 1, textAlign: 'right', fontFamily: fonts.num, fontSize: 20, fontVariant: ['tabular-nums'] },

@@ -629,4 +629,10 @@
     only) exposes the web map for reading its camera.
   - A timer-paced simulation (one fix per timer, a clock clamped to the fixes) slows and stutters
     when the JavaScript thread is busy. Pace it by its clock: hand over what fell due at each tick.
-
+- 2026-09-29: no page the Worker renders has a `<!doctype html>`, so Chromium lays them out in
+  quirks mode, where a `<table>` inherits neither colour nor font from `body`. On the share cards
+  (white text on the race colour) every cell came out white on white: tables there set their own
+  `color` and `font-family`. Any new table on a coloured ground needs the same.
+- 2026-09-29: the static map (`/api/courses/:id/map.png?base=1`) and the drawing over it must use
+  the same `fitView` padding, or the line slides off the streets: the race report asks for
+  `pad=44` (room for its circles) and projects with 44 too.

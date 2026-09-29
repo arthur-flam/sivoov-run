@@ -1,11 +1,14 @@
 import type { Course, Entrant, Locale, Race, Run } from '@sivoov/shared';
-import { distanceLabel, formatOfficialTime, t, windowPhase } from '@sivoov/shared';
+import { averagePace, distanceLabel, formatOfficialTime, formatPace, formatRank, raceReport, t, windowPhase } from '@sivoov/shared';
 import type { Db } from '../db/queries';
 import { fmtDate } from '../pages/dates';
-import type { CardRunner } from '../pages/card';
+import type { CardRunner, FinisherCard } from '../pages/card';
 
-/** An entrant's standing: their best ranked run, its rank, and how many have finished. */
-export type RunnerResult = { entrant: Entrant; course: Course; best: { run: Run; rank: number; total: number } | null };
+/**
+ * An entrant's standing: their best ranked run, its rank, how many have finished, and the
+ * field's best runs (their splits place the runner at each timing point of the race report).
+ */
+export type RunnerResult = { entrant: Entrant; course: Course; best: { run: Run; rank: number; total: number } | null; field: Run[] };
 
 type Timed = { run: Pick<Run, 'elapsedMs'> };
 
@@ -24,7 +27,7 @@ export const resultForBib = async (q: Db, race: Race, bib: string): Promise<Runn
   if (!entrant || !course) return null;
   const rows = await q.resultsForCourse(race.id, course.id);
   const mine = rows.find((r) => r.entrant.id === entrant.id);
-  return { entrant, course, best: mine ? { run: mine.run, rank: rankOf(rows, mine.run.elapsedMs), total: rows.length } : null };
+  return { entrant, course, best: mine ? { run: mine.run, rank: rankOf(rows, mine.run.elapsedMs), total: rows.length } : null, field: rows.map((r) => r.run) };
 };
 
 export const fullName = (entrant: Pick<Entrant, 'firstName' | 'lastName'>): string => `${entrant.firstName} ${entrant.lastName.toUpperCase()}`;
@@ -45,6 +48,23 @@ export const finisherCard = (race: Race, entrant: Entrant, run: Run, locale: Loc
   big: formatOfficialTime(run.elapsedMs),
   meta: `${distanceLabel(locale, entrant.distanceKey)} · ${runDate(race, run, locale)}`,
 });
+
+/** The finisher's race report, as the share cards draw it. */
+export const finisherReport = (race: Race, result: RunnerResult, locale: Locale): FinisherCard | null => {
+  const { entrant, course, best, field } = result;
+  if (!best) return null;
+  return {
+    name: fullName(entrant),
+    bib: entrant.bib,
+    time: formatOfficialTime(best.run.elapsedMs),
+    pace: formatPace(averagePace(best.run.elapsedMs, course.distanceM)),
+    rank: `${formatRank(best.rank, locale)} / ${best.total}`,
+    date: fmtDate(best.run.finishedAt ?? best.run.startedAt ?? race.windowEnd, locale, race.timezone, { day: 'numeric', month: 'short', year: 'numeric' }),
+    distance: distanceLabel(locale, entrant.distanceKey),
+    officialM: course.distanceM,
+    report: raceReport(best.run, course.distanceM, field, best.rank),
+  };
+};
 
 /** Before the finish: the bib, for the runner who tells friends they are in. */
 export const bibCard = (race: Race, entrant: Entrant, locale: Locale): CardRunner => ({

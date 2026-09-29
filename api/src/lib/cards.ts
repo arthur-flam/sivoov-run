@@ -8,15 +8,23 @@ import type { Bindings } from '../env';
  * previews (og:image) and the image a runner posts. Without the optional token the pages fall
  * back to the course map, and nothing breaks.
  */
-export type CardFormat = 'og' | 'story';
+export const CARD_FORMATS = ['og', 'post', 'story', 'sticker'] as const;
+export type CardFormat = (typeof CARD_FORMATS)[number];
 
-/** og: what link previews crop to (1.91:1). story: a 4:5 portrait that sits in every feed. */
+/**
+ * og: the race report, landscape, what link previews crop to (1.91:1). post: the report as a 4:5
+ * portrait that sits in every feed. story: 9:16, a full phone screen (Instagram, WhatsApp
+ * status). sticker: the time and the course on a transparent ground, to lay over one's own
+ * photo in a story, the way Strava's overlays work.
+ */
 export const CARD_SIZE: Record<CardFormat, { width: number; height: number }> = {
   og: { width: 1200, height: 630 },
-  story: { width: 1080, height: 1350 },
+  post: { width: 1080, height: 1350 },
+  story: { width: 1080, height: 1920 },
+  sticker: { width: 1080, height: 1920 },
 };
 
-export const cardFormat = (value: string | undefined): CardFormat => (value === 'story' ? 'story' : 'og');
+export const cardFormat = (value: string | undefined): CardFormat => CARD_FORMATS.find((f) => f === value) ?? 'og';
 
 export const cardKey = (id: string, format: CardFormat): string => `cards/${id}-${format}.png`;
 
@@ -60,7 +68,8 @@ export const cardPng = async (deps: CardDeps, id: string, format: CardFormat, pa
       viewport: { ...CARD_SIZE[format], deviceScaleFactor: 1 },
       // The fonts come from Google Fonts: wait for the network to settle before the shot.
       gotoOptions: { waitUntil: 'networkidle0', timeout: 20_000 },
-      screenshotOptions: { type: 'png' },
+      // The sticker keeps its ground transparent: it goes over the runner's own photo.
+      screenshotOptions: { type: 'png', omitBackground: format === 'sticker' },
     }),
   }).catch(() => null);
   const type = res?.headers.get('Content-Type') ?? '';

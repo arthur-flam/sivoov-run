@@ -68,7 +68,14 @@ api.get('/courses/:id/map.png', async (c) => {
   const course = await q.courseById(c.req.param('id'));
   if (!course) return c.json({ error: 'not_found' }, 404);
   const size = z
-    .object({ w: z.coerce.number().int().min(100).max(1280).default(720), h: z.coerce.number().int().min(100).max(1280).default(400), base: z.literal('1').optional() })
+    .object({
+      w: z.coerce.number().int().min(100).max(1280).default(720),
+      h: z.coerce.number().int().min(100).max(1280).default(400),
+      base: z.literal('1').optional(),
+      // The race report draws numbered circles along the course: it asks for room around it and a quieter ground.
+      pad: z.coerce.number().int().min(0).max(200).default(24),
+      style: z.literal('light').optional(),
+    })
     .safeParse(c.req.query());
   if (!size.success) return c.json({ error: 'invalid' }, 400);
   const cache = caches.default;
@@ -80,8 +87,9 @@ api.get('/courses/:id/map.png', async (c) => {
   const geometry = CourseGeometrySchema.parse(await object.json());
   const race = await q.raceById(course.raceId);
   const color = (race?.theme.primary ?? '#e63946').replace('#', '');
-  const { w: width, h: height, base } = size.data;
-  const upstream = await fetch(base ? baseMapUrl(fitView(geometry.points, width, height), token) : staticMapUrl({ points: geometry.points, token, width, height, color }));
+  const { w: width, h: height, base, pad, style } = size.data;
+  const ground = style === 'light' ? 'mapbox/light-v11' : undefined;
+  const upstream = await fetch(base ? baseMapUrl(fitView(geometry.points, width, height, pad), token, ground) : staticMapUrl({ points: geometry.points, token, width, height, color }));
   if (!upstream.ok) return c.json({ error: 'upstream', status: upstream.status }, 502);
   const res = new Response(upstream.body, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' } });
   c.executionCtx.waitUntil(cache.put(cacheKey, res.clone()));

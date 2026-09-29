@@ -43,3 +43,4 @@ export * from './signIn';
 export * from './runJournal';
 export * from './fixClock';
 export * from './locale';
+export * from './raceReport';

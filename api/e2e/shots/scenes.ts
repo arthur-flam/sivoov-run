@@ -185,19 +185,40 @@ export const scenes: Scene[] = [
   },
   {
     id: 'card-og',
-    title: 'Share card — 1200×630, the picture under a shared link',
+    title: 'Race report — 1200×630, the picture under a shared link',
     go: async (page, shoot) => {
       await page.setViewportSize({ width: 1200, height: 630 });
       await page.goto(`${RACE}/results/1003/card?format=og`);
+      await expect(page.getByTestId('card-time')).toBeVisible();
+      await shoot();
+    },
+  },
+  {
+    id: 'card-post',
+    title: 'Race report — 1080×1350, the feed post (Instagram, Facebook, Strava)',
+    go: async (page, shoot) => {
+      await page.setViewportSize({ width: 1080, height: 1350 });
+      await page.goto(`${RACE}/results/1003/card?format=post`);
       await shoot();
     },
   },
   {
     id: 'card-story',
-    title: 'Share card — 1080×1350, the image a finisher posts',
+    title: 'Race report — 1080×1920, the story (Instagram, WhatsApp status)',
     go: async (page, shoot) => {
-      await page.setViewportSize({ width: 1080, height: 1350 });
+      await page.setViewportSize({ width: 1080, height: 1920 });
       await page.goto(`${RACE}/results/1003/card?format=story`);
+      await shoot();
+    },
+  },
+  {
+    id: 'card-sticker',
+    title: 'Sticker — transparent, over a photo here to show it (the PNG has no ground)',
+    go: async (page, shoot) => {
+      await page.setViewportSize({ width: 1080, height: 1920 });
+      await page.goto(`${RACE}/results/1003/card?format=sticker`);
+      // Stands in for the runner's own photo: the card itself leaves the ground transparent.
+      await page.addStyleTag({ content: 'html { background: linear-gradient(160deg, #2f4f4f, #8a7f72 60%, #3b3f46); }' });
       await shoot();
     },
   },

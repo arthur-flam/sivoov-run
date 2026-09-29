@@ -1,5 +1,5 @@
-import type { Course, CourseTrack, DemoReel, DistanceKey, Race, RaceSeries } from '@sivoov/shared';
-import { distanceLabel, formatKm, translator, windowPhase } from '@sivoov/shared';
+import type { Course, CourseTrack, DemoReel, Race, RaceSeries } from '@sivoov/shared';
+import { distanceLabel, formatOfficialKm, formatPlaceKm, translator, windowPhase } from '@sivoov/shared';
 import type { Locale } from '@sivoov/shared';
 import { CourseDiagram } from './courseDiagram';
 import { fmtDate, fmtSpan } from './dates';
@@ -15,12 +15,6 @@ type Props = {
   locale: Locale;
   now: number;
 };
-
-/** Official distances are written the way runners know them: 42,195 km, 21,1 km, 10 km. */
-const DIGITS: Record<DistanceKey, number> = { marathon: 3, half: 1, '10k': 0, '5k': 0 };
-
-/** "3,9 km", "30 km": a landmark's place on the course. */
-const landmarkKm = (meters: number, locale: Locale) => formatKm(meters, locale, 1).replace(/[.,]0 km$/, ' km');
 
 const Series = ({ series, locale }: { series: RaceSeries; locale: Locale }) => {
   const t = translator(locale);
@@ -110,7 +104,7 @@ export const LandingPage = ({ race, courses, track, mapUrl, reel, locale, now }:
           <h2 id="course-title">{t('landing.course.title')}</h2>
           <div class="rl-distances">
             {courses.map((c) => {
-              const km = formatKm(c.distanceM, locale, DIGITS[c.distanceKey]);
+              const km = formatOfficialKm(c.distanceM, c.distanceKey, locale);
               const name = distanceLabel(locale, c.distanceKey);
               return (
                 <p>
@@ -130,7 +124,7 @@ export const LandingPage = ({ race, courses, track, mapUrl, reel, locale, now }:
             <ul class="landmarks">
               {main.landmarks.map((l) => (
                 <li>
-                  <span class="km">{l.meters === 0 ? t('landing.course.start') : landmarkKm(l.meters, locale)}</span>
+                  <span class="km">{l.meters === 0 ? t('landing.course.start') : formatPlaceKm(l.meters, locale)}</span>
                   <span>
                     <strong>{l.name}</strong>
                     {l.description ? <span class="d"> {l.description}</span> : null}

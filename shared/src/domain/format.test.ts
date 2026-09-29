@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatClock, formatDistanceAway, formatKm, formatMegabytes, formatOfficialTime, formatPace, formatRank, parsePace } from './format';
+import { formatClock, formatDistanceAway, formatDistanceLine, formatKm, formatOfficialKm, formatPlaceKm, formatMegabytes, formatOfficialTime, formatPace, formatRank, parsePace } from './format';
 
 describe('format', () => {
   it('clock', () => {
@@ -19,6 +19,18 @@ describe('format', () => {
   it('km per locale', () => {
     expect(formatKm(10000, 'fr')).toBe('10,00 km');
     expect(formatKm(21097.5, 'en', 1)).toBe('21.1 km');
+  });
+  it('official distances the way runners know them, never "10,000 km"', () => {
+    expect(formatOfficialKm(42195, 'marathon', 'fr')).toBe('42,195 km');
+    expect(formatOfficialKm(21097.5, 'half', 'fr')).toBe('21,1 km');
+    expect(formatOfficialKm(10000, '10k', 'fr')).toBe('10 km');
+    expect(formatPlaceKm(3900, 'fr')).toBe('3,9 km');
+    expect(formatPlaceKm(30000, 'en')).toBe('30 km');
+  });
+  it('the bib names the distance once: "10 km", not "10 km · 10,0 km"', () => {
+    expect(formatDistanceLine(10000, '10k', 'fr')).toBe('10 km');
+    expect(formatDistanceLine(21097.5, 'half', 'fr')).toBe('Semi-marathon · 21,1 km');
+    expect(formatDistanceLine(42195, 'marathon', 'en')).toBe('Marathon · 42.195 km');
   });
   it('how far away the next place is: meters to the nearest ten, then kilometres', () => {
     expect(formatDistanceAway(347, 'fr')).toBe('350 m');

@@ -7,19 +7,20 @@ import { t } from '@/i18n';
 import { space } from '@/theme';
 
 /**
- * A demo race only (`race.demoOf`): the whole course heard in about ten minutes, simulated,
- * without GPS. For an organizer at a desk, and for App Review, which cannot run 10 km. The run
- * is stored as a simulation and never ranked.
+ * The whole course heard in about ten minutes, simulated, without GPS. In a demo race
+ * (`race.demoOf`), for an organizer at a desk and for App Review, which cannot run 10 km; and
+ * wherever the rehearsal is offered (`rehearsal`: preview, local, test accounts), to test the
+ * course without running it. The run is stored as a simulation and never ranked.
  */
-export const DemoRun = ({ race, course }: { race: Race; course: Course }) => {
+export const DemoRun = ({ race, course, rehearsal }: { race: Race; course: Course; rehearsal: boolean }) => {
   const router = useRouter();
-  if (!race.demoOf) return null;
+  if (!race.demoOf && !rehearsal) return null;
   const params = { sim: '1', pace: formatPace(DEMO_PACE_S_PER_KM), speed: String(demoSpeedFor(course.distanceM)) };
   return (
     <View style={styles.demo}>
       <Button testID="demo-run" label={t('home.demo', { minutes: DEMO_RUN_MINUTES })} ghost onPress={() => router.push({ pathname: '/run', params })} />
       <Body muted style={styles.note}>
-        {t('home.demo.note')}
+        {race.demoOf ? t('home.demo.note') : t('home.simulate.note')}
       </Body>
     </View>
   );

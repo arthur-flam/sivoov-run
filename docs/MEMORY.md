@@ -592,3 +592,11 @@
     bundle until restarted. Start the shots' Metro by hand without `CI` to iterate.
   - Another worktree's `wrangler dev` held 8788: the rig would have shot that checkout's Worker and
     D1. `SHOTS_API_PORT` (SHOTS.md).
+- 2026-09-29: `npm run shots` failed at sign-in with a Metro whose bundle held only 2 of the 7
+  routes (`/_sitemap` listed run and home; `/signin` was « Unmatched Route »). A stale watchman
+  crawl: `watchman watch-del-all`, then start Metro by hand with `--clear` and
+  `EXPO_PUBLIC_API_URL=http://localhost:8788`. Check `/_sitemap` first when a route is missing.
+- 2026-09-29: react-native-svg `onPress` on a `<G>` works on web (it becomes `onClick`) but its
+  touchable mixin spreads `onResponder*` props onto the DOM (six red « Unknown event handler »
+  errors in dev). Put transparent `Pressable`s over an SVG instead. React Native Web also drops
+  `accessibilityState.selected` on a button; `aria-selected` reaches the DOM.

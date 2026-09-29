@@ -13,6 +13,7 @@ export * from './audioLength';
 export * from './ceremonyChecks';
 export * from './audioEditor';
 export * from './landmarks';
+export * from './coursePlaces';
 export * from './audioEstimates';
 export * from './audioTags';
 export * from './geminiVoice';

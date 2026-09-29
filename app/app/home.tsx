@@ -2,7 +2,7 @@ import { Linking, ScrollView, StyleSheet, View, useWindowDimensions } from 'reac
 import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { daysUntilWindow, distanceLabel, formatKm, formatOfficialTime, windowPhase } from '@sivoov/shared';
+import { daysUntilWindow, distanceLabel, formatDistanceLine, formatOfficialTime, windowPhase } from '@sivoov/shared';
 import { AccountActions } from '@/components/AccountActions';
 import { CourseMap } from '@/components/CourseMap';
 import { DemoRun } from '@/components/DemoRun';
@@ -93,7 +93,7 @@ export default function Home() {
               {entrant.bib}
             </Num>
             <Body style={styles.distance} testID="distance-line">
-              {course ? `${distanceLabel(locale, entrant.distanceKey)} · ${formatKm(course.distanceM, locale, course.distanceKey === 'marathon' ? 3 : 1)}` : distanceLabel(locale, entrant.distanceKey)}
+              {course ? formatDistanceLine(course.distanceM, course.distanceKey, locale) : distanceLabel(locale, entrant.distanceKey)}
             </Body>
             {!best && phase !== 'after' ? (
               <View style={styles.cardActions}>
@@ -145,9 +145,9 @@ export default function Home() {
             </Body>
           </View>
         ) : null}
-        {course ? <DemoRun race={race} course={course} /> : null}
+        {course ? <DemoRun race={race} course={course} rehearsal={me.rehearsal} /> : null}
         {phase === 'after' ? <Button testID="open-results" label={t('home.results')} color={race.theme.primary} onColor={race.theme.onPrimary} onPress={() => openResults(race)} /> : null}
-        {course && track ? <CourseMap courseId={course.id} track={track} landmarks={course.landmarks} officialM={course.distanceM} accent={race.theme.primary} width={width - 2 * space.md - 2} /> : null}
+        {course && track ? <CourseMap courseId={course.id} track={track} landmarks={course.landmarks} officialM={course.distanceM} distanceKey={course.distanceKey} accent={race.theme.primary} onAccent={race.theme.onPrimary} width={width - 2 * space.md - 2} /> : null}
         {race.supportEmail ? (
           <Card>
             <Body muted>{t('home.help')}</Body>

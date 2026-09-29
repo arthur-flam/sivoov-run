@@ -11,6 +11,25 @@ Live: https://run.sivoov.app/deauville-2026 (production), https://preview.run.si
 on 2026-09-27 (below); M2 still needs a real finish. Production has the race and its courses;
 no real entrants yet.
 
+### The course card, lettered; simulation for testers (2026-09-29, branch `claude/course-card-letters`)
+The owner's review of the race home after sign-in. JS only (OTA).
+- **Places are lettered A, B, C** on the map and in the list, so they never read as kilometres.
+  The map also carries small dark kilometre tabs (every km on a 10 km, every 2 on a half, every
+  5 on a marathon, at most 12; `courseKmMarks`), which give way to the places.
+- **Touch to highlight**: a row lights its place on the map (drawn even where it was left off
+  for piling up), a place on the map lights its row; touch again to clear. The taps are
+  transparent views over the map, not SVG handlers (react-native-svg's `onPress` leaks
+  responder props into the DOM on web).
+- The line under « Le parcours » now says what the runner hears, not how it works.
+- Distances: `formatOfficialKm` / `formatPlaceKm` / `formatDistanceLine` in shared (moved from
+  the landing page). The finish row no longer says « 10,000 km », the bib no longer
+  « 10 km · 10,0 km » (« 10 km » alone; « Semi-marathon · 21,1 km »); the finish screen too.
+- **Simulation for testers**: wherever « Faire une répétition » is offered (`me.rehearsal`:
+  preview, local, test accounts), « Écouter la course en 10 minutes » sits under it (the demo
+  race's simulated run), and the run screen accepts `?sim` for them. Simulated runs are stored
+  as such and never counted.
+Seen in the web target (shots `home`, `home-place`; taps checked both ways).
+
 ### The runner's language (2026-09-29, `claude/language`, merged)
 The owner asked for a way to choose the language in the app, French by default and settable by
 the organizer, remembered per runner so the emails follow (the audio stays French for now).

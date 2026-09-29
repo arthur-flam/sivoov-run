@@ -176,14 +176,14 @@ export default function Run() {
     if (!track || !course) return null;
     // Simulation is a development tool (web target, dev client): a release build ignores ?sim,
     // so no deep link can put a made-up finish, with its Share button, on a runner's phone.
-    // A demo race is the exception: its home offers the course in ten minutes (DemoRun), and
-    // its runs are never ranked anyway.
-    if (params.sim && (__DEV__ || race?.demoOf)) {
+    // A demo race is the exception, and so is whoever may rehearse (preview, test accounts):
+    // their home offers the course in ten minutes (DemoRun), and simulated runs are never ranked.
+    if (params.sim && (__DEV__ || race?.demoOf || me?.rehearsal)) {
       const pace = parsePace(params.pace ?? '') ?? 330;
       return simulationSource({ track, targetM: course.distanceM, pace: constantPace(pace), speedFactor: Number(params.speed ?? 1) || 1, noiseM: Number(params.noise ?? 4) });
     }
     return deviceSource();
-  }, [track, course, race?.demoOf, params.sim, params.pace, params.speed, params.noise]);
+  }, [track, course, race?.demoOf, me?.rehearsal, params.sim, params.pace, params.speed, params.noise]);
 
   // A run the app lost (killed, crashed, phone restarted) comes back from its journal and goes
   // on by itself: only the runner's hold-and-confirm ends a run. It waits for the pack (the one

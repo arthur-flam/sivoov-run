@@ -172,6 +172,10 @@ export const scenes: Scene[] = [
       await expect(page.getByTestId('course-map')).toBeVisible();
       await shoot();
       if (await scrollToEnd(page)) await shoot('bottom');
+      // A place touched in the list lights up on the map.
+      await page.locator('[data-testid^="place-"]').nth(2).click();
+      await page.getByTestId('course-map').scrollIntoViewIfNeeded();
+      await shoot('place');
     },
   },
   {

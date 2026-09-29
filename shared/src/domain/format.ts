@@ -1,4 +1,6 @@
+import { distanceLabel } from '../i18n/index';
 import type { Locale } from '../i18n/index';
+import type { DistanceKey } from '../schemas/race';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
@@ -29,6 +31,22 @@ export const formatKm = (meters: number, locale: Locale, digits = 2): string => 
   const km = (meters / 1000).toFixed(digits);
   return `${locale === 'fr' ? km.replace('.', ',') : km} km`;
 };
+
+/** Official distances are written the way runners know them: 42,195 km, 21,1 km, 10 km. */
+const OFFICIAL_DIGITS: Record<DistanceKey, number> = { marathon: 3, half: 1, '10k': 0, '5k': 0 };
+
+/** A course's official distance: "42,195 km", "21,1 km", "10 km". */
+export const formatOfficialKm = (meters: number, key: DistanceKey, locale: Locale): string => formatKm(meters, locale, OFFICIAL_DIGITS[key]);
+
+/** "Semi-marathon · 21,1 km", but "10 km" alone where the name already is the distance. */
+export const formatDistanceLine = (meters: number, key: DistanceKey, locale: Locale): string => {
+  const name = distanceLabel(locale, key);
+  const km = formatOfficialKm(meters, key, locale);
+  return name === km ? name : `${name} · ${km}`;
+};
+
+/** A place along the course: "3,9 km", "30 km". */
+export const formatPlaceKm = (meters: number, locale: Locale): string => formatKm(meters, locale, 1).replace(/[.,]0 km$/, ' km');
 
 /**
  * How far away something is, the way a runner reads it: "350 m" under a kilometre (to the

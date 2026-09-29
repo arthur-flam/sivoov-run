@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Image, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { averagePace, formatClock, formatKm, formatPace } from '@sivoov/shared';
+import { averagePace, formatClock, formatKm, formatOfficialKm, formatPace } from '@sivoov/shared';
 import type { Course, EntrantPublic, FinishOutcome, Race, RunState } from '@sivoov/shared';
 import { Body, Button, Card, Display, Eyebrow, Num } from '@/components/ui';
 import { currentLocale, t } from '@/i18n';
@@ -47,9 +47,8 @@ export const Finish = ({ race, course, entrant, state, outcome, simulation, uplo
     closed: t('finish.closed.body', { date: dateOf(race.windowEnd, race) }),
     incomplete: t('finish.incomplete.body'),
   }[outcome];
-  const km = course.distanceKey === 'marathon' ? 3 : 1;
   const facts = finished
-    ? [formatKm(course.distanceM, currentLocale(), km), `${formatPace(averagePace(state.elapsedMs, course.distanceM))} /km`, `${t('result.bib')} ${entrant.bib}`]
+    ? [formatOfficialKm(course.distanceM, course.distanceKey, currentLocale()), `${formatPace(averagePace(state.elapsedMs, course.distanceM))} /km`, `${t('result.bib')} ${entrant.bib}`]
     : [formatClock(state.elapsedMs), `${formatPace(averagePace(state.elapsedMs, state.distanceM))} /km`, `${t('result.bib')} ${entrant.bib}`];
 
   return (

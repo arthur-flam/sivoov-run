@@ -9,4 +9,6 @@ export interface LocationSource {
   start(onSample: (sample: LocationSample) => void): Promise<void>;
   stop(): Promise<void>;
   now(): number;
+  /** How many seconds of `now()` pass in a real second: a simulation's speed factor, 1 otherwise. */
+  readonly rate?: number;
 }

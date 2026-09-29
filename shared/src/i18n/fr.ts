@@ -291,6 +291,7 @@ export const fr = {
   'run.said.silenced': 'En silence',
   'run.said.replay': 'Réécouter',
   'run.said.close': 'Fermer',
+  'run.caption.hide': 'Masquer le texte',
   'run.voice.title': 'La voix de la course',
   'run.voice.all': 'Tout',
   'run.voice.all.help': 'Toutes les annonces.',
@@ -302,6 +303,7 @@ export const fr = {
   'run.view.follow': 'Coureur',
   'run.view.overview': 'Parcours',
   'run.view.numbers': 'Chiffres',
+  'run.view.reset': 'Remettre la carte dans le sens de la course',
   'location.notification.title': 'Sivoov mesure votre course',
   'location.notification.body': 'La distance continue d’être mesurée, écran verrouillé.',
 

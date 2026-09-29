@@ -41,6 +41,14 @@ export const CloseIcon = ({ size = 20, color }: IconProps) => (
   </Svg>
 );
 
+/** A compass needle, pointing up: which way the map faces. */
+export const NeedleIcon = ({ size = 22, color }: IconProps) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24">
+    <Path d="M12 3l4 9h-8z" fill={color} />
+    <Path d="M12 21l-4-9h8z" fill={color} opacity={0.4} />
+  </Svg>
+);
+
 /** The next place on the course: the diamond the course drawing uses for the finish. */
 export const PlaceIcon = ({ size = 14, color }: IconProps) => (
   <Svg width={size} height={size} viewBox="0 0 14 14">

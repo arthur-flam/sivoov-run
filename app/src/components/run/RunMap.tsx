@@ -2,7 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { followCamera } from '@sivoov/shared';
 import { MAP_STYLE, MAX_FPS, basemapConfig, courseLine, courseMarks, nextCameraPlan, overviewBounds, paint, runnerPoint } from './mapConfig';
-import type { CameraPlan, RunMapProps } from './mapConfig';
+import type { CameraPlan, CameraShot, RunMapProps } from './mapConfig';
 import { sdk } from './mapboxSdk';
 
 /** Whether this build can draw the map at all. */
@@ -15,7 +15,7 @@ export const mapAvailable = sdk !== null;
 const STYLE_TIMEOUT_MS = 6000;
 
 /** The course in 3D, the camera behind the runner or over the whole course (mapConfig.ts). */
-export const RunMap = memo(function RunMap({ token, track, officialM, runM, landmarks, accent, view, light, onFail }: RunMapProps) {
+export const RunMap = memo(function RunMap({ token, track, officialM, runM, landmarks, accent, view, turn, glideMs, light, onFail }: RunMapProps) {
   const [ready, setReady] = useState(false);
   const plan = useRef<CameraPlan | null>(null);
   const styled = useRef(false);
@@ -44,15 +44,14 @@ export const RunMap = memo(function RunMap({ token, track, officialM, runM, land
   const markStep = Math.floor(runM / 50);
   const marks = useMemo(() => courseMarks(track, officialM, landmarks, markStep * 50), [track, officialM, landmarks, markStep]);
   const here = followCamera(track, officialM, runM);
-  plan.current = nextCameraPlan(plan.current, view, here, bounds, Date.now());
+  plan.current = nextCameraPlan(plan.current, view, here, bounds, Date.now(), { turn, glideMs });
   const shot = plan.current.shot;
+  // One set of props per planned shot: the Camera sends the map a move whenever an object in its
+  // props is new, and a move sent again starts over (a fly restarted on every frame never lands).
+  const camera = useMemo(() => cameraFor(shot), [shot]);
 
   if (!sdk || !ready) return <View style={styles.fill} />;
   const { MapView, Camera, StyleImport, ShapeSource, LineLayer, CircleLayer } = sdk;
-  const cameraProps =
-    shot.kind === 'follow'
-      ? { centerCoordinate: shot.center, heading: shot.bearing, pitch: shot.pitch, zoomLevel: shot.zoom }
-      : { bounds: { ne: shot.ne, sw: shot.sw }, heading: 0, pitch: shot.pitch };
 
   return (
     <MapView
@@ -73,13 +72,7 @@ export const RunMap = memo(function RunMap({ token, track, officialM, runM, land
       }}
     >
       <StyleImport id="basemap" existing config={basemapConfig(light)} />
-      <Camera
-        defaultSettings={cameraProps}
-        {...cameraProps}
-        padding={{ paddingTop: shot.padding.top, paddingBottom: shot.padding.bottom, paddingLeft: shot.padding.left, paddingRight: shot.padding.right }}
-        animationMode={shot.mode === 'linear' ? 'linearTo' : 'flyTo'}
-        animationDuration={shot.durationMs}
-      />
+      <Camera defaultSettings={camera.stop} {...camera.stop} padding={camera.padding} animationMode={camera.mode} animationDuration={shot.durationMs} />
       <ShapeSource id="course" shape={line} lineMetrics>
         <LineLayer id="course-casing" slot="middle" style={{ lineColor: colours.casing.color, lineWidth: colours.casing.width, lineOpacity: colours.casing.opacity, lineCap: 'round', lineJoin: 'round' }} />
         <LineLayer
@@ -117,6 +110,15 @@ export const RunMap = memo(function RunMap({ token, track, officialM, runM, land
       </ShapeSource>
     </MapView>
   );
+});
+
+const cameraFor = (shot: CameraShot) => ({
+  stop:
+    shot.kind === 'follow'
+      ? { centerCoordinate: shot.center, heading: shot.bearing, pitch: shot.pitch, zoomLevel: shot.zoom }
+      : { bounds: { ne: shot.ne, sw: shot.sw }, heading: shot.bearing, pitch: shot.pitch },
+  padding: { paddingTop: shot.padding.top, paddingBottom: shot.padding.bottom, paddingLeft: shot.padding.left, paddingRight: shot.padding.right },
+  mode: shot.mode === 'linear' ? ('linearTo' as const) : shot.mode === 'ease' ? ('easeTo' as const) : ('flyTo' as const),
 });
 
 const styles = StyleSheet.create({ fill: { flex: 1 } });

@@ -50,8 +50,9 @@ type RunStore = {
   /**
    * The start ceremony when the pack has one and every line of it has a sound (`soundFor`, or
    * the pack file by key through `uriFor`),
-   * the silent visual countdown otherwise; then the gun. Simulation always takes the short
-   * visual countdown, so accelerated runs stay fast.
+   * the silent visual countdown otherwise; then the gun. A simulation takes the short visual
+   * countdown, so accelerated runs stay fast, unless it asks for the ceremony (`ceremony`: the
+   * course heard in ten minutes, which would otherwise open in silence).
    */
   start: (source: LocationSource, options?: StartOptions) => Promise<void>;
   /**
@@ -82,6 +83,8 @@ type StartOptions = {
   countdownSeconds?: number;
   onLine?: CeremonyHandlers['onLine'];
   entrantId?: string;
+  /** A simulation plays the start ceremony too. */
+  ceremony?: boolean;
 };
 
 const SIM_COUNTDOWN_MS = 1000;
@@ -195,13 +198,13 @@ export const useRun = create<RunStore>((set, get) => {
       set({ course, track, pack, state: idleRun(course.distanceM), phase: 'idle', samples: [], fired: [], nowPlaying: null, cue: null });
     },
 
-    async start(source, { uriFor = () => null, soundFor, countdownSeconds = 5, onLine, entrantId } = {}) {
+    async start(source, { uriFor = () => null, soundFor, countdownSeconds = 5, onLine, entrantId, ceremony: simCeremony = false } = {}) {
       const { course, pack } = get();
       if (!course) throw new Error('prepare() first');
       const mine = ++generation;
       const current = () => generation === mine;
       const resolve = soundFor ?? ((event: AudioEvent) => (event.source.kind === 'file' ? uriFor(event.source.key) : null));
-      const plan = source.kind === 'simulation' ? null : ceremonyPlan(pack, resolve, uriFor);
+      const plan = source.kind === 'simulation' && !simCeremony ? null : ceremonyPlan(pack, resolve, uriFor);
       set({ source, phase: 'countdown', countdown: countdownSeconds, cue: plan ? 'armed' : null, startError: null });
       // The clock starts when the gun file starts playing, not when a timer ends.
       const gunAt = plan ? await playPlan(plan, source, onLine) : null;

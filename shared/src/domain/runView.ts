@@ -43,26 +43,41 @@ export const courseFraction = (track: CourseTrack, officialM: number, runM: numb
   track.totalM > 0 ? trackMetersForRun(track, officialM, runM) / track.totalM : 0;
 
 export type Glide = {
-  /** The distance of the latest fix, official meters. */
+  /** The tracker's distance, official meters. It moves in steps: a few fixes' worth at a time. */
   fixM: number;
-  /** The runner's current speed, m/s (0 when unknown). */
+  /** The runner's speed on the screen's clock, m/s: a simulation's is its own times its rate (0 when unknown). */
   speedMps: number;
-  /** Time since that fix. */
-  sinceFixMs: number;
   /** What the map showed last frame. */
   shownM: number;
+  /** Time since that frame. */
+  dtMs: number;
   /** The course's official distance: the map never goes past the finish. */
   targetM: number;
 };
 
+export type GlideOptions = {
+  /** How quickly the map closes the distance to the tracker, beyond the runner's pace: a time constant, seconds. */
+  catchS?: number;
+  /** How far past the tracker the map may run on at the runner's pace, seconds of running (the tracker lags by a step). */
+  leadS?: number;
+  /** Past this far behind (a run coming back, a phone out of a pocket), the map goes straight there. */
+  snapM?: number;
+};
+
 /**
- * The distance the map shows between two GPS fixes. Fixes arrive once a second; drawn as they
- * come, the camera would lurch forward three meters at a time. Between fixes it carries on at
- * the runner's pace for at most `maxAheadMs`, and it never goes backwards: a slower runner is
- * caught up by waiting, not by reversing. The numbers on screen stay the tracker's own.
+ * The distance the map shows, frame to frame. The tracker's distance moves in steps (it waits
+ * for a few fixes' worth of ground before it counts it, 13 m at a time on a steady run): drawn
+ * as they come, the camera would lurch forward every few seconds, every second in a simulation.
+ * The map carries on at the runner's pace and closes the gap to the tracker gently, never
+ * backwards, never far ahead of it. The numbers on screen stay the tracker's own.
  */
-export const glideDistance = ({ fixM, speedMps, sinceFixMs, shownM, targetM }: Glide, maxAheadMs = 1500): number =>
-  Math.min(targetM, Math.max(shownM, fixM + (Math.max(0, speedMps) * Math.min(Math.max(0, sinceFixMs), maxAheadMs)) / 1000));
+export const glideStep = ({ fixM, speedMps, shownM, dtMs, targetM }: Glide, { catchS = 2, leadS = 5, snapM = 100 }: GlideOptions = {}): number => {
+  if (fixM - shownM > snapM) return Math.min(targetM, fixM);
+  const dt = Math.min(Math.max(0, dtMs), 1000) / 1000;
+  const speed = Math.max(0, speedMps);
+  const next = Math.min(shownM + dt * (speed + (fixM - shownM) / catchS), fixM + speed * leadS);
+  return Math.min(targetM, Math.max(shownM, next));
+};
 
 /** Meters per second from a pace in seconds per kilometre; 0 when there is no pace yet. */
 export const speedFromPace = (secPerKm: number | null): number => (secPerKm && secPerKm > 0 && Number.isFinite(secPerKm) ? 1000 / secPerKm : 0);

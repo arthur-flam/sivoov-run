@@ -1,6 +1,7 @@
 import { ceremonySequence, countdownDigit } from '@sivoov/shared';
 import type { AudioEvent, AudioPack, CueMoment } from '@sivoov/shared';
 import { playSequence } from './player';
+import type { Heard } from './player';
 import { ambiance as sharedAmbiance } from './under';
 import type { Ambiance } from './under';
 
@@ -55,8 +56,8 @@ export type Ceremony = {
   stop: () => void;
 };
 
-/** `onLine`: a line starts or the ceremony falls silent (null), for the caption of what the speaker says. */
-export type CeremonyHandlers = { onCue: (cue: CeremonyCue) => void; onLine?: (line: CeremonyPlan['lines'][number] | null) => void };
+/** `onLine`: a line starts (and how long it is) or the ceremony falls silent (null), for the caption of what the speaker says. */
+export type CeremonyHandlers = { onCue: (cue: CeremonyCue) => void; onLine?: (line: CeremonyPlan['lines'][number] | null, heard?: Heard) => void };
 
 /**
  * Plays the ceremony back to back. Everything is synchronised on file boundaries: the digits
@@ -83,7 +84,7 @@ export const playCeremony = (plan: CeremonyPlan, now: () => number, { onCue, onL
     plan.lines.map((l) => l.uri),
     {
       onStart: (index, remaining, elapsed) => {
-        onLine(plan.lines[index] ?? null);
+        onLine(plan.lines[index] ?? null, { elapsedS: elapsed, remainingS: remaining });
         const under = plan.lines[index]?.under;
         if (under) ticket = ambiance.start(under);
         if (index === plan.countdownIndex) {

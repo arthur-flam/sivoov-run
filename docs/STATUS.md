@@ -11,6 +11,35 @@ Live: https://run.sivoov.app/deauville-2026 (production), https://preview.run.si
 on 2026-09-27 (below); M2 still needs a real finish. Production has the race and its courses;
 no real entrants yet.
 
+### The run screen after the owner's kitchen test (2026-09-29, branch `claude/run-feedback`)
+Six things the owner saw on the phone. JS only (OTA), no native module.
+- **The view moved on the line** (0 GPS, 0 m): the panel under the map grew and shrank with each
+  ceremony line, so the map changed height and the camera's view with it. The panel on the line
+  now has a fixed height (`START_PANEL_H`, about the running panel's: the map is 430 px during the
+  ceremony and 429 after the gun in the web target). Also, the native Camera got new `padding` and
+  `bounds` objects every render, and each one restarted its move: props are now made once per shot.
+- **The simulation stepped every second**: the tracker counts distance in steps (about 13 m, every
+  4-5 fixes), and the map only glided 1.5 s ahead at the runner's own pace, not the simulation's.
+  `glideStep` (shared) now carries on at the pace on the screen's clock (`LocationSource.rate`) and
+  closes the gap to the tracker gently (never backwards, at most 5 s ahead, straight there past
+  100 m). A simulation glides 10 times a second, a real run 4. This fixes real runs too: they
+  were stepping every few seconds.
+- **Audio after a stop**: stopping the run silences the line, the queue and the ambiance under
+  them (the gun's music outlived the run); a live line still downloading is not played. A finish
+  still plays to its end.
+- **No sound until La Concorde** in « Écouter la course en 10 minutes »: simulations skipped the
+  start ceremony, and the Champs-Élysées race says nothing else before 300 m. The demo now plays
+  it (`?ceremony=1`); e2e and screenshot simulations stay silent and fast.
+- **Turning the map**: two fingers twist it, one finger across swings it round the runner (no
+  pan, no zoom); a needle button brings it back to the course's way. Works in every view.
+- **Subtitles**: a cross hides the words over the map until the next line; words longer than
+  the box (three lines over the map, the whole panel on the line) scroll as they are said, timed
+  by the sound's own length.
+- **Pre-flight**: a green check shows its title only; the headphones keep their advice.
+Seen in the web target (sign-in as `lea@example.com`, the Champs demo run: ceremony heard, map
+height stable, caption scrolled and hidden, map turned and reset, stop mid-line silenced it) and
+`npm run shots`. Not yet on a phone.
+
 ### The course card, lettered; simulation for testers (2026-09-29, branch `claude/course-card-letters`)
 The owner's review of the race home after sign-in. JS only (OTA).
 - **Places are lettered A, B, C** on the map and in the list, so they never read as kilometres.

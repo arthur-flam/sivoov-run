@@ -282,6 +282,15 @@ describe('the start ceremony', () => {
     expect(useRun.getState().phase).toBe('running');
     expect(players).toEqual([]);
   });
+
+  it('plays the ceremony in a simulation that asks for it: the course heard in ten minutes opens with its start', async () => {
+    const source = simulationSource({ track, targetM: 5500, pace: constantPace(300), speedFactor: 5, noiseM: 0 });
+    const started = useRun.getState().start(source, { uriFor, ceremony: true });
+    expect(useRun.getState()).toMatchObject({ phase: 'countdown', cue: 'armed' });
+    expect(playing('file://intro.mp3')).toBeDefined();
+    useRun.getState().reset();
+    await started;
+  });
 });
 
 /** A device-like source that hands the run fixes the test decides, on the wall clock. */

@@ -29,6 +29,7 @@ export const simulationSource = (config: SimulationConfig): LocationSource => {
   return {
     kind: 'simulation',
     now,
+    rate: speedFactor,
     async start(onSample) {
       const gen = simulateSamples({
         track: config.track,

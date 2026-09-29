@@ -282,6 +282,7 @@ export const en: Record<keyof typeof fr, string> = {
   'run.said.silenced': 'Muted',
   'run.said.replay': 'Play again',
   'run.said.close': 'Close',
+  'run.caption.hide': 'Hide the text',
   'run.voice.title': 'The race voice',
   'run.voice.all': 'Everything',
   'run.voice.all.help': 'Every announcement.',
@@ -293,6 +294,7 @@ export const en: Record<keyof typeof fr, string> = {
   'run.view.follow': 'Runner',
   'run.view.overview': 'Course',
   'run.view.numbers': 'Numbers',
+  'run.view.reset': 'Turn the map back to the way of the course',
   'location.notification.title': 'Sivoov is measuring your run',
   'location.notification.body': 'Distance keeps being measured with the screen locked.',
 

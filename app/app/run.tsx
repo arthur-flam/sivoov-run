@@ -22,6 +22,7 @@ import { Stage } from '@/components/run/Stage';
 import { StartPanel } from '@/components/run/StartPanel';
 import { StatusChips } from '@/components/run/StatusChips';
 import { StopConfirm } from '@/components/run/StopConfirm';
+import { glideMsFor, normalizeTurn } from '@/components/run/mapConfig';
 import { Body, Screen } from '@/components/ui';
 import { useCaption } from '@/hooks/useCaption';
 import { useGlide } from '@/hooks/useGlide';
@@ -87,7 +88,7 @@ export default function Run() {
   const locale = useLocale();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ sim?: string; pace?: string; speed?: string; noise?: string }>();
+  const params = useLocalSearchParams<{ sim?: string; pace?: string; speed?: string; noise?: string; ceremony?: string }>();
   const me = useSession((s) => s.me);
   const course = me?.course ?? null;
   const race = me?.race ?? null;
@@ -112,8 +113,12 @@ export default function Run() {
   // Kept on the phone quietly, in case the race home had no signal: nothing to show the runner.
   useMapDownload(course?.id ?? null, track, mapToken);
   const light = useLight(track);
-  const glided = useGlide(run.state, run.phase === 'running' && onScreen);
   const ceremonyLine = useRef<string | null>(null);
+  // The map as the runner turned it by hand, and the one line whose words they hid.
+  const [turn, setTurn] = useState(0);
+  const onTurn = useCallback((deg: number) => setTurn((was) => normalizeTurn(was + deg)), []);
+  const onResetTurn = useCallback(() => setTurn(0), []);
+  const [hiddenLine, setHiddenLine] = useState<string | null>(null);
 
   useEffect(() => {
     void usePrefs.getState().load();
@@ -184,6 +189,7 @@ export default function Run() {
     }
     return deviceSource();
   }, [track, course, race?.demoOf, me?.rehearsal, params.sim, params.pace, params.speed, params.noise]);
+  const glided = useGlide(run.state, run.phase === 'running' && onScreen, source?.rate ?? 1);
 
   // A run the app lost (killed, crashed, phone restarted) comes back from its journal and goes
   // on by itself: only the runner's hold-and-confirm ends a run. It waits for the pack (the one
@@ -247,7 +253,7 @@ export default function Run() {
   const topInset = insets.top + 132;
 
   // Each line of the start ceremony as it plays: its words on screen and in the list.
-  const onLine: CeremonyHandlers['onLine'] = (line) => {
+  const onLine: CeremonyHandlers['onLine'] = (line, heard) => {
     const saidNow = useSaid.getState();
     if (!line) {
       if (saidNow.speaking === ceremonyLine.current) saidNow.setSpeaking(null);
@@ -256,14 +262,32 @@ export default function Run() {
     ceremonyLine.current = line.event.id;
     saidNow.add({ key: `cue:${line.event.id}`, event: line.event, text: captionFor(line.event, usePackStore.getState().captions), distanceM: 0, elapsedMs: 0, sound: 'heard', uri: line.uri, at: Date.now() });
     saidNow.setSpeaking(line.event.id);
+    if (heard) saidNow.setHeard(line.event.id, heard);
   };
-  const start = () => void run.start(source, { soundFor: usePackStore.getState().soundFor, uriFor: usePackStore.getState().uriFor, onLine, entrantId: me?.entrant.id });
+  const start = () =>
+    void run.start(source, { soundFor: usePackStore.getState().soundFor, uriFor: usePackStore.getState().uriFor, onLine, entrantId: me?.entrant.id, ceremony: params.ceremony === '1' });
+  const captionShown = caption.line && caption.line.key !== hiddenLine ? caption.line : null;
 
   return (
     <View style={styles.screen}>
       <StatusBar style="light" />
       <View style={styles.stage}>
-        <Stage token={mapShown ? mapToken : null} track={track} course={course} runM={glided} accent={accent} view={view} light={light} failed={mapFailed} onFail={onMapFail} topInset={topInset} />
+        <Stage
+          token={mapShown ? mapToken : null}
+          track={track}
+          course={course}
+          runM={glided}
+          accent={accent}
+          view={view}
+          light={light}
+          failed={mapFailed}
+          onFail={onMapFail}
+          topInset={topInset}
+          turn={turn}
+          glideMs={glideMsFor(source.rate ?? 1)}
+          onTurn={onTurn}
+          onResetTurn={onResetTurn}
+        />
         <View style={[styles.chips, { paddingTop: insets.top + space.sm }]}>
           <StatusChips race={race.theme.displayName} gps={phase === 'running' ? gpsSignal(run.samples[run.samples.length - 1] ?? null, (run.source ?? source).now()) : null} simulation={simulation && phase !== 'idle'} />
         </View>
@@ -274,7 +298,7 @@ export default function Run() {
         ) : null}
         {phase === 'running' ? (
           <View style={[styles.caption, { top: insets.top + 56 }]}>
-            <Caption line={caption.line} speaking={caption.speaking} onPress={() => setSheet('said')} />
+            <Caption line={captionShown} speaking={caption.speaking} timing={caption.timing} onPress={() => setSheet('said')} onHide={() => setHiddenLine(caption.line?.key ?? null)} />
           </View>
         ) : null}
       </View>
@@ -305,7 +329,7 @@ export default function Run() {
             onStop={() => void run.stop()}
           />
         ) : phase === 'countdown' ? (
-          <StartPanel cue={run.cue === 'armed' ? 'armed' : 'digits'} who={`${me?.entrant.firstName ?? ''} · ${courseLabel(course)}`} line={caption.line} speaking={caption.speaking} />
+          <StartPanel cue={run.cue === 'armed' ? 'armed' : 'digits'} who={`${me?.entrant.firstName ?? ''} · ${courseLabel(course)}`} line={caption.line} speaking={caption.speaking} timing={caption.timing} />
         ) : (
           <LivePanel
             state={state}

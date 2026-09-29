@@ -32,24 +32,36 @@ export const captionFor = (event: AudioEvent, own: Record<string, string>): stri
 /** How a fired line sounds at the runner's level, given the sound it would play. */
 export const soundOf = (level: VoiceLevel, event: AudioEvent, uri: string | null): SaidLine['sound'] => (!audibleAt(level, event) ? 'silenced' : uri ? 'heard' : 'silent');
 
+/** Where the speaking line's sound is, on the phone's clock: when it began and how long it lasts. */
+export type SpeechTiming = { startedAt: number; durationMs: number };
+
 type SaidStore = {
   lines: SaidLine[];
   /** The event whose sound is playing now, or null between lines. */
   speaking: string | null;
+  /** The speaking line's timing, once its sound is heard (null before, and between lines). */
+  timing: SpeechTiming | null;
   add: (line: SaidLine) => void;
   /** A live line's own words and sound arrive after it fired. */
   update: (key: string, patch: Partial<Pick<SaidLine, 'text' | 'uri' | 'sound'>>) => void;
   setSpeaking: (eventId: string | null) => void;
+  /** The speaking line's sound started, `heard` seconds in with `remaining` to go. */
+  setHeard: (eventId: string, heard: { elapsedS: number; remainingS: number }) => void;
   reset: () => void;
 };
 
 export const useSaid = create<SaidStore>((set, get) => ({
   lines: [],
   speaking: null,
+  timing: null,
   add: (line) => set({ lines: [...get().lines.filter((l) => l.key !== line.key), line] }),
   update: (key, patch) => set({ lines: get().lines.map((l) => (l.key === key ? { ...l, ...patch } : l)) }),
-  setSpeaking: (speaking) => set({ speaking }),
-  reset: () => set({ lines: [], speaking: null }),
+  setSpeaking: (speaking) => set(speaking === get().speaking ? { speaking } : { speaking, timing: null }),
+  setHeard: (eventId, { elapsedS, remainingS }) => {
+    if (get().speaking !== eventId) return;
+    set({ timing: { startedAt: Date.now() - elapsedS * 1000, durationMs: (elapsedS + remainingS) * 1000 } });
+  },
+  reset: () => set({ lines: [], speaking: null, timing: null }),
 }));
 
 /** How long a line with no sound stays on screen, and how long a spoken one lingers after its sound. */

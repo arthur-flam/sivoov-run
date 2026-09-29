@@ -67,18 +67,21 @@ const STYLE_TIMEOUT_MS = 12_000;
  */
 const apply = (map: GlMap, shot: CameraShot, durationMs = shot.durationMs) => {
   if (shot.kind === 'overview') {
-    const fit = { pitch: shot.pitch, bearing: 0, padding: shot.padding };
+    const fit = { pitch: shot.pitch, bearing: shot.bearing, padding: shot.padding };
     const cam = map.cameraForBounds([shot.sw, shot.ne], fit);
     if (!cam || durationMs === 0) return map.fitBounds([shot.sw, shot.ne], { ...fit, duration: durationMs });
-    map.flyTo({ ...fit, center: cam.center, zoom: cam.zoom, duration: durationMs, essential: true });
+    const move = { ...fit, center: cam.center, zoom: cam.zoom, duration: durationMs, essential: true };
+    if (shot.mode === 'ease') map.easeTo(move);
+    else map.flyTo(move);
     return;
   }
   const camera = { center: shot.center, bearing: shot.bearing, pitch: shot.pitch, zoom: shot.zoom, padding: shot.padding };
   if (shot.mode === 'linear' || durationMs === 0) map.jumpTo(camera);
+  else if (shot.mode === 'ease') map.easeTo({ ...camera, duration: durationMs, essential: true });
   else map.flyTo({ ...camera, duration: durationMs, essential: true });
 };
 
-export const RunMap = memo(function RunMap({ token, track, officialM, runM, landmarks, accent, view, light, onFail }: RunMapProps) {
+export const RunMap = memo(function RunMap({ token, track, officialM, runM, landmarks, accent, view, turn, glideMs, light, onFail }: RunMapProps) {
   const host = useRef<View>(null);
   const map = useRef<GlMap | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -89,7 +92,7 @@ export const RunMap = memo(function RunMap({ token, track, officialM, runM, land
   const markStep = Math.floor(runM / 50);
   const marks = useMemo(() => courseMarks(track, officialM, landmarks, markStep * 50), [track, officialM, landmarks, markStep]);
   const here = followCamera(track, officialM, runM);
-  plan.current = nextCameraPlan(plan.current, view, here, bounds, Date.now());
+  plan.current = nextCameraPlan(plan.current, view, here, bounds, Date.now(), { turn, glideMs });
 
   useEffect(() => {
     let live = true;

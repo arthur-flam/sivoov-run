@@ -4,11 +4,13 @@ import type { AudioEvent } from '@sivoov/shared';
 
 /** expo-audio at the boundary: one fake player per file played. */
 const played: string[] = [];
+/** The files whose player was let go: a line cut off, or silenced. */
+const released: string[] = [];
 vi.mock('expo-audio', () => ({
   setAudioModeAsync: async () => undefined,
   createAudioPlayer: ({ uri }: { uri: string }) => {
     played.push(uri);
-    return { play: () => undefined, remove: () => undefined, addListener: () => undefined, removeAllListeners: () => undefined };
+    return { play: () => undefined, remove: () => released.push(uri), addListener: () => undefined, removeAllListeners: () => undefined };
   },
 }));
 vi.mock('@/stores/session', () => ({ useSession: { getState: () => ({ token: null }) } }));
@@ -28,6 +30,7 @@ vi.mock('./packStore', () => ({
   },
 }));
 
+const { idleRun, startRun } = await import('@sivoov/shared');
 const { useRun } = await import('@/stores/run');
 const { useSaid } = await import('./said');
 const { bindPlayback, releasePlayback, screenMounted, screenUnmounted } = await import('./playback');
@@ -42,6 +45,7 @@ const listed = () => useSaid.getState().lines.map((l) => l.key);
 describe('the run’s voice', () => {
   beforeEach(() => {
     played.length = 0;
+    released.length = 0;
     useSaid.getState().reset();
     useRun.setState({ pack, fired: [], phase: 'running' });
   });
@@ -92,5 +96,23 @@ describe('the run’s voice', () => {
     useRun.setState({ phase: 'running' });
     fire(fired('planches'));
     expect(played).toEqual([]);
+  });
+
+  it('falls silent at once when the runner stops the run', () => {
+    bindPlayback();
+    const running = startRun(idleRun(10_000), 0);
+    useRun.setState({ state: running });
+    fire(fired('planches'));
+    useRun.setState({ phase: 'finished', state: { ...running, phase: 'abandoned' } });
+    expect(released).toEqual(['file://planches.mp3']);
+  });
+
+  it('lets the finish line play to its end', () => {
+    bindPlayback();
+    const running = startRun(idleRun(10_000), 0);
+    useRun.setState({ state: running });
+    fire(fired('planches'));
+    useRun.setState({ phase: 'finished', state: { ...running, phase: 'finished' } });
+    expect(released).toEqual([]);
   });
 });

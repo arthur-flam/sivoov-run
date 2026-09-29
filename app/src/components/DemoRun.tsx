@@ -15,7 +15,8 @@ import { space } from '@/theme';
 export const DemoRun = ({ race, course, rehearsal }: { race: Race; course: Course; rehearsal: boolean }) => {
   const router = useRouter();
   if (!race.demoOf && !rehearsal) return null;
-  const params = { sim: '1', pace: formatPace(DEMO_PACE_S_PER_KM), speed: String(demoSpeedFor(course.distanceM)) };
+  // The start ceremony too: a race heard without its start would open in silence.
+  const params = { sim: '1', ceremony: '1', pace: formatPace(DEMO_PACE_S_PER_KM), speed: String(demoSpeedFor(course.distanceM)) };
   return (
     <View style={styles.demo}>
       <Button testID="demo-run" label={t('home.demo', { minutes: DEMO_RUN_MINUTES })} ghost onPress={() => router.push({ pathname: '/run', params })} />

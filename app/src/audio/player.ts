@@ -116,12 +116,20 @@ export type EventPlayer = {
   stop: () => void;
 };
 
+/** Where a file is once it sounds: seconds played, seconds to go. */
+export type Heard = { elapsedS: number; remainingS: number };
+
 /**
  * Plays queued events one at a time, each as a sequence of one file; the queue module decides
  * order and interruptions. A file that fails is skipped: one bad file must not silence the
- * rest of the race. An event's ambiance starts when the event does and outlives it.
+ * rest of the race. An event's ambiance starts when the event does and outlives it. `onHeard`:
+ * the current item's file started sounding, and how long it is (the caption scrolls with it).
  */
-export const createEventPlayer = (onChange: (current: QueueItem | null) => void = () => undefined, ambiance: Ambiance = sharedAmbiance): EventPlayer => {
+export const createEventPlayer = (
+  onChange: (current: QueueItem | null) => void = () => undefined,
+  ambiance: Ambiance = sharedAmbiance,
+  onHeard: (item: QueueItem, heard: Heard) => void = () => undefined,
+): EventPlayer => {
   let queue: Queue = emptyQueue();
   let playing: Sequence | null = null;
 
@@ -132,7 +140,7 @@ export const createEventPlayer = (onChange: (current: QueueItem | null) => void 
     onChange(item);
     if (!item) return;
     if (item.under) ambiance.start(item.under);
-    playing = playSequence([item.uri], { onDone: next, onFail: next });
+    playing = playSequence([item.uri], { onStart: (_, remainingS, elapsedS) => onHeard(item, { elapsedS, remainingS }), onDone: next, onFail: next });
   };
 
   const next = () => {

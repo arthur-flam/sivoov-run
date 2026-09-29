@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { LandmarkSchema } from '../schemas/course';
 import { buildTrack } from './course';
 import { destination } from './geo';
-import { aheadOf, courseFraction, followCamera, glideDistance, gpsSignal, lightPresetAt, paddedBounds, speedFromPace, sunElevation } from './runView';
+import { aheadOf, courseFraction, followCamera, glideStep, gpsSignal, lightPresetAt, paddedBounds, speedFromPace, sunElevation } from './runView';
 
 const start = { lat: 49.36, lng: 0.07 };
 /** 1 km due east, then 1 km due north: one clean right-angle turn at 1 000 m. */
@@ -40,23 +40,54 @@ describe('the camera behind the runner', () => {
   });
 });
 
-describe('the map between two fixes', () => {
-  const glide = { fixM: 1000, speedMps: 3, sinceFixMs: 500, shownM: 0, targetM: 42195 };
+describe('the map between two steps of the tracker', () => {
+  const glide = { fixM: 1000, speedMps: 3, shownM: 1000, dtMs: 250, targetM: 42195 };
+  /** Frames of `dtMs` over a tracker that counts `stepM` at a time at `speedMps`: every frame's move. */
+  const frames = (speedMps: number, stepM: number, seconds: number, dtMs = 250) => {
+    const steps = Array.from({ length: (seconds * 1000) / dtMs }, (_, i) => ((i + 1) * dtMs) / 1000);
+    return steps.reduce<{ shown: number; moves: number[] }>(
+      (acc, t) => {
+        const fixM = Math.floor((speedMps * t) / stepM) * stepM;
+        const shown = glideStep({ fixM, speedMps, shownM: acc.shown, dtMs, targetM: 42195 });
+        return { shown, moves: [...acc.moves, shown - acc.shown] };
+      },
+      { shown: 0, moves: [] },
+    );
+  };
 
-  it('carries on at the runner’s pace after the last fix', () => {
-    expect(glideDistance(glide)).toBeCloseTo(1001.5, 5);
+  it('carries on at the runner’s pace after the last step', () => {
+    expect(glideStep(glide)).toBeCloseTo(1000.75, 5);
   });
 
-  it('never runs ahead of the last fix by more than a second and a half of running', () => {
-    expect(glideDistance({ ...glide, sinceFixMs: 60_000 })).toBeCloseTo(1004.5, 5);
+  it('glides over a tracker that counts 13 m at a time instead of jumping with it', () => {
+    const run = frames(3.25, 13, 60);
+    expect(Math.max(...run.moves)).toBeLessThan(2);
+    expect(Math.min(...run.moves)).toBeGreaterThanOrEqual(0);
+    expect(run.shown).toBeGreaterThan(3.25 * 60 - 15);
   });
 
-  it('never goes backwards when a fix says the runner slowed', () => {
-    expect(glideDistance({ ...glide, fixM: 999, sinceFixMs: 0, shownM: 1003 })).toBe(1003);
+  it('glides a simulation five times faster than life the same way', () => {
+    const run = frames(16.7, 13, 20);
+    expect(Math.max(...run.moves)).toBeLessThan(8);
+    expect(run.shown).toBeGreaterThan(16.7 * 20 - 25);
+  });
+
+  it('never runs ahead of the tracker by more than five seconds of running', () => {
+    const shown = Array.from({ length: 80 }).reduce<number>((m) => glideStep({ ...glide, shownM: m }), 1000);
+    expect(shown).toBeGreaterThan(1004);
+    expect(shown).toBeLessThanOrEqual(1015);
+  });
+
+  it('never goes backwards when the tracker says the runner slowed', () => {
+    expect(glideStep({ ...glide, fixM: 999, speedMps: 0, shownM: 1003 })).toBe(1003);
+  });
+
+  it('goes straight to a run far ahead of it (a run coming back)', () => {
+    expect(glideStep({ ...glide, fixM: 5000 })).toBe(5000);
   });
 
   it('stops at the finish line', () => {
-    expect(glideDistance({ ...glide, fixM: 42194, targetM: 42195 })).toBe(42195);
+    expect(glideStep({ ...glide, fixM: 42195, shownM: 42194.9 })).toBe(42195);
   });
 
   it('reads a speed from a pace, none from no pace', () => {

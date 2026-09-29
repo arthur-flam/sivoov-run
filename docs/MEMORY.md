@@ -600,3 +600,18 @@
   touchable mixin spreads `onResponder*` props onto the DOM (six red « Unknown event handler »
   errors in dev). Put transparent `Pressable`s over an SVG instead. React Native Web also drops
   `accessibilityState.selected` on a button; `aria-selected` reaches the DOM.
+- 2026-09-29: the owner's kitchen test of the run screen. Worth knowing next time:
+  - The tracker's distance moves in steps (about 13 m every 4-5 fixes on a steady run, from the
+    accuracy-scaled minimum step): anything drawn from `state.distanceM` stairsteps. Draw from
+    `glideStep`, which is fed the pace times the source's `rate`.
+  - rnmapbox `Camera` rebuilds its native stop whenever `padding`, `bounds` or `centerCoordinate`
+    is a new object, and every stop restarts the move: a `flyTo` re-sent each render never lands.
+    Build the props once per planned shot (`useMemo` on the shot).
+  - The map's height is the screen minus the panel: any panel whose height follows text moves
+    the camera's view. Keep panels over a map at a fixed height.
+  - React Native Web renders `Pressable` as `<button>`: a Pressable inside another logs « <button>
+    cannot contain a nested <button> ». Make them siblings.
+  - PanResponder: at grant, `g.dx` already holds the move that crossed the slop, and a quick drag
+    can be that one move: count a drag from `dx = 0` at grant, or it is lost.
+  - The browser pane's console keeps errors from before a reload: check their component stack.
+

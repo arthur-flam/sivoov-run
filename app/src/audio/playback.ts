@@ -36,11 +36,14 @@ const playRecord = (player: EventPlayer, pack: AudioPack, state: RunState, recor
   }
   void liveSound(pack, event, state, useSession.getState().token).then((live) => {
     const uri = live?.url ?? offline;
-    if (!uri || useRun.getState().pack !== pack) return;
+    if (!uri || useRun.getState().pack !== pack || stoppedByRunner(useRun.getState().state)) return;
     if (live) useSaid.getState().update(record.key, { uri, sound: 'heard', ...(live.caption ? { text: live.caption } : {}) });
     player.play(event, uri, under);
   });
 };
+
+/** The runner ended the run before the line: nothing more is said (a finish still is, to its end). */
+const stoppedByRunner = (state: RunState): boolean => state.phase === 'abandoned';
 
 type Binding = { player: EventPlayer; unsubscribe: () => void };
 
@@ -58,7 +61,11 @@ let screens = 0;
  */
 export const bindPlayback = (): void => {
   if (binding) return;
-  const player = createEventPlayer((item) => useSaid.getState().setSpeaking(item?.event.id ?? null));
+  const player = createEventPlayer(
+    (item) => useSaid.getState().setSpeaking(item?.event.id ?? null),
+    undefined,
+    (item, heard) => useSaid.getState().setHeard(item.event.id, heard),
+  );
   void configureAudioSession();
   const unsubscribe = useRun.subscribe((s, prev) => {
     if (s.phase === 'countdown' && prev.phase === 'idle') resetLiveLines();
@@ -69,6 +76,8 @@ export const bindPlayback = (): void => {
         .filter((record) => !silent(record))
         .forEach((record) => playRecord(player, pack, s.state, record));
     }
+    // Stopped by the runner: the voice and the music under it stop with the run.
+    if (s.phase === 'finished' && prev.phase !== 'finished' && stoppedByRunner(s.state)) player.stop();
     if (s.phase === 'idle' && prev.phase !== 'idle') {
       player.stop();
       if (screens === 0) releasePlayback();

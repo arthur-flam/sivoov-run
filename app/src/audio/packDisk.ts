@@ -28,9 +28,9 @@ const native = () => Platform.OS !== 'web';
 /** Imported once: the pack and the runner's lines are looked for side by side. */
 let fsModule: Promise<typeof FileSystem> | null = null;
 
-const folder = async (dir: string[]) => {
+const folder = async (dir: string[], base: 'document' | 'cache' = 'document') => {
   const fs = await (fsModule ??= import('expo-file-system'));
-  const d = new fs.Directory(fs.Paths.document, ...dir);
+  const d = new fs.Directory(base === 'document' ? fs.Paths.document : fs.Paths.cache, ...dir);
   if (!d.exists) d.create({ intermediates: true });
   return { fs, d };
 };
@@ -71,6 +71,20 @@ export const download = async (dir: string[], wanted: Wanted[]): Promise<Record<
     }),
   );
   return Object.fromEntries(entries.filter((e): e is [string, string] => e !== null));
+};
+
+/**
+ * A live line's file on the phone within `ms` (what is left of the live line's budget), or a
+ * rejection. Streamed, a signal that drops mid-line would leave the player waiting, then the
+ * line unsaid. In the cache dir: a live line is said once. On the web, the url.
+ */
+export const liveFile = async (url: string, ms: number): Promise<string> => {
+  if (!native()) return url;
+  if (ms <= 0) throw new Error('timeout');
+  const { fs, d } = await folder(['live'], 'cache');
+  const file = new fs.File(d, url.split('/').pop() || 'live.mp3');
+  if (file.exists) file.delete();
+  return (await withDeadline(fs.File.downloadFileAsync(url, file), ms)).uri;
 };
 
 /** What a cold start needs to play the race with no network: the manifest and the runner's own lines. */

@@ -5,7 +5,8 @@ import { averagePace, formatClock, formatKm, formatOfficialKm, formatPace, raceR
 import type { Course, EntrantPublic, FinishOutcome, Race, RunState } from '@sivoov/shared';
 import { Body, Button, Card, Display, Eyebrow, Num } from '@/components/ui';
 import { currentLocale, t } from '@/i18n';
-import { openCertificate, reportImageUrl, shareFinish } from '@/share';
+import { openCertificate, openPhotos, reportImageUrl, shareFinish } from '@/share';
+import { useSession } from '@/stores/session';
 import type { UploadStatus } from '@/stores/uploads';
 import { fonts, space } from '@/theme';
 
@@ -17,6 +18,8 @@ type Props = {
   outcome: FinishOutcome;
   simulation: boolean;
   uploadStatus: UploadStatus;
+  /** How many photo moments the runner's course has: the finish offers their photos page when there are some. */
+  photoMoments: number;
   onHome: () => void;
   onDiagnostics: () => void;
 };
@@ -29,7 +32,8 @@ const dateOf = (iso: string, race: Race) => new Intl.DateTimeFormat(currentLocal
  * results. Built from the existing components; the organizer's medal photo shows when the race
  * theme has one.
  */
-export const Finish = ({ race, course, entrant, state, outcome, simulation, uploadStatus, onHome, onDiagnostics }: Props) => {
+export const Finish = ({ race, course, entrant, state, outcome, simulation, uploadStatus, photoMoments, onHome, onDiagnostics }: Props) => {
+  const token = useSession((s) => s.token);
   const finished = outcome !== 'incomplete';
   useEffect(() => {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(finished ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning).catch(() => undefined);
@@ -104,6 +108,15 @@ export const Finish = ({ race, course, entrant, state, outcome, simulation, uplo
             {t('finish.images.hint')}
           </Body>
         </>
+      ) : null}
+      {finished && photoMoments > 0 ? (
+        <Card dark>
+          <Body dark>{t('finish.photos.title')}</Body>
+          <Body dark muted>
+            {t('finish.photos.body')}
+          </Body>
+          <Button testID="open-photos" label={t('photos.cta')} ghost dark onPress={() => void openPhotos(race, token)} />
+        </Card>
       ) : null}
       <Body dark muted testID="upload-status">
         {uploadStatus === 'sent' ? t('upload.sent') : t('upload.pending')}

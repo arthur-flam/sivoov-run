@@ -11,6 +11,24 @@ Live: https://run.sivoov.app/deauville-2026 (production), https://preview.run.si
 on 2026-09-27 (below); M2 still needs a real finish. Production has the race and its courses;
 no real entrants yet.
 
+### Race photos: the runner put into their race (2026-09-29, branch `claude/post-run-share-image-8iw9d6`)
+The owner's idea: ask runners for a selfie or two, at chosen moments, and have an image model put
+them into the virtual race; organizers upload pictures of the places. JS and Worker only (OTA),
+no native module (the camera is the phone's own; the upload is a web page).
+- **Photo moments** (admin « Photos »): a title, where (start, a place of the course, finish),
+  what the runner is asked, the scene for the model, up to three photos of the place.
+  « Essayer avec votre photo » renders the organizer's own selfie into it, kept nowhere.
+  Seeded on local and preview: Deauville (Les Planches, the finish), Champs-Élysées (the Arc, the finish).
+- **During the run** the chip over the map reads « Moment photo : Sur les Planches » for 500 m.
+  The organizer can add a voice line at the same place in the studio (not automatic).
+- **After** (the finish screen's « Mes photos de course », opened signed in by a one-use link, or
+  `/{race}/photos`): a selfie per moment, agreement ticked, 20-40 s later the picture: download,
+  share, « Montrer sur ma page » (then on the public result page, « En course »), up to three versions.
+  Private by default; « Supprimer mes données » erases selfies and pictures; privacy page updated.
+Seen in `npm run shots` (`photos`, `org-photos`, `run-finished`) with the local stand-in (the
+selfie comes back as the picture: no key in the container). 15 API tests with Gemini stubbed.
+**Never run against the real model**: Owner actions.
+
 ### The race report, the share cards and the share page (2026-09-29, branch `claude/post-run-share-image-8iw9d6`)
 The owner's brief: a share image like the Berlin Marathon's race report, a flow that makes
 people proud to share and makes whoever sees it want to run. JS and Worker only (OTA).
@@ -325,6 +343,15 @@ Anchored to PRD milestones (M2 10 Oct, M3 17 Oct, M4 31 Oct).
     holding their language, devices and history; today each entry signs in on its own.
 
 ## Owner actions
+
+- **Share cards and race photos** (this branch): run migration `0009_photos.sql` before the
+  Worker (`npx wrangler d1 migrations apply sivoov-run --remote --env preview`, then without
+  `--env` for production, then deploy). Set `BROWSER_RENDERING_TOKEN` (below) or no report PNG
+  ever exists. Check the Google AI Studio key's tier allows `gemini-2.5-flash-image` (not checked from here;
+  roughly 0.04 USD a picture at list price, three at most per runner and moment), then on
+  preview: `/org/deauville-2026/photos` → « Essayer avec votre photo » is the first real render.
+  Then add real photos of the places (the organizer's) to each moment. A newer model is the
+  `GEMINI_IMAGE_MODEL` var.
 
 - **Runner language** (merged 2026-09-29): production needs its migration first, then the Worker: `npx wrangler d1 migrations apply sivoov-run --remote && npx wrangler deploy`
   from `api/` (same for preview with `--env preview`). The app part is JS only (OTA).

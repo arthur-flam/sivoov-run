@@ -7,7 +7,7 @@ import { ROLE_LABELS } from './format';
 import { Icon } from './ui';
 import type { IconName } from './ui';
 
-export type NavKey = 'home' | 'runners' | 'runs' | 'courses' | 'settings' | 'team';
+export type NavKey = 'home' | 'runners' | 'runs' | 'courses' | 'photos' | 'settings' | 'team';
 
 type NavItem = { key: NavKey; label: string; icon: IconName; path: string; needs: OrgAction };
 
@@ -17,6 +17,7 @@ export const NAV: NavItem[] = [
   { key: 'runners', label: 'Coureurs', icon: 'runners', path: '/runners', needs: 'view' },
   { key: 'runs', label: 'Activités', icon: 'activity', path: '/runs', needs: 'view' },
   { key: 'courses', label: 'Parcours et annonces', icon: 'audio', path: '/courses', needs: 'view' },
+  { key: 'photos', label: 'Photos', icon: 'camera', path: '/photos', needs: 'view' },
   { key: 'team', label: 'Équipe', icon: 'team', path: '/team', needs: 'manage_team' },
   { key: 'settings', label: 'Réglages', icon: 'settings', path: '/settings', needs: 'edit_race' },
 ];

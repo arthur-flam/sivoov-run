@@ -56,6 +56,9 @@ audio_pack    course_id, version, manifest(json) → R2 objects (mp3), downloade
 audio_script  course_id, locale, version, script(json: lines with their French text + voice),
               updated_at                 (the organizer studio's draft; version = next publish)
 organizer     race_id, email, role(owner|editor|viewer), name, invited_by   (race team)
+photo_moment  race_id, title, at (start|finish|a landmark id), ask, scene, refs(json: R2 keys of the place's photos), sort
+runner_photo  entrant_id, moment_id, selfie_key (R2, private), status(rendering|done|failed), result_key, attempts (3 max), shown
+web_link      code_hash, entrant_id, expires_at, used_at   (the app opens a web page signed in, once, 5 min)
 admin_session email, token_hash, expires_at    (one organizer sign-in for every race; codes in admin_codes)
 lead          name, email, race, message, locale, handled_at   (the /organisateurs contact form)
 ```
@@ -82,6 +85,20 @@ Rows are validated by zod schemas in `shared/schemas/` on the way in and out of 
   `cards/`. They are the `og:image` of the landing and result pages; without the token the
   preview is the Mapbox course map. `/{race}/upload`: GPX fallback behind the web session, judged by
   the app's tracker (`evaluateUpload` in `shared/`), stored as a run with `source: upload`.
+- `/{race}/photos`: the runner's photo moments (behind the web session): a selfie per moment,
+  shrunk and stripped of EXIF in the browser (and EXIF stripped again in the Worker), sent with
+  the runner's agreement to Gemini's image model (`GEMINI_IMAGE_MODEL`, default
+  `gemini-2.5-flash-image`, through the AI Gateway) with the organizer's photos of the place and a
+  prompt from `remixPrompt` (shared). R2: `selfies/<race>/<entrant>/<id>.<ext>` (never served but to
+  its runner), `photos/<race>/<entrant>/<id>-<try>.<ext>` served by `/{race}/photos/<id>/picture`
+  to its runner, to everyone once shown. The picture is made while the request waits (20-40 s;
+  `claimRender` makes a double tap one render). A local Worker with no key hands the selfie back
+  as the "picture" (`standIn`), for the pages and the screenshots. `/{race}/link?c=` turns a
+  one-use code from `POST /api/me/web-link` into a web session (the app's « Mes photos de course »).
+  The admin's « Photos » (`/org/{race}/photos`, editing needs `edit_audio`): moments, the place's
+  photos, « Essayer avec votre photo » (rendered, shown once, kept nowhere). The app gets the
+  moments on its course with `/api/me` (`photoMoments`) and shows « Moment photo » on the run
+  screen for 500 m after each (`momentAt`).
 - `/{race}/signin?next=/…`: returns to a same-site path after the code instead of the install page.
 - `/org`: organizer admin. `/org/signin` (email + code, one session for every race of that
   email), `/org` (the person's races; staff see all, `/org/new` creates one, `/org/leads` lists

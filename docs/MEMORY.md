@@ -636,3 +636,13 @@
 - 2026-09-29: the static map (`/api/courses/:id/map.png?base=1`) and the drawing over it must use
   the same `fitView` padding, or the line slides off the streets: the race report asks for
   `pad=44` (room for its circles) and projects with 44 too.
+- 2026-09-29: race photos are made inside the POST that sends the selfie (20-40 s of waiting on
+  Gemini): a Worker's wall time while the client waits is not CPU time, and `waitUntil` would cut
+  it at 30 s after the response. The page's script posts with `fetch` and writes the answer page
+  in place (`document.write`), so an error page with the problem said shows without a redirect.
+  If Gemini gets slower, move this to a Queue or a Workflow; do not lengthen `waitUntil`.
+- 2026-09-29: the image model's call shape (`generationConfig.responseModalities: ['IMAGE']`,
+  `imageConfig.aspectRatio`, pictures as `inlineData` parts, the answer's first `inlineData`) is
+  from Google's docs and the tests' stub, never yet from a real call: the container has no key.
+  The first real render is the check (Owner actions).
+

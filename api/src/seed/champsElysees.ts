@@ -1,5 +1,5 @@
-import { AudioScriptSchema, CourseSchema, DISTANCE_METERS, EntrantSchema, OrganizerSchema, RaceSchema, champsElysees10kLandmarks } from '@sivoov/shared';
-import type { AudioScript, Course, Entrant, Organizer, Race } from '@sivoov/shared';
+import { AudioScriptSchema, CourseSchema, DISTANCE_METERS, EntrantSchema, OrganizerSchema, PhotoMomentSchema, RaceSchema, champsElysees10kLandmarks } from '@sivoov/shared';
+import type { AudioScript, Course, Entrant, Organizer, PhotoMoment, Race } from '@sivoov/shared';
 import { champsElysees2027Script } from './champsElyseesScript';
 
 /**
@@ -80,3 +80,21 @@ export const champsElyseesOrganizers: Organizer[] = (
 ).map(([email, role]) => OrganizerSchema.parse({ id: `${champsElyseesRace.id}-org-${email.split('@')[0]}`, raceId: champsElyseesRace.id, email, role }));
 
 export const champsElyseesScripts: AudioScript[] = [AudioScriptSchema.parse(champsElysees2027Script)];
+
+/** Photo moments to start from, on local and preview (see `deauvillePhotoMoments`). */
+export const champsElyseesPhotoMoments: PhotoMoment[] = [
+  {
+    id: 'champs-2027-photo-arc',
+    title: 'Sous l’Arc de Triomphe',
+    at: 'arc',
+    ask: 'Un selfie au demi-tour, l’Arc derrière vous si vous pouvez.',
+    scene: 'The top of the Champs-Élysées at the U-turn just below the Arc de Triomphe, the arch filling the background, the cobbled avenue lined with trees and French flags, hundreds of runners, a winter morning sky.',
+  },
+  {
+    id: 'champs-2027-photo-finish',
+    title: 'L’arrivée en bas des Champs',
+    at: 'finish',
+    ask: 'Votre tête d’arrivée, bras levés. Juste après la ligne, où que vous soyez.',
+    scene: 'The finish line of the 10 km des Champs-Élysées at the bottom of the avenue by the Pavillon Ledoyen, a finish arch with the race clock, the Champs-Élysées rising behind towards the Arc de Triomphe, a crowd behind barriers, February light.',
+  },
+].map((m, sort) => PhotoMomentSchema.parse({ ...m, raceId: champsElyseesRace.id, sort, createdAt: '2026-09-29T00:00:00Z' }));

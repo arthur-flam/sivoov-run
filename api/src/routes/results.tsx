@@ -1,9 +1,12 @@
 import { Hono } from 'hono';
+import { getCookie } from 'hono/cookie';
 import type { Context } from 'hono';
 import type { Course, Locale, Race } from '@sivoov/shared';
 import { distanceLabel, formatOfficialTime, translator } from '@sivoov/shared';
 import type { AppEnv } from '../env';
 import { db } from '../db/queries';
+import { photoQueries } from '../db/photoQueries';
+import { entrantForToken } from '../lib/authService';
 import { CARD_FORMATS, CARD_SIZE, cardDeps, cardFormat, cardPng, cardsEnabled, courseMapUrl, previewImage } from '../lib/cards';
 import type { CardFormat } from '../lib/cards';
 import { finisherReport, fullName, raceCardId, resultForBib, runCardId, runnerCardFor, shortName } from '../lib/results';
@@ -15,7 +18,7 @@ import type { OpenGraph } from '../pages/layout';
 import { ResultPage } from '../pages/result';
 import { ResultsPage } from '../pages/results';
 import { localeOf } from './locale';
-import { trackFor } from './pages';
+import { SESSION_COOKIE, trackFor } from './pages';
 
 /** Results, a runner's certificate, and the share cards behind every link preview. */
 export const results = new Hono<AppEnv>();
@@ -90,9 +93,20 @@ results.get('/:slug/results/:bib', async (c) => {
     url: page,
     image: previewImage(c.env, card ? runnerCardUrl(page, 'og', locale, card.id) : `${base}/${race.slug}/og.png?lang=${locale}`, result.course, base),
   };
+  // The pictures the runner chose to show, and whether the one reading is that runner.
+  const pq = photoQueries(c.env.DB);
+  const [mine, moments] = await Promise.all([pq.photos(result.entrant.id), pq.moments(race.id)]);
+  const titles = new Map(moments.map((m) => [m.id, m.title]));
+  const shown = mine
+    .filter((p) => p.shown && p.status === 'done' && p.resultKey)
+    .map((p) => ({ url: `/${race.slug}/photos/${p.id}/picture?v=${encodeURIComponent(p.resultKey!.split('/').pop() ?? '')}`, title: titles.get(p.momentId) ?? '' }));
+  const token = getCookie(c, SESSION_COOKIE);
+  const owner = token ? (await entrantForToken(c.env, token))?.id === result.entrant.id : false;
   return c.html(
     <Layout title={title} locale={locale} race={race} path={`/${race.slug}/results/${result.entrant.bib}`} og={og}>
       <ResultPage
+        photos={shown}
+        photosLink={owner && moments.length > 0 ? `/${race.slug}/photos` : null}
         race={race}
         result={result}
         track={await trackFor(c.env, result.course)}

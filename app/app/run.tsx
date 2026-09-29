@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import * as Haptics from 'expo-haptics';
-import { aheadOf, constantPace, finishOutcome, formatClock, formatKm, gpsSignal, lightPresetAt, parsePace, progress, readableOn } from '@sivoov/shared';
+import { aheadOf, constantPace, finishOutcome, formatClock, formatKm, gpsSignal, lightPresetAt, momentAt, parsePace, progress, readableOn } from '@sivoov/shared';
 import type { Course, CourseTrack, LightPreset } from '@sivoov/shared';
 import type { CeremonyHandlers } from '@/audio/ceremony';
 import { usePackStore } from '@/audio/packStore';
@@ -237,6 +237,7 @@ export default function Run() {
           outcome={outcome}
           simulation={source.kind === 'simulation'}
           uploadStatus={uploadStatus}
+          photoMoments={me.photoMoments.length}
           onHome={() => router.dismissTo('/home')}
           onDiagnostics={() => router.push('/debug')}
         />
@@ -289,7 +290,12 @@ export default function Run() {
           onResetTurn={onResetTurn}
         />
         <View style={[styles.chips, { paddingTop: insets.top + space.sm }]}>
-          <StatusChips race={race.theme.displayName} gps={phase === 'running' ? gpsSignal(run.samples[run.samples.length - 1] ?? null, (run.source ?? source).now()) : null} simulation={simulation && phase !== 'idle'} />
+          <StatusChips
+            race={race.theme.displayName}
+            gps={phase === 'running' ? gpsSignal(run.samples[run.samples.length - 1] ?? null, (run.source ?? source).now()) : null}
+            simulation={simulation && phase !== 'idle'}
+            photo={phase === 'running' ? (momentAt(me?.photoMoments ?? [], state.distanceM, course.distanceM)?.title ?? null) : null}
+          />
         </View>
         {phase === 'countdown' && run.cue !== 'armed' ? (
           <View style={styles.countdown} pointerEvents="none">

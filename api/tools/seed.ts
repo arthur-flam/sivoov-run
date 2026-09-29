@@ -12,19 +12,19 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { champsElysees10kGeometry, deauvilleMarathonGeometry } from '@sivoov/shared';
-import type { AudioScript, Course, CourseGeometry, Entrant, Organizer, Race } from '@sivoov/shared';
-import { champsElyseesCourses, champsElyseesOrganizers, champsElyseesRace, champsElyseesScripts, champsElyseesTestEntrants } from '../src/seed/champsElysees';
-import { deauvilleCourses, deauvilleOrganizers, deauvilleRace, deauvilleScripts, deauvilleTestEntrants } from '../src/seed/deauville';
+import type { AudioScript, Course, CourseGeometry, Entrant, Organizer, PhotoMoment, Race } from '@sivoov/shared';
+import { champsElyseesCourses, champsElyseesOrganizers, champsElyseesPhotoMoments, champsElyseesRace, champsElyseesScripts, champsElyseesTestEntrants } from '../src/seed/champsElysees';
+import { deauvilleCourses, deauvilleOrganizers, deauvillePhotoMoments, deauvilleRace, deauvilleScripts, deauvilleTestEntrants } from '../src/seed/deauville';
 
-type Seed = { race: Race; courses: Course[]; entrants: Entrant[]; organizers: Organizer[]; scripts: AudioScript[]; geometries: { key: string; geometry: CourseGeometry }[] };
+type Seed = { race: Race; courses: Course[]; entrants: Entrant[]; organizers: Organizer[]; scripts: AudioScript[]; moments: PhotoMoment[]; geometries: { key: string; geometry: CourseGeometry }[] };
 
 const SEEDS: Seed[] = [
   {
-    race: deauvilleRace, courses: deauvilleCourses, entrants: deauvilleTestEntrants, organizers: deauvilleOrganizers, scripts: deauvilleScripts,
+    race: deauvilleRace, courses: deauvilleCourses, entrants: deauvilleTestEntrants, organizers: deauvilleOrganizers, scripts: deauvilleScripts, moments: deauvillePhotoMoments,
     geometries: [{ key: 'courses/deauville-2026-marathon.json', geometry: deauvilleMarathonGeometry }],
   },
   {
-    race: champsElyseesRace, courses: champsElyseesCourses, entrants: champsElyseesTestEntrants, organizers: champsElyseesOrganizers, scripts: champsElyseesScripts,
+    race: champsElyseesRace, courses: champsElyseesCourses, entrants: champsElyseesTestEntrants, organizers: champsElyseesOrganizers, scripts: champsElyseesScripts, moments: champsElyseesPhotoMoments,
     geometries: [{ key: champsElyseesCourses[0]!.geometryKey!, geometry: champsElysees10kGeometry }],
   },
 ];
@@ -36,7 +36,7 @@ const seeds = SEEDS.filter((s) => !only || s.race.id === only);
 if (seeds.length === 0) throw new Error(`no seed for ${only}; known: ${SEEDS.map((s) => s.race.id).join(', ')}`);
 
 const q = (v: string | number | null) => (v === null ? 'NULL' : typeof v === 'number' ? String(v) : `'${v.replaceAll("'", "''")}'`);
-const sqlFor = ({ race: r, courses, entrants, organizers, scripts }: Seed) => [
+const sqlFor = ({ race: r, courses, entrants, organizers, scripts, moments }: Seed) => [
   `INSERT INTO races (id, slug, name, city, country, date_start, date_end, window_start, window_end, timezone, organizer_url, theme, status)
    VALUES (${[r.id, r.slug, r.name, r.city, r.country, r.dateStart, r.dateEnd, r.windowStart, r.windowEnd, r.timezone, r.organizerUrl ?? null, JSON.stringify(r.theme), r.status].map(q).join(', ')})
    ON CONFLICT(id) DO NOTHING;`,
@@ -57,6 +57,12 @@ const sqlFor = ({ race: r, courses, entrants, organizers, scripts }: Seed) => [
      COALESCE((SELECT MAX(version) FROM audio_packs WHERE course_id = ${q(script.courseId)} AND locale = ${q(script.locale)}), 0) + 1,
      ${q(JSON.stringify(script))}, ${q(new Date().toISOString())})
    ON CONFLICT(course_id, locale) DO NOTHING;`,
+  ),
+  // Photo moments to start from, never on production (the organizer's own there), never over an edit.
+  ...(target === 'production' ? [] : moments).map(
+    (m) => `INSERT INTO photo_moments (id, race_id, title, at, ask, scene, refs, sort, created_at)
+   VALUES (${[m.id, m.raceId, m.title, m.at, m.ask, m.scene, JSON.stringify(m.refs), m.sort, m.createdAt].map(q).join(', ')})
+   ON CONFLICT(id) DO NOTHING;`,
   ),
   ...organizers
     .filter((o) => target !== 'production' || !o.email.endsWith('@example.com'))

@@ -232,6 +232,41 @@ export const scenes: Scene[] = [
     },
   },
   {
+    id: 'photos',
+    title: 'Race photos — a runner’s photo moments, one picture made (local stand-in: no image model)',
+    go: async (page, shoot) => {
+      // A stand-in "selfie": the local Worker has no image model and hands the photo back as the picture.
+      const painter = await page.context().newPage();
+      await painter.setViewportSize({ width: 800, height: 1000 });
+      await painter.setContent(
+        '<body style="margin:0;display:grid;place-items:center;height:100vh;background:linear-gradient(160deg,#2f5d7c,#e3b38a);font:600 42px system-ui;color:#fff;text-align:center">Photo de démonstration<br>(pas de modèle d’image en local)</body>',
+      );
+      const selfie = await painter.screenshot({ type: 'png' });
+      await painter.close();
+      await runnerSignIn(page, `${RACE}/photos`);
+      await expect(page.getByRole('heading', { level: 1 })).toContainText('Vos photos de course');
+      await shoot('empty');
+      const moment = page.getByTestId('moment-deauville-2026-photo-finish');
+      // A second pass finds a picture already there: the form is then behind « Une autre photo ».
+      if (await moment.locator('details.photo-another').count()) await moment.locator('details.photo-another summary').click();
+      await moment.getByLabel(/Votre photo|Une autre photo/).setInputFiles({ name: 'moi.png', mimeType: 'image/png', buffer: selfie });
+      await moment.getByRole('checkbox').check();
+      await moment.getByRole('button', { name: 'Me mettre dans la course' }).click();
+      await expect(page.getByTestId('runner-photo')).toBeVisible({ timeout: 20_000 });
+      await shoot();
+    },
+  },
+  {
+    id: 'org-photos',
+    title: 'Organizer — photo moments: where runners are asked for a selfie, and the scene',
+    go: async (page, shoot) => {
+      await orgSignIn(page);
+      await page.goto('/org/deauville-2026/photos');
+      await expect(page.getByRole('heading', { name: 'Photos' })).toBeVisible();
+      await shoot();
+    },
+  },
+  {
     id: 'org-signin',
     title: 'Organizer — sign-in',
     go: async (page, shoot) => {

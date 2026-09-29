@@ -91,6 +91,7 @@ What still needs the laptop, and nothing else does:
 | ElevenLabs, Sentry DSNs | Worker secrets via `wrangler secret put`, `.dev.vars` locally | api |
 | `CLOUDFLARE_AI_TOKEN` (Workers AI, AI Gateway run) | Worker secret, production and preview; `.env` and `api/.dev.vars` locally | api: every LLM call, through the AI Gateway named in the `AI_GATEWAY` var (`lib/llm.ts`) |
 | Anthropic key | stored in the AI Gateway "sivoov" (provider keys), never in the Worker | Claude through the gateway |
+| `GEMINI_API_KEY` | Worker secret, production and preview | api: Gemini voices and the race photos' image model, through the AI Gateway |
 | `BROWSER_RENDERING_TOKEN` (Browser Rendering - Edit) | Worker secret, production and preview | api: share cards (`lib/cards.ts`) |
 | Apple / Google credentials | EAS servers | EAS Build |
 Cloud sessions need none of these for loop 1. Adding `EXPO_TOKEN` to the environment lets a

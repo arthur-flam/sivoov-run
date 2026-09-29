@@ -20,7 +20,7 @@ export const contentTypeForKey = (key: string): string | null => {
 
 export const mediaUrl = (baseUrl: string, key: string): string => `${baseUrl.replace(/\/+$/, '')}/media/${key}`;
 
-export type StoredImage = { ok: true; url: string } | { ok: false; error: 'empty' | 'type' | 'too_big' };
+export type StoredImage = { ok: true; url: string; key: string } | { ok: false; error: 'empty' | 'type' | 'too_big' };
 
 /** Checks the bytes (PNG, JPEG or WebP, size per slot), stores them and returns their public URL. */
 export const storeRaceImage = async (env: Bindings, raceId: string, slot: ImageSlot, file: File): Promise<StoredImage> => {
@@ -32,5 +32,5 @@ export const storeRaceImage = async (env: Bindings, raceId: string, slot: ImageS
   const type = IMAGE_TYPES[check.kind];
   const key = `races/${raceId}/${await sha256HexBytes(buffer)}.${type.ext}`;
   await env.FILES.put(key, buffer, { httpMetadata: { contentType: type.contentType, cacheControl: 'public, max-age=31536000, immutable' } });
-  return { ok: true, url: mediaUrl(env.BASE_URL, key) };
+  return { ok: true, url: mediaUrl(env.BASE_URL, key), key };
 };

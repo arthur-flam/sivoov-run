@@ -14,6 +14,7 @@ import {
   RunTraceSchema,
   SignInAmbiguitySchema,
   formatClientHeader,
+  CourseMomentSchema,
 } from '@sivoov/shared';
 import type { CodeRequest, LiveVoiceRequest, Locale, Run, RunTrace, SignInAmbiguity } from '@sivoov/shared';
 
@@ -93,6 +94,8 @@ export const MeSchema = z.object({
   runs: z.array(RunSchema),
   map: z.object({ token: z.string().min(1) }).nullable().default(null),
   rehearsal: z.boolean().default(false),
+  /** Where on the course the runner is asked for a selfie (older servers send none). */
+  photoMoments: z.array(CourseMomentSchema).default([]),
 });
 export type Me = z.infer<typeof MeSchema>;
 
@@ -103,6 +106,8 @@ export const api = {
   /** « Supprimer mes données »: the runs, traces and sessions go; the entry stays with the organizer. */
   deleteMe: (token: string) => request('/me', z.object({ ok: z.boolean(), runs: z.number() }), { method: 'DELETE' }, token),
   me: (token: string) => request('/me', MeSchema, {}, token),
+  /** A one-use link that opens the runner's photos page (or result page) in the browser, signed in. */
+  webLink: (token: string, page: 'photos' | 'result') => request('/me/web-link', z.object({ url: z.url() }), { method: 'POST', body: JSON.stringify({ page }) }, token),
   /** The runner's language: the app's screens and their emails from now on. */
   setLocale: (token: string, locale: Locale) => request('/me/locale', z.object({ ok: z.boolean() }), { method: 'PUT', body: JSON.stringify({ locale }) }, token),
   signOut: (token: string) => request('/me/signout', z.object({ ok: z.boolean() }), { method: 'POST' }, token),

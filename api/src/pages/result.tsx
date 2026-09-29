@@ -17,6 +17,10 @@ type Props = {
   shareUrl: string;
   /** The pictures to share, first the link preview. None when the course has no file to draw. */
   cards: ShareOption[];
+  /** The runner's race photos they chose to show. */
+  photos: Array<{ url: string; title: string }>;
+  /** Their photos page, when the one reading is the runner and the race has photo moments. */
+  photosLink: string | null;
 };
 
 /**
@@ -30,7 +34,7 @@ export type ShareOption = { format: CardFormat; width: number; height: number; p
  * and for every visitor who is not that runner, the way into the race. This page is what a
  * shared link opens, so it is the product's front door as much as the landing page.
  */
-export const ResultPage = ({ race, result, track, locale, now, shareUrl, cards }: Props) => {
+export const ResultPage = ({ race, result, track, locale, now, shareUrl, cards, photos, photosLink }: Props) => {
   const t = translator(locale);
   const { entrant, course, best } = result;
   const open = windowPhase(race, now) !== 'after';
@@ -139,6 +143,28 @@ export const ResultPage = ({ race, result, track, locale, now, shareUrl, cards }
         </section>
       )}
 
+      {photosLink ? (
+        <p class="result-actions">
+          <a class="btn btn-ghost" href={photosLink}>
+            {t('photos.cta')}
+          </a>
+        </p>
+      ) : null}
+      {photos.length > 0 ? (
+        <section class="result-photos" aria-label={t('photos.gallery')}>
+          <h2>{t('photos.gallery')}</h2>
+          <ul>
+            {photos.map((p) => (
+              <li>
+                <figure>
+                  <img src={p.url} alt={t('photos.alt', { title: p.title })} loading="lazy" />
+                  <figcaption>{p.title}</figcaption>
+                </figure>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       <section class="result-cta">
         <h2>
           {best && open

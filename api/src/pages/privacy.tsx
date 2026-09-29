@@ -13,7 +13,7 @@ type Copy = { title: string; updated: string; operator: (o: Operator) => string;
 const COPY: Record<Locale, Copy> = {
   fr: {
     title: 'Confidentialité',
-    updated: 'Mise à jour le 28 septembre 2026.',
+    updated: 'Mise à jour le 29 septembre 2026.',
     operator: (o) =>
       [
         `Sivoov Run est édité par ${o.name ?? 'Sivoov'}${o.address ? `, ${o.address}` : ''}.`,
@@ -42,8 +42,15 @@ const COPY: Record<Locale, Copy> = {
         ],
       },
       {
+        title: 'Vos photos de course',
+        body: [
+          'Si vous envoyez un selfie depuis la page « Vos photos de course », nous l’envoyons, avec les photos du lieu choisies par l’organisateur, votre dossard et le nom de la course, à Google (modèle d’image Gemini, via Cloudflare) pour créer une image de vous dans la course. Vous l’acceptez à chaque envoi ; la page réduit la photo et en retire la position avant l’envoi.',
+          'Votre selfie et l’image créée restent privés : seuls vous les voyez, jusqu’à ce que vous choisissiez de montrer l’image sur votre page de résultat. Vous pouvez la retirer ou la supprimer à tout moment.',
+        ],
+      },
+      {
         title: 'Ce qui est public',
-        body: ['Les résultats d’une course et votre certificat affichent votre prénom, votre nom, votre dossard et votre temps officiel, comme les résultats d’une course sur route.'],
+        body: ['Les résultats d’une course et votre certificat affichent votre prénom, votre nom, votre dossard et votre temps officiel, comme les résultats d’une course sur route, et les photos de course que vous choisissez de montrer.'],
       },
       {
         title: 'Où sont vos données',
@@ -60,7 +67,7 @@ const COPY: Record<Locale, Copy> = {
       {
         title: 'Vos droits',
         body: [
-          'Dans l’app, « Supprimer mes données », en bas de l’écran de votre course, efface tout de suite vos courses, leurs parcours GPS, vos annonces personnelles écrites pour vous et vos connexions. Votre inscription (nom, email, dossard, adresse) reste chez l’organisateur\u00a0: écrivez-lui, ou à nous, pour la retirer.',
+          'Dans l’app, « Supprimer mes données », en bas de l’écran de votre course, efface tout de suite vos courses, leurs parcours GPS, vos annonces personnelles écrites pour vous, vos photos et les images faites avec, et vos connexions. Votre inscription (nom, email, dossard, adresse) reste chez l’organisateur\u00a0: écrivez-lui, ou à nous, pour la retirer.',
           'Vous pouvez aussi nous demander l’accès à vos données, leur correction ou leur export, et vous plaindre auprès de la CNIL (cnil.fr).',
         ],
       },
@@ -72,7 +79,7 @@ const COPY: Record<Locale, Copy> = {
   },
   en: {
     title: 'Privacy',
-    updated: 'Updated 28 September 2026.',
+    updated: 'Updated 29 September 2026.',
     operator: (o) =>
       [`Sivoov Run is published by ${o.name ?? 'Sivoov'}${o.address ? `, ${o.address}` : ''}.`, o.email ? `For any question about your data: ${o.email}.` : ''].join(' '),
     sections: [
@@ -98,8 +105,15 @@ const COPY: Record<Locale, Copy> = {
         ],
       },
       {
+        title: 'Your race photos',
+        body: [
+          'If you send a selfie from the “Your race photos” page, we send it, with the organizer’s photos of the place, your bib and the race’s name, to Google (the Gemini image model, through Cloudflare) to make a picture of you in the race. You agree each time you send one; the page shrinks the photo and strips where it was taken before sending.',
+          'Your selfie and the picture made stay private: only you see them, until you choose to show the picture on your result page. You can hide or delete it at any time.',
+        ],
+      },
+      {
         title: 'What is public',
-        body: ['A race’s results and your certificate show your first and last name, bib and official time, like the results of a road race.'],
+        body: ['A race’s results and your certificate show your first and last name, bib and official time, like the results of a road race, and the race photos you choose to show.'],
       },
       {
         title: 'Where your data is',
@@ -114,7 +128,7 @@ const COPY: Record<Locale, Copy> = {
       {
         title: 'Your rights',
         body: [
-          'In the app, “Delete my data”, at the bottom of your race screen, erases at once your runs, their GPS routes, the announcements written for you and your sign-ins. Your entry (name, email, bib, address) stays with the organizer: write to them, or to us, to remove it.',
+          'In the app, “Delete my data”, at the bottom of your race screen, erases at once your runs, their GPS routes, the announcements written for you, your photos and the pictures made from them, and your sign-ins. Your entry (name, email, bib, address) stays with the organizer: write to them, or to us, to remove it.',
           'You can also ask us for access to your data, its correction or an export, and complain to the CNIL (cnil.fr), the French data protection authority.',
         ],
       },

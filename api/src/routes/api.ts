@@ -4,6 +4,7 @@ import {
   CodeRequestSchema,
   CodeVerifySchema,
   CourseGeometrySchema,
+  courseMoments,
   EntrantPublicSchema,
   LiveVoiceRequestSchema,
   LocaleSchema,
@@ -20,10 +21,12 @@ import { db } from '../db/queries';
 import { requireEntrant } from '../lib/auth';
 import type { AuthVars } from '../lib/auth';
 import { requestCode, verifyCode } from '../lib/authService';
+import { photoQueries } from '../db/photoQueries';
 import { forgetRunner } from '../lib/forget';
 import { liveVoice, personalDeps, personalVoices, runnerFacts } from '../lib/personal';
 import { loadGeometry } from '../lib/studio';
 import { mayRehearse } from '../lib/testCode';
+import { createWebLink } from '../lib/webLink';
 import { weatherAt } from '../lib/weather';
 import { prewarmCards } from './results';
 
@@ -133,10 +136,31 @@ api.use('/runs/*', requireEntrant);
 api.get('/me', async (c) => {
   const entrant = c.get('entrant')!;
   const q = db(c.env.DB);
-  const [race, course, runs] = await Promise.all([q.raceById(entrant.raceId), q.courseFor(entrant.raceId, entrant.distanceKey), q.runsForEntrant(entrant.id)]);
+  const [race, course, runs, moments] = await Promise.all([
+    q.raceById(entrant.raceId),
+    q.courseFor(entrant.raceId, entrant.distanceKey),
+    q.runsForEntrant(entrant.id),
+    photoQueries(c.env.DB).moments(entrant.raceId),
+  ]);
   const map = c.env.MAPBOX_TOKEN ? { token: c.env.MAPBOX_TOKEN } : null;
   const rehearsal = race ? mayRehearse(c.env, entrant.email, race) : false;
-  return c.json({ entrant: EntrantPublicSchema.parse(entrant), race, course, runs, map, rehearsal });
+  // Where on this course the runner is asked for a selfie: the run screen says it as they pass.
+  const photoMoments = course ? courseMoments(moments, course) : [];
+  return c.json({ entrant: EntrantPublicSchema.parse(entrant), race, course, runs, map, rehearsal, photoMoments });
+});
+
+/**
+ * A one-use link that opens a page of the race in the browser already signed in (the app's
+ * « Mes photos de course »): the browser has no session of its own, and typing an email code
+ * after a race is the moment people give up.
+ */
+api.post('/me/web-link', async (c) => {
+  const entrant = c.get('entrant')!;
+  const race = await db(c.env.DB).raceById(entrant.raceId);
+  if (!race) return c.json({ error: 'not_found' }, 404);
+  const page = z.enum(['photos', 'result']).catch('photos').parse((await c.req.json().catch(() => ({}))).page);
+  const next = page === 'photos' ? `/${race.slug}/photos` : `/${race.slug}/results/${entrant.bib}`;
+  return c.json({ url: await createWebLink(c.env, race, entrant, next) }, 200, { 'Cache-Control': 'private, no-store' });
 });
 
 const VoicesBody = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).partial();

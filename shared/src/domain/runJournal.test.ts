@@ -50,7 +50,11 @@ describe('what the app does with a run it finds when it starts', () => {
     expect(recovery.state.distanceM).toBeGreaterThan(3800);
   });
 
-  it('closes a run silent for longer than a runner would wait: it is uploaded as it stands', () => {
+  it('carries on after an hour and a half dark: only the runner stops a run', () => {
+    expect(recoveryFor(journal({ updatedAt: lastFix }), samples.slice(0, upTo), lastFix + 90 * 60_000).kind).toBe('resume');
+  });
+
+  it('closes a run silent for over two hours: it is uploaded as it stands', () => {
     expect(recoveryFor(journal({ updatedAt: lastFix }), samples.slice(0, upTo), lastFix + RESUME_WITHIN_MS + 1).kind).toBe('close');
   });
 

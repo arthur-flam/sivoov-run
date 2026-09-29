@@ -17,8 +17,9 @@ phone restarted, a low battery, GPS gaps (tunnels), and whether the countdown fo
 countdown file (it does). JS only, no new native module: it reaches `Sivoov (Preview)` by OTA
 once merged. Built (ARCHITECTURE.md, "A run survives the app" and "Battery"):
 - **A run survives the app.** The run journals itself as it goes; a killed app, a crash or a
-  restarted phone reopens on « Votre course continue » (resume from where the runner is, the
-  clock never stopped; or stop and save). A run that is over is uploaded silently. On Android
+  restarted phone reopens straight into the run, which carries on from where the runner is (the
+  clock never stopped); « Votre course continue » (resume or stop and save) only if the GPS will
+  not restart. The audio pack now starts downloading at app start, not on the home screen. A run that is over is uploaded silently. On Android
   the location service now outlives a swipe (`killServiceOnDestroy: false`) and fixes that
   arrive with no run listening go to the journal, or switch off a GPS nobody reads.
 - **GPS gaps.** A tunnel is bridged by a straight line (tested); the lines that fell due in a
@@ -240,8 +241,9 @@ Newest to oldest, durable ones only. Rationale already written up elsewhere is n
 repeated here (see ARCHITECTURE.md, AUDIO.md, WORKFLOW.md).
 
 - A run that died comes back as the same run with the clock still running (a real race's clock
-  never stops); the minutes the phone was dark count as a straight line. Resume is offered for
-  30 min after the last sign of life, within 8 h of the gun; after that it is closed and sent.
+  never stops); the minutes the phone was dark count as a straight line. It resumes by itself
+  (owner's call: only the hold-to-stop ends a run) up to 2 h after its last sign of life, within
+  8 h of the gun; after that it is closed and sent.
 - Swiping the app away no longer ends a run on Android (the service stays, its notification
   says so). Stopping is only ever the runner's hold-and-confirm.
 - The screen stays on during the run unless the battery is low (20 %, power saving); then the

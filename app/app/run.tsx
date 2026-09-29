@@ -65,6 +65,9 @@ const useOnScreen = (): boolean => {
 };
 
 const VIEWS: MapView[] = ['follow', 'overview', 'numbers'];
+
+/** How long a run coming back waits for its audio pack before resuming without it. */
+const PACK_WAIT_MS = 4000;
 const nextView = (view: MapView): MapView => VIEWS[(VIEWS.indexOf(view) + 1) % VIEWS.length]!;
 
 /** The map's light for the course's start, now, checked again every few minutes (a marathon can run into the night). */
@@ -131,19 +134,6 @@ export default function Run() {
     [],
   );
 
-  // A run the app lost (killed, crashed, phone restarted) comes back from its journal, once the
-  // course and its pack are ready, for the runner to resume or stop.
-  const looked = useRef(false);
-  const entrantId = me?.entrant.id ?? null;
-  useEffect(() => {
-    if (looked.current || !entrantId || !course || !track || !pack || useRun.getState().phase !== 'idle') return;
-    looked.current = true;
-    void findRun(entrantId).then((found) => {
-      if (found?.recovery.kind !== 'resume' || found.journal.courseId !== course.id) return;
-      diag('run', `found ${found.journal.runId} in the journal: ${Math.round(found.recovery.state.distanceM)} m`);
-      useRun.getState().restore({ journal: found.journal, samples: found.samples, state: found.recovery.state });
-    });
-  }, [entrantId, course, track, pack]);
 
   // The clock redraws only on screen; back on screen it catches up at once.
   useEffect(() => useRun.getState().setVisible(onScreen), [onScreen]);
@@ -192,6 +182,29 @@ export default function Run() {
     }
     return deviceSource();
   }, [track, course, race?.demoOf, params.sim, params.pace, params.speed, params.noise]);
+
+  // A run the app lost (killed, crashed, phone restarted) comes back from its journal and goes
+  // on by itself: only the runner's hold-and-confirm ends a run. It waits for the pack (the one
+  // kept on the phone answers at once), or a few seconds at most, so the rest of the race is said
+  // from the real pack, not the stand-in. The resume panel only shows if the GPS will not restart.
+  const looked = useRef(false);
+  const entrantId = me?.entrant.id ?? null;
+  const packSettled = usePackStore((s) => s.status !== 'idle' && s.status !== 'loading');
+  const [packWaited, setPackWaited] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => setPackWaited(true), PACK_WAIT_MS);
+    return () => clearTimeout(id);
+  }, []);
+  useEffect(() => {
+    if (looked.current || !entrantId || !course || !track || !pack || !source || !(packSettled || packWaited) || useRun.getState().phase !== 'idle') return;
+    looked.current = true;
+    void findRun(entrantId).then((found) => {
+      if (found?.recovery.kind !== 'resume' || found.journal.courseId !== course.id) return;
+      diag('run', `found ${found.journal.runId} in the journal: ${Math.round(found.recovery.state.distanceM)} m, resuming`);
+      useRun.getState().restore({ journal: found.journal, samples: found.samples, state: found.recovery.state });
+      void useRun.getState().resume(source);
+    });
+  }, [entrantId, course, track, pack, source, packSettled, packWaited]);
 
   if (!course || !race || !track || !source) {
     return (

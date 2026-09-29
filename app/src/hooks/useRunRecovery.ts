@@ -10,8 +10,8 @@ let checked = false;
 /**
  * When the app opens on a run that did not end properly, the runner lands back in it. A run still
  * alive in memory (Android rebuilt the screens but the app never died) is simply shown again; a
- * run from the journal that can go on opens the run screen, which offers to resume it; a run that
- * is over is queued for upload without a word.
+ * run from the journal that can go on opens the run screen, which resumes it; a run that is over
+ * is queued for upload without a word.
  */
 export const useRunRecovery = (entrantId: string | null, token: string | null): void => {
   const router = useRouter();

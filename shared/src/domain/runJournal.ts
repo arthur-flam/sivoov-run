@@ -14,8 +14,11 @@ import { DEFAULT_TRACKER } from './tracker';
 
 /** Longer than any runner's day: a journal this old is never resumed, and nothing keeps the GPS on for it. */
 export const MAX_RUN_MS = 8 * 60 * 60_000;
-/** A runner whose phone went dark reopens the app within minutes; past this they are not running any more. */
-export const RESUME_WITHIN_MS = 30 * 60_000;
+/**
+ * A run carries on by itself when the app comes back (only the runner's stop ends it), unless
+ * nothing came from it for this long: past two hours, whoever reopens the app is not running it.
+ */
+export const RESUME_WITHIN_MS = 2 * 60 * 60_000;
 
 /** One fix as a line of the samples file. */
 export const journalLine = (sample: LocationSample): string => `${JSON.stringify(sample)}\n`;
@@ -52,7 +55,7 @@ export const lastActivityAt = (journal: Pick<RunJournal, 'updatedAt'>, samples: 
 
 /**
  * What to do with a journal found when the app starts. 'resume': the runner is very likely still
- * out there, offer to carry on (the clock kept running, as it does in a race). 'close': the run
+ * out there, the run carries on (the clock kept running, as it does in a race). 'close': the run
  * is over one way or another (stopped, finished, or silent for too long): it is uploaded as it
  * stands, finished if its fixes covered the distance, abandoned otherwise.
  */

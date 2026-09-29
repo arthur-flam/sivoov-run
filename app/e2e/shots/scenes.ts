@@ -222,7 +222,7 @@ export const scenes: Scene[] = [
   },
   {
     id: 'run-resume',
-    title: 'Run — back in a run the app lost (killed, crashed, phone restarted): resume or stop and save',
+    title: 'Run — the app lost the run (killed, crashed, phone restarted) and reopens straight into it, still going',
     go: async (page, shoot) => {
       await withView(page, 'follow');
       await page.goto('/home');
@@ -237,17 +237,12 @@ export const scenes: Scene[] = [
         globalThis.localStorage.setItem('sivoov.run.journal', JSON.stringify(journal));
         globalThis.localStorage.setItem('sivoov.run.samples', fixes.map((f) => `${JSON.stringify(f)}\n`).join(''));
       });
-      // Opening the app again lands in the run.
+      // Opening the app again lands in the run, which carries on by itself where it stood.
       await page.goto('/');
-      await expect(page.getByTestId('resume-panel')).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByTestId('distance')).toContainText(/^1[.,]8\d km$/, { timeout: 20_000 });
       await page.waitForTimeout(2500);
       await shoot();
-      // Stop and save: the run closes as it stood, and its journal goes.
-      await page.getByTestId('resume-stop').click();
-      await expect(page.getByTestId('finish')).toBeVisible({ timeout: 20_000 });
-      await page.waitForTimeout(1000);
-      await shoot('closed');
-      expect(await page.evaluate(() => globalThis.localStorage.getItem('sivoov.run.journal'))).toBeNull();
+      expect(await page.evaluate(() => JSON.parse(globalThis.localStorage.getItem('sivoov.run.journal') ?? '{}').runId)).toBe('shots-resume');
     },
   },
   {

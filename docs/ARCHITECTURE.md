@@ -121,10 +121,12 @@ The phone keeps the run in progress on disk (`app/src/stores/runJournal.ts`, `jo
 `run/journal.json` (who, which course, the gun, the lines fired; rewritten) and `run/samples.jsonl`
 (one fix per line, appended every 10 s) in the document dir. The tracker is a pure fold, so the
 run *is* its fixes: when the app opens on a journal (`useRunRecovery` on the home screen), the run
-is rebuilt by replaying them (`recoveryFor` in `shared/domain/runJournal.ts`) and either offered
-back (« Votre course continue »: resume from where the runner is now, the clock never stopped; or
-stop and save) or, when it is over (stopped, finished, silent for 30 min, older than 8 h), queued
-for upload without a word. The journal is cleared only once the upload queue holds the trace.
+is rebuilt by replaying them (`recoveryFor` in `shared/domain/runJournal.ts`) and goes on by
+itself from where the runner is now, the clock never stopped: only the runner's hold-and-confirm
+ends a run. When it is over (stopped, finished, silent for 2 h, older than 8 h) it is queued for
+upload without a word. The panel « Votre course continue » (resume or stop and save) shows only
+when the GPS will not start again. The audio pack starts coming down from the app's root as soon
+as the runner is known, and the resume waits for it (4 s at most) so the race is said from it. The journal is cleared only once the upload queue holds the trace.
 
 On Android the location service survives the app being swiped away (`killServiceOnDestroy:
 false`): if the app's JavaScript survives too, the run goes on untouched and the screens come back

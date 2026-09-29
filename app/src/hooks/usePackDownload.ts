@@ -7,7 +7,8 @@ import { useSession } from '@/stores/session';
 export type PackDownload = { status: PackStatus; bytes: number; retry: () => void };
 
 /**
- * Starts the audio pack download as soon as the runner has a course (race home, pre-flight),
+ * Starts the audio pack download as soon as the runner has a course (the app's root, then the
+ * race home and the pre-flight for its status),
  * so the pack is on the phone before the start line, and says how it went. Then the runner's
  * own lines (their name, what the AI wrote for them) come down beside it; the pre-flight passes
  * where the phone is, rounded, so those lines can say the weather there.

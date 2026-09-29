@@ -17,9 +17,9 @@ type Props = {
 };
 
 /**
- * The app came back on a run that was still going (the phone restarted, the app was closed or
- * crashed). Carrying on is the big button, from where the runner is now; stopping keeps and sends
- * what was run.
+ * A run that came back (the phone restarted, the app was closed or crashed) goes on by itself;
+ * this shows only when it could not (the GPS would not start again). Carrying on is the big
+ * button, from where the runner is now; stopping keeps and sends what was run.
  */
 export const ResumePanel = ({ who, distance, clock, error, color, onColor, onResume, onStop }: Props) => (
   <View style={{ gap: space.md }} testID="resume-panel">

@@ -58,7 +58,7 @@ const page = async (c: OrgContext, { form, tried, status = 200 }: PageState = {}
       done={done}
       // A demo race shows the real race's moments; they are edited there.
       canEdit={can(c.get('access'), 'edit_audio') && !race.demoOf}
-      enabled={remixEnabled(remixDeps(c.env))}
+      enabled={remixEnabled(remixDeps(c.env, c.get('admin').email))}
       mediaUrl={(key) => mediaUrl(c.env.BASE_URL, key)}
       form={form}
       tried={tried}
@@ -137,7 +137,7 @@ orgPhotos.post('/:slug/photos/:id/try', requireOrganizer, requireCan('edit_audio
   const bytes = file ? new Uint8Array(await file.arrayBuffer()) : new Uint8Array();
   const check = checkImage(bytes, 'selfie');
   if (!check.ok) return page(c, { tried: { momentId: moment.id, error: 'Envoyez une photo en JPEG, PNG ou WebP, 8 Mo au plus.' }, status: 400 });
-  const rendered = await renderForMoment(remixDeps(c.env), race, moment, { bytes: stripJpegMetadata(bytes), contentType: IMAGE_TYPES[check.kind].contentType }, '1234');
+  const rendered = await renderForMoment(remixDeps(c.env, c.get('admin').email), race, moment, { bytes: stripJpegMetadata(bytes), contentType: IMAGE_TYPES[check.kind].contentType }, '1234');
   if (!rendered.ok) {
     const error = rendered.reason === 'refused' ? 'Le modèle a refusé cette image. Essayez une autre photo, ou une scène plus simple.' : 'L’image n’a pas pu être créée. Réessayez dans un moment.';
     return page(c, { tried: { momentId: moment.id, error }, status: 422 });

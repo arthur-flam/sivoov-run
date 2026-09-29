@@ -1,9 +1,10 @@
 import { Buffer } from 'node:buffer';
-import { IMAGE_TYPES, RENDER_STALE_MS, canTryAgain, checkImage, courseMoments, isStale, remixPrompt, sniffImage, stripJpegMetadata } from '@sivoov/shared';
+import { IMAGE_TYPES, RENDER_STALE_MS, canTryAgain, checkImage, courseMoments, isStale, photoBudget, remixPrompt, sniffImage, stripJpegMetadata } from '@sivoov/shared';
 import type { Course, Entrant, PhotoMoment, Race, RunnerPhoto } from '@sivoov/shared';
 import type { Bindings } from '../env';
 import { photoQueries } from '../db/photoQueries';
 import { newId } from './crypto';
+import { maySpendCredit } from './testCode';
 
 /**
  * Photo moments in the Worker: a runner's photo is stored (private, R2 `selfies/`), then an image
@@ -15,19 +16,22 @@ import { newId } from './crypto';
 export const DEFAULT_IMAGE_MODEL = 'gemini-2.5-flash-image';
 
 /**
- * `stand-in`: on a local Worker with no key the "picture" is the runner's own photo, so the pages
- * and the screenshots can walk the whole flow. Never on preview or production.
+ * `stand-in`: the "picture" is the runner's own photo, so the pages and the screenshots can walk
+ * the whole flow without the model: on a local Worker with no key, and for test accounts
+ * everywhere (`maySpendCredit`: App Review's public sign-in never spends credit).
  */
 export type RemixDeps = { files: R2Bucket; gemini?: { apiKey: string; gateway: string }; model: string; standIn?: boolean; fetchImpl?: typeof fetch };
 
-export const remixDeps = (env: Bindings): RemixDeps => ({
-  files: env.FILES,
-  model: env.GEMINI_IMAGE_MODEL || DEFAULT_IMAGE_MODEL,
-  standIn: env.ENVIRONMENT === 'local' && !env.GEMINI_API_KEY,
-  ...(env.GEMINI_API_KEY && env.CF_ACCOUNT_ID && env.AI_GATEWAY
-    ? { gemini: { apiKey: env.GEMINI_API_KEY, gateway: `https://gateway.ai.cloudflare.com/v1/${env.CF_ACCOUNT_ID}/${env.AI_GATEWAY}` } }
-    : {}),
-});
+export const remixDeps = (env: Bindings, email: string): RemixDeps => {
+  const gemini = env.GEMINI_API_KEY && env.CF_ACCOUNT_ID && env.AI_GATEWAY ? { apiKey: env.GEMINI_API_KEY, gateway: `https://gateway.ai.cloudflare.com/v1/${env.CF_ACCOUNT_ID}/${env.AI_GATEWAY}` } : undefined;
+  const paid = maySpendCredit(env, email);
+  return {
+    files: env.FILES,
+    model: env.GEMINI_IMAGE_MODEL || DEFAULT_IMAGE_MODEL,
+    standIn: (env.ENVIRONMENT === 'local' && !env.GEMINI_API_KEY) || (!paid && !!gemini),
+    ...(paid && gemini ? { gemini } : {}),
+  };
+};
 
 export const remixEnabled = (deps: Pick<RemixDeps, 'gemini' | 'standIn'>): boolean => Boolean(deps.gemini || deps.standIn);
 
@@ -117,12 +121,13 @@ export const acceptSelfie = async (
   const moment = await q.moment(entrant.raceId, momentId);
   if (!moment || courseMoments([moment], course).length === 0) return { ok: false, reason: 'unknown' };
   const refuse = (reason: SelfieRefusal): Accepted => ({ ok: false, reason, momentId: moment.id });
-  if (!remixEnabled(remixDeps(env))) return refuse('unavailable');
+  if (!remixEnabled(remixDeps(env, entrant.email))) return refuse('unavailable');
   if (body.consent !== 'on') return refuse('consent');
   const file = body.photo;
   if (!(file instanceof File) || file.size === 0) return refuse('no_file');
   const existing = (await q.photos(entrant.id)).find((p) => p.momentId === moment.id);
   if (existing && !canTryAgain(existing, nowMs)) return refuse('no_more');
+  if ((await q.rendersUsed(entrant.id)) >= photoBudget((await q.moments(entrant.raceId)).length)) return refuse('no_more');
   const sent = new Uint8Array(await file.arrayBuffer());
   const check = checkImage(sent, 'selfie');
   if (!check.ok) return refuse(check.error === 'too_big' ? 'too_big' : 'type');
@@ -164,6 +169,8 @@ export const makePhoto = async (env: Bindings, deps: RemixDeps, race: Race, entr
     if (!kept && fields.resultKey) await env.FILES.delete(fields.resultKey);
     return next;
   };
+  const budget = photoBudget((await q.moments(race.id)).length);
+  if (!(await q.spendRender(entrant.id, budget))) return finish({ status: photo.resultKey ? 'done' : 'failed', error: 'no tries left' });
   const selfie = await read(env.FILES, photo.selfieKey);
   if (!selfie) return finish({ status: 'failed', error: 'selfie missing' });
   const rendered = await renderForMoment(deps, race, moment, selfie, entrant.bib);

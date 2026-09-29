@@ -48,6 +48,12 @@ export const isStale = (photo: Pick<RunnerPhoto, 'status' | 'updatedAt'>, nowMs:
   photo.status === 'rendering' && nowMs - Date.parse(photo.updatedAt) > RENDER_STALE_MS;
 
 /** Another picture may be made: tries left, and none being made now (a lost one does not count). */
+/**
+ * The pictures one runner may have made, all moments together: three tries each. Counted on the
+ * entry, so a photo deleted and sent again does not start over.
+ */
+export const photoBudget = (moments: number): number => moments * MAX_PHOTO_ATTEMPTS;
+
 export const canTryAgain = (photo: Pick<RunnerPhoto, 'attempts' | 'status' | 'updatedAt'>, nowMs: number): boolean =>
   (photo.status !== 'rendering' || isStale(photo, nowMs)) && photo.attempts < MAX_PHOTO_ATTEMPTS;
 

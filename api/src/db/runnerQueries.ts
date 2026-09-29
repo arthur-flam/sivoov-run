@@ -101,6 +101,12 @@ const SELECT_RUNNER = 'SELECT e.*, ran.best_ms, ses.sessions, ses.app_sessions, 
 
 const chunk = <T>(items: readonly T[], size: number): T[][] => Array.from({ length: Math.ceil(items.length / size) }, (_, i) => items.slice(i * size, (i + 1) * size));
 
+/** Ends every way in of an entry whose email is about to change; nothing when it stays the same. Run before the update. */
+const signOutIfEmailChanges = (d1: D1Database, entrantId: string, email: string): D1PreparedStatement[] =>
+  ['sessions', 'auth_codes', 'web_links'].map((table) =>
+    d1.prepare(`DELETE FROM ${table} WHERE entrant_id = ?1 AND EXISTS (SELECT 1 FROM entrants WHERE id = ?1 AND email != ?2)`).bind(entrantId, email),
+  );
+
 export const runnerDb = (d1: D1Database) => ({
   /** One page of the list and the count behind every chip, both under the same distance and search. */
   async list(raceId: string, q: RunnerQuery): Promise<{ rows: RunnerRow[]; counts: RunnerCounts }> {
@@ -187,12 +193,17 @@ export const runnerDb = (d1: D1Database) => ({
     return meta.changes > 0;
   },
 
-  /** Name, email, distance and address. The bib is the runner's identity and does not change here. */
+  /**
+   * Name, email, distance and address. The bib is the runner's identity and does not change here.
+   * A new email signs out whoever held the old one (a typo fixed may have been someone else's).
+   */
   async update(entrant: Entrant): Promise<void> {
-    await d1
-      .prepare('UPDATE entrants SET email = ?, first_name = ?, last_name = ?, distance_key = ?, address = ? WHERE id = ? AND race_id = ?')
-      .bind(entrant.email, entrant.firstName, entrant.lastName, entrant.distanceKey, entrant.address ? JSON.stringify(entrant.address) : null, entrant.id, entrant.raceId)
-      .run();
+    await d1.batch([
+      ...signOutIfEmailChanges(d1, entrant.id, entrant.email),
+      d1
+        .prepare('UPDATE entrants SET email = ?, first_name = ?, last_name = ?, distance_key = ?, address = ? WHERE id = ? AND race_id = ?')
+        .bind(entrant.email, entrant.firstName, entrant.lastName, entrant.distanceKey, entrant.address ? JSON.stringify(entrant.address) : null, entrant.id, entrant.raceId),
+    ]);
   },
 
   /** Removes a runner who never ran, with their codes and sessions. False, and nothing removed, when they have runs. */
@@ -252,7 +263,8 @@ export const runnerDb = (d1: D1Database) => ({
     const { results } = await d1.prepare('SELECT bib FROM entrants WHERE race_id = ?').bind(raceId).all<{ bib: string }>();
     const existing = new Set(results.map((r) => r.bib));
     const entrants = rows.map((r) => EntrantSchema.parse({ ...r, id: `${raceId}-${r.bib}`, raceId, source: 'import' }));
-    const statements = entrants.map((e) =>
+    const statements = entrants.flatMap((e) => [
+      ...signOutIfEmailChanges(d1, e.id, e.email),
       d1
         .prepare(
           `INSERT INTO entrants (id, race_id, bib, email, first_name, last_name, distance_key, address, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -260,7 +272,7 @@ export const runnerDb = (d1: D1Database) => ({
              distance_key=excluded.distance_key, address=COALESCE(excluded.address, entrants.address)`,
         )
         .bind(e.id, e.raceId, e.bib, e.email, e.firstName, e.lastName, e.distanceKey, e.address ? JSON.stringify(e.address) : null, e.source),
-    );
+    ]);
     // D1 batches are transactional; chunks keep each batch under the statement limit.
     await chunk(statements, 100).reduce((p, part) => p.then(() => d1.batch(part).then(() => undefined)), Promise.resolve());
     const updated = entrants.filter((e) => existing.has(e.bib)).length;

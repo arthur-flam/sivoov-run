@@ -51,7 +51,7 @@ const page = async (c: Ctx, { race, entrant, course }: Signed, problem?: PhotoPr
         entrant={entrant}
         officialM={course.distanceM}
         locale={locale}
-        enabled={remixEnabled(remixDeps(c.env))}
+        enabled={remixEnabled(remixDeps(c.env, entrant.email))}
         moments={onCourse.map((m) => ({ ...m, place: refs.get(m.id) }))}
         photos={mine.map((p) => ({ ...p, url: picturePath(`/${race.slug}/photos`, p) ?? undefined, again: canTryAgain(p, Date.now()) }))}
         problem={problem}
@@ -79,7 +79,7 @@ photos.post('/:slug/photos/:momentId', async (c) => {
   const { race, entrant, course } = signed;
   const accepted = await acceptSelfie(c.env, entrant, course, c.req.param('momentId'), await c.req.parseBody());
   if (!accepted.ok) return page(c, signed, { reason: accepted.reason, momentId: accepted.momentId }, REFUSAL_STATUS[accepted.reason]);
-  const made = await makePhoto(c.env, remixDeps(c.env), race, entrant, accepted.moment, accepted.photo);
+  const made = await makePhoto(c.env, remixDeps(c.env, entrant.email), race, entrant, accepted.moment, accepted.photo);
   if (made.status !== 'done' || made.error) return page(c, signed, { reason: 'failed', momentId: accepted.moment.id }, 422);
   return back(c, race, accepted.moment.id);
 });
@@ -94,7 +94,7 @@ photos.post('/:slug/photos/:id/again', async (c) => {
   const moment = photo ? await q.moment(race.id, photo.momentId) : null;
   if (!photo || !moment) return page(c, signed, { reason: 'unknown' }, 404);
   if (!canTryAgain(photo, Date.now())) return page(c, signed, { reason: 'no_more', momentId: moment.id }, 429);
-  const made = await makePhoto(c.env, remixDeps(c.env), race, entrant, moment, photo);
+  const made = await makePhoto(c.env, remixDeps(c.env, entrant.email), race, entrant, moment, photo);
   if (made.error) return page(c, signed, { reason: 'failed', momentId: moment.id }, 422);
   return back(c, race, moment.id);
 });

@@ -5,6 +5,7 @@ import type { DistanceKey, Entrant } from '@sivoov/shared';
 import type { AppEnv } from '../env';
 import { MAX_INSTRUCTIONS_PER_DAY, RUNNER_FILTERS, instructionsLog, runnerDb, sentInLastDay } from '../db/runnerQueries';
 import type { RunnerQuery } from '../db/runnerQueries';
+import { photoQueries } from '../db/photoQueries';
 import { requireCan, requireOrganizer } from '../lib/orgAuth';
 import type { OrgVars } from '../lib/orgAuth';
 import { mailerFor } from '../lib/mailer';
@@ -213,8 +214,12 @@ orgRunners.post('/:slug/runners/:bib/delete', requireOrganizer, requireCan('edit
   const q = runnerDb(c.env.DB);
   const runner = await q.byBib(race.id, c.req.param('bib'));
   if (!runner) return notFoundPage(c);
+  // A runner who never ran may still have sent photos (the start selfie): their files go with them.
+  const photos = await photoQueries(c.env.DB).photos(runner.entrant.id);
   if (!(await q.remove(runner.entrant.id))) return c.redirect(`${runnerHref(race.slug, runner.entrant.bib)}?done=has_runs`);
   await instructionsLog(c.env.FILES).clear(runner.entrant.id);
+  const files = photos.flatMap((p) => [p.selfieKey, ...(p.resultKey ? [p.resultKey] : [])]);
+  if (files.length > 0) await c.env.FILES.delete(files);
   return c.redirect(`/org/${race.slug}/runners?done=deleted`);
 });
 

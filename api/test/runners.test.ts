@@ -157,6 +157,7 @@ describe('one runner', () => {
 
   it('validates an edit, keeps what was typed, then saves it with the medal address', async () => {
     const cookie = await cookieFor('equipe@example.com');
+    await session(people.anna, 'web');
     const fields = { firstName: 'Anna', lastName: 'Arnaud-Roy', email: 'anna@', distanceKey: 'half', line1: '3 quai', line2: '', postalCode: '', city: 'Caen', country: 'France' };
     const refused = await post(`${base}/runners/1/edit`, fields, cookie);
     expect(refused.status).toBe(400);
@@ -172,6 +173,8 @@ describe('one runner', () => {
     const row = await stored('1');
     expect(row).toMatchObject({ bib: '1', last_name: 'Arnaud-Roy', email: 'anna.roy@example.com' });
     expect(JSON.parse(row!.address!)).toEqual({ line1: '3 quai', postalCode: '14000', city: 'Caen', country: 'FR' });
+    // A new email signs out whoever held the old one: the typo fixed may have been a stranger's.
+    expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM sessions WHERE entrant_id = ?').bind(people.anna.id).first('n')).toBe(0);
     expect(await (await get(`${base}/runners/1?done=saved`, cookie)).text()).toContain('Modifications enregistrées');
   });
 
@@ -196,10 +199,15 @@ describe('one runner', () => {
     expect(await stored('3')).not.toBeNull();
     await db(env.DB).upsertEntrant(entrant('90', 'Zoe', 'Zola', 'half'));
     await session(entrant('90', 'Zoe', 'Zola', 'half'), 'web');
+    // Her start selfie, sent before she ever ran, goes with her.
+    await env.FILES.put('selfies/zoe.jpg', 'selfie');
+    await env.DB.prepare("INSERT INTO photo_moments (id, race_id, title, at, ask, scene, created_at) VALUES ('m-start', ?, 'Départ', 'start', 'a', 's', '2026-09-29T00:00:00Z')").bind(SLUG).run();
+    await env.DB.prepare("INSERT INTO runner_photos (id, entrant_id, moment_id, selfie_key, status, attempts, shown, created_at, updated_at) VALUES ('p-zoe', ?, 'm-start', 'selfies/zoe.jpg', 'waiting', 0, 0, '2026-09-29T00:00:00Z', '2026-09-29T00:00:00Z')").bind(`${SLUG}-90`).run();
     const deleted = await post(`${base}/runners/90/delete`, {}, cookie);
     expect(deleted.headers.get('location')).toBe(`/org/${SLUG}/runners?done=deleted`);
     expect(await stored('90')).toBeNull();
     expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM sessions WHERE entrant_id = ?').bind(`${SLUG}-90`).first('n')).toBe(0);
+    expect(await env.FILES.get('selfies/zoe.jpg')).toBeNull();
   });
 
   it('emails the instructions, at most three times a day', async () => {

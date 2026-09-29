@@ -119,6 +119,16 @@ export const photoQueries = (d1: D1Database) => ({
       .run();
     return (res.meta.changes ?? 0) > 0;
   },
+  /** How many pictures the model made for this runner (migration 0010). */
+  async rendersUsed(entrantId: string): Promise<number> {
+    const row = await d1.prepare('SELECT photo_renders AS n FROM entrants WHERE id = ?').bind(entrantId).first<{ n: number }>();
+    return row?.n ?? 0;
+  },
+  /** Takes one picture from the runner's budget, if any is left. False when it is spent. */
+  async spendRender(entrantId: string, budget: number): Promise<boolean> {
+    const res = await d1.prepare('UPDATE entrants SET photo_renders = photo_renders + 1 WHERE id = ? AND photo_renders < ?').bind(entrantId, budget).run();
+    return (res.meta.changes ?? 0) > 0;
+  },
   async deletePhoto(entrantId: string, id: string): Promise<void> {
     await d1.prepare('DELETE FROM runner_photos WHERE entrant_id = ? AND id = ?').bind(entrantId, id).run();
   },

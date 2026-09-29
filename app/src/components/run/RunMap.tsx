@@ -61,7 +61,7 @@ export const RunMap = memo(function RunMap({ token, track, officialM, runM, land
         defaultSettings={cameraProps}
         {...cameraProps}
         padding={{ paddingTop: shot.padding.top, paddingBottom: shot.padding.bottom, paddingLeft: shot.padding.left, paddingRight: shot.padding.right }}
-        animationMode={shot.mode === 'linear' ? 'linearTo' : 'easeTo'}
+        animationMode={shot.mode === 'linear' ? 'linearTo' : 'flyTo'}
         animationDuration={shot.durationMs}
       />
       <ShapeSource id="course" shape={line} lineMetrics>

@@ -23,6 +23,8 @@ type GlMap = {
   setPaintProperty: (layer: string, name: string, value: unknown) => void;
   setConfigProperty: (importId: string, name: string, value: unknown) => void;
   easeTo: (options: Record<string, unknown>) => void;
+  flyTo: (options: Record<string, unknown>) => void;
+  cameraForBounds: (bounds: [[number, number], [number, number]], options: Record<string, unknown>) => { center: [number, number]; zoom: number } | undefined;
   jumpTo: (options: Record<string, unknown>) => void;
   fitBounds: (bounds: [[number, number], [number, number]], options: Record<string, unknown>) => void;
   isStyleLoaded: () => boolean;
@@ -65,12 +67,15 @@ const STYLE_TIMEOUT_MS = 12_000;
  */
 const apply = (map: GlMap, shot: CameraShot, durationMs = shot.durationMs) => {
   if (shot.kind === 'overview') {
-    map.fitBounds([shot.sw, shot.ne], { pitch: shot.pitch, bearing: 0, padding: shot.padding, duration: durationMs });
+    const fit = { pitch: shot.pitch, bearing: 0, padding: shot.padding };
+    const cam = map.cameraForBounds([shot.sw, shot.ne], fit);
+    if (!cam || durationMs === 0) return map.fitBounds([shot.sw, shot.ne], { ...fit, duration: durationMs });
+    map.flyTo({ ...fit, center: cam.center, zoom: cam.zoom, duration: durationMs, essential: true });
     return;
   }
   const camera = { center: shot.center, bearing: shot.bearing, pitch: shot.pitch, zoom: shot.zoom, padding: shot.padding };
   if (shot.mode === 'linear' || durationMs === 0) map.jumpTo(camera);
-  else map.easeTo({ ...camera, duration: durationMs });
+  else map.flyTo({ ...camera, duration: durationMs, essential: true });
 };
 
 export const RunMap = memo(function RunMap({ token, track, officialM, runM, landmarks, accent, view, light, onFail }: RunMapProps) {

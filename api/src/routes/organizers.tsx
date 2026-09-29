@@ -8,6 +8,8 @@ import { OrganizersPage } from '../pages/organizers/page';
 import { LEAD_FIELDS } from '../pages/organizers/leadForm';
 import type { LeadField, LeadFormState } from '../pages/organizers/leadForm';
 import { submitLead } from '../lib/leads';
+import { leadNotice } from '../lib/notices';
+import { notify } from '../lib/telegram';
 import { localeOf } from './locale';
 
 /** The page for race directors and its contact form. Mounted before the pages, or /:slug takes it. */
@@ -48,5 +50,6 @@ organizers.post(ORGANIZERS_PATH, async (c) => {
   const ip = c.req.header('CF-Connecting-IP')?.trim() || undefined;
   const result = await submitLead(c.env, parsed.data, locale, (p) => c.executionCtx.waitUntil(p), ip);
   if (!result.ok) return render(c, locale, { step: 'form', values, errors: [], tooMany: true }, 429);
+  notify(c, leadNotice(result.lead));
   return render(c, locale, { step: 'sent', name: result.lead.name });
 });

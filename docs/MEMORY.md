@@ -630,3 +630,8 @@
   - A timer-paced simulation (one fix per timer, a clock clamped to the fixes) slows and stutters
     when the JavaScript thread is busy. Pace it by its clock: hand over what fell due at each tick.
 
+- 2026-09-29: a workerd test that needs a secret the suite must not have (the Telegram bot): call
+  the Hono app itself, `app.request(url, init, { ...env, SECRET: 'x' }, createExecutionContext())`,
+  then `waitOnExecutionContext(ctx)` for what runs after the response (both from `cloudflare:test`);
+  SELF only ever has the config's bindings. Blank every such secret in `vitest.config.ts`, or a
+  laptop's `api/.dev.vars` makes the suite post for real.

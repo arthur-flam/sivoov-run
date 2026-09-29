@@ -11,6 +11,32 @@ Live: https://run.sivoov.app/deauville-2026 (production), https://preview.run.si
 on 2026-09-27 (below); M2 still needs a real finish. Production has the race and its courses;
 no real entrants yet.
 
+### Telegram lines for the owner (2026-09-29, branch `claude/rehearsal-run-issues-yugv8j`)
+The Worker posts one short French line to the owner's Telegram on what people do: a first line
+of defense and a live feed. Sent after the response (`waitUntil`), never failing or slowing a
+request; a failed send is a `console.warn`. Plain text, prefixed `[preview]` / `[local]` outside
+production. Runners are named by name, bib and race, never email; « test » (`@example.com`),
+« démo » (demo race) and « simulation » say so. Lines in `api/src/lib/notices.ts`, sender in
+`lib/telegram.ts`.
+- 🔑 Runner sign-in, web or app, with the phone the app reports: « Connexion de Léa MARTIN
+  (dossard 2002, 10 km des Champs-Élysées) sur l’app Android 16 · samsung SM-S911B · v2.0.0 ».
+- ▶️ Run start: the app calls `POST /api/runs/:id/started` at the gun (`{ courseId, source }`,
+  fire and forget, nothing stored; `app/src/stores/runStarted.ts` watches the run store): « Départ
+  de … sur 10 km : course officielle | répétition, avant l’ouverture | hors délai | simulation ».
+  Needs the app's JS (OTA); older builds just say nothing.
+- 🏁 Finish, once per run id (a re-sent upload is silent), app or GPX: « … a couru 10 km en 46:34 :
+  officiel | répétition, hors classement | hors délai, hors classement | simulation »; a run cut
+  short says how far it went (« a couru 3,4 km en 18:02 : abandon »).
+- ✉️ Organizer lead (name, email, race, first 200 characters of the message), 👤 admin sign-in
+  (email, « staff »), 🔥 any 500 (method, path, start of the error).
+
+**For the owner to switch it on**: in Telegram, talk to @BotFather, `/newbot`, keep the token.
+Send your new bot any message, then open `https://api.telegram.org/bot<token>/getUpdates` and read
+`message.chat.id` (for a group: add the bot to it, write in it, same page; group ids are negative).
+Then, in `api/`: `npx wrangler secret put TELEGRAM_BOT_TOKEN` and `npx wrangler secret put
+TELEGRAM_CHAT_ID` for production, and the same with `--env preview` for preview. No deploy needed
+for the secrets; the code ships with the next Worker deploy. Without them, nothing is sent.
+
 ### The run map, smooth under the finger (2026-09-29, branch `claude/run-map-feel`)
 The owner's second pass on the phone: turning the map did not follow the finger, house numbers
 cluttered the view, the simulation stuttered. JS only (OTA).

@@ -92,6 +92,7 @@ What still needs the laptop, and nothing else does:
 | `CLOUDFLARE_AI_TOKEN` (Workers AI, AI Gateway run) | Worker secret, production and preview; `.env` and `api/.dev.vars` locally | api: every LLM call, through the AI Gateway named in the `AI_GATEWAY` var (`lib/llm.ts`) |
 | Anthropic key | stored in the AI Gateway "sivoov" (provider keys), never in the Worker | Claude through the gateway |
 | `BROWSER_RENDERING_TOKEN` (Browser Rendering - Edit) | Worker secret, production and preview | api: share cards (`lib/cards.ts`) |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Worker secrets, production and preview (`--env preview`); none locally | api: the owner's Telegram lines (`lib/telegram.ts`); without both nothing is sent |
 | Apple / Google credentials | EAS servers | EAS Build |
 Cloud sessions need none of these for loop 1. Adding `EXPO_TOKEN` to the environment lets a
 session publish an update directly (loop 2 without CI).

@@ -11,6 +11,35 @@ Live: https://run.sivoov.app/deauville-2026 (production), https://preview.run.si
 on 2026-09-27 (below); M2 still needs a real finish. Production has the race and its courses;
 no real entrants yet.
 
+### The rehearsal of 2026-09-29, fixed (branch `claude/rehearsal-run-issues-yugv8j`)
+The owner ran the Champs-Élysées 10 km as a rehearsal (preview, 46:34, run `mumtdgzg-uaew1q4g`).
+The trace was pulled through the admin (MEMORY.md) and replayed through the tracker. JS only (OTA).
+- **The audio late at the first places**: every line fired on its trigger, but the Concorde and
+  Madeleine lines were set 50 m past their places (300/700 m for 250/650 m): 13 s late. The seed
+  now takes place lines' distances from the course's places. **Preview's published pack still has
+  300/700**: move the two lines in the studio and publish (the seed never overwrites a draft).
+- **The other places, 2-3 s late**: the tracker counts ground a step behind the runner, the dot on
+  the map shows where the runner is. Distance lines now start 3 s of running early (at most 20 m,
+  `lineLeadM`), and « Prochain » follows the dot, so the dot, the name and the voice agree.
+- **Back in the app, the runner off the course**: in the background the camera kept being sent
+  moves the paused map never made; back on screen it moved in a straight line from where it was
+  left, across town, with the runner drawn at its centre. No moves are planned off screen now, and
+  a plan gone stale (3 s) jumps to the runner (`STALE_MS`); the glide snaps on the first frame.
+- **The finish cut short**: « Accueil » on the finish screen cut the finish lines and the crowd.
+  They play to their end now; a new run screen cuts the tail.
+- **The GPS saver never applied**: at 19 % the phone was in a pocket and Android refused the
+  switch from the background. It now waits for the app to be on screen.
+- **Battery**: 28 % to 7 % in 46 minutes with the 3D map on screen (about 27 %/h). A marathon at
+  that rate needs a full phone; the numbers view is the fallback. Not changed yet.
+- **Not done: the rehearsal's finish.** The owner wants a rehearsal to end like a real race (the
+  medal, the time, the share screen, the race report) and the race home to offer « see my
+  rehearsal » and « rehearse again » afterwards. That is `Finish.tsx`, the result and card pages,
+  all rewritten on `claude/post-run-share-image-8iw9d6` (not merged yet). To build on it once it
+  lands: `finishOutcome` 'rehearsal' gets the official screen with a « Répétition » mark; the result
+  page shows a runner's latest rehearsal when asked (`?run=<id>`, `noindex`, never in the ranking);
+  the home shows the last rehearsal (time, « Voir », « Refaire la répétition »).
+Verified: tests (shared lead, camera plan, playback drain); the replay of the trace. Not yet on a phone.
+
 ### The run map, smooth under the finger (2026-09-29, branch `claude/run-map-feel`)
 The owner's second pass on the phone: turning the map did not follow the finger, house numbers
 cluttered the view, the simulation stuttered. JS only (OTA).

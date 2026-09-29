@@ -630,3 +630,22 @@
   - A timer-paced simulation (one fix per timer, a clock clamped to the fixes) slows and stutters
     when the JavaScript thread is busy. Pace it by its clock: hand over what fell due at each tick.
 
+- 2026-09-29: the owner's first rehearsal with the 3D run screen (10 km des Champs-Élysées, preview,
+  run `mumtdgzg-uaew1q4g`). Worth knowing next time:
+  - A preview trace can be read from a session without Cloudflare credentials: `POST /org/signin`
+    with `step=code&email=orga@example.com&code=000000` (cookie jar), then the runs list at
+    `/org/<race>/runs` and `/org/<race>/runs/<id>/trace.json`. The hosts are reachable from the
+    sandbox now (ACCESS.md still says otherwise).
+  - "The audio is 15 s late": the lines fired exactly on their trigger. The Champs seed set the
+    Concorde and Madeleine lines at 300 and 700 m while the places are at 250 and 650 m (50 m is
+    14 s at 4:40/km). Place lines now take their distance from the landmark (`at()` in the seed);
+    the studio cannot catch this, the lines are not tied to places.
+  - Replaying a trace through `applySample` + `glideStep` (`npx tsx` on a script importing
+    `shared/src/index`) tells the dot on the map from the tracker: the dot passes a place 1-4 s
+    before the tracker does. Distance lines now fire `LINE_LEAD_S` (3 s) early.
+  - Android refuses `startLocationUpdatesAsync` from the background ("Foreground service cannot be
+    started when the application is in the background"): the GPS saver pace waits for the app to
+    be on screen.
+  - Leaving the finish screen unmounted the run screen, which released the player and reset the
+    run: the finish lines and the crowd were cut. The finish now plays out (`letFinish`).
+  - A Galaxy S23 with the 3D map on screen went from 28 % to 7 % in 46 min (about 27 %/h).

@@ -10,6 +10,8 @@ vi.mock('@/storage', () => ({
   },
 }));
 const traces = new Map<string, string>();
+/** The next trace read takes a while, as an older marathon trace does on a phone. */
+const reads = vi.hoisted(() => ({ slowNext: false }));
 vi.mock('@/stores/traceFiles', async () => {
   const { RunTraceSchema } = await import('@sivoov/shared');
   return {
@@ -20,6 +22,10 @@ vi.mock('@/stores/traceFiles', async () => {
         return path;
       },
       read: async (path: string) => {
+        if (reads.slowNext) {
+          reads.slowNext = false;
+          await new Promise((r) => setTimeout(r, 30));
+        }
         const raw = traces.get(path);
         const parsed = raw === undefined ? null : RunTraceSchema.safeParse(JSON.parse(raw));
         return parsed?.success ? parsed.data : null;
@@ -138,5 +144,18 @@ describe('uploads queue', () => {
     await first;
     expect(useUploads.getState().statusOf('r8')).toBe('sent');
     expect(useUploads.getState().statusOf('r9')).toBe('sent');
+  });
+
+  it('keeps a run queued while the queue is still being read at start', async () => {
+    // A rehearsal waits in the queue; at start the home reads it while the run closed from its journal is queued.
+    await useUploads.getState().enqueue(upload('rehearsal'), null);
+    useUploads.setState({ hydrated: false, pending: [] });
+    reads.slowNext = true;
+    const reading = useUploads.getState().hydrate();
+    await new Promise((r) => setTimeout(r, 5));
+    await useUploads.getState().enqueue(upload('race'), null);
+    await reading;
+    expect(useUploads.getState().pending.map((p) => p.run.id).sort()).toEqual(['race', 'rehearsal']);
+    expect(JSON.parse(memory.get(UPLOADS_KEY)!).pending.map((p: { run: { id: string } }) => p.run.id).sort()).toEqual(['race', 'rehearsal']);
   });
 });

@@ -32,7 +32,6 @@ type RunStore = {
   samples: LocationSample[];
   fired: Fired[];
   /** The last event fired, for the on-screen caption until real audio plays. */
-  nowPlaying: AudioEvent | null;
   /** The digit on screen during the countdown. */
   countdown: number;
   /**
@@ -131,12 +130,12 @@ export const useRun = create<RunStore>((set, get) => {
   /** `late`: the run just crossed a long silence; what fell due in it is marked missed, never said (bar the finish). */
   const fire = (firings: Firing[], state: RunState, late: boolean) => {
     if (firings.length === 0) return;
-    const { fired, nowPlaying } = get();
+    const { fired } = get();
     const said = late ? afterPause(firings) : firings;
     const record = (f: Firing) => ({ eventId: f.event.id, key: f.key, distanceM: state.distanceM, elapsedMs: state.elapsedMs });
     const missed = firings.filter((f) => !said.includes(f)).map((f) => ({ ...record(f), silent: true, missed: true }));
     if (missed.length > 0) diag('run', `${missed.length} lines missed across a GPS gap at ${Math.round(state.distanceM)} m`);
-    set({ fired: [...fired, ...missed, ...said.map(record)], nowPlaying: said[0]?.event ?? nowPlaying });
+    set({ fired: [...fired, ...missed, ...said.map(record)] });
     void journal.fired(get().fired);
   };
 
@@ -187,7 +186,6 @@ export const useRun = create<RunStore>((set, get) => {
     source: null,
     samples: [],
     fired: [],
-    nowPlaying: null,
     countdown: 0,
     cue: null,
     startError: null,
@@ -195,7 +193,7 @@ export const useRun = create<RunStore>((set, get) => {
 
     prepare(course, track, pack) {
       if (get().phase !== 'idle') return;
-      set({ course, track, pack, state: idleRun(course.distanceM), phase: 'idle', samples: [], fired: [], nowPlaying: null, cue: null });
+      set({ course, track, pack, state: idleRun(course.distanceM), phase: 'idle', samples: [], fired: [], cue: null });
     },
 
     async start(source, { uriFor = () => null, soundFor, countdownSeconds = 5, onLine, entrantId, ceremony: simCeremony = false } = {}) {
@@ -224,13 +222,13 @@ export const useRun = create<RunStore>((set, get) => {
       ceremony?.stop();
       ceremony = null;
       await journal.close();
-      set({ state: idleRun(course.distanceM), phase: 'idle', samples: [], fired: [], nowPlaying: null, source: null, cue: null, startError: error });
+      set({ state: idleRun(course.distanceM), phase: 'idle', samples: [], fired: [], source: null, cue: null, startError: error });
     },
 
     restore({ journal: found, samples, state }) {
       if (get().phase !== 'idle' || !get().course) return;
       const fired = found.fired.map((f) => ({ ...f, silent: true }));
-      set({ runId: found.runId, recovered: found, samples, state, fired, phase: 'recovered', nowPlaying: null, cue: null, startError: null });
+      set({ runId: found.runId, recovered: found, samples, state, fired, phase: 'recovered', cue: null, startError: null });
     },
 
     async resume(source) {
@@ -278,7 +276,7 @@ export const useRun = create<RunStore>((set, get) => {
       ceremony = null;
       void get().source?.stop().catch(() => undefined);
       const { course } = get();
-      set({ state: idleRun(course?.distanceM ?? 0), phase: 'idle', runId: newRunId(), samples: [], fired: [], nowPlaying: null, source: null, cue: null, recovered: null });
+      set({ state: idleRun(course?.distanceM ?? 0), phase: 'idle', runId: newRunId(), samples: [], fired: [], source: null, cue: null, recovered: null });
     },
 
     setVisible(next) {

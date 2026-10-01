@@ -133,36 +133,41 @@ const SAVER_OPTIONS: Location.LocationTaskOptions = {
   ...(Platform.OS === 'ios' ? { accuracy: Location.Accuracy.Highest, distanceInterval: 5 } : { timeInterval: 2000 }),
 };
 
-/** Where the permissions stand now, without prompting. */
-export const currentLocationPermission = async (): Promise<LocationPermission> => {
-  const fg = await Location.getForegroundPermissionsAsync();
-  if (fg.status === 'denied') return 'denied';
-  if (fg.status !== 'granted') return 'undetermined';
-  if (Platform.OS === 'web') return 'web';
+const withBackground = async (): Promise<LocationPermission> => {
   const bg = await Location.getBackgroundPermissionsAsync().catch(() => null);
   return bg?.status === 'granted' ? 'always' : 'foreground';
 };
 
 /**
- * Foreground first. Android then asks for "always" (its settings page: the only way the fixes
- * survive a locked screen there). iOS is not asked for it: "while using" already keeps a run
- * started on screen measuring (`keepsTrackingLocked`), and a second prompt is one more chance
- * for the runner to refuse, and for App Review to ask why.
+ * Step one: the system's own dialog, « while using the app » (asked once; after that it only
+ * says what is granted). Never « always »: on Android that is step two, `requestAlwaysLocation`,
+ * once the pre-flight has said why. iOS never needs it: « while using » keeps a run started on
+ * screen measuring (`keepsTrackingLocked`).
  */
 export const requestLocationPermission = async (): Promise<LocationPermission> => {
   const fg = await Location.requestForegroundPermissionsAsync();
   if (fg.status !== 'granted') return 'denied';
-  if (Platform.OS === 'web') return 'web';
-  const bg = await (Platform.OS === 'ios' ? Location.getBackgroundPermissionsAsync() : Location.requestBackgroundPermissionsAsync()).catch(() => null);
+  return Platform.OS === 'web' ? 'web' : withBackground();
+};
+
+/**
+ * Step two, Android only, from the pre-flight's explanation: Android's own page, where the runner
+ * picks « Toujours autoriser » (the only way the fixes survive a locked screen there).
+ */
+export const requestAlwaysLocation = async (): Promise<LocationPermission> => {
+  const bg = await Location.requestBackgroundPermissionsAsync().catch(() => null);
   return bg?.status === 'granted' ? 'always' : 'foreground';
 };
 
-export interface DeviceLocationSource extends LocationSource {
-  /** Null until start() asked; then what the runner granted. */
-  permission: () => LocationPermission | null;
-}
+/** Where the permission stands, without asking: read again when the runner comes back from the phone's settings. */
+export const currentLocationPermission = async (): Promise<LocationPermission> => {
+  const fg = await Location.getForegroundPermissionsAsync();
+  if (fg.status === 'denied') return 'denied';
+  if (fg.status !== 'granted') return 'undetermined';
+  return Platform.OS === 'web' ? 'web' : withBackground();
+};
 
-export const deviceSource = (): DeviceLocationSource => {
+export const deviceSource = (): LocationSource => {
   let subscription: Location.LocationSubscription | null = null;
   let background = false;
   let permission: LocationPermission | null = null;
@@ -204,7 +209,6 @@ export const deviceSource = (): DeviceLocationSource => {
   return {
     kind: 'device',
     now: () => Date.now(),
-    permission: () => permission,
     async start(onSample) {
       permission = await requestLocationPermission();
       diag('location', `permission: ${permission}`);

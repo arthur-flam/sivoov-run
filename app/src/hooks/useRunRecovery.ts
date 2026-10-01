@@ -4,7 +4,7 @@ import { diag } from '@/diag';
 import { useRun } from '@/stores/run';
 import { closeRun, findRun } from '@/stores/runRecovery';
 
-/** Once per launch of the app: coming back to the home screen later is the runner's own choice. */
+/** The journal is read once per launch of the app: coming back to the home screen later is the runner's own choice. */
 let checked = false;
 
 /**
@@ -16,13 +16,15 @@ let checked = false;
 export const useRunRecovery = (entrantId: string | null, token: string | null): void => {
   const router = useRouter();
   useEffect(() => {
-    if (!entrantId || checked) return;
-    checked = true;
+    if (!entrantId) return;
+    // Checked on every mount: the home screen was already seen once before this run started.
     const phase = useRun.getState().phase;
     if (phase === 'running' || phase === 'countdown') {
       router.push('/run');
       return;
     }
+    if (checked) return;
+    checked = true;
     void findRun(entrantId)
       .then(async (found) => {
         if (!found) return;

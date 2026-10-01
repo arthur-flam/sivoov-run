@@ -96,18 +96,29 @@ const message = (e: unknown): string => (e instanceof Error ? e.message : String
 /** A flush asked for while one is running: the running one goes round again when done. */
 let flushAgain = false;
 
+/**
+ * The one reading of the queue under way: a second caller waits for it rather than reading again,
+ * which would set `pending` over a run queued in between (the run closed at start, the home's flush).
+ */
+let hydrating: Promise<void> | null = null;
+
 export const useUploads = create<UploadsState>((set, get) => ({
   hydrated: false,
   pending: [],
   sent: [],
   flushing: false,
 
-  async hydrate() {
-    const raw = await storage.get(UPLOADS_KEY).catch(() => null);
-    const parsed = raw ? PersistedSchema.safeParse(parseJson(raw)) : null;
-    // A corrupt queue is dropped rather than blocking every later run.
-    const pending = parsed?.success ? await rehydrate(parsed.data.pending) : [];
-    set({ hydrated: true, pending, ...(parsed?.success ? { sent: parsed.data.sent } : {}) });
+  hydrate() {
+    hydrating ??= (async () => {
+      const raw = await storage.get(UPLOADS_KEY).catch(() => null);
+      const parsed = raw ? PersistedSchema.safeParse(parseJson(raw)) : null;
+      // A corrupt queue is dropped rather than blocking every later run.
+      const pending = parsed?.success ? await rehydrate(parsed.data.pending) : [];
+      set({ hydrated: true, pending, ...(parsed?.success ? { sent: parsed.data.sent } : {}) });
+    })().finally(() => {
+      hydrating = null;
+    });
+    return hydrating;
   },
 
   async enqueue(upload, token) {

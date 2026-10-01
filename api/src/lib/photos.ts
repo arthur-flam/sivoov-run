@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { IMAGE_TYPES, RENDER_STALE_MS, canTryAgain, checkImage, courseMoments, isStale, remixPrompt, sniffImage, stripJpegMetadata } from '@sivoov/shared';
+import { IMAGE_TYPES, PHOTOS_PER_DAY, RENDER_STALE_MS, canTryAgain, checkImage, courseMoments, isStale, remixPrompt, sniffImage, stripJpegMetadata } from '@sivoov/shared';
 import type { Course, Entrant, PhotoMoment, Race, RunnerPhoto } from '@sivoov/shared';
 import type { Bindings } from '../env';
 import { photoQueries } from '../db/photoQueries';
@@ -16,7 +16,8 @@ export const DEFAULT_IMAGE_MODEL = 'gemini-2.5-flash-image';
 
 /**
  * `stand-in`: on a local Worker with no key the "picture" is the runner's own photo, so the pages
- * and the screenshots can walk the whole flow. Never on preview or production.
+ * and the screenshots can walk the whole flow. Never on preview or production, where test
+ * accounts (App Review's among them) get the real model, within `PHOTOS_PER_DAY` like everyone.
  */
 export type RemixDeps = { files: R2Bucket; gemini?: { apiKey: string; gateway: string }; model: string; standIn?: boolean; fetchImpl?: typeof fetch };
 
@@ -149,15 +150,25 @@ export const acceptSelfie = async (
   return { ok: true, photo, moment };
 };
 
+/** What `makePhoto` says, without storing it, when the runner's pictures of the day are all made. */
+export const NOT_TODAY = 'daily limit';
+
 /**
  * Makes the picture for a photo, once at a time (`claimRender`), and keeps it only if the photo
  * is still there when the model answers (`finishRender`: deleted meanwhile, it stays deleted).
- * A failure keeps the previous picture, if any, and says why for the organizer.
+ * A failure keeps the previous picture, if any, and says why for the organizer. Past the runner's
+ * `PHOTOS_PER_DAY`, nothing is made or stored: the answer carries `NOT_TODAY`.
  */
 export const makePhoto = async (env: Bindings, deps: RemixDeps, race: Race, entrant: Entrant, moment: PhotoMoment, photo: RunnerPhoto, nowMs = Date.now()): Promise<RunnerPhoto> => {
   const q = photoQueries(env.DB);
+  // Today's pictures first: past them the photo stays as it is (waiting, or its last picture) for tomorrow.
+  const day = new Date(nowMs).toISOString().slice(0, 10);
+  if (!(await q.spendRender(entrant.id, day, PHOTOS_PER_DAY))) return { ...photo, error: NOT_TODAY };
   const claimed = await q.claimRender(photo.id, new Date(nowMs).toISOString(), new Date(nowMs - RENDER_STALE_MS).toISOString());
-  if (!claimed) return (await q.photo(entrant.id, photo.id)) ?? photo;
+  if (!claimed) {
+    await q.refundRender(entrant.id, day);
+    return (await q.photo(entrant.id, photo.id)) ?? photo;
+  }
   const finish = async (fields: Partial<RunnerPhoto>): Promise<RunnerPhoto> => {
     const next: RunnerPhoto = { ...photo, attempts: photo.attempts + 1, updatedAt: new Date().toISOString(), ...fields };
     const kept = await q.finishRender(next);

@@ -12,7 +12,7 @@ export const Control = ({ icon, label, value, onPress, testID }: Props) => (
       <Text style={styles.label} numberOfLines={1}>
         {label}
       </Text>
-      <Text style={styles.value} numberOfLines={1}>
+      <Text style={styles.value} numberOfLines={2}>
         {value}
       </Text>
     </View>

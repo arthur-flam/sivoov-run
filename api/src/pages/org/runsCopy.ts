@@ -10,7 +10,7 @@ import type { Tone } from './ui';
 export const FILTER_LABELS: Record<RunFilter, string> = {
   all: 'Toutes',
   finished: 'Arrivés',
-  not_ranked: 'Hors classement',
+  not_ranked: 'Non officiels',
   not_finished: 'Pas arrivés',
   running: 'En course',
   excluded: 'Écartés',
@@ -22,7 +22,7 @@ export const FILTER_EMPTY: Record<RunFilter, { title: string; text: string }> = 
   all: { title: 'Personne n’a encore couru.', text: 'Les courses apparaîtront ici dès qu’un coureur aura terminé ou envoyé son fichier.' },
   finished: { title: 'Aucun coureur arrivé pour le moment.', text: 'Un coureur apparaît ici quand il a parcouru toute la distance.' },
   not_ranked: {
-    title: 'Aucune course hors classement.',
+    title: 'Aucune course non officielle.',
     text: 'Une course terminée avant l’ouverture de la course, après sa fermeture ou sur une autre distance que celle du coureur apparaît ici. Elle ne compte pas dans les résultats.',
   },
   not_finished: { title: 'Aucune course interrompue.', text: 'Les courses arrêtées avant la distance apparaissent ici. Elles ne comptent pas dans les résultats.' },

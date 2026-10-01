@@ -85,7 +85,7 @@ upload.post('/:slug/upload', async (c) => {
   const q = db(c.env.DB);
   // The same file sent twice is the same run: the owner hears of it once.
   const again = await q.runById(run.id);
-  const stored = { ...run, status: officialStatus(run, course.distanceM) };
+  const stored = { ...run, status: officialStatus(run, course) };
   await q.upsertRun(stored, traceKey);
   c.executionCtx.waitUntil(prewarmCards(c.env, new URL(c.req.url).origin, race, entrant.bib).catch(() => undefined));
   if (!again) notify(c, finishNotice(entrant, race, course, stored));

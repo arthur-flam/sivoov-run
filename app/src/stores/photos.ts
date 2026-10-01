@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import { create } from 'zustand';
 import { assignPhotos, momentPasses } from '@sivoov/shared';
 import type { CourseMoment, Split } from '@sivoov/shared';
-import { api } from '@/api';
+import { ApiError, api } from '@/api';
 import type { PhotoView } from '@/api';
 import { diag } from '@/diag';
 import { takeSelfie } from '@/photos/picker';
@@ -139,6 +139,13 @@ export const usePhotos = create<PhotosStore>((set, get) => ({
           set({ photos: merge(get().photos, [photo]), kept: get().kept.filter((id) => id !== q.momentId) });
           return true;
         } catch (e) {
+          // Refused for good (no tries left, a moment removed): dropped, so it never holds back the photos behind it.
+          if (e instanceof ApiError && e.status >= 400 && e.status < 500) {
+            diag('photos', `dropped ${q.momentId}: ${e.message}`);
+            await photoQueue.done(q);
+            set({ kept: get().kept.filter((id) => id !== q.momentId) });
+            return true;
+          }
           diag('photos', `flush stopped: ${e instanceof Error ? e.message : String(e)}`);
           return false;
         }

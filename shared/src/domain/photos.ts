@@ -47,6 +47,12 @@ export const RENDER_STALE_MS = 3 * 60_000;
 export const isStale = (photo: Pick<RunnerPhoto, 'status' | 'updatedAt'>, nowMs: number): boolean =>
   photo.status === 'rendering' && nowMs - Date.parse(photo.updatedAt) > RENDER_STALE_MS;
 
+/**
+ * The pictures the image model makes for one runner in a day (UTC), all moments together. Counted
+ * on the entry: a photo deleted and sent again, or data erased, gives none back.
+ */
+export const PHOTOS_PER_DAY = 5;
+
 /** Another picture may be made: tries left, and none being made now (a lost one does not count). */
 export const canTryAgain = (photo: Pick<RunnerPhoto, 'attempts' | 'status' | 'updatedAt'>, nowMs: number): boolean =>
   (photo.status !== 'rendering' || isStale(photo, nowMs)) && photo.attempts < MAX_PHOTO_ATTEMPTS;

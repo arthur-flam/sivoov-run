@@ -38,10 +38,6 @@ export const followCamera = (track: CourseTrack, officialM: number, runM: number
   };
 };
 
-/** The fraction of the course line the runner has covered, for the line's run and rest colours. */
-export const courseFraction = (track: CourseTrack, officialM: number, runM: number): number =>
-  track.totalM > 0 ? trackMetersForRun(track, officialM, runM) / track.totalM : 0;
-
 export type Glide = {
   /** The tracker's distance, official meters. It moves in steps: a few fixes' worth at a time. */
   fixM: number;

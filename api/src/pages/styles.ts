@@ -375,6 +375,8 @@ table.results { width: 100%; border-collapse: collapse; font-size: 15px; }
 .share-formats button { font: inherit; font-size: 15px; font-weight: 600; min-height: 40px; padding: 0 16px; border-radius: var(--radius-pill); border: 1px solid var(--border-strong); background: transparent; color: var(--ink); cursor: pointer; }
 .share-formats button[aria-checked=true] { background: var(--race-primary); border-color: var(--race-primary); color: var(--race-on-primary); }
 .share-formats button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+/* Four formats on a phone: two by two, never three and an orphan. */
+@media (max-width: 480px) { .share-formats { display: grid; grid-template-columns: 1fr 1fr; } }
 .share-hint { text-align: center; font-size: 14px; color: var(--ink-2); margin: 4px auto 16px; max-width: 46ch; }
 .result-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 26px; }
 .result-actions .btn { flex: 1 1 auto; }

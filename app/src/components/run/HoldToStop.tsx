@@ -37,7 +37,7 @@ export const HoldToStop = ({ onHeld }: { onHeld: () => void }) => {
 
   const ring = useAnimatedProps(() => ({ strokeDashoffset: RING * (1 - progress.value) }));
   const press = useAnimatedStyle(() => ({ transform: [{ scale: 1 - 0.06 * Math.min(1, progress.value * 4) }] }));
-  const hintStyle = useAnimatedStyle(() => ({ opacity: hint.value, transform: [{ translateY: (1 - hint.value) * 6 }] }));
+  const hintStyle = useAnimatedStyle(() => ({ opacity: hint.value, transform: [{ translateX: (1 - hint.value) * 6 }] }));
 
   const begin = () => {
     buzz(Haptics.ImpactFeedbackStyle.Light);
@@ -104,6 +104,7 @@ export const HoldToStop = ({ onHeld }: { onHeld: () => void }) => {
 const styles = StyleSheet.create({
   wrap: { alignItems: 'flex-end' },
   button: { width: SIZE, height: SIZE, borderRadius: SIZE / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.nightCard },
-  hint: { position: 'absolute', bottom: SIZE + 10, right: 0, backgroundColor: colors.snow, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  // Beside the button, over the audio control, never over the numbers the runner is reading.
+  hint: { position: 'absolute', right: SIZE + 10, top: SIZE / 2 - 16, backgroundColor: colors.snow, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   hintText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.ink },
 });

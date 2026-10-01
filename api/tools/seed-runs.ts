@@ -118,7 +118,10 @@ const built = PLANS.map((plan) => {
     id: plan.id,
     entrantId: `${deauvilleRace.id}-${plan.bib}`,
     courseId: course.id,
-    status: officialStatus({ status: state.phase === 'finished' ? 'finished' : 'abandoned', source: plan.source, distanceM: state.distanceM }, course.distanceM),
+    status: officialStatus(
+      { status: state.phase === 'finished' ? 'finished' : 'abandoned', source: plan.source, distanceM: state.distanceM, elapsedMs: Math.round(state.elapsedMs), splits: state.splits },
+      course,
+    ),
     startedAt: iso(startMs),
     finishedAt: iso(startMs + state.elapsedMs + 4_000),
     elapsedMs: Math.round(state.elapsedMs),

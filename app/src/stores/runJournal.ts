@@ -81,7 +81,6 @@ export const createJournalWriter = (files: Files = journalFiles, now: () => numb
       return queue;
     },
     flush,
-    isOpen: (): boolean => journal !== null,
   };
 };
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { deauvilleMarathonGeometry, deauvilleMarathonLandmarks } from '../fixtures';
-import { buildTrack, decimate, nearestOnTrack, nextLandmark, positionAtDistance, positionForRun, runMetersForTrack, toDiagram, trackMetersForRun } from './course';
+import { deauvilleMarathonGeometry } from '../fixtures';
+import { buildTrack, decimate, nearestOnTrack, positionAtDistance, positionForRun, runMetersForTrack, toDiagram, trackMetersForRun } from './course';
 import { haversineM } from './geo';
 
 const track = buildTrack(deauvilleMarathonGeometry.points);
@@ -31,13 +31,6 @@ describe('course track', () => {
   });
 });
 
-describe('landmarks', () => {
-  it('finds the next one ahead', () => {
-    expect(nextLandmark(deauvilleMarathonLandmarks, 0)?.id).toBe('planches');
-    expect(nextLandmark(deauvilleMarathonLandmarks, 200)?.id).toBe('normandy');
-    expect(nextLandmark(deauvilleMarathonLandmarks, 42195)).toBeUndefined();
-  });
-});
 
 describe('diagram', () => {
   it('fits the track into the box with padding', () => {

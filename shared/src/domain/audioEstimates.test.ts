@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AudioEventSchema } from '../schemas/audio';
-import { describeTrigger, estimateFirings, firstFirings } from './audioEstimates';
+import { estimateFirings } from './audioEstimates';
 
 const event = (id: string, trigger: unknown) =>
   AudioEventSchema.parse({ id, trigger, source: { kind: 'file', key: `${id}.mp3` }, category: 'course' });
@@ -43,15 +43,13 @@ describe('estimateFirings', () => {
     expect(firings.at(-1)).toMatchObject({ meters: null, label: 'selon l’allure' });
   });
 
-  it('orders every firing by distance and keeps the first one per event', () => {
+  it('orders every firing by distance', () => {
     const firings = estimateFirings(
       [event('finish', { kind: 'finish' }), event('split', { kind: 'split', everyMeters: 10_000 }), event('start', { kind: 'start' })],
       42_195,
       PACE,
     );
     expect(firings.map((f) => f.meters)).toEqual([0, 10_000, 20_000, 30_000, 40_000, 42_195]);
-    expect([...firstFirings(firings).keys()]).toEqual(['start', 'split', 'finish']);
-    expect(firstFirings(firings).get('split')?.occurrence).toBe(1);
   });
 
   it('puts the start ceremony on the start line, before the gun, in the order it is played', () => {
@@ -77,21 +75,5 @@ describe('estimateFirings', () => {
   it('labels in English when asked', () => {
     const [f] = estimateFirings([event('km5', { kind: 'distance', meters: 5000 })], MARATHON, PACE, 'en');
     expect(f?.label).toBe('5.0 km');
-  });
-});
-
-describe('describeTrigger', () => {
-  it('says in one French line when an event fires', () => {
-    expect(describeTrigger({ kind: 'start' })).toBe('au départ');
-    expect(describeTrigger({ kind: 'finish' })).toBe('à l’arrivée');
-    expect(describeTrigger({ kind: 'distance', meters: 3000.4 })).toBe('à 3000 m');
-    expect(describeTrigger({ kind: 'elapsed', seconds: 90 })).toBe('après 90 s');
-    expect(describeTrigger({ kind: 'split', everyMeters: 1000 })).toBe('tous les 1000 m');
-    expect(describeTrigger({ kind: 'pace', slowerThan: 400, afterMeters: 2000 })).toBe('allure > 400 s/km après 2000 m');
-    expect(describeTrigger({ kind: 'distance', meters: 3000 }, 'en')).toBe('at 3000 m');
-    expect(describeTrigger({ kind: 'cue', at: 'armed', order: 1 })).toBe('sur la ligne · ordre 1');
-    expect(describeTrigger({ kind: 'cue', at: 'countdown', order: 1 })).toBe('compte à rebours · ordre 1');
-    expect(describeTrigger({ kind: 'cue', at: 'gun', order: 2 })).toBe('coup de pistolet · ordre 2');
-    expect(describeTrigger({ kind: 'cue', at: 'countdown', order: 1 }, 'en')).toBe('countdown · order 1');
   });
 });

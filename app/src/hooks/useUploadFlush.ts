@@ -14,7 +14,7 @@ export const RETRY_EVERY_MS = 30_000;
  * Retries pending uploads on mount, each time the app comes back to the foreground, and every
  * half minute on screen; the photos the camera kept on the phone go the same way.
  */
-export const useUploadFlush = (token: string | null) => {
+export const useUploadFlush = (token: string | null): void => {
   const pendingCount = useUploads((s) => s.pending.length);
   const hydrated = useUploads((s) => s.hydrated);
   const keptPhotos = usePhotos((s) => s.kept.length);
@@ -40,5 +40,4 @@ export const useUploadFlush = (token: string | null) => {
     }, RETRY_EVERY_MS);
     return () => clearInterval(id);
   }, [token, hydrated, pendingCount, keptPhotos]);
-  return pendingCount;
 };

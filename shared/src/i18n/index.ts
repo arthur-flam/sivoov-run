@@ -15,7 +15,15 @@ const fill = (template: string, params: Params = {}): string =>
 export const resolveLocale = (candidate: string | null | undefined): Locale =>
   candidate?.toLowerCase().startsWith('en') ? 'en' : 'fr';
 
-export const t = (locale: Locale, key: MessageKey, params?: Params): string => fill(dictionaries[locale][key], params);
+/**
+ * French typography, once for every string: a non-breaking space before « : ; ? ! » and inside
+ * « », so a mark never wraps alone onto the next line. Applied to the template, never to the
+ * values filled in (names, URLs).
+ */
+export const frenchSpacing = (text: string): string => text.replace(/ ([:;?!»])/g, '\u00a0$1').replace(/« /g, '«\u00a0');
+
+export const t = (locale: Locale, key: MessageKey, params?: Params): string =>
+  fill(locale === 'fr' ? frenchSpacing(dictionaries.fr[key]) : dictionaries[locale][key], params);
 
 /** Bound translator for a page or a screen. */
 export const translator = (locale: Locale) => (key: MessageKey, params?: Params) => t(locale, key, params);

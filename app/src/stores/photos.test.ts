@@ -7,7 +7,8 @@ const takeSelfie = vi.fn();
 vi.mock('@/photos/picker', () => ({ takeSelfie: () => takeSelfie() }));
 const sendPhoto = vi.fn();
 const photos = vi.fn();
-vi.mock('@/api', () => ({ api: { sendPhoto: (...a: unknown[]) => sendPhoto(...a), photos: () => photos(), renderPhotos: vi.fn() } }));
+const ApiError = vi.hoisted(() => class extends Error { constructor(public status: number) { super(String(status)); } });
+vi.mock('@/api', () => ({ ApiError, api: { sendPhoto: (...a: unknown[]) => sendPhoto(...a), photos: () => photos(), renderPhotos: vi.fn() } }));
 
 const { usePhotos } = await import('./photos');
 const { photoQueue } = await import('@/photos/queue');
@@ -41,6 +42,24 @@ describe('a photo taken with the camera during the run', () => {
     expect(sendPhoto.mock.calls[1]![1]).toBe('planches');
     expect(usePhotos.getState().kept).toEqual([]);
     expect(usePhotos.getState().photos.map((p) => p.momentId)).toEqual(['planches']);
+    expect(await photoQueue.list()).toEqual([]);
+  });
+
+  it('drops a photo the server refuses for good, and sends the ones behind it', async () => {
+    // Three rehearsals used the start's tries: on race day that selfie is refused, the race's photos are not.
+    takeSelfie.mockResolvedValue(picked('selfie', Date.now()));
+    sendPhoto.mockRejectedValue(new Error('offline'));
+    await usePhotos.getState().snap('tok', 'start');
+    await usePhotos.getState().snap('tok', 'planches');
+    await vi.waitFor(() => expect(sendPhoto).toHaveBeenCalled());
+    sendPhoto.mockReset();
+    sendPhoto.mockImplementation(async (_t: string, momentId: string) => {
+      if (momentId === 'start') throw new ApiError(429);
+      return { photo: view(momentId) };
+    });
+    await usePhotos.getState().flush('tok');
+    await vi.waitFor(() => expect(sendPhoto.mock.calls.map((c) => c[1])).toEqual(['start', 'planches']));
+    await vi.waitFor(() => expect(usePhotos.getState().kept).toEqual([]));
     expect(await photoQueue.list()).toEqual([]);
   });
 

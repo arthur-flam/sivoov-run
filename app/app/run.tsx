@@ -32,8 +32,7 @@ import { useGlide } from '@/hooks/useGlide';
 import { useMapDownload } from '@/hooks/useMapDownload';
 import { useOnScreen } from '@/hooks/useOnScreen';
 import { useTrack } from '@/hooks/useTrack';
-import { useUploadFlush } from '@/hooks/useUploadFlush';
-import { diag, useDiag } from '@/diag';
+import { diag } from '@/diag';
 import { currentLocale, t, useLocale } from '@/i18n';
 import { deviceSource, simulationSource } from '@/services/location';
 import { usePower } from '@/stores/power';
@@ -41,8 +40,8 @@ import { usePrefs } from '@/stores/prefs';
 import type { MapView } from '@/stores/prefs';
 import { useRun } from '@/stores/run';
 import { useSession } from '@/stores/session';
-import { deviceInfo, findRun } from '@/stores/runRecovery';
-import { toUpload, useUploads } from '@/stores/uploads';
+import { findRun } from '@/stores/runRecovery';
+import { useUploads } from '@/stores/uploads';
 import { colors, space } from '@/theme';
 
 /**
@@ -97,7 +96,6 @@ export default function Run() {
   const photosTaken = takenMoments({ kept: keptPhotos, photos: sentPhotos });
   const uploadStatus = useUploads((s) => s.statusOf(run.runId));
   // A finish out of signal is sent from the finish screen as soon as the signal is back.
-  useUploadFlush(token);
   const low = usePower((s) => s.low);
   const onScreen = useOnScreen();
   useStayAwake(run.phase === 'idle' || run.phase === 'countdown' || run.phase === 'recovered' || (run.phase === 'running' && !low));
@@ -161,19 +159,7 @@ export default function Run() {
     if (run.phase !== 'running') setSheet(null);
   }, [run.phase]);
 
-  // The finish path: queue the run and its trace; the store sends it now or when back online. Once
-  // the trace is on file in the queue, the run's journal can go.
-  useEffect(() => {
-    if (run.phase !== 'finished' || !course || !me) return;
-    const { state, samples, fired, source: used, runId } = useRun.getState();
-    diag('run', `finished: ${state.accepted} accepted, ${state.rejected} rejected, ${samples.length} samples, ${Math.round(state.distanceM)} m`);
-    const upload = toUpload({ id: runId, entrantId: me.entrant.id, courseId: course.id, state, samples, fired, source: used?.kind === 'simulation' ? 'simulation' : 'app', device: deviceInfo(), finishedAtMs: used?.now() ?? Date.now(), diagnostics: useDiag.getState().snapshot() });
-    void useUploads
-      .getState()
-      .enqueue(upload, token)
-      .catch(() => undefined)
-      .then(() => useRun.getState().forget());
-  }, [run.phase]);
+  // The finish is queued for upload by `watchFinish` (app/_layout.tsx), screen or no screen.
 
   const source = useMemo(() => {
     if (!track || !course) return null;
@@ -237,7 +223,7 @@ export default function Run() {
           uploadStatus={uploadStatus}
           photoMoments={me.photoMoments.length}
           onHome={() => router.dismissTo('/home')}
-          onDiagnostics={() => router.push('/debug')}
+          onDiagnostics={__DEV__ || me.rehearsal ? () => router.push('/debug') : null}
         />
       </Screen>
     );

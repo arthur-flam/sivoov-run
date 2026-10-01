@@ -93,12 +93,12 @@ describe('a finisher’s certificate', () => {
   it('turns every visitor toward the race while it is open: they ran it, your turn', async () => {
     const html = await (await SELF.fetch(`${base}/results/2002`)).text();
     expect(html).toContain('Léa l’a courue. À votre tour.');
-    expect(html).toContain('Du 9 novembre au 15 novembre, courez la distance là où vous êtes.');
+    expect(html).toContain('Du 9 au 15 novembre, courez la distance là où vous êtes.');
     expect(html).toContain(`href="/${race.slug}"`);
   });
   it('previews a finish as an invitation to run it too', async () => {
     const html = await (await SELF.fetch(`${base}/results/2001`)).text();
-    expect(html).toContain('<meta property="og:description" content="Marc a bouclé le semi-marathon en 1:45:00, là où Marc était, avec la course dans les oreilles. Du 9 novembre au 15 novembre, courez-la vous aussi, où que vous soyez."/>');
+    expect(html).toContain('<meta property="og:description" content="Marc a bouclé le semi-marathon en 1:45:00, là où Marc était, avec la course dans les oreilles. Du 9 au 15 novembre, courez-la vous aussi, où que vous soyez."/>');
   });
   it('shows the picture that is shared, in four formats to pick from', async () => {
     const html = await (await SELF.fetch(`${base}/results/2001`)).text();
@@ -112,11 +112,11 @@ describe('a finisher’s certificate', () => {
     const res = await SELF.fetch(`${base}/results/2003`);
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).toContain('Paul court Marathon International de Deauville.');
+    expect(html).toContain('Paul prend le départ.');
     expect(html).toContain('data-testid="bib-plate"');
     expect(html).toContain('Courez avec Paul');
     // Before a finish the page never spells out the whole name.
-    expect(html).toContain('<meta property="og:title" content="Paul B. court Marathon International de Deauville."/>');
+    expect(html).toContain('<meta property="og:title" content="Paul B. prend le départ · Marathon International de Deauville"/>');
     expect(html).not.toContain('BERNARD');
   });
   it('says there is no time once the window has closed', async () => {
@@ -230,6 +230,6 @@ describe('the landing page as a shared link', () => {
   it('previews with the race’s promise, and shows a way in for people with no bib yet', async () => {
     const html = await (await SELF.fetch(base)).text();
     expect(html).toContain('<meta property="og:title" content="Marathon International de Deauville, où que vous soyez."/>');
-    expect(html).toContain('Pas encore de dossard ?');
+    expect(html).toContain('Pas encore de dossard\u00a0?');
   });
 });

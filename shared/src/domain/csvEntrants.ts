@@ -68,8 +68,6 @@ const matchHeader = (header: string): HeaderMatch | null => {
   return generic ? { column: generic, generic: true } : null;
 };
 
-export const columnForHeader = (header: string): CsvColumn | null => matchHeader(header)?.column ?? null;
-
 /** How far a written distance may be from the real one: "42 km" is the marathon, "20 km" is not. */
 const TOLERANCE = 0.01;
 const KEYS = Object.keys(DISTANCE_METERS) as DistanceKey[];

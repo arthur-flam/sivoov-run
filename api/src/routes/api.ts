@@ -88,7 +88,10 @@ api.get('/courses/:id/map.png', async (c) => {
     .safeParse(c.req.query());
   if (!size.success) return c.json({ error: 'invalid' }, 400);
   const cache = caches.default;
-  const cacheKey = new Request(new URL(c.req.url).toString());
+  // Keyed on what was understood, never on the URL as sent: a junk parameter is not a new Mapbox call.
+  const understood = new URL(`/api/courses/${course.id}/map.png`, c.req.url);
+  Object.entries(size.data).forEach(([k, v]) => v !== undefined && understood.searchParams.set(k, String(v)));
+  const cacheKey = new Request(understood.toString());
   const cached = await cache.match(cacheKey);
   if (cached) return cached;
   const object = course.geometryKey ? await c.env.FILES.get(course.geometryKey) : null;
@@ -240,6 +243,8 @@ api.put('/runs/:id', async (c) => {
   if (!parsed.success) return c.json({ error: 'invalid', issues: parsed.error.issues }, 400);
   const { run, trace } = parsed.data;
   if (run.id !== c.req.param('id') || run.entrantId !== entrant.id) return c.json({ error: 'forbidden' }, 403);
+  // A runner's own file is judged from its points on the upload page, never taken on its word here.
+  if (run.source === 'upload' || run.status === 'uploaded') return c.json({ error: 'invalid_source' }, 400);
   const q = db(c.env.DB);
   // A run belongs on the entrant's own distance: another course would rank them in the wrong
   // table. A demo race's runners run on the real race's courses (`courseFor` follows `demoOf`).
@@ -250,7 +255,7 @@ api.put('/runs/:id', async (c) => {
   if (existing && existing.entrantId !== entrant.id) return c.json({ error: 'forbidden' }, 403);
   const traceKey = trace ? `traces/${entrant.raceId}/${run.id}.json` : null;
   if (trace && traceKey) await c.env.FILES.put(traceKey, JSON.stringify(trace), { httpMetadata: { contentType: 'application/json' } });
-  const status = officialStatus(run, course.distanceM);
+  const status = officialStatus(run, course);
   await q.upsertRun({ ...run, status }, traceKey);
   const race = await q.raceById(entrant.raceId);
   if (race && isRanked(race, { ...run, status })) c.executionCtx.waitUntil(prewarmCards(c.env, new URL(c.req.url).origin, race, entrant.bib).catch(() => undefined));

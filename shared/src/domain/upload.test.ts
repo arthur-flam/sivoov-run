@@ -106,6 +106,9 @@ describe('an upload that is refused', () => {
     expect(verdict.run.distanceM).toBe(10_000);
     // Timed to the last point, when the watch was stopped.
     expect(verdict.run.elapsedMs).toBe(Math.round(9.97 * 300) * 1000);
+    // The tenth kilometre it fell short of is still there, ending at the last point.
+    expect(verdict.run.splits.map((x) => x.km)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(verdict.run.splits[9]?.elapsedMs).toBe(verdict.run.elapsedMs);
   });
 
   it('still refuses a run one per cent short', () => {

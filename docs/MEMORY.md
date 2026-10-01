@@ -719,3 +719,17 @@
     ("Couldn't start the foreground service"); the running updates survive the refusal.
   - The logbook's battery lines work: 28 %/h on this run from a 28 % start. Measure from a full
     phone before judging the budget; a Li-ion gauge is least linear near empty.
+- 2026-09-29: in-depth review with eight parallel reviewer subagents (one angle each, read-only,
+  one of them alone allowed to run `npm run shots`). Worth knowing:
+  - **The tracker's Doppler lift must only span short steps.** `judgeSample` sees two accepted
+    fixes, not what was rejected between them: after a stop, both ends carry a running speed and
+    `dtS` is the whole stop, so "positions stalled while the phone kept moving" is true and the
+    step was lifted to speed × stop (3 min: +427 m). A U-turn takes ~7 s; the lift is now capped
+    at 10 s (`maxStallS`). The stop test in `tracker.test.ts` fails without it.
+  - The api workerd tests run with `ENVIRONMENT: 'local'`, where `maySpendCredit` is always true:
+    rules for test accounts on preview/production need a unit test (`src/lib/photos.test.ts`),
+    not a workerd test.
+  - `wrangler dev` passes the client's `CF-Connecting-IP` through (the lead limit per network
+    applies locally): the shots' organizer scene sends a fresh address each pass.
+  - A proof-of-failure habit that paid: revert only the fixed file (`git show <sha>~1:path >
+    path`) and rerun the new test; `git stash` also stashes the new test.

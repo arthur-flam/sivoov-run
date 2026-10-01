@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
-import { CourseGeometrySchema, buildTrack, deauvilleMarathonGeometry } from '@sivoov/shared';
+import { CourseGeometrySchema, buildTrack, champsElysees10kGeometry, deauvilleMarathonGeometry } from '@sivoov/shared';
 import type { Course, CourseGeometry, CourseTrack } from '@sivoov/shared';
 import { api } from '@/api';
 
@@ -37,13 +37,20 @@ const geometryCache = {
 
 const samePoints = (a: CourseGeometry, b: CourseGeometry): boolean => JSON.stringify(a.points) === JSON.stringify(b.points);
 
+/** The traces the app ships with, for the race they belong to (a demo race runs on the real race's courses). */
+const bundledFor = (course: Pick<Course, 'raceId'>): CourseGeometry | null =>
+  [deauvilleMarathonGeometry, champsElysees10kGeometry].find((g) => g.courseId.startsWith(`${course.raceId}-`)) ?? null;
+
 /**
  * The course geometry kept on the phone at once (a weak signal must not hold the screen for the
  * network), then the API's, kept for the next start with no signal and shown only if the course
- * changed. Offline with nothing kept: the bundled Deauville trace, the only course the app ships with.
+ * changed. Offline with nothing kept: the trace the app ships with for that race, if any; never
+ * another race's course.
  */
 export const useTrack = (course: Course | null): CourseTrack | null => {
   const [track, setTrack] = useState<CourseTrack | null>(null);
+  // Keyed on the course's id: a refreshed session hands over a new object for the same course.
+  const courseId = course?.id ?? null;
   useEffect(() => {
     if (!course) return;
     let cancelled = false;
@@ -57,11 +64,14 @@ export const useTrack = (course: Course | null): CourseTrack | null => {
       if (fetched) {
         void geometryCache.write(fetched);
         if (!kept || !samePoints(kept, fetched)) show(fetched);
-      } else if (!kept) show(deauvilleMarathonGeometry);
+      } else if (!kept) {
+        const bundled = bundledFor(course);
+        if (bundled) show(bundled);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [course]);
+  }, [courseId]);
   return track;
 };

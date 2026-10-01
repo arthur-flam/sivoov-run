@@ -20,12 +20,6 @@ export const CodeVerifySchema = CodeRequestSchema.extend({
 });
 export type CodeVerify = z.infer<typeof CodeVerifySchema>;
 
-export const SessionTokenSchema = z.object({
-  token: z.string().min(1),
-  expiresAt: z.iso.datetime({ offset: true }),
-});
-export type SessionToken = z.infer<typeof SessionTokenSchema>;
-
 /**
  * The answer when an email names more than one entry: the races to choose from (more than one
  * race), or a bib to ask for (two entries of one race share the email, a family on one address).

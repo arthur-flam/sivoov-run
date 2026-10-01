@@ -1,3 +1,4 @@
+import type { Course } from '../schemas/course';
 import type { Race } from '../schemas/race';
 import type { Run } from '../schemas/run';
 import { officialStatus } from './official';
@@ -36,9 +37,9 @@ export const averagePace = (elapsedMs: number, distanceM: number): number | null
  * returned and the ones still waiting to upload, judged by the same rules the server applies.
  * The home screen shows the finish before the upload has gone through.
  */
-export const bestRankedRun = (race: Pick<Race, 'windowStart' | 'windowEnd'>, courseDistanceM: number, runs: Run[]): Run | null =>
+export const bestRankedRun = (race: Pick<Race, 'windowStart' | 'windowEnd'>, course: Pick<Course, 'distanceM' | 'distanceKey'>, runs: Run[]): Run | null =>
   runs
-    .map((run) => ({ ...run, status: officialStatus(run, courseDistanceM) }))
+    .map((run) => ({ ...run, status: officialStatus(run, course) }))
     .filter((run) => isRanked(race, run))
     .reduce<Run | null>((best, run) => (best === null || run.elapsedMs < best.elapsedMs ? run : best), null);
 

@@ -12,3 +12,10 @@ export type DevicePlatform = 'ios' | 'android' | 'web';
  */
 export const keepsTrackingLocked = (permission: LocationPermission | null, platform: DevicePlatform): boolean =>
   permission === 'always' || (platform === 'ios' && permission === 'foreground');
+
+/**
+ * Step two is due: the runner allowed « while using », and this phone (Android) stops the fixes
+ * once the screen locks unless they also allow « Toujours ». The pre-flight says why, then asks.
+ */
+export const needsAlways = (permission: LocationPermission | null, platform: DevicePlatform): boolean =>
+  permission === 'foreground' && !keepsTrackingLocked(permission, platform);

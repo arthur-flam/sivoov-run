@@ -1,10 +1,10 @@
 import type { CourseTrack, Locale, Race } from '@sivoov/shared';
 import type { CardFormat } from '@sivoov/shared';
-import { averagePace, distanceLabel, formatClock, formatOfficialTime, formatPace, translator, windowPhase } from '@sivoov/shared';
+import { averagePace, distanceLabel, formatClock, formatOfficialKm, formatOfficialTime, formatPace, translator, windowPhase } from '@sivoov/shared';
 import type { RunnerResult } from '../lib/results';
 import { runDate, shortName } from '../lib/results';
 import { CourseDiagram } from './courseDiagram';
-import { fmtDate } from './dates';
+import { fmtSpan } from './dates';
 import { resultClient } from './resultClient';
 
 type Props = {
@@ -38,7 +38,7 @@ export const ResultPage = ({ race, result, track, locale, now, shareUrl, cards, 
   const t = translator(locale);
   const { entrant, course, best } = result;
   const open = windowPhase(race, now) !== 'after';
-  const dates = { start: fmtDate(race.windowStart, locale, race.timezone), end: fmtDate(race.windowEnd, locale, race.timezone) };
+  const dates = fmtSpan(race.windowStart, race.windowEnd, locale, race.timezone);
   const distance = distanceLabel(locale, entrant.distanceKey);
   return (
     <>
@@ -67,7 +67,7 @@ export const ResultPage = ({ race, result, track, locale, now, shareUrl, cards, 
             <dl class="cert-facts">
               <div>
                 <dt>{t('result.distance')}</dt>
-                <dd>{distance}</dd>
+                <dd>{formatOfficialKm(course.distanceM, course.distanceKey, locale)}</dd>
               </div>
               <div>
                 <dt>{t('common.pace')}</dt>
@@ -122,7 +122,7 @@ export const ResultPage = ({ race, result, track, locale, now, shareUrl, cards, 
           <div class="bib" data-testid="bib-plate">
             {entrant.bib}
           </div>
-          <h1>{t('result.bib.title', { firstName: entrant.firstName, race: race.theme.displayName })}</h1>
+          <h1>{t('result.bib.heading', { firstName: entrant.firstName })}</h1>
           <p>{t('result.bib.body', { firstName: entrant.firstName, distance, bib: entrant.bib, ...dates })}</p>
           <ShareActions
             url={shareUrl}

@@ -86,7 +86,7 @@ describe('finish', () => {
     expect(finishNotice(tester, demo, course, run({ source: 'simulation', status: 'abandoned' }))).toBe(
       '🏁 Léa MARTIN (dossard 2002, 10 km des Champs-Élysées, démo, test) a couru 10 km en 46:34 : simulation',
     );
-    expect(finishNotice(lea, race, course, run({ startedAt: new Date(BEFORE).toISOString() }))).toContain(': répétition, hors classement');
+    expect(finishNotice(lea, race, course, run({ startedAt: new Date(BEFORE).toISOString() }))).toContain(': répétition, non officiel');
     expect(finishNotice(lea, race, course, run({ source: 'upload', status: 'uploaded' }))).toContain(': officiel (fichier GPX)');
   });
 });

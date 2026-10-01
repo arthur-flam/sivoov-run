@@ -80,8 +80,8 @@ export const finishKind = (run: Pick<Run, 'status' | 'source' | 'startedAt' | 'd
 
 const FINISH_LABEL: Record<FinishKind, string> = {
   official: 'officiel',
-  rehearsal: 'répétition, hors classement',
-  closed: 'hors délai, hors classement',
+  rehearsal: 'répétition, non officiel',
+  closed: 'hors délai, non officiel',
   incomplete: 'abandon',
   simulation: 'simulation',
 };

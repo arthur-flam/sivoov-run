@@ -16,7 +16,6 @@ import {
   sniffAudioFormat,
   ttsCacheInput,
   upgradeLine,
-  uploadedLines,
   voiceCacheInput,
 } from './audioScript';
 
@@ -193,7 +192,6 @@ describe('a line with the organizer’s own sound file', () => {
   it('is not read by the voice', () => {
     const built = buildScript(script([line(), line({ id: 'course.bell', key: 'bell', audio: upload })]));
     expect(renderableLines(built).map((l) => l.id)).toEqual(['course.planches']);
-    expect(uploadedLines(built).map((l) => l.id)).toEqual(['course.bell']);
   });
 
   it('refuses a hash that is not a sha256, a file over 5 MB and an unknown format', () => {

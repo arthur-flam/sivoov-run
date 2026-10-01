@@ -149,7 +149,7 @@ describe('the list of activities', () => {
     const all = await page(`${base}/runs`, cookie);
     expect(all).toContain('Toutes<span class="n">9</span>');
     expect(all).toContain('Arrivés<span class="n">3</span>');
-    expect(all).toContain('Hors classement<span class="n">2</span>');
+    expect(all).toContain('Non officiels<span class="n">2</span>');
     expect(all).toContain('Écartés<span class="n">1</span>');
     expect(listed(await page(`${base}/runs?filter=finished`, cookie))).toEqual(['run-zoe-fast', 'run-zoe-slow', 'run-fin']);
     expect(listed(await page(`${base}/runs?filter=not_ranked`, cookie))).toEqual(['run-wrong', 'run-rehearsal']);
@@ -236,18 +236,18 @@ describe('one activity', () => {
   it('never calls a finish the results do not rank "Arrivé", and says why it does not count', async () => {
     const cookie = await cookieFor('equipe@example.com');
     const rehearsal = await page(`${base}/runs/run-rehearsal`, cookie);
-    expect(rehearsal).toContain('<span class="badge warn">Hors classement</span>');
+    expect(rehearsal).toContain('<span class="badge warn">Non officiel</span>');
     expect(rehearsal).not.toContain('badge good">Arrivé');
     expect(rehearsal).toContain('c’est une répétition, courue avant l’ouverture de la course le 9 nov. 2026.');
     // Nothing to set aside: it does not count anyway.
     expect(rehearsal).not.toContain('Écarter ce temps');
     const wrong = await page(`${base}/runs/run-wrong`, cookie);
-    expect(wrong).toContain('<span class="badge warn">Hors classement</span>');
+    expect(wrong).toContain('<span class="badge warn">Non officiel</span>');
     expect(wrong).toContain('couru sur le parcours Semi-marathon, alors que le coureur est inscrit sur Marathon.');
     // The list, the runner's page and the home page read it the same way.
     expect(await page(`${base}/runs?filter=not_ranked`, cookie)).not.toContain('badge good">Arrivé');
-    expect(await page(`${base}/runners/4004`, cookie)).toContain('<span class="badge warn">Hors classement</span>');
-    expect(await page(base, cookie)).toContain('<span class="badge warn">Hors classement</span>');
+    expect(await page(`${base}/runners/4004`, cookie)).toContain('<span class="badge warn">Non officiel</span>');
+    expect(await page(base, cookie)).toContain('<span class="badge warn">Non officiel</span>');
     const results = await (await SELF.fetch(`http://run.test/${SLUG}/results?distance=half`)).text();
     expect(results).not.toContain('MARTIN');
     expect(results).not.toContain('ROUX');
@@ -310,7 +310,7 @@ describe('setting a time aside', () => {
     const results = async () => (await SELF.fetch(`http://run.test/${SLUG}/results?distance=half`)).text();
     const csv = async () => (await get(`${base}/export/results.csv`, cookie)).text();
     expect(await results()).toContain('PETIT');
-    expect(await csv()).toContain('4001;Nina;Petit;Semi-marathon;1:45:30;6330;21098;Arrivé;');
+    expect(await csv()).toContain('4001;Nina;Petit;Semi-marathon;1:45:30;6330;21098;Temps officiel;');
 
     const res = await post(`${base}/runs/run-fin/exclude`, { reason: 'gps', note: 'Saut de 2 km au km 12.' }, cookie);
     expect(res.status).toBe(302);
@@ -343,7 +343,7 @@ describe('setting a time aside', () => {
     expect(back.headers.get('location')).toBe(`/org/${SLUG}/runs/run-fin?done=restored`);
     expect(await exclusionOf('run-fin')).toEqual({ excluded_at: null, excluded_reason: null, excluded_by: null });
     expect(await results()).toContain('PETIT');
-    expect(await csv()).toContain('4001;Nina;Petit;Semi-marathon;1:45:30;6330;21098;Arrivé;');
+    expect(await csv()).toContain('4001;Nina;Petit;Semi-marathon;1:45:30;6330;21098;Temps officiel;');
   });
   it('makes a runner’s next best time their result when the best one is set aside', async () => {
     const cookie = await cookieFor('orga@example.com');

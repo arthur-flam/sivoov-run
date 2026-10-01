@@ -11,6 +11,64 @@ Live: https://run.sivoov.app/deauville-2026 (production), https://preview.run.si
 on 2026-09-27 (below); M2 still needs a real finish. Production has the race and its courses;
 no real entrants yet.
 
+### In-depth review, eight angles (2026-09-29, branch `ccr-89069fdb-wkvxeu`)
+Eight reviewer subagents read the app in parallel: simplicity (shared, api, app), run-lifecycle
+edge cases, server security, UI from `npm run shots`, the PRD's gaps, tests/CI/deps. Each fix
+below has a test that fails without it. JS, Worker and one migration (`0010_render_budget.sql`,
+applied by deploy.yml before the Worker); no native change.
+- **A stop added distance** (`judgeSample`): standing still between two running fixes (a red
+  light, a water station) was credited as running speed × the stop: 3 min gave +427 m, and an
+  earlier official time. The Doppler lift now spans steps of 10 s at most. The first real run
+  replays the same (9 224.9 m): it had no stop.
+- **The server believed the app's time**: `PUT /api/runs/:id` made a 1-minute half with no trace
+  an official finish. `officialStatus` now also refuses a time under the world record, a
+  kilometre under 2:10, and more running time than passed from start to finish; the JSON API
+  refuses `source: 'upload'`. A file replayed to within 0.5 % of the line keeps its last split.
+- **Paid renders anyone could spend**: deleting a photo reset its three tries (9 renders shown
+  for one moment). Now five pictures a day per runner (`PHOTOS_PER_DAY`, counted on the entry:
+  `photo_day`, `photo_renders`), deletions included; past them the photo is kept, waiting, and
+  made the next day. The owner wants App Review and test accounts on the real model (2026-10-01):
+  they get it, within the same five a day.
+- **Data left behind**: an admin-deleted runner's selfies stayed in R2; an entry whose email
+  was corrected kept the old holder's sessions. Both fixed. Indexes on `entrants(email)` and
+  `sessions(entrant_id)`; the course map is cached by its parsed parameters.
+- **The app**: a finish reached while Android had dropped the screens was queued only at the next
+  cold start (`watchFinish` in `_layout` now); the journal was cleared even when queuing failed;
+  a run alive in memory was never shown again (`useRunRecovery`); two readings of the upload
+  queue at start could drop a run; one refused photo blocked every later one; offline with no
+  kept geometry every course showed Deauville; the upload retry loop ran twice.
+- **Copy and UI**: no « classé / classement » left anywhere (landing, stop sheet, finish, admin
+  « Non officiel »); French non-breaking spaces once in `t()`; « Léa prend le départ. »; date spans
+  « du 9 au 15 novembre »; « 21,1 km » on the certificate; the GPS counters and Diagnostic only
+  for test builds and accounts; the stop hint no longer covers the pace; plurals; « Les annonces ».
+- **Android location in two steps** (2026-10-01, the owner's call): the pre-flight asks « while
+  using » first (the system dialog), then, only on Android and only on the runner's tap, « Toujours »
+  behind a card that says why (`AlwaysLocation`): the run is measured with the screen locked or the
+  app closed, and only during the run. That card is also the in-app disclosure Play requires before a
+  background location request. Back from Android's page the permission is read again. The gun no
+  longer asks anything (it used to repeat the request). Seen in `npm run shots` with the card forced
+  on (the web target cannot show it); on a phone it needs the OTA, no new build.
+- **Sprawl removed**: 23 i18n keys, 8 shared functions with only their own tests, 3 API queries,
+  4 app members. CI: one deploy at a time, production only from main, a read-only token.
+
+**Found, not done** (decisions or larger work; see also Known gaps):
+- **Battery**: the screen is kept awake the whole run and the 3D map is the default view: 27 %/h
+  measured, more than a phone for a 4 h marathon. Proposal: numbers view by default for the half
+  and the marathon, the screen allowed to sleep, then a 60-min locked-phone measurement.
+- **Runners whose app failed**: no organizer-declared finish, no TCX, treadmills refused, and
+  `medals.csv` lists only official finishers: a paying runner can miss their medal.
+- **App runs are judged on the app's numbers**: the new checks catch the impossible, not a
+  forged trace. Replaying the trace on the server (as for files) is the full fix.
+- Smaller: the live-voice daily quota is read-then-write (parallel calls pass it); Telegram
+  sends a line per start call with no cap; `POST /api/auth/code` tells whether an email is
+  entered; entrant ids `${race}-${bib}` can collide across races; no request body limit;
+  `studio.client.js` (1,376 lines) hand-copies shared logic; the web session check is written
+  five times; three copies of `@sentry/core` in the Worker bundle; course fixtures ship in the
+  Worker through the shared barrel.
+- **Scope**: the photo moments (Gemini), the studio and the map feel are large for six weeks out.
+  The reviewer's advice: freeze them, keep photos off for Deauville unless the real model is
+  tried and its cost and consent reviewed.
+
 ### No rank at all; the camera in the run; rehearsals get photos (2026-09-29, same branch)
 The owner: no rank anywhere (not everyone runs), a camera button during the race instead of
 leaving the app, and a rehearsal is a run like the real one, photos included.
@@ -692,9 +750,9 @@ repeated here (see ARCHITECTURE.md, AUDIO.md, WORKFLOW.md).
   that run.
 - GPS lost is shown (the chip), never said: the pack has no « signal GPS perdu » line.
 
-- The run screen's map has only been seen in a browser (Mapbox GL JS). The native map, its
-  offline region and its battery cost are untested until a new EAS build; the Standard style's
-  offline region in particular (style imports) may need adjusting.
+- The run screen's map was first seen on a phone in the 2026-09-29 rehearsal (about 27 %/h with
+  it on screen). Its offline region is untested; the Standard style's offline region in
+  particular (style imports) may need adjusting.
 - Mapbox usage: every run screen opening loads a map (Mapbox counts map loads); check the
   account's free tier against the number of runners before race week.
 
@@ -718,8 +776,9 @@ repeated here (see ARCHITECTURE.md, AUDIO.md, WORKFLOW.md).
   screenshots of cards and pages show fallback fonts, not Fraunces / Barlow Condensed.
 - Nobody has pasted a result link into WhatsApp, iMessage or LinkedIn yet to see the link
   preview.
-- Uploads are trust-based: a GPX's timestamps are believed as given; results mark them
-  "import" and the organizer sees them, but a stricter check needs a product decision.
+- Uploads are trust-based: a GPX's timestamps are believed as given, and an app run's numbers are
+  checked for plausibility only (record floor, fastest kilometre, wall clock), not replayed from
+  its trace; results mark files "import" and the organizer sees them.
 - The admin is French only; `/organisateurs` and the runner-facing pages are FR/EN.
 - Web runner sessions do not update `last_seen_at` (only the app's API calls do), so "last
   visit" on a runner page is the app's only.

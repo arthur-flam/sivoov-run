@@ -130,25 +130,33 @@ describe('a runner’s photos page', () => {
     expect((await photoQueries(env.DB).photo('deauville-2026-1001', photo!.id))!.attempts).toBe(3);
   });
 
-  it('never gives the tries back when a photo is deleted and sent again', async () => {
-    // Two moments in the race: six pictures for Marc in all, three of them already made above.
+  it('makes five pictures a day per runner, a photo deleted and sent again included, and keeps the photo for the next day', async () => {
+    // Three of Marc's pictures are made above; a photo deleted and sent again starts no new count.
     const token = await sessionFor('marc@example.com');
     const q = photoQueries(env.DB);
     const remove = async () => {
       const [photo] = await q.photos('deauville-2026-1001');
       expect((await SELF.fetch(`${base}/photos/${photo!.id}/delete`, { method: 'POST', headers: cookie(token), redirect: 'manual' })).status).toBe(303);
-      return photo!;
     };
     await remove();
     expect((await sendSelfie(token, finish.id)).status).toBe(303);
     const [photo] = await q.photos('deauville-2026-1001');
     const again = () => SELF.fetch(`${base}/photos/${photo!.id}/again`, { method: 'POST', headers: cookie(token), redirect: 'manual' });
     expect((await again()).status).toBe(303);
-    expect((await again()).status).toBe(303);
-    await remove();
     const before = calls.length;
-    expect((await sendSelfie(token, finish.id)).status).toBe(429);
+    const sixth = await again();
+    expect(sixth.status).toBe(429);
+    expect(await sixth.text()).toContain('Cinq images par jour au plus');
+    await remove();
+    const kept = await sendSelfie(token, finish.id);
+    expect(kept.status).toBe(429);
     expect(calls.length).toBe(before);
+    const [waiting] = await q.photos('deauville-2026-1001');
+    expect(waiting).toMatchObject({ status: 'waiting', attempts: 0 });
+    // The next day, the same photo gets its picture.
+    await env.DB.prepare("UPDATE entrants SET photo_day = '2000-01-01' WHERE id = 'deauville-2026-1001'").run();
+    expect((await SELF.fetch(`${base}/photos/${waiting!.id}/again`, { method: 'POST', headers: cookie(token), redirect: 'manual' })).status).toBe(303);
+    expect(calls.length).toBe(before + 1);
   });
 
   it('says so when the model refuses, and keeps nothing it did not make', async () => {

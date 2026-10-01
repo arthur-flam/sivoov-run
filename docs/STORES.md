@@ -80,8 +80,10 @@ by the app (`ITSAppUsesNonExemptEncryption = false`).
    data safety (location precise, name, email; collected, not shared, deletion in the app), ads
    none, target audience adults, content rating questionnaire, and the two declarations this
    app needs: **background location** and the **location foreground service**, each with a
-   short video of the feature (start a run, lock the screen, the notification stays, the
-   distance keeps counting). The S23 can film it.
+   short video of the feature: the pre-flight's « Votre course, téléphone en poche » card (the
+   prominent disclosure Play asks to see before the request), « Autoriser « Toujours » », Android's
+   page, then start a run, lock the screen, the notification stays, the distance keeps counting.
+   The S23 can film it.
 
 ## What an iPad can and cannot prove
 The app is iPhone-only (`supportsTablet: false`), so an iPad runs it in iPhone compatibility

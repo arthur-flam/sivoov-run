@@ -25,9 +25,10 @@ applied by deploy.yml before the Worker); no native change.
   kilometre under 2:10, and more running time than passed from start to finish; the JSON API
   refuses `source: 'upload'`. A file replayed to within 0.5 % of the line keeps its last split.
 - **Paid renders anyone could spend**: deleting a photo reset its three tries (9 renders shown
-  for one moment), and App Review's public code on production opened a runner that could call
-  Gemini and ElevenLabs. Test accounts now get the stand-in picture and the offline voices;
-  the tries are counted on the entry (`photo_renders`: three per moment of the race).
+  for one moment). Now five pictures a day per runner (`PHOTOS_PER_DAY`, counted on the entry:
+  `photo_day`, `photo_renders`), deletions included; past them the photo is kept, waiting, and
+  made the next day. The owner wants App Review and test accounts on the real model (2026-10-01):
+  they get it, within the same five a day.
 - **Data left behind**: an admin-deleted runner's selfies stayed in R2; an entry whose email
   was corrected kept the old holder's sessions. Both fixed. Indexes on `entrants(email)` and
   `sessions(entrant_id)`; the course map is cached by its parsed parameters.
@@ -40,6 +41,13 @@ applied by deploy.yml before the Worker); no native change.
   « Non officiel »); French non-breaking spaces once in `t()`; « Léa prend le départ. »; date spans
   « du 9 au 15 novembre »; « 21,1 km » on the certificate; the GPS counters and Diagnostic only
   for test builds and accounts; the stop hint no longer covers the pace; plurals; « Les annonces ».
+- **Android location in two steps** (2026-10-01, the owner's call): the pre-flight asks « while
+  using » first (the system dialog), then, only on Android and only on the runner's tap, « Toujours »
+  behind a card that says why (`AlwaysLocation`): the run is measured with the screen locked or the
+  app closed, and only during the run. That card is also the in-app disclosure Play requires before a
+  background location request. Back from Android's page the permission is read again. The gun no
+  longer asks anything (it used to repeat the request). Seen in `npm run shots` with the card forced
+  on (the web target cannot show it); on a phone it needs the OTA, no new build.
 - **Sprawl removed**: 23 i18n keys, 8 shared functions with only their own tests, 3 API queries,
   4 app members. CI: one deploy at a time, production only from main, a read-only token.
 
@@ -47,8 +55,6 @@ applied by deploy.yml before the Worker); no native change.
 - **Battery**: the screen is kept awake the whole run and the 3D map is the default view: 27 %/h
   measured, more than a phone for a 4 h marathon. Proposal: numbers view by default for the half
   and the marathon, the screen allowed to sleep, then a 60-min locked-phone measurement.
-- **Android "always" location** (`ACCESS_BACKGROUND_LOCATION`): Play's declaration and video
-  review, and a settings page for every runner. iOS already works with "while using".
 - **Runners whose app failed**: no organizer-declared finish, no TCX, treadmills refused, and
   `medals.csv` lists only official finishers: a paying runner can miss their medal.
 - **App runs are judged on the app's numbers**: the new checks catch the impossible, not a

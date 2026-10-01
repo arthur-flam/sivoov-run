@@ -119,15 +119,23 @@ export const photoQueries = (d1: D1Database) => ({
       .run();
     return (res.meta.changes ?? 0) > 0;
   },
-  /** How many pictures the model made for this runner (migration 0010). */
-  async rendersUsed(entrantId: string): Promise<number> {
-    const row = await d1.prepare('SELECT photo_renders AS n FROM entrants WHERE id = ?').bind(entrantId).first<{ n: number }>();
-    return row?.n ?? 0;
-  },
-  /** Takes one picture from the runner's budget, if any is left. False when it is spent. */
-  async spendRender(entrantId: string, budget: number): Promise<boolean> {
-    const res = await d1.prepare('UPDATE entrants SET photo_renders = photo_renders + 1 WHERE id = ? AND photo_renders < ?').bind(entrantId, budget).run();
+  /**
+   * Takes one of today's pictures for the runner (migration 0010), in one statement so two
+   * requests at once cannot both take the last one. False when today's are all made.
+   */
+  async spendRender(entrantId: string, day: string, perDay: number): Promise<boolean> {
+    const res = await d1
+      .prepare(
+        `UPDATE entrants SET photo_renders = CASE WHEN photo_day = ?2 THEN photo_renders + 1 ELSE 1 END, photo_day = ?2
+         WHERE id = ?1 AND (photo_day IS NOT ?2 OR photo_renders < ?3)`,
+      )
+      .bind(entrantId, day, perDay)
+      .run();
     return (res.meta.changes ?? 0) > 0;
+  },
+  /** Gives back a picture taken for a render that did not start (another request was making it). */
+  async refundRender(entrantId: string, day: string): Promise<void> {
+    await d1.prepare('UPDATE entrants SET photo_renders = photo_renders - 1 WHERE id = ? AND photo_day = ? AND photo_renders > 0').bind(entrantId, day).run();
   },
   async deletePhoto(entrantId: string, id: string): Promise<void> {
     await d1.prepare('DELETE FROM runner_photos WHERE entrant_id = ? AND id = ?').bind(entrantId, id).run();

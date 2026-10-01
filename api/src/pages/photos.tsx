@@ -4,7 +4,7 @@ import type { SelfieRefusal } from '../lib/photos';
 import { photosClient } from './photosClient';
 
 /** What went wrong, said on the page: a selfie refused (lib/photos.ts), or a picture that could not be made. */
-export type PhotoProblem = { reason: SelfieRefusal | 'failed'; momentId?: string };
+export type PhotoProblem = { reason: SelfieRefusal | 'failed' | 'today'; momentId?: string };
 
 type Moment = CourseMoment & { place?: string };
 type Photo = RunnerPhoto & { url?: string; again: boolean };

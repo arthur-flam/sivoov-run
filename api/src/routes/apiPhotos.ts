@@ -34,14 +34,14 @@ apiPhotos.get('/me/photos', async (c) => {
   if (!ctx) return c.json({ error: 'not_found' }, 404);
   const pq = photoQueries(c.env.DB);
   const [moments, photos] = await Promise.all([pq.moments(ctx.race.id), pq.photos(ctx.entrant.id)]);
-  return c.json({ enabled: remixEnabled(remixDeps(c.env, ctx.entrant.email)), moments: courseMoments(moments, ctx.course), photos: photos.map(view) }, 200, { 'Cache-Control': 'private, no-store' });
+  return c.json({ enabled: remixEnabled(remixDeps(c.env)), moments: courseMoments(moments, ctx.course), photos: photos.map(view) }, 200, { 'Cache-Control': 'private, no-store' });
 });
 
 /** Every photo still waiting gets its picture now (20-40 s each, three at a time). */
 apiPhotos.post('/me/photos/render', async (c) => {
   const ctx = await context(c);
   if (!ctx) return c.json({ error: 'not_found' }, 404);
-  const deps = remixDeps(c.env, ctx.entrant.email);
+  const deps = remixDeps(c.env);
   if (!remixEnabled(deps)) return c.json({ error: 'unavailable' }, 503);
   return c.json({ photos: (await makeWaiting(c.env, deps, ctx.race, ctx.entrant)).map(view) }, 200, { 'Cache-Control': 'private, no-store' });
 });

@@ -30,7 +30,7 @@ import { finishNotice, signInNotice, startNotice } from '../lib/notices';
 import { liveVoice, personalDeps, personalVoices, runnerFacts } from '../lib/personal';
 import { loadGeometry } from '../lib/studio';
 import { notify } from '../lib/telegram';
-import { mayRehearse, maySpendCredit } from '../lib/testCode';
+import { mayRehearse } from '../lib/testCode';
 import { createWebLink } from '../lib/webLink';
 import { weatherAt } from '../lib/weather';
 import { apiPhotos } from './apiPhotos';
@@ -171,9 +171,6 @@ api.post('/me/web-link', async (c) => {
   return c.json({ url: await createWebLink(c.env, race, entrant, `/${race.slug}/photos`) }, 200, { 'Cache-Control': 'private, no-store' });
 });
 
-/** A runner's voices spend credit; a test account (App Review's public sign-in) hears the offline versions. */
-const runnerDeps = (env: AppEnv['Bindings'], email: string) => (maySpendCredit(env, email) ? personalDeps(env) : { ...personalDeps(env), tts: null, llm: null });
-
 const VoicesBody = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).partial();
 
 /**
@@ -190,7 +187,7 @@ api.post('/me/voices', async (c) => {
   if (!race || !course || !pack) return c.json({ error: 'not_found' }, 404);
   const body = VoicesBody.safeParse(await c.req.json().catch(() => ({})));
   const here = body.success && body.data.lat !== undefined && body.data.lng !== undefined ? { lat: body.data.lat, lng: body.data.lng } : null;
-  const deps = runnerDeps(c.env, entrant.email);
+  const deps = personalDeps(c.env);
   // The weather only matters to lines the AI writes; the calls are skipped otherwise.
   const start = deps.llm ? (await loadGeometry(c.env.FILES, course))?.points[0] : undefined;
   const [runnerWeather, raceWeather] = deps.llm ? await Promise.all([here ? weatherAt(here) : null, start ? weatherAt(start) : null]) : [null, null];
@@ -206,7 +203,7 @@ api.post('/me/voices/live', async (c) => {
   const course = await db(c.env.DB).courseFor(entrant.raceId, entrant.distanceKey);
   if (!course || course.id !== parsed.data.courseId) return c.json({ error: 'not_found' }, 404);
   const { version, eventId, facts } = parsed.data;
-  const outcome = await liveVoice(runnerDeps(c.env, entrant.email), { entrantId: entrant.id, runner: runnerFacts(entrant) }, course.id, version, eventId, facts);
+  const outcome = await liveVoice(personalDeps(c.env), { entrantId: entrant.id, runner: runnerFacts(entrant) }, course.id, version, eventId, facts);
   if (!outcome.ok) return c.json({ error: outcome.detail }, outcome.status);
   return c.json({ url: outcome.url, bytes: outcome.bytes, caption: outcome.caption }, 200, { 'Cache-Control': 'private, no-store' });
 });

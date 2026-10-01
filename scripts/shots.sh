@@ -39,10 +39,10 @@ npm run db:migrate:local -w api >/dev/null 2>&1 || true
 npm run seed -w api -- local >/dev/null 2>&1 || echo "seed failed; screenshots may be empty" >&2
 # Sample runs (a finish, a stop, a simulation) so the activity screens show real-looking data.
 npm run seed:runs -w api -- local >/dev/null 2>&1 || echo "sample runs failed; activity screenshots may be empty" >&2
-# Sign-in codes are capped at 5 per hour per entrant, which a repeated shots run would hit.
-# The local D1 is disposable, so wipe the codes and start every run from zero.
+# Sign-in codes are capped at 5 per hour per entrant, and race pictures at 5 a day, which repeated
+# shots runs hit. The local D1 is disposable, so wipe them and start every run from zero.
 ( cd api && npx wrangler d1 execute sivoov-run --local --env local \
-    --command "DELETE FROM auth_codes; DELETE FROM admin_codes;" >/dev/null 2>&1 ) || true
+    --command "DELETE FROM auth_codes; DELETE FROM admin_codes; UPDATE entrants SET photo_day = NULL, photo_renders = 0;" >/dev/null 2>&1 ) || true
 # Two finished half marathons, so the results table and the certificate have something to show.
 ( cd api && npx wrangler d1 execute sivoov-run --local --env local --file ../scripts/shots-demo.sql >/dev/null 2>&1 ) \
   || echo "demo results not loaded; the result scenes will show empty states" >&2

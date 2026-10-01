@@ -1,15 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Battery from 'expo-battery';
 import * as Linking from 'expo-linking';
 import * as Location from 'expo-location';
+import { AlwaysLocation } from '@/components/AlwaysLocation';
 import { Preflight } from '@/components/Preflight';
 import { Body, Button, Display, Eyebrow, Screen } from '@/components/ui';
 import { usePackDownload } from '@/hooks/usePackDownload';
 import { t, useLocale } from '@/i18n';
-import { platform, requestLocationPermission } from '@/services/location/device';
+import { currentLocationPermission, platform, requestAlwaysLocation, requestLocationPermission } from '@/services/location/device';
+import { needsAlways } from '@/services/location/permission';
 import type { LocationPermission } from '@/services/location/device';
 import { batteryCheck, canStart, gpsCheck, headphonesCheck, packCheck, permissionCheck } from '@/services/preflight';
 import { useSession } from '@/stores/session';
@@ -19,8 +21,10 @@ import { space } from '@/theme';
 const PACK_RETRY_MS = 15_000;
 
 /**
- * Asks for the permissions, then watches the GPS for as long as the screen is open: after 30 s
- * without a lock the row says to move to open sky, and turns green when the lock comes.
+ * Asks for the location « while using » (step one), then watches the GPS for as long as the screen
+ * is open: after 30 s without a lock the row says to move to open sky, and turns green when the
+ * lock comes. Step two, « Toujours » on Android, waits for the runner's tap (`askAlways`); the
+ * permission is read again whenever the app comes back on screen (from Android's settings).
  */
 const useChecks = () => {
   const [permission, setPermission] = useState<LocationPermission | null>(null);
@@ -55,6 +59,14 @@ const useChecks = () => {
     };
   }, []);
 
+  const askAlways = useCallback(() => void requestAlwaysLocation().then(setPermission), []);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void currentLocationPermission().then((now) => now !== 'undetermined' && setPermission(now)).catch(() => undefined);
+    });
+    return () => sub.remove();
+  }, []);
+
   useEffect(() => {
     if (Platform.OS === 'web') return setBattery(null);
     Battery.getBatteryLevelAsync()
@@ -65,6 +77,7 @@ const useChecks = () => {
   return {
     checks: { permission: permissionCheck(permission, platform), gps: gpsCheck(bestAccuracy, waitedMs), battery: batteryCheck(battery), headphones: headphonesCheck() },
     here,
+    askAlways: needsAlways(permission, platform) ? askAlways : null,
   };
 };
 
@@ -73,7 +86,7 @@ export default function Prepare() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const me = useSession((s) => s.me);
-  const { checks, here } = useChecks();
+  const { checks, here, askAlways } = useChecks();
   // The pack comes down here too, so it is on the phone before the start line, with the runner's
   // own lines; a pack published since the race home loaded replaces the one on the phone.
   const audio = usePackDownload(me?.course ?? null, here, { update: true });
@@ -94,8 +107,10 @@ export default function Prepare() {
         {race ? <Eyebrow>{race.theme.displayName}</Eyebrow> : null}
         <Display>{t('prepare.title')}</Display>
         <Body muted>{t('prepare.intro')}</Body>
+        {/* Step two comes first: until it is done, it is the one thing to do here. */}
+        {askAlways ? <AlwaysLocation color={race?.theme.primary} onColor={race?.theme.onPrimary} onAsk={askAlways} /> : null}
         <Preflight checks={{ ...checks, pack: packCheck(audio, locale) }} />
-        {checks.permission.status === 'warn' && Platform.OS !== 'web' ? (
+        {!askAlways && checks.permission.status === 'warn' && Platform.OS !== 'web' ? (
           <Button testID="open-settings" label={t('prepare.settings')} ghost onPress={() => void Linking.openSettings()} />
         ) : null}
       </ScrollView>

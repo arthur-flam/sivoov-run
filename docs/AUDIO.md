@@ -27,16 +27,46 @@ AudioEvent {
          | { kind: 'start' } | { kind: 'finish' }
          | { kind: 'distance', meters } | { kind: 'split', everyMeters }
          | { kind: 'pace', slowerThan?, fasterThan?, afterMeters } | { kind: 'elapsed', seconds }
+         | { kind: 'filler' }                   // no place: the rhythm director plays it (below)
   source: { kind: 'file', key }                 // the offline sound, always a file in the pack
   personal?: { phase: 'prepare' | 'live' }      // the runner's own version exists (see below)
   under?: key                                   // an ambiance played under it (see "Ambiances")
+  takes?: [{ id, key, caption?, when?, personal? }]   // other ways of saying it (see "Takes")
   mix: 'duck' | 'wait' | 'interrupt', priority: 0..10, once
 }
-AudioPack { courseId, version, locale, events, files: { key: { url, bytes, sha256 } } }
+AudioPack { courseId, version, locale, events, files: { key: { url, bytes, sha256, seconds? } }, maxGapS? }
 ```
 `source.kind: 'template'` still parses (the app's caption-only v0 list uses it) but the studio
 no longer produces it. An app that predates `personal` ignores the field and plays the file.
-Triggering is a pure function `nextEvents(state, pack, fired)` in `shared/domain/audioTriggers.ts`.
+Triggering is pure: `nextEvents(state, pack, fired)` (`shared/domain/audioTriggers.ts`) for the
+lines placed on the course, wrapped by `dueLines(state, pack, said, pause)` (`rhythm.ts`), which
+the app calls: the placed lines due now with the take each says, or one filler. An app that
+predates `filler` cannot read a pack that has one (the trigger is a closed union): it shows the
+pack as failed and the run is said by captions only, until its JS updates (the next launch).
+
+## Takes, conditions and the rhythm director (PRODUCTION.md, "What the engine needs")
+- **Takes.** A line may carry takes: other ways of saying it, each with its own words, its own
+  file (`<key>~<take>.<ext>`), maybe a personal version, maybe a condition (`when`). The line's
+  own words are one more take, with no id and no condition. `pickTake` (`runReading.ts`) says
+  one the runner has not heard in this run, a take written for this moment first, then the
+  least heard, then the script's order. The run's fired records keep the take (`take`), the
+  journal too, so a resumed run keeps rotating.
+- **Conditions read from the run, never asked** (`readRun`): `steady` / `faster` / `slower`
+  (the last kilometre against the runner's own pace over km 1-2, within 2.5 %), `round` (a
+  finish time in whole five minutes is within reach, past 30 % of the course and 1 km from the
+  line), `restart` (running again after 20 s or more stopped or walking, for 20 s; stops are
+  followed tick by tick by `followPause`: no ground counted for 12 s, or slower than 10:00/km).
+- **The rhythm director** (`rhythm.ts`): when nothing placed is due, `fillerNeed` decides
+  whether a filler plays. Silence is counted from the end of the last sound, ambiances included
+  (the pack's `seconds`): a silence that would outlast the course's `maxGapS` (150 s when
+  absent) is cut in two evenly, never later than 40 s before the maximum, never within 40 s of
+  the next placed line, never while the runner stands or walks. A runner who runs again after a
+  stop gets one word for it, from a filler take marked `restart`. Fillers take turns, the least
+  said first.
+- **The density check**: `hearRun(pack, targetM, plan)` plays a run on paper (a pace, stops,
+  walks) through the same `dueLines`; `api/src/seed/champsElyseesScript.test.ts` holds both
+  Champs courses to their `maxGapS` from 4:00 to 8:00/km, and the production tool renders whole
+  runs with it.
 
 **The start ceremony is sequenced, not triggered.** `cue` events never come out of
 `nextEvents`. `ceremonySequence(pack)` returns them in play order (every `armed` line, then the
@@ -77,7 +107,13 @@ lists them under the line (`ceremonyIssueText`), and a publish answers them as `
 voice take of « Dix. Neuf. … Un. » is whatever length it comes out (Deauville's seed): the fix
 is a file of 10 s (`npm run produce` pads its countdown cut to exactly 10 s).
 
-**The voice** is `script.voice = { id, name, model, stability? }`, one per script. New scripts
+**A line's own voice** (`line.voice = { id, direction, scene? }`): the same speaker in another
+register (on the PA, close in the ear: the direction and the scene change) or another voice
+(a regular in the crowd). `voiceOfLine` gives it on the script's model; the studio, publishing,
+the runner's own renders and the production tool all use it, and its render keys include the
+scene. A Gemini voice's `scene` is where the speaker is (« Sur la sono du village de départ »).
+
+**The voice** is `script.voice = { id, name, model, stability?, direction?, scene? }`, one per script. New scripts
 start on George, `eleven_v3`. The TTS body is `ttsRequestBody(voice, text, locale)` and the
 render cache key `voiceCacheInput(voice, text)`, shared by the Worker and the CLI: the text as
 the model takes it (v3 keeps `[tags]`, older models get them stripped by `textForVoice`), the
@@ -96,6 +132,9 @@ settings keep their keys).
 | `{temps_km}` | during | the last kilometre: « cinq minutes vingt-huit » |
 | `{allure}` | during | average pace: « cinq minutes trente au kilomètre » |
 | `{arrivee_prevue}` | during | finish time at this pace |
+| `{objectif}` | during | the round time within reach (`readRun`): « cinquante minutes »; none → offline version |
+| `{allure_depart}` | during | their own pace over km 1-2: « cinq minutes dix » |
+| `{meilleur_km}` | during | their fastest kilometre: « le kilomètre quatre, en quatre minutes cinquante » |
 
 Every number is written out in French words before it reaches the voice (`frenchNumber`,
 `spokenClock`, `spokenDuration`): a misread number discredits the whole pack. The old English
@@ -134,15 +173,28 @@ runner's own line (their name, their time) is thus said inside the crowd, not in
   few requests a minute on our key: see CHAMPS_ELYSEES.md, "Known limits".
 
 ## Produced sound (`api/tools/produce/`)
-`npm run produce -w api -- <raceId> [local|preview|production] [--publish]` mixes a race's
-sound with ffmpeg: the voice (Gemini, by scene), crowds and places (BBC Sound Effects, draft
-licence) and music composed for the race (Lyria, kept in R2 `produce-sources/`), per a recipe
-(`champsElysees.ts`). Each line gets a file and maybe an ambiance, loudness-normalized in two
-passes. With a target, they become the organizer's own files on the draft (`audio`, `under`,
-`studio-uploads/`), and `--publish` publishes (local and preview). It also writes a demo reel:
-the race in about five minutes, said to a sample runner, with chapters (`DemoReelSchema`),
-at `demo/<courseId>/reel.{mp3,json}`, served by `/api/courses/:id/reel(.mp3)` and played on
-the race page (« Écoutez la course »).
+`npm run produce -w api -- <raceId> [local|preview|production] [--publish] [--runs] [--course 5k]`
+mixes each course of a race with ffmpeg: every line and take said by its own voice and scene
+(Gemini), over beds and ambiances per line (`sounds.ts`): music composed for the race (Lyria,
+kept in R2 `produce-sources/`), a French crowd made of a dozen Gemini voices shouting by the
+roadside (`crowd.ts`) over the archive's wordless roars (BBC Sound Effects, draft licence), the
+park, the bells, a synthesized heart before the Arc. A line with an ambiance keeps its own file
+to the voice alone, so the runner's own version (raw, from the Worker) sounds the same over it.
+- `--runs`: whole runs as a runner hears them (`run.ts`), at 4:30, 5:30 (a 45 s stop and a
+  walking minute) and 7:00/km, through the app's own engine (`hearRun`), the app's player on
+  paper (one voice at a time, interruptions, each ambiance until the next) and a stand-in
+  playlist ducked like the runner's music: `out/<course>/run-<pace>.mp3` and a timeline
+  (`.md`) with every silence. The listener's main test (PRODUCTION.md).
+- The demo reel is the 5:30 run condensed (`reelOf`), with chapters (`DemoReelSchema`), at
+  `demo/<courseId>/reel.{mp3,json}`, served by `/api/courses/:id/reel(.mp3)` and played on the
+  race page (« Écoutez la course »).
+- Every render's origin (voice, model, direction, scene, words; or the sources of a mix) goes
+  to `out/<course>/origins.json`, until the sound library exists (SOUND_LIBRARY.md).
+- With a target, the tool opens that environment's own D1 and R2 (`tools/bindings.ts`:
+  Wrangler's platform proxy, remote bindings for preview and production), uploads the files as
+  the organizer's own (`studio-uploads/`), points the draft's lines and takes at them, and with
+  `--publish` publishes with the Worker's own `publishScript`. No sign-in: Wrangler's account.
+- `npm run casting -w api` renders the casting (PRODUCTION.md) for a blind listen.
 
 ## ElevenLabs v3 tags
 `[excited]`, `[whisper]`, `[laughs]`… before the words they colour; ellipses make pauses. The
@@ -215,9 +267,11 @@ ElevenLabs credit outside local (`maySpendCredit`).
 - `GET /api/courses/:id/pack`: the manifest (titles and file keys, never script text) and
   `GET /api/packs/:course/:version/:key` the files (immutable, a year).
 - `POST /api/me/voices` (bearer, optional `{lat, lng}`): the runner's own versions of the
-  pack's `prepare` lines, rendered now: `{ courseId, version, files: { eventId: { url, bytes,
-  sha256 } } }`. Absent lines play their offline file.
-- `POST /api/me/voices/live` (bearer) `{ courseId, version, eventId, facts }`: one `live` line
+  pack's `prepare` lines and takes, rendered now (four at a time, cached by what is said and who
+  says it, so every Camille shares the same cheers): `{ courseId, version, files: { key: { url,
+  bytes, sha256 } } }`, `key` being `eventId` or `eventId/takeId` (`personalKey`). Absent lines
+  play their offline file.
+- `POST /api/me/voices/live` (bearer) `{ courseId, version, eventId, take?, facts }`: one `live` line
   rendered now, `{ url, bytes }`; 422 when a value is missing, 429 past 150 new renders a day
   per runner (renders already cached are free).
 - `GET /api/voices/:hash.mp3`: personal renders, public by the hash of what they say.

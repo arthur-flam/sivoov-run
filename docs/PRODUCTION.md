@@ -115,6 +115,18 @@ Do this before writing many lines: the voice changes how the lines should be wri
 - **Names:** check how the winner says a dozen first names (French, Arabic, English, Asian,
   hyphenated). A mangled name is worse than no name, and those renders are the riskiest.
 
+**Done 2026-10-09** (`npm run casting -w api`, files in `api/.produce/out/casting/`): nine voices
+(Algenib, Alnilam, Orus, Charon, Rasalgethi, Sadaltager, Iapetus, Fenrir, Sadachbia) under two
+directions (« commentateur », « vétéran »), the three test lines each. The blind page is
+`index.html`, the key `key.json`. The owner was not there to listen, so a stand-in listener
+(Gemini, on the blind codes, scoring only what can be heard: apparent age, depth, sports energy,
+warmth, natural French, PA/ear contrast) ranked them; `casting-ai.json`. Best: **Sadachbia under
+the « vétéran » direction** (heard as about fifty, the top energy score), then Alnilam vétéran
+and Fenrir vétéran. Per the rule above, Sadachbia stays and the direction changes: the scripts
+now speak as « un homme de cinquante-cinq ans qui anime cette course depuis quinze ans ».
+**Provisional until the owner's blind listen.** Changing it is one constant
+(`api/src/seed/champsElyseesScript.ts`) and a new `npm run produce`.
+
 ## The craft: produce it like a show
 
 A race is a story with a fixed plot: everyone knows how it ends. Good television, film and radio

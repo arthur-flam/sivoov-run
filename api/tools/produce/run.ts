@@ -8,6 +8,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import type { AudioEvent, AudioPack, Heard } from '@sivoov/shared';
+import { mapLimit } from '../../src/lib/mapLimit';
 import type { Cut, Layer } from './mix';
 import { durationOf } from './mix';
 
@@ -115,15 +116,13 @@ export const timelineMd = (title: string, played: Played[], t0: number, quietFro
   ].join('\n');
 };
 
-/** The heard lines of a run, with their place in the pack, as `Placed` (the sounding comes from the caller). */
+/** The heard lines of a run, with their place in the pack, as `Placed` (the sounding comes from the caller; four renders at a time). */
 export const placedOf = (pack: Pick<AudioPack, 'events'>, heard: Heard[], soundingOf: (h: Heard, event: AudioEvent) => Promise<Sounding | null>) =>
-  Promise.all(
-    heard.map(async (h): Promise<Placed | null> => {
-      const event = pack.events.find((e) => e.id === h.eventId)!;
-      const sounding = await soundingOf(h, event);
-      return sounding ? { at: h.elapsedMs / 1000, event, sounding, km: h.distanceM / 1000, ...(h.take ? { take: h.take } : {}), filler: event.trigger.kind === 'filler' } : null;
-    }),
-  ).then((all) => all.filter((p): p is Placed => p !== null));
+  mapLimit(heard, 4, async (h): Promise<Placed | null> => {
+    const event = pack.events.find((e) => e.id === h.eventId)!;
+    const sounding = await soundingOf(h, event);
+    return sounding ? { at: h.elapsedMs / 1000, event, sounding, km: h.distanceM / 1000, ...(h.take ? { take: h.take } : {}), filler: event.trigger.kind === 'filler' } : null;
+  }).then((all) => all.filter((p): p is Placed => p !== null));
 
 /** How long the reel lets an ambiance play on after its line, before the next moment. */
 const HOLD_S: Record<string, number> = { 'ceremony.gun': 12, 'course.rond-point': 12, 'course.cobbles': 6, 'course.hush': 5, 'course.arc': 14, 'course.monceau': 6, 'course.golden': 14, 'course.final': 3 };

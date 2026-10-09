@@ -38,6 +38,7 @@ import { bindingsFor } from '../bindings';
 import type { Target } from '../bindings';
 import { db } from '../../src/db/queries';
 import { scriptDb } from '../../src/db/scriptQueries';
+import { mapLimit } from '../../src/lib/mapLimit';
 import { publishScript } from '../../src/lib/publish';
 import { CACHE, source, voice, voiceEnvFromDotenv } from './assets';
 import { countAlongOf, shoutsOf } from './crowd';
@@ -50,7 +51,7 @@ import { SOURCES } from './sources';
 const [raceId, ...rest] = process.argv.slice(2);
 const target = rest.find((a) => ['local', 'preview', 'production'].includes(a)) as Target | undefined;
 const flag = (name: string) => rest.includes(`--${name}`);
-const onlyCourse = rest[rest.indexOf('--course') + 1];
+const onlyCourse = rest.includes('--course') ? rest[rest.indexOf('--course') + 1] : undefined;
 if (raceId !== '10km-champs-elysees-2027') throw new Error('usage: produce.ts 10km-champs-elysees-2027 [local|preview|production] [--publish] [--runs] [--course 5k|10k]');
 
 const env = voiceEnvFromDotenv();
@@ -108,6 +109,9 @@ const produceCourse = async (script: AudioScript) => {
   };
   const recipes = await recipesFor(kit);
   console.log(`${script.courseId}: ${built.lines.length} lines`);
+  // Every voice first, four at a time (the mixes below then find them cached).
+  const toSay = built.lines.flatMap((line) => (line.id === countdown.id ? [] : voicingsOf(line).filter((v) => !v.audio).map((v) => ({ line, text: v.text }))));
+  await mapLimit(toSay, 4, ({ line, text }) => say(voiceOfLine(built, line), text));
 
   /** Every line's and take's own file, and each line's ambiance: file key in the pack -> path. */
   const files: Record<string, string> = {};

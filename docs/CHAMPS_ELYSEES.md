@@ -62,51 +62,62 @@ were measured on the GPX:
 | 9.45 | Pont Alexandre-III, the Grand Palais |
 | 10 | The finish, where it started |
 
-## What the runner hears
+## What the runner hears (rewritten 2026-10-09, PRODUCTION.md)
 
-One voice all the way: the race speaker (Gemini "Sadachbia", a native French male voice,
-mature and radio-like). The model is directed by scene: on the start village's PA, in the
-runner's ears, at a big moment, at the line.
+One speaker, Gemini's Sadachbia directed as « un homme de cinquante-cinq ans qui anime cette
+course depuis quinze ans », in registers (each line's own `voice`: on the PA, in the ear, close
+on the cobbles, calm in the park, at the line), and two regulars in the crowd: Martine (Gacrux),
+a Parisienne at every race, and a young club runner (Puck). They say the runner's name about
+fourteen times in the 10 km. Between the places the rhythm director keeps the race from going
+quiet for more than 150 s (120 s on the 5 km): the regulars shouting the name, a word from the
+speaker, a restart word after a stop. Every kilometre is read against the runner's own opening
+pace (takes: steady, faster, slower, a round time in reach). The words are in
+`api/src/seed/champsElyseesScript.ts`, the sound in `api/tools/produce/sounds.ts`.
 
-Around the voice there are three kinds of sound:
-- crowds and Paris sounds from the BBC archive;
-- music composed for this race with Lyria;
-- the runner's own music, the rest of the time.
+| 10 km | 5 km | Line | Heard |
+|---|---|---|---|
+| Start | Start | Le village | The village (DJ set down the avenue, walla), then « Bonjour Paris ! » on the PA |
+| | | Bienvenue (★) | « Camille… bienvenue sur les Champs-Élysées ! Vingt mille coureurs… et vous en êtes. » The 5 km adds the course, the open road and « à vos marques » |
+| | | La route (AI, 10 km) | The weather at home and on the Champs, the road open where they are, « Coureurs… à vos marques. » |
+| | | Compte à rebours | Ten numbers on the PA, the crowd counting the last three along (five Gemini voices), over the anthem's build |
+| 0 | 0 | Le départ | Horn, « Partez ! », the drop and the roar |
+| 80 m | 60 m | Vous y êtes (★) | 10 km: the Obélisque straight ahead, « vous le reverrez quand il restera trois cents mètres » (the plant). 5 km: « ce premier kilomètre, c'est l'approche » |
+| 650 m | | La Madeleine | Malesherbes, a long false flat to the park; the crowd will look after you |
+| 2.1 km | | Parc Monceau (★) | Birds and gravel come in: the only calm of the race |
+| 3.3 km | | Rue de Lisbonne | The top of the loop, let the legs roll |
+| 3.85 km | | Le record | 28:34: at that speed you see nothing; you will see everything, in two kilometres |
+| 5.3 km | | La moitié (★, live) | Five km behind you, your best kilometre, and now the Champs |
+| | 200 m | Le faubourg | The street narrows; in 700 m, on the right, the Champs |
+| 5.6 km | 600 m | Vers le Rond-Point | Downhill, keep some back; in 300 m on the right, you'll see it |
+| 5.95 km | 950 m | La montée | « Levez les yeux… l'Arc de Triomphe. Neuf cents mètres de pavés. » Drums and a French crowd for 150 s |
+| 6.25 km | 1.25 km | Martine (★) | « Allez Camille ! Ça monte, mais ça passe ! » |
+| 6.45 km | 1.45 km | Les pavés (★) | Close: « Petits pas. Les bras. L'Arc ne bouge pas… c'est vous qui avancez. » The crowd thickens |
+| 6.79 km | 1.79 km | Juste avant l'Arc | A whisper, « Écoutez… cent mètres », a heartbeat, the drums far away |
+| 6.9 km | 1.9 km | Demi-tour (★) | The roar, the music flips: everything goes down now. The 5 km plants the Obélisque here |
+| 7.4 km | 2.4 km | Le club (★) | « Allez Camille ! Ça descend tout seul ! » |
+| 7.95 km | 2.95 km | Montaigne (★) | « Les vitrines vous regardent… tenez-vous droit. » |
+| 8.6 km | 3.6 km | La Seine | The Eiffel Tower across the water, the circuit's last stage; the last km in 400 m. A bell |
+| 8.99 km | 3.99 km | Le Golden km | A piece that never stops rising, the crowd building |
+| 9.45 km | 4.45 km | Le pont (★) | The gold statues, the Grand Palais, and all these people for you |
+| 9.59 km | 4.59 km | Martine (★) | « C'est la fin, c'est la plus belle ! » |
+| 9.7 km | 4.7 km | L'Obélisque (★) | The payoff: « je vous l'avais dit. Trois cents mètres. » |
+| 9.85 km | 4.85 km | Dernier virage | The home crowd |
+| Finish | Finish | La ligne, l'arrivée (★, live), après la ligne (★, live) | Horn and roar, the name and time on the PA over the fanfare, then close again: the best km, the medal (first of three), the Trocadéro and the Eiffel Tower; the 5 km points to the 10 km on 7 February |
 
-"Under" means an ambiance that starts with a line and keeps playing after it (AUDIO.md).
+★: the runner's name (a personal version; its offline version is said without it).
 
-| When | Line | Heard |
-|---|---|---|
-| Start pressed | Bienvenue sur les Champs | The start village as an ambiance: a French-touch DJ set heard from down the avenue, the London Marathon start crowd, a French crowd. Over it, on the PA: « Bonjour Paris ! Bienvenue au 10 km des Champs-Élysées… » |
-| | Routes ouvertes | « À Paris, l'avenue est fermée pour vous. Là où vous êtes, elle ne l'est pas. » |
-| | L'appel dans le sas | Personal: « Dossard mille deux cent quarante-sept… Camille Martin ! Bienvenue sur les Champs-Élysées. On vous attend dans le sas ! », inside the village crowd |
-| | Le mot du speaker | Written by the AI for each runner: the weather where they are and on the Champs, ending « Coureurs… à vos marques. » |
-| Countdown | Compte à rebours | Ten numbers, one per second, on the PA. Under them, the ten seconds of the start anthem's build (Lyria) and a crowd rising. The on-screen digits follow the file |
-| Gun, 0:00 | Le départ | Air horn and « Partez ! ». The clock starts on it. Under: the anthem's drop, whistles and a roar, fading over about a minute into the runner's own music |
-| 300 m | La Concorde | « L'Obélisque vous regarde passer : trois mille ans qu'il en voit d'autres. Laissez partir les pressés… » |
-| 700 m | La Madeleine | Announces Malesherbes, then promises a silence: « …on se retrouve au parc. » |
-| Every km | Chaque kilomètre | Live: « Kilomètre trois. Quatorze minutes vingt. » |
-| 2.1 km | Parc Monceau | Pigeons and a fountain come in, then the parachute story, said softly: « Respirez… ça ne durera pas. » |
-| 3.3 km | Rue de Lisbonne | Coaching: the top of the loop, let the legs roll |
-| 5 km | Mi-course | A crowd pocket. « …et après, la raison pour laquelle vous êtes venu : les Champs-Élysées. » |
-| 5.95 km | La montée des Champs | « Levez les yeux : tout en haut, l'Arc de Triomphe. » Under: a drum tattoo and a crowd for 2.5 min, all the way up. No talk on the climb |
-| 6.9 km | Demi-tour sous l'Arc | « À partir d'ici… tout redescend. Les Champs-Élysées sont à vous ! » Under: the descent anthem (Lyria, 90 s) and a roar |
-| 7.95 km | Avenue Montaigne | Dior's New Look, 80 years ago: « la tenue qu'on regarde sur cette avenue… c'est la vôtre. » |
-| 8.6 km | L'Alma et la Seine | A Paris church bell. The Eiffel Tower, and the last stage of the circuit in December |
-| 9 km | Le Golden km | « Tout ce qui vous reste… c'est maintenant. » Under: a 3-minute piece that never stops rising (climax at 2:35) and the crowd building |
-| 9.8 km | Remontée vers la ligne | « Dernier virage, le long de la Seine… la ligne est là ! » Under: the finish crowd, from here to the line |
-| Finish | La ligne | Air horn and a roar, instantly: « Voilà la ligne d'arrivée ! » |
-| | L'arrivée | Personal, live: « Camille Martin ! Quarante-sept minutes et douze secondes ! Vous avez bouclé le 10 km des Champs-Élysées ! » Under: the finish fanfare (Lyria) and applause, then the speaker on the PA: the medal is the first of three, see you at the Trocadéro in September and at the Eiffel Tower in December |
+**The 5 km demo** (course `10km-champs-elysees-2027-5k`, marked `demo`): the 10 km's second half
+from boulevard Haussmann, for a race director's lunch break. It is run on the race's demo
+(`10km-champs-elysees-2027-demo`), never shown on the real race's pages. Its ceremony reaches the
+countdown in about 15 s, the 10 km's in about 25.
 
-A 50-minute run hears about 4 minutes of voice. The rest is the runner's own music, ducked
-only while a line or an ambiance plays.
+### The demo reel and the full runs
 
-### The demo reel
-
-The whole race condensed to about five minutes, said to the sample runner (Camille Martin,
-bib 1247, from Lyon, 47:12). It is one MP3 with chapters, and it is what the race page plays
-under « Écoutez la course ». Send it to anyone who will not go and run:
-`api/.produce/out/10km-champs-elysees-2027-10k/reel.mp3`.
+Each course's 5:30/km run condensed to a few minutes, said to the sample runner (Camille Martin,
+bib 1247, from Lyon), with chapters: what the race page plays under « Écoutez la course ».
+`npm run produce -w api -- 10km-champs-elysees-2027 --runs` also writes whole runs at 4:30,
+5:30 (with a stop and a walk) and 7:00/km, each with a timeline of every silence:
+`api/.produce/out/<course>/reel.mp3`, `run-<pace>.mp3`, `run-<pace>.md`.
 
 ## What is not ours yet (licensing, before selling)
 

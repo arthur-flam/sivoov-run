@@ -750,3 +750,26 @@
   - one voice, the runner's name often, personal and fun;
   - we never ask the runner's gender, so lines must not agree with it (« prêt », « venu »): the
     draft's « vous êtes venu » was wrong for half the runners.
+- 2026-10-09 (the production session, branch `claude/api-credits-10k-strategy-ssyque`):
+  - **Gemini TTS is 10 requests a minute per model on our key**, billing on or not
+    (`GenerateRequestsPerMinutePerProjectPerModel`, limit 10; the 429 says how long to wait). The
+    lite model has its own 10. A runner's pre-flight now asks for ~20 name renders: one runner at
+    a time is fine, a race week is not. Raise the quota (Owner actions) before real entries.
+  - **Production's D1 was five migrations behind** (0001-0006 applied, 0007-0011 not): the
+    Worker there predates demo races, languages and photos. `promote-production` applies them
+    before deploying. Check `SELECT name FROM d1_migrations` before assuming production's schema.
+  - `wrangler d1 execute sivoov-run --remote` failed with Cloudflare error 7403 while the same
+    query through `getPlatformProxy` with `remote: true` bindings worked: tools now use
+    `api/tools/bindings.ts`, which also lets them run the Worker's own code (publishing).
+  - The archive's `french-crowd` is three people chatting indoors, `london-cheers` a meeting
+    room, `applause` a theatre (a Gemini listener said so, and it matched the owner's « did not
+    fit »). The stadium roars have no words and work as a low layer; the French crowd is now
+    Gemini voices shouting « Allez ! » (`tools/produce/crowd.ts`).
+  - A Gemini listener on blind codes is a usable stand-in to pick between voices when nobody can
+    listen (age, depth, energy, natural French): it put the owner's own Sadachbia first once
+    directed older. It does not replace the owner's ears (PRODUCTION.md).
+  - `argv[indexOf('--flag') + 1]` with the flag absent reads `argv[0]`: the production tool
+    silently produced nothing. Test for the flag first.
+  - Takes keep their own file key (`<key>~<take>`), the runner's own versions `event/take`
+    (`personalKey`): a key with a '/' must never become a file path on the phone (packDisk names
+    files by hash).

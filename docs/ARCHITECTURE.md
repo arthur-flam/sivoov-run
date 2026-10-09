@@ -26,7 +26,7 @@
 | Owner notices | Telegram Bot API from the Worker (`lib/telegram.ts`, lines in `lib/notices.ts`): runner and admin sign-ins, run starts (`POST /api/runs/:id/started`, sent by the app at the gun), finishes (once per run), organizer leads, 500s; after the response, never failing it; `[preview]`/`[local]` prefix | first line of defense and analytics, on the owner's phone; no secrets, no sends |
 | Builds | EAS Build (cloud), EAS Update (OTA), GitHub Actions | no Mac, no laptop |
 | Tests | Vitest everywhere (API tests run inside workerd via vitest-pool-workers), Playwright against the web target and the Worker | |
-| Tools | `tsx` to run TypeScript scripts under `api/tools/` (dev dependency) | Node cannot load the shared package unaided |
+| Tools | `tsx` to run TypeScript scripts under `api/tools/` (dev dependency); `tools/bindings.ts` opens an environment's own D1 and R2 from a laptop (Wrangler's `getPlatformProxy`, remote bindings for preview and production), so a tool runs the Worker's code (publishing) instead of mirroring it | Node cannot load the shared package unaided |
 
 Not used, on purpose: NativeWind/Tailwind, Clerk, Next.js, TanStack Query (fetch + Zustand
 is enough for this surface).
@@ -46,7 +46,8 @@ docs/
 race          id, slug, name, city, dates, window_start, window_end, theme(json), status,
               demo_of (a demo race: the race whose courses and sound it plays),
               default_locale (fr|en: the runners' language until they choose, Réglages)
-course        race_id, distance_key (marathon|half|10k), distance_m, gpx (R2), landmarks(json)
+course        race_id, distance_key (marathon|half|10k|5k), distance_m, gpx (R2), landmarks(json),
+              demo (a course only the race's demo runs: the 5 km demo of the Champs-Élysées)
 entrant       race_id, bib, email, first_name, last_name, distance_key, address(json), source,
               locale (fr|en, null until the runner chooses; per entry, like the slot)
 session       entrant_id, token_hash, expires_at            (magic code auth)
@@ -219,6 +220,10 @@ per race and course (`resultsForCourse(raceId, courseId)`), so a demo run never 
 real race. App Review's runner (`review@example.com`, bib 9999) signs in with `REVIEW_CODE`,
 only on a demo race. On a demo race's home the app offers the course in ten minutes as a
 simulation (release builds too), stored as a simulation, never ranked.
+A course marked `demo` (migration 0011) belongs to the real race but only its demo shows it:
+`coursesShown` keeps it off the real race's landing, results and share cards, and the admin's
+courses page says so. The Champs-Élysées' 5 km demo is one (the 10 km's second half). The seed
+adds the Champs' demo race when the race has none, and the owner's entries on it everywhere.
 
 ## Runner sign-in
 The email names the entry (`whichEntry` in shared): the race is asked only when the email holds

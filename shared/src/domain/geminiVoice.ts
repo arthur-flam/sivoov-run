@@ -45,9 +45,9 @@ export const geminiPrompt = (direction: string, text: string, scene: string = DE
     stripAudioTags(text),
   ].join('\n');
 
-/** The generateContent body for one line. */
-export const geminiTtsBody = (voice: Pick<ScriptVoice, 'id' | 'direction'>, text: string, scene?: string): Record<string, unknown> => ({
-  contents: [{ parts: [{ text: geminiPrompt(voice.direction ?? DEFAULT_DIRECTION, text, scene) }] }],
+/** The generateContent body for one line: `scene` when given, else the voice's own, else in the runner's ears. */
+export const geminiTtsBody = (voice: Pick<ScriptVoice, 'id' | 'direction' | 'scene'>, text: string, scene?: string): Record<string, unknown> => ({
+  contents: [{ parts: [{ text: geminiPrompt(voice.direction ?? DEFAULT_DIRECTION, text, scene ?? voice.scene) }] }],
   generationConfig: {
     responseModalities: ['AUDIO'],
     speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice.id } } },

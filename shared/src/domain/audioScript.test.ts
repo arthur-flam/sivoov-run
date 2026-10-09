@@ -281,21 +281,24 @@ describe('a line with takes', () => {
 
   it('gives the Worker each personal take, with the line’s own voice', () => {
     const defs = personalDefsFor(buildScript(script([cheers])));
-    expect(defs.lines.map((d) => [d.eventId, d.takeId, d.phase, d.voice?.id, d.fallback])).toEqual([
+    expect(defs.lines.map((d) => [d.eventId, d.take, d.phase, d.voice?.id, d.fallback])).toEqual([
       ['crowd.cheers', 'a', 'prepare', 'Fenrir', 'Allez, allez !'],
       ['crowd.cheers', 'c', 'live', 'Fenrir', 'Kilomètre de plus.'],
     ]);
   });
 
   it('has every take read by the line’s voice before publishing, and finds two takes that would share a file', () => {
-    const texts = spokenTexts(AudioScriptSchema.parse(script([cheers, line()])));
-    expect(texts.map((t) => [t.line.id, t.takeId ?? null, t.voice.id])).toEqual([
+    const gemini = { id: 'Sadachbia', name: 'Le speaker', model: 'gemini-3.8-flash-tts' };
+    const texts = spokenTexts(AudioScriptSchema.parse({ ...script([cheers, line()]), voice: gemini }));
+    expect(texts.map((t) => [t.line.id, t.take ?? null, t.voice.id])).toEqual([
       ['crowd.cheers', null, 'Fenrir'],
       ['crowd.cheers', 'a', 'Fenrir'],
       ['crowd.cheers', 'b', 'Fenrir'],
       ['crowd.cheers', 'c', 'Fenrir'],
-      ['course.planches', null, 'JBFqnCBsd6RMkjVDRZzb'],
+      ['course.planches', null, 'Sadachbia'],
     ]);
+    // A line voice names a Gemini voice: a script on ElevenLabs reads every line with its own.
+    expect(spokenTexts(AudioScriptSchema.parse(script([cheers]))).map((t) => t.voice.id)).toEqual(['JBFqnCBsd6RMkjVDRZzb', 'JBFqnCBsd6RMkjVDRZzb', 'JBFqnCBsd6RMkjVDRZzb', 'JBFqnCBsd6RMkjVDRZzb']);
     const clash = AudioScriptSchema.parse(script([cheers, line({ id: 'other', key: 'crowd-cheers~a' })])).lines;
     expect(duplicateFileKeys(clash)).toEqual(['crowd-cheers~a.mp3']);
   });

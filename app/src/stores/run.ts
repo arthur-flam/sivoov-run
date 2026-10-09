@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { NO_PAUSE, afterPause, applySample, abandon as abandonRun, bridgedGap, dueLines, followPause, idleRun, nextEvents, startRun, tick } from '@sivoov/shared';
-import type { AudioEvent, AudioPack, Course, CourseTrack, Due, Firing, LocationSample, Pause, RunJournal, RunState } from '@sivoov/shared';
+import { NO_PAUSE, applySample, abandon as abandonRun, bridgedGap, dueLines, followPause, idleRun, startRun, survivesPause, tick } from '@sivoov/shared';
+import type { AudioEvent, AudioPack, Course, CourseTrack, Due, LocationSample, Pause, RunJournal, RunState } from '@sivoov/shared';
 import { ceremonyPlan, playCeremony } from '@/audio/ceremony';
 import type { Ceremony, CeremonyHandlers, CeremonyPlan } from '@/audio/ceremony';
 import { diag } from '@/diag';
@@ -19,6 +19,13 @@ export type Fired = { eventId: string; key: string; take?: string; distanceM: nu
 
 /** A run found on the phone when the app came back, before the runner chose to carry on or to stop. */
 export type Recovered = { journal: RunJournal; samples: LocationSample[]; state: RunState };
+
+/**
+ * The pack as the rhythm director must time it on an accelerated run (a simulation at 5x): a
+ * sound lasts `rate` times longer in run time, or fillers would pile up behind the placed lines.
+ */
+const inRunTime = (pack: AudioPack, rate: number): AudioPack =>
+  rate === 1 ? pack : { ...pack, files: Object.fromEntries(Object.entries(pack.files).map(([k, f]) => [k, f.seconds === undefined ? f : { ...f, seconds: f.seconds * rate }])) };
 
 type RunStore = {
   /** 'recovered': a run rebuilt from its journal, waiting for the runner to resume or stop it. */
@@ -130,15 +137,15 @@ export const useRun = create<RunStore>((set, get) => {
     });
   };
 
-  /** `late`: the run just crossed a long silence; what fell due in it is marked missed, never said (bar the finish). */
+  /** `late`: the run just crossed a long silence; what fell due in it is marked missed, never said (bar the finish and a filler due now). */
   const fire = (due: Due[], state: RunState, late: boolean) => {
     if (due.length === 0) return;
     const { fired } = get();
-    const kept = new Set<Firing>(late ? afterPause(due) : due);
-    const said = due.filter((d) => kept.has(d));
+    const heard = (d: Due) => !d.quiet && (!late || survivesPause(d));
+    const said = due.filter(heard);
     const record = (d: Due): Fired => ({ eventId: d.event.id, key: d.key, ...(d.take ? { take: d.take } : {}), distanceM: state.distanceM, elapsedMs: state.elapsedMs });
-    const missed = due.filter((d) => !kept.has(d)).map((d) => ({ ...record(d), silent: true, missed: true }));
-    if (missed.length > 0) diag('run', `${missed.length} lines missed across a GPS gap at ${Math.round(state.distanceM)} m`);
+    const missed = due.filter((d) => !heard(d)).map((d) => ({ ...record(d), silent: true, missed: true }));
+    if (late && missed.length > 0) diag('run', `${missed.length} lines missed across a GPS gap at ${Math.round(state.distanceM)} m`);
     set({ fired: [...fired, ...missed, ...said.map(record)] });
     void journal.fired(get().fired);
   };
@@ -149,11 +156,14 @@ export const useRun = create<RunStore>((set, get) => {
    * race has been quiet too long. Everything fired so far, restored lines included, is what was
    * said: takes go round their pool from where they were.
    */
-  const onState = (state: RunState, late = false) => {
-    const { pack, fired } = get();
-    pause = followPause(pause, state);
+  const onState = (state: RunState, late = false, fix?: LocationSample) => {
+    const { pack, fired, source } = get();
+    // The engine reads the run at the fix's own time and accuracy: a fix rejected while the runner
+    // stands moves no state, and with the screen off no tick moves the clock either.
+    const now = fix ? { ...tick(state, fix.timestamp), lastSample: fix } : state;
+    pause = followPause(pause, now);
     set({ state, phase: state.phase === 'finished' ? 'finished' : 'running' });
-    if (pack) fire(dueLines(state, pack, fired, pause), state, late);
+    if (pack) fire(dueLines(now, inRunTime(pack, source?.rate ?? 1), fired, pause), now, late);
     if (state.phase === 'finished') void get().stop();
   };
 
@@ -169,7 +179,7 @@ export const useRun = create<RunStore>((set, get) => {
         set({ samples: [...get().samples, sample] });
         journal.add(sample);
         const next = applySample(state, sample);
-        onState(next, bridgedGap(state, next));
+        onState(next, bridgedGap(state, next), sample);
       });
     } catch (e) {
       await source.stop().catch(() => undefined);
@@ -248,15 +258,13 @@ export const useRun = create<RunStore>((set, get) => {
       if (get().phase !== 'recovered' || !recovered) return;
       const mine = ++generation;
       const current = () => generation === mine;
-      // The lines placed on the course that fell due while the phone was dark are not said late and
-      // all at once; the finish would be. Never heard, they take no turn in their pool.
-      const backlog = pack ? nextEvents(state, pack, new Set(fired.map((f) => f.key))).filter((f) => f.event.trigger.kind !== 'finish') : [];
-      const missed = backlog.map((f) => ({ eventId: f.event.id, key: f.key, distanceM: state.distanceM, elapsedMs: state.elapsedMs, silent: true, missed: true }));
-      set({ source, fired: [...fired, ...missed], recovered: null, startError: null });
-      diag('run', `resumed ${recovered.runId} at ${Math.round(state.distanceM)} m, ${missed.length} lines missed`);
-      void journal.adopt({ ...recovered, fired: get().fired });
+      set({ source, recovered: null, startError: null });
+      diag('run', `resumed ${recovered.runId} at ${Math.round(state.distanceM)} m`);
+      void journal.adopt({ ...recovered, fired });
+      // What fell due while the phone was dark is not said late and all at once (the finish would
+      // be): a late state. The time without steps since the crash is no stop of the runner's.
+      onState(tick(state, source.now()), true);
       pause = NO_PAUSE;
-      onState(tick(state, source.now()));
       const error = await listen(source, current);
       if (error === null || !current()) return;
       await journal.close();

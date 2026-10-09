@@ -5,7 +5,7 @@ import type { RunReading } from './runReading';
 import { idleRun } from './tracker';
 import type { RunState } from './tracker';
 
-/** A 10 km run at `elapsedS`, `distanceM` done, with one split per pace given (seconds per km). */
+/** A 10 km run that has run one kilometre per pace given (seconds per km), at the end of the last one. */
 const run = (kmPaces: number[], extra: Partial<RunState> = {}): RunState => {
   const splits = kmPaces.reduce<RunState['splits']>((acc, s, i) => [...acc, { km: i + 1, splitMs: s * 1000, elapsedMs: (acc[i - 1]?.elapsedMs ?? 0) + s * 1000 }], []);
   const last = splits[splits.length - 1];

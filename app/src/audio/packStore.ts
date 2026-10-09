@@ -1,8 +1,8 @@
 import { create } from 'zustand';
-import { fileOf, personalKey } from '@sivoov/shared';
+import { personalKey, takeOf } from '@sivoov/shared';
 import type { AudioEvent, AudioPack, Course } from '@sivoov/shared';
 import { ApiError, api } from '@/api';
-import { packV0, takeOf } from './pack';
+import { packV0 } from './pack';
 import { download, onDisk, packDir, savedPack, voicesDir } from './packDisk';
 import type { SavedPack, Wanted } from './packDisk';
 
@@ -105,7 +105,9 @@ export const usePackStore = create<PackStore>((set, get) => {
     }
     const keptWhole = published(kept) && complete(kept, get().uris);
     if (keptWhole && kept.version === fetched.version) {
-      set({ status: 'ready', outdated: false });
+      // The same files; the manifest as this app reads it (one saved by an older app lost what that app did not know: takes, lengths).
+      set({ pack: fetched, status: 'ready', outdated: false });
+      await save();
       return;
     }
     const uris = await download(packDir(course.id, fetched.version), packFiles(fetched)).catch(() => ({}) as Record<string, string>);
@@ -206,7 +208,7 @@ export const usePackStore = create<PackStore>((set, get) => {
 
     soundFor(event, take) {
       const own = takeOf(event, take)?.personal?.phase === 'prepare' ? get().personal[personalKey(event.id, take)] : undefined;
-      const file = fileOf(event, take);
+      const file = takeOf(event, take)?.key;
       return own ?? (file ? get().uriFor(file) : null);
     },
   };

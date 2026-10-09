@@ -30,14 +30,14 @@ vi.mock('@/stores/journalFiles', () => ({
 }));
 /** Every file of the pack is on the phone: a line's, or the take's the run chose. */
 vi.mock('./packStore', async () => {
-  const { fileOf } = await import('@sivoov/shared');
+  const { takeOf } = await import('@sivoov/shared');
   return {
     usePackStore: {
       getState: () => ({
         captions: {},
         uriFor: () => null,
         soundFor: (event: AudioEvent, take?: string) => {
-          const key = fileOf(event, take);
+          const key = takeOf(event, take)?.key;
           return key ? `file://${key}` : null;
         },
       }),

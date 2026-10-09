@@ -68,8 +68,46 @@ export const nextEvents = (state: TriggerState, pack: Pick<AudioPack, 'events'>,
     .filter((f): f is Firing => f.key !== null && !fired.has(f.key))
     .sort((a, b) => b.event.priority - a.event.priority);
 
-/** Only the finish survives a pause; the rest of a missed backlog is dropped. */
-export const afterPause = (firings: Firing[]): Firing[] => firings.filter((f) => f.event.trigger.kind === 'finish');
+/**
+ * Pure: seconds until the next line placed on the course speaks, at `pace` (the runner's current
+ * one by default), by the same rules as `keyFor` (the lead, the next split, the finish, a time);
+ * Infinity with no pace yet.
+ */
+export const secondsToNextPlaced = (
+  state: TriggerState & { targetM: number },
+  pack: Pick<AudioPack, 'events'>,
+  fired: ReadonlySet<string>,
+  pace: number | null = state.paceSecPerKm,
+): number => {
+  if (pace === null || !(pace > 0)) return Infinity;
+  const at = (m: number) => (m - state.distanceM) * (pace / 1000);
+  const ahead = pack.events.flatMap((e): number[] => {
+    const t = e.trigger;
+    switch (t.kind) {
+      case 'distance':
+        return fired.has(e.id) || t.meters - lineLeadM(pace) <= state.distanceM ? [] : [at(t.meters - lineLeadM(pace))];
+      case 'split': {
+        const next = (Math.floor(state.distanceM / t.everyMeters) + 1) * t.everyMeters;
+        return next >= state.targetM ? [] : [at(next)];
+      }
+      case 'finish':
+        return [at(state.targetM)];
+      case 'elapsed':
+        return fired.has(e.id) ? [] : [Math.max(0, t.seconds - state.elapsedMs / 1000)];
+      default:
+        return [];
+    }
+  });
+  return Math.min(Infinity, ...ahead);
+};
+
+/**
+ * What survives a pause (a GPS gap, a long stop): the finish, and a filler (the rhythm director
+ * only plays one when it is due now: a restart word, a cheer after the silence). The rest of a
+ * missed backlog is dropped.
+ */
+export const survivesPause = (f: Firing): boolean => f.event.trigger.kind === 'finish' || f.event.trigger.kind === 'filler';
+export const afterPause = <F extends Firing>(firings: F[]): F[] => firings.filter(survivesPause);
 
 type Triggered = Pick<AudioEvent, 'trigger'>;
 export type CueLine<E extends Triggered = AudioEvent> = E & { trigger: CueTrigger };

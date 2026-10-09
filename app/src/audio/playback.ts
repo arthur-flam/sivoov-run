@@ -1,22 +1,18 @@
+import { takeOf } from '@sivoov/shared';
 import type { AudioPack, RunState } from '@sivoov/shared';
 import { useRun } from '@/stores/run';
+import type { Fired } from '@/stores/run';
 import { usePrefs } from '@/stores/prefs';
 import { useSession } from '@/stores/session';
 import { liveSound, resetLiveLines } from './live';
-import { takeOf } from './pack';
 import { usePackStore } from './packStore';
 import { configureAudioSession, createEventPlayer } from './player';
 import type { EventPlayer } from './player';
 import { captionFor, soundOf, useSaid } from './said';
 import type { SaidLine } from './said';
 
-/**
- * A fired record as the run store writes it; `take`: which of the line's takes it says;
- * `silent`: a backlog already handled before a crash, neither played nor listed.
- */
-type FiredRecord = { eventId: string; key: string; take?: string; distanceM: number; elapsedMs: number; silent?: boolean };
-
-const silent = (record: FiredRecord): boolean => record.silent === true;
+/** `silent`: a backlog already handled before a crash, neither played nor listed. */
+const silent = (record: Fired): boolean => record.silent === true;
 
 /**
  * Plays one fired record and writes it to the list the screen reads (`useSaid`): its words, and
@@ -25,7 +21,7 @@ const silent = (record: FiredRecord): boolean => record.silent === true;
  * runner's own version of it when there is one (downloaded before the start, or said live), the
  * pack's file otherwise; events with no file at all are read, not heard.
  */
-const playRecord = (player: EventPlayer, pack: AudioPack, state: RunState, record: FiredRecord): void => {
+const playRecord = (player: EventPlayer, pack: AudioPack, state: RunState, record: Fired): void => {
   const event = pack.events.find((e) => e.id === record.eventId);
   if (!event) return;
   const store = usePackStore.getState();
@@ -33,6 +29,8 @@ const playRecord = (player: EventPlayer, pack: AudioPack, state: RunState, recor
   const offline = store.soundFor(event, take);
   const under = event.under ? (store.uriFor(event.under) ?? undefined) : undefined;
   const sound = soundOf(usePrefs.getState().voice, event, offline);
+  // A filler the runner chose not to hear has no place in the list either: it is a beat, not a line.
+  if (sound === 'silenced' && event.trigger.kind === 'filler') return;
   const text = captionFor(event, store.captions, take);
   useSaid.getState().add({ key: record.key, event, text, distanceM: record.distanceM, elapsedMs: record.elapsedMs, sound, uri: offline, at: Date.now() });
   if (sound === 'silenced') return;

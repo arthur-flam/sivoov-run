@@ -1,9 +1,8 @@
-import { liveFactsFor } from '@sivoov/shared';
+import { liveFactsFor, takeOf } from '@sivoov/shared';
 import type { AudioEvent, AudioPack, LiveVoice, RunState } from '@sivoov/shared';
 import { ApiError, LIVE_VOICE_TIMEOUT_MS, api } from '@/api';
 import { afterAttempt, allows, closedBreaker } from './breaker';
 import type { Breaker } from './breaker';
-import { takeOf } from './pack';
 import { liveFile } from './packDisk';
 
 /** The live lines' breaker for this run (breaker.ts): a valley with no signal must not make every split late. */

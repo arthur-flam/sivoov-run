@@ -71,7 +71,7 @@ export type ScriptTake = z.infer<typeof ScriptTakeSchema>;
  * the crowd shouting the runner's name, or the same speaker on the PA rather than in the ear.
  * Same model as the script's voice; a Gemini voice name, its direction and maybe its scene.
  */
-export const LineVoiceSchema = z.object({ id: z.string().min(1), direction: z.string().max(1000), scene: z.string().max(300).optional() });
+export const LineVoiceSchema = z.object({ id: z.string().regex(/^[A-Za-z0-9]{3,40}$/), direction: z.string().max(1000), scene: z.string().max(300).optional() });
 export type LineVoice = z.infer<typeof LineVoiceSchema>;
 
 /**
@@ -130,7 +130,7 @@ export const AudioScriptSchema = z.object({
   voice: ScriptVoiceSchema,
   lines: z.array(ScriptLineSchema),
   /** The longest the race stays quiet while the runner runs, seconds; the rhythm director fills past it (150 when absent). */
-  maxGapS: z.number().int().min(30).max(900).optional(),
+  maxGapS: z.number().int().min(90).max(900).optional(),
   /** Written by publishing only; the studio's saves keep whatever is stored. */
   published: PublishedMarkSchema.optional(),
 });
@@ -144,7 +144,7 @@ export type AudioScriptInput = z.input<typeof AudioScriptSchema>;
 export const PersonalDefSchema = z.object({
   eventId: z.string().min(1),
   /** One of the line's takes; absent: the line's own personal version. */
-  takeId: z.string().min(1).optional(),
+  take: z.string().min(1).optional(),
   /** The line's own voice (LineVoiceSchema), when it is not the script's. */
   voice: LineVoiceSchema.optional(),
   title: z.string(),

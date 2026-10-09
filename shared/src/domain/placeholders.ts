@@ -109,7 +109,7 @@ export const liveFactsFor = (state: Pick<RunState, 'phase' | 'distanceM' | 'targ
     elapsedS: within(elapsedS, 0, 172_800),
     lastKmS: within((state.splits[state.splits.length - 1]?.splitMs ?? NaN) / 1000, 30, 7200),
     paceSecPerKm: within(state.avgPaceSecPerKm, 60, 3600),
-    projectedS: state.phase === 'running' && state.distanceM >= 1000 ? within((elapsedS * state.targetM) / state.distanceM, 0, 172_800) : undefined,
+    projectedS: within(reading.projectedS, 0, 172_800),
     targetS: within(reading.targetS, 0, 172_800),
     refPaceS: within(reading.refPaceS, 60, 3600),
     bestKm: reading.best ? within(reading.best.km, 1, 250) : undefined,

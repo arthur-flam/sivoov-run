@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import type { AudioEvent, VoiceLevel } from '@sivoov/shared';
-import { audibleAt, personalKey } from '@sivoov/shared';
-import { takeOf } from './pack';
+import { audibleAt, personalKey, takeOf } from '@sivoov/shared';
 
 /**
  * One line of the race as the runner can read it back: what fired, when, what it says and

@@ -16,19 +16,25 @@ export const takeFileKey = (line: Pick<ScriptLine, 'key'>, take: Pick<ScriptTake
   `${line.key}~${take.id}.${take.audio?.format ?? voice}`;
 
 /**
- * One way a line is said: the line's own words (no `takeId`), or one of its takes. Everything
+ * One way a line is said: the line's own words (no `take`), or one of its takes. Everything
  * that renders, checks or publishes a line goes through these, so a take is never forgotten.
  */
-export type Voicing = { takeId?: string; text: string; audio?: ScriptLine['audio']; personal?: ScriptLine['personal']; fileKey: string };
+export type Voicing = { take?: string; text: string; audio?: ScriptLine['audio']; personal?: ScriptLine['personal']; when?: ScriptTake['when']; fileKey: string };
 
 export const voicingsOf = (line: ScriptLine, voice: AudioUploadFormat = 'mp3'): Voicing[] => [
   { text: line.text, audio: line.audio, personal: line.personal, fileKey: packFileKey(line, voice) },
-  ...(line.takes ?? []).map((t) => ({ takeId: t.id, text: t.text, audio: t.audio, personal: t.personal, fileKey: takeFileKey(line, t, voice) })),
+  ...(line.takes ?? []).map((t) => ({ take: t.id, text: t.text, audio: t.audio, personal: t.personal, when: t.when, fileKey: takeFileKey(line, t, voice) })),
 ];
 
-/** The script's voice as one line asks for it (another voice, another register), on the script's model. */
+/**
+ * The script's voice as one line asks for it (another voice, another register), on the script's
+ * model, with the line's own direction and scene and nothing else of the script's. Gemini only:
+ * a line voice names a Gemini voice, so a script on another provider keeps its own voice.
+ */
 export const withLineVoice = (voice: ScriptVoice, line?: LineVoice): ScriptVoice =>
-  line ? { ...voice, id: line.id, name: line.id === voice.id ? voice.name : line.id, direction: line.direction, ...(line.scene ? { scene: line.scene } : {}) } : voice;
+  line && isGeminiVoice(voice)
+    ? { id: line.id, name: line.id === voice.id ? voice.name : line.id, model: voice.model, direction: line.direction, ...(line.scene ? { scene: line.scene } : {}) }
+    : voice;
 
 /** The voice that says a line: its own (a regular in the crowd, the speaker on the PA), else the script's. */
 export const voiceOfLine = (script: Pick<AudioScript, 'voice'>, line: Pick<ScriptLine, 'voice'>): ScriptVoice => withLineVoice(script.voice, line.voice);
@@ -55,11 +61,13 @@ export const personalPhase = (line: Pick<ScriptLine, 'personal'>): PlaceholderPh
 
 /** A line's takes as the pack lists them: file, words, condition, and when the runner's own version is made. */
 const takesOf = (line: ScriptLine, voice: AudioUploadFormat) =>
-  (line.takes ?? []).map((t) => {
-    const phase = personalPhase(t);
-    const caption = stripAudioTags(t.text);
-    return { id: t.id, key: takeFileKey(line, t, voice), ...(caption ? { caption } : {}), ...(t.when ? { when: t.when } : {}), ...(phase ? { personal: { phase } } : {}) };
-  });
+  voicingsOf(line, voice)
+    .filter((v) => v.take)
+    .map((v) => {
+      const phase = personalPhase(v);
+      const caption = stripAudioTags(v.text);
+      return { id: v.take, key: v.fileKey, ...(caption ? { caption } : {}), ...(v.when ? { when: v.when } : {}), ...(phase ? { personal: { phase } } : {}) };
+    });
 
 /**
  * Each line becomes a file event: the voice reading `text`, or the organizer's own file. A
@@ -104,11 +112,11 @@ export const renderableLines = (script: Pick<AudioScript, 'lines'>): ScriptLine[
  * Every sentence a voice must read before publishing, takes included, with the voice that reads
  * it (a line may have its own): what the studio renders and publishing looks for.
  */
-export const spokenTexts = (script: Pick<AudioScript, 'voice' | 'lines'>): { line: ScriptLine; takeId?: string; text: string; voice: ScriptVoice }[] =>
+export const spokenTexts = (script: Pick<AudioScript, 'voice' | 'lines'>): { line: ScriptLine; take?: string; text: string; voice: ScriptVoice }[] =>
   script.lines.flatMap((line) =>
     voicingsOf(line)
       .filter((v) => !v.audio && v.text.trim().length > 0)
-      .map((v) => ({ line, ...(v.takeId ? { takeId: v.takeId } : {}), text: v.text, voice: voiceOfLine(script, line) })),
+      .map((v) => ({ line, ...(v.take ? { take: v.take } : {}), text: v.text, voice: voiceOfLine(script, line) })),
   );
 
 /** Pack file keys used by more than one line or take: publishing would write one over the other. */
@@ -141,7 +149,7 @@ const voicingIssues = (v: Voicing, trigger: ScriptLine['trigger']): LineIssue[] 
   const template = v.personal?.kind === 'template' ? v.personal.template : '';
   const unknown = unknownPlaceholders(template);
   const live = BEFORE_THE_RUN.has(trigger.kind) ? livePlaceholders(template) : [];
-  const take = v.takeId ? { take: v.takeId } : {};
+  const take = v.take ? { take: v.take } : {};
   const issues: (LineIssue | null)[] = [
     !v.audio && v.text.trim().length === 0 ? { code: 'no_text', ...take } : null,
     inText.length > 0 ? { code: 'placeholder_in_text', names: inText, ...take } : null,
@@ -166,7 +174,7 @@ export const personalDefsFor = (script: BuiltScript): PersonalDefs =>
         .filter((v) => v.personal)
         .map((v) => ({
           eventId: l.id,
-          ...(v.takeId ? { takeId: v.takeId } : {}),
+          ...(v.take ? { take: v.take } : {}),
           ...(l.voice ? { voice: l.voice } : {}),
           title: l.title,
           when: whenInWords(l.trigger),
@@ -225,7 +233,8 @@ export const ttsRequestBody = (voice: ScriptVoice, text: string, locale: 'fr' | 
  * Everything a published pack depends on, as one canonical string: the voice and every line
  * (text, trigger, files). Hash it to tell whether a draft differs from what was published.
  */
-export const publishedContent = (script: Pick<AudioScript, 'voice' | 'lines'>): string => JSON.stringify({ voice: script.voice, lines: script.lines });
+export const publishedContent = (script: Pick<AudioScript, 'voice' | 'lines' | 'maxGapS'>): string =>
+  JSON.stringify({ voice: script.voice, lines: script.lines, ...(script.maxGapS ? { maxGapS: script.maxGapS } : {}) });
 
 export const AUDIO_CONTENT_TYPES: Record<AudioUploadFormat, string> = { mp3: 'audio/mpeg', m4a: 'audio/mp4', wav: 'audio/wav' };
 

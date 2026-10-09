@@ -110,6 +110,10 @@ export const DEFAULT_FILTER: FilterConfig = {
 
 export type FilterVerdict = { ok: true; stepM: number } | { ok: false; reason: 'accuracy' | 'time' | 'speed' | 'jitter' };
 
+/** The least ground a fix must cover to count: a few times its own accuracy, never under `minMovementM`. */
+export const minStepM = (accuracy: number | undefined, config: FilterConfig = DEFAULT_FILTER): number =>
+  Math.max(config.minMovementM, (accuracy ?? 0) * config.minMovementAccuracyFactor);
+
 /** Decides whether a new fix contributes distance, and how much. */
 export const judgeSample = (
   prev: LocationSample | undefined,
@@ -122,8 +126,7 @@ export const judgeSample = (
   if (dtS <= 0) return { ok: false, reason: 'time' };
   const positionStepM = haversineM(prev, next);
   if (positionStepM / dtS > config.maxSpeedMps) return { ok: false, reason: 'speed' };
-  const minStepM = Math.max(config.minMovementM, (next.accuracy ?? 0) * config.minMovementAccuracyFactor);
-  if (positionStepM < minStepM) return { ok: false, reason: 'jitter' };
+  if (positionStepM < minStepM(next.accuracy, config)) return { ok: false, reason: 'jitter' };
   const dopplerStepM =
     prev.speed !== undefined && next.speed !== undefined ? ((prev.speed + next.speed) / 2) * dtS : undefined;
   if (dopplerStepM === undefined) return { ok: true, stepM: positionStepM };

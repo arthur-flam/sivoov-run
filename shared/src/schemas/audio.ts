@@ -74,9 +74,9 @@ export const TakeWhenSchema = z.enum(['steady', 'faster', 'slower', 'round', 're
 export type TakeWhen = z.infer<typeof TakeWhenSchema>;
 
 /**
- * Another way of saying a line: its own file, words and condition. The engine picks the take
- * the runner has heard least in this run, a take written for this moment of the run first
- * (`pickTake`). Apps that predate takes play the line's own file.
+ * Another way of saying a line: its own file, words and condition. The engine says one the
+ * runner has not heard in this run, a take written for this moment of the run first (`pickTake`).
+ * Apps that predate takes play the line's own file.
  */
 export const PackTakeSchema = z.object({
   id: z.string().min(1),
@@ -135,13 +135,13 @@ export const AudioPackSchema = z.object({
   locale: z.enum(['fr', 'en']).default('fr'),
   events: z.array(AudioEventSchema),
   files: z.record(z.string(), AudioFileSchema),
-  /** The longest the race stays quiet while the runner runs, seconds (the rhythm director's; 150 when absent). */
-  maxGapS: z.number().int().min(30).max(900).optional(),
+  /**
+   * The longest the race stays quiet while the runner runs, seconds (the rhythm director's; 150
+   * when absent). At least 90: a filler needs 30 s of quiet and 40 s of room before the next line.
+   */
+  maxGapS: z.number().int().min(90).max(900).optional(),
 });
 export type AudioPack = z.infer<typeof AudioPackSchema>;
-
-/** Where a runner's own version of a line, or of one of its takes, is kept: `event` or `event/take`. */
-export const personalKey = (eventId: string, takeId?: string): string => (takeId ? `${eventId}/${takeId}` : eventId);
 
 /** A runner's own versions of the personal lines of one pack: `personalKey` -> file. */
 export const PersonalVoicesSchema = z.object({

@@ -459,12 +459,12 @@ describe('a run that survives the app', () => {
 describe('the race between its places', () => {
   const T0 = Date.UTC(2026, 10, 14, 8, 0, 0);
   const takes = 'abcdefgh'.split('');
-  /** Every file four seconds long: a split each km and, for the silences in between, the crowd's pool of cheers; quiet a minute at most. */
+  /** Every file four seconds long: a split each km and, for the silences in between, the crowd's pool of cheers; quiet a minute and a half at most. */
   const quietPack = (): AudioPack =>
     AudioPackSchema.parse({
       courseId: 'c',
       version: 3,
-      maxGapS: 60,
+      maxGapS: 90,
       events: [
         { id: 'ceremony.start', trigger: { kind: 'start' }, source: { kind: 'file', key: 'start.mp3' }, category: 'ceremony', priority: 10 },
         { id: 'personal.split', trigger: { kind: 'split', everyMeters: 1000 }, source: { kind: 'file', key: 'split.mp3' }, category: 'personal', priority: 4, once: false },
@@ -505,14 +505,14 @@ describe('the race between its places', () => {
 
   it('fills a quiet kilometre with the crowd, never quiet past the course’s limit, a different cheer each time', async () => {
     const { send, gun } = await start();
-    feed(send, gun, 9);
+    feed(send, gun, 15);
     const fired = useRun.getState().fired;
     expect(crowd().length).toBeGreaterThan(takes.length + 1);
     // The line's own words, then each take in turn: nothing said twice before the pool has gone round.
     expect(crowd().map((f) => f.take).slice(0, takes.length + 1)).toEqual([undefined, ...takes]);
-    // From the end of one sound to the start of the next, never more than a minute.
+    // From the end of one sound to the start of the next, never more than a minute and a half.
     const gaps = fired.slice(1).map((f, i) => (f.elapsedMs - (fired[i]!.elapsedMs + 4000)) / 1000);
-    expect(Math.max(...gaps)).toBeLessThanOrEqual(61);
+    expect(Math.max(...gaps)).toBeLessThanOrEqual(91);
   });
 
   it('keeps the take each line said on disk, and a run brought back goes on round the pool', async () => {

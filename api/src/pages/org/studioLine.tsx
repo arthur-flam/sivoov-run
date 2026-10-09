@@ -86,7 +86,7 @@ const Takes = ({ takes }: { takes: TakeStatus[] }) =>
                 <Icon name="play" />
               </button>
             </div>
-            <q>{t.text}</q>
+            {t.voiced ? <q>{t.text}</q> : <span>{t.text}</span>}
             {t.personal ? <span class="ev-take-personal">{t.personal.text}</span> : null}
           </li>
         ))}

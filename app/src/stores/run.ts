@@ -254,7 +254,7 @@ export const useRun = create<RunStore>((set, get) => {
     },
 
     async resume(source) {
-      const { recovered, pack, state, fired } = get();
+      const { recovered, state, fired } = get();
       if (get().phase !== 'recovered' || !recovered) return;
       const mine = ++generation;
       const current = () => generation === mine;

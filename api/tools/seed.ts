@@ -59,10 +59,20 @@ const seeds = SEEDS.filter((s) => !only || s.race.id === only);
 if (seeds.length === 0) throw new Error(`no seed for ${only}; known: ${SEEDS.map((s) => s.race.id).join(', ')}`);
 
 const q = (v: string | number | null) => (v === null ? 'NULL' : typeof v === 'number' ? String(v) : `'${v.replaceAll("'", "''")}'`);
-/** An entrant, upserted by bib; `raceSql` when its race is found by a query (a demo made in the admin has its own id). */
-const entrantSql = (e: Entrant, raceSql: string = q(e.raceId)) => `INSERT INTO entrants (id, race_id, bib, email, first_name, last_name, distance_key, source)
-   VALUES (${q(e.id)}, ${raceSql}, ${[e.bib, e.email, e.firstName, e.lastName, e.distanceKey, e.source].map(q).join(', ')})
+/** A test entrant, upserted by bib (local and preview: the seed's own bibs). */
+const entrantSql = (e: Entrant) => `INSERT INTO entrants (id, race_id, bib, email, first_name, last_name, distance_key, source)
+   VALUES (${[e.id, e.raceId, e.bib, e.email, e.firstName, e.lastName, e.distanceKey, e.source].map(q).join(', ')})
    ON CONFLICT(race_id, bib) DO UPDATE SET email=excluded.email, first_name=excluded.first_name, last_name=excluded.last_name, distance_key=excluded.distance_key;`;
+
+/**
+ * An entrant on the race's demo, wherever it is (a demo made in the admin has its own id), only
+ * if the demo exists and the bib is free: someone else's entry, or an edit in the admin, is never
+ * overwritten.
+ */
+const demoEntrantSql = (e: Entrant, realRaceId: string) => `INSERT INTO entrants (id, race_id, bib, email, first_name, last_name, distance_key, source)
+   SELECT ${q(e.id)}, id, ${[e.bib, e.email, e.firstName, e.lastName, e.distanceKey, e.source].map(q).join(', ')}
+   FROM races WHERE demo_of = ${q(realRaceId)} ORDER BY created_at LIMIT 1
+   ON CONFLICT DO NOTHING;`;
 const isTest = (email: string) => email.endsWith('@example.com');
 
 const sqlFor = ({ race: r, courses, entrants, organizers, scripts, moments, demo }: Seed) => [
@@ -72,15 +82,16 @@ const sqlFor = ({ race: r, courses, entrants, organizers, scripts, moments, demo
   ...courses.map(
     (c) => `INSERT INTO courses (id, race_id, distance_key, distance_m, geometry_key, landmarks, demo)
    VALUES (${[c.id, c.raceId, c.distanceKey, c.distanceM, c.geometryKey ?? null, JSON.stringify(c.landmarks), c.demo ? 1 : 0].map(q).join(', ')})
-   ON CONFLICT(id) DO NOTHING;`,
+   ON CONFLICT DO NOTHING;`,
   ),
-  // The demo race, unless the race has one already (made in the admin, under any id or address).
+  // The demo race, unless the race has one already (made in the admin, under any id or address):
+  // its own id, address and window, the rest from the real race as it is now (the organizer's look).
   ...(demo
     ? [
         `INSERT INTO races (id, slug, name, city, country, date_start, date_end, window_start, window_end, timezone, organizer_url, theme, status, demo_of)
-   SELECT ${[demo.race.id, demo.race.slug, demo.race.name, demo.race.city, demo.race.country, demo.race.dateStart, demo.race.dateEnd, demo.race.windowStart, demo.race.windowEnd, demo.race.timezone, demo.race.organizerUrl ?? null, JSON.stringify(demo.race.theme), demo.race.status, r.id].map(q).join(', ')}
-   WHERE NOT EXISTS (SELECT 1 FROM races WHERE demo_of = ${q(r.id)} OR slug = ${q(demo.race.slug)});`,
-        ...demo.entrants.filter((e) => target !== 'production' || !isTest(e.email)).map((e) => entrantSql(e, `(SELECT id FROM races WHERE demo_of = ${q(r.id)} ORDER BY created_at LIMIT 1)`)),
+   SELECT ${q(demo.race.id)}, ${q(demo.race.slug)}, name, city, country, date_start, date_end, ${q(demo.race.windowStart)}, ${q(demo.race.windowEnd)}, timezone, organizer_url, theme, 'open', id
+   FROM races WHERE id = ${q(r.id)} AND NOT EXISTS (SELECT 1 FROM races WHERE demo_of = ${q(r.id)} OR slug = ${q(demo.race.slug)});`,
+        ...demo.entrants.filter((e) => target !== 'production' || !isTest(e.email)).map((e) => demoEntrantSql(e, r.id)),
       ]
     : []),
   ...(target === 'production' ? [] : entrants).map((e) => entrantSql(e)),

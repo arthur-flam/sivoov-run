@@ -1,5 +1,5 @@
 import { AudioPackSchema } from '@sivoov/shared';
-import type { AudioEvent, AudioPack, Course } from '@sivoov/shared';
+import type { AudioPack, Course } from '@sivoov/shared';
 
 /**
  * Pack version 1 ("v0" content): the event list a course gets before its produced audio exists. Ceremony at the

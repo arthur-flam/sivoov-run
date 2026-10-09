@@ -99,6 +99,8 @@ orgScript.put(`${PATH}/script`, ...edit, async (c) => {
   const ids = parsed.data.lines.map((l) => l.id);
   if (new Set(ids).size !== ids.length) return c.json({ error: 'invalid', detail: 'Deux annonces portent le même identifiant.' }, 400);
   if (!VoiceBody.safeParse({ voice: parsed.data.voice }).success) return c.json({ error: 'invalid', detail: 'Cet identifiant de voix ne ressemble pas à un identifiant ElevenLabs.' }, 400);
+  const twice = parsed.data.lines.filter((l) => new Set((l.takes ?? []).map((t) => t.id)).size !== (l.takes ?? []).length);
+  if (twice.length > 0) return c.json({ error: 'invalid', detail: `Deux variantes portent le même nom dans : ${twice.map((l) => l.title || l.id).join(', ')}.` }, 400);
   const keys = duplicateFileKeys(parsed.data.lines);
   if (keys.length > 0) return c.json({ error: 'duplicate_key', detail: `Deux annonces portent le même nom de fichier : ${keys.join(', ')}.` }, 400);
   const lost = await missingUploads(c.env.FILES, parsed.data.lines);
@@ -129,10 +131,10 @@ orgScript.post(`${PATH}/script/render`, ...edit, async (c) => {
   const spoken = spokenTexts(ctx.script).filter((s) => s.line.id === line.id);
   if (spoken.length === 0) return c.json({ error: 'uses_file', detail: 'Cette annonce utilise votre fichier audio. Revenez à la voix pour l’enregistrer.' }, 409);
   const outcomes = await mapLimit(spoken, 2, (s) => renderLine(tts, s.voice, s.text, ctx.script.locale));
+  const rendered = outcomes.flatMap((o) => (o.ok ? [o.rendered] : []));
   const failed = outcomes.find((o) => !o.ok);
   if (failed && !failed.ok) return c.json({ error: 'tts_failed', detail: `La voix n’a pas pu être enregistrée (${failed.status}). Réessayez dans un instant.` }, 502);
-  const first = outcomes[0]!;
-  return c.json({ ...(first.ok ? first.rendered : {}), ...(await answer(c, ctx, ctx.script)) });
+  return c.json({ ...rendered[0], ...(await answer(c, ctx, ctx.script)) });
 });
 
 /**

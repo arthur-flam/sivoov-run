@@ -39,6 +39,7 @@ export const personalLineSystem = (brief: Pick<PersonalLineBrief, 'tags' | 'maxC
     '- Concret et précis plutôt que général. N’inventez aucun fait sur la course, le parcours, la météo ou le coureur : seulement ce qui est donné.',
     '- Le coureur peut être n’importe où : évoquez les lieux, ne donnez pas de direction à suivre.',
     '- Comptez ce qui est fait, jamais ce qui reste. Pas de fausse promesse, pas de « vous n’avez pas l’air fatigué », pas de sourire demandé.',
+    '- Aucun mot qui s’accorde au genre du coureur (ni « prêt », ni « venu », ni « motivé ») : on ne le connaît pas, et le prénom ne le dit pas.',
     '- Tous les nombres en toutes lettres.',
     '- Pas de guillemets, d’émoji, de liste, d’accolades, de balises.',
     `- ${tagRule(brief.tags)}`,

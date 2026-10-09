@@ -21,7 +21,7 @@ export const bindingsFor = async (target: Target): Promise<{ env: Bindings; disp
   // Production is the top level of wrangler.jsonc; the others are environments.
   const { env: envs, ...top } = config;
   const scope = target === 'production' ? top : envs[target]!;
-  const file = join(API_DIR, `.wrangler-${target}.tmp.json`);
+  const file = join(API_DIR, `.wrangler-${target}-${process.pid}.tmp.json`);
   writeFileSync(file, JSON.stringify({ ...top, ...scope, d1_databases: remote(scope.d1_databases), r2_buckets: remote(scope.r2_buckets), env: undefined }));
   try {
     const proxy = await getPlatformProxy<Bindings>({ configPath: file, persist: true });

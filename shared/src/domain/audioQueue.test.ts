@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { AudioEventSchema } from '@sivoov/shared';
-import { advance, emptyQueue, enqueue } from './queue';
+import { AudioEventSchema } from '../schemas/audio';
+import { advance, emptyQueue, enqueue } from './audioQueue';
 
 const ev = (id: string, mix: 'duck' | 'wait' | 'interrupt', priority: number) =>
   AudioEventSchema.parse({ id, trigger: { kind: 'start' }, source: { kind: 'file', key: `${id}.mp3` }, mix, priority, category: 'course' });

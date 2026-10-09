@@ -172,7 +172,16 @@ export const voice = async (env: VoiceEnv, v0: ScriptVoice, text: string, direct
   const raw = join(VOICES_DIR, `${key}.raw.wav`);
   writeFileSync(raw, wav);
   writeFileSync(checked, heard ?? '');
+  // Where this take came from, beside it: the model that really said it (the lighter one once the
+  // main one's day is spent), and when.
+  writeFileSync(join(VOICES_DIR, `${key}.json`), JSON.stringify({ provider: 'gemini', model: v.model, voice: v.id, direction, scene: scene ?? null, text, take, at: new Date().toISOString() }));
   const edge = 'silenceremove=start_periods=1:start_threshold=-50dB:start_silence=0.05';
   execFileSync('ffmpeg', ['-y', '-v', 'error', '-i', raw, '-af', `${edge},areverse,${edge},areverse`, trimmed]);
   return trimmed;
+};
+
+/** Where a voice take came from (written when it was rendered), or null for a take kept from before origins were written. */
+export const voiceOrigin = (path: string): Record<string, unknown> | null => {
+  const file = path.replace(/\.wav$/, '.json');
+  return existsSync(file) ? (JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>) : null;
 };

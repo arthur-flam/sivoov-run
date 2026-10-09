@@ -2,7 +2,6 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { z } from 'zod';
 import {
-  AudioPackSchema,
   CLIENT_HEADER,
   CourseGeometrySchema,
   CourseSchema,
@@ -16,6 +15,7 @@ import {
   formatClientHeader,
   CourseMomentSchema,
   PhotoStatusSchema,
+  readPack,
 } from '@sivoov/shared';
 import type { CodeRequest, LiveVoiceRequest, Locale, Run, RunStart, RunTrace, SignInAmbiguity } from '@sivoov/shared';
 
@@ -127,7 +127,8 @@ export const api = {
   setLocale: (token: string, locale: Locale) => request('/me/locale', z.object({ ok: z.boolean() }), { method: 'PUT', body: JSON.stringify({ locale }) }, token),
   signOut: (token: string) => request('/me/signout', z.object({ ok: z.boolean() }), { method: 'POST' }, token),
   geometry: (courseId: string) => request(`/courses/${courseId}/geometry`, CourseGeometrySchema),
-  pack: (courseId: string) => request(`/courses/${courseId}/pack`, AudioPackSchema),
+  // Leniently: a line or a take this app cannot read is left out, never the whole pack (readPack).
+  pack: (courseId: string) => request(`/courses/${courseId}/pack`, z.unknown()).then(readPack),
   /** The runner's own versions of the pack's personal lines; the position only picks the weather. */
   myVoices: (token: string, here?: { lat: number; lng: number }) =>
     request('/me/voices', PersonalVoicesSchema, { method: 'POST', body: JSON.stringify(here ?? {}) }, token, VOICES_TIMEOUT_MS),

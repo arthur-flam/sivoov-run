@@ -7,7 +7,8 @@
  * And the demo reel: the same run condensed to a few minutes, with chapters.
  */
 import { execFileSync } from 'node:child_process';
-import type { AudioEvent, AudioPack, Heard } from '@sivoov/shared';
+import { advance, emptyQueue, enqueue } from '@sivoov/shared';
+import type { AudioEvent, AudioPack, Heard, Queue, QueueItem } from '@sivoov/shared';
 import { mapLimit } from '../../src/lib/mapLimit';
 import type { Cut, Layer } from './mix';
 import { durationOf } from './mix';
@@ -16,7 +17,7 @@ import { durationOf } from './mix';
 export type Sounding = { file: string; under?: string; words: string; title: string };
 
 /** A line placed on the run's clock (seconds from the gun; the ceremony is before 0). */
-export type Placed = { at: number; event: Pick<AudioEvent, 'id' | 'mix' | 'priority'>; sounding: Sounding; km: number; take?: string; filler: boolean };
+export type Placed = { at: number; event: AudioEvent; sounding: Sounding; km: number; take?: string; filler: boolean };
 
 /** Where each sound ends up once the app has played it: the voice, its ambiance, and when. */
 export type Played = { at: number; until: number; file: string; under?: { at: number; until: number; file: string }; placed: Placed };
@@ -24,30 +25,43 @@ export type Played = { at: number; until: number; file: string; under?: { at: nu
 /** An ambiance gives way to the next in this long (app/src/audio/under.ts). */
 const FADE_S = 0.8;
 
+type Item = QueueItem & { placed: Placed };
+type Playing = { queue: Queue<Item>; since: number; played: Played[] };
+
+const ended = (p: Playing, until: number): Played[] => (p.queue.current ? [...p.played, { at: p.since, until, file: p.queue.current.uri, placed: p.queue.current.placed }] : p.played);
+
+/** Plays on until `time`: each line that ends before it gives way to the next queued one, right after. */
+const drain = (p: Playing, time: number): Playing => {
+  const current = p.queue.current;
+  if (!current) return p;
+  const end = p.since + durationOf(current.uri);
+  return end > time ? p : drain({ queue: advance(p.queue), since: end, played: ended(p, end) }, time);
+};
+
 /**
- * The app's player, on paper: one line at a time in the order they fire; a line that interrupts
- * (with a priority at least the current one's) cuts it; an ambiance plays to its end or until the
- * next one starts.
+ * The app's player on paper, with the app's own queue (`audioQueue.ts` in shared): one line at a
+ * time; a line that interrupts with at least the current one's priority cuts it and drops what is
+ * queued below it; the rest wait, the most important first. Then each ambiance plays from its
+ * line's start to its own end, or until the next one starts.
  */
 export const playOut = (lines: Placed[]): Played[] => {
-  const played: Played[] = [];
-  lines
-    .slice()
+  const arrived = [...lines]
     .sort((a, b) => a.at - b.at)
-    .forEach((p) => {
-      const last = played[played.length - 1];
-      const cuts = last && p.event.mix === 'interrupt' && p.event.priority >= last.placed.event.priority && last.until > p.at;
-      if (cuts) last.until = p.at;
-      const at = cuts || !last ? p.at : Math.max(p.at, last.until);
-      played.push({ at, until: at + durationOf(p.sounding.file), file: p.sounding.file, placed: p, ...(p.sounding.under ? { under: { at, until: at + durationOf(p.sounding.under), file: p.sounding.under } } : {}) });
-    });
-  // Each ambiance stops where the next one starts.
-  const unders = played.filter((x) => x.under);
-  unders.forEach((x, i) => {
-    const next = unders[i + 1];
-    if (next && next.under!.at < x.under!.until) x.under!.until = next.under!.at + FADE_S;
+    .reduce<Playing>((p0, placed) => {
+      const p = drain(p0, placed.at);
+      const { queue, cut } = enqueue(p.queue, { event: placed.event, uri: placed.sounding.file, placed });
+      if (cut) return { queue, since: placed.at, played: ended(p, placed.at) };
+      return { queue, since: p.queue.current ? p.since : placed.at, played: p.played };
+    }, { queue: emptyQueue<Item>(), since: 0, played: [] });
+  const voices = drain(arrived, Infinity).played;
+  const starts = voices.filter((v) => v.placed.sounding.under).map((v) => v.at);
+  return voices.map((v) => {
+    const under = v.placed.sounding.under;
+    if (!under) return v;
+    const next = starts.find((t) => t > v.at);
+    const until = Math.min(v.at + durationOf(under), next === undefined ? Infinity : next + FADE_S);
+    return { ...v, under: { at: v.at, until, file: under } };
   });
-  return played;
 };
 
 /** The stretches where nothing of the race sounds, after `from` (the gun's ambiance): [start, end]. */
@@ -70,7 +84,7 @@ const musicTrack = (playlist: string, out: string, from: number, to: number, pla
     .map(([a, b]) => `clip((t-${(a - from - 0.8).toFixed(2)})/0.8,0,1)*clip((${(b - from + 1.5).toFixed(2)}-t)/1.5,0,1)`);
   // ffmpeg's expressions nest: a long run's hundred spans are summed and capped instead of max()'d one into the next.
   const ducked = terms.length ? `min(1,${terms.join('+')})` : '0';
-  execFileSync('ffmpeg', ['-y', '-v', 'error', '-stream_loop', '-1', '-i', playlist, '-t', (to - from).toFixed(2), '-af', `volume='1-0.65*${ducked}':eval=frame,afade=t=in:d=3`, '-ar', '44100', '-ac', '2', out]);
+  execFileSync('ffmpeg', ['-y', '-v', 'error', '-stream_loop', '-1', '-i', playlist, '-t', (to - from).toFixed(2), '-af', `volume='1-0.65*${ducked}':eval=frame,afade=t=in:d=3`, '-ar', '44100', '-ac', '2', '-c:a', 'flac', out]);
   return { path: out, at: from, gain: -9 };
 };
 

@@ -143,7 +143,8 @@ export const StudioLine = ({ line, status, canEdit, ttsReady, aiReady, tags }: P
         <div class="form-grid two">
           <Field label="Quand" for={`${p}kind`}>
             <select id={`${p}kind`} name="when.kind" disabled={off}>
-              {WHEN_OPTIONS.map((o) => (
+              {/* A line becomes a filler through the production tool only: apps from before 2026-10-09 cannot read a pack with one. */}
+              {WHEN_OPTIONS.filter((o) => o.key !== 'filler' || line.trigger.kind === 'filler').map((o) => (
                 <option value={o.key} selected={o.key === line.trigger.kind}>
                   {o.label}
                 </option>

@@ -1,5 +1,6 @@
 import { DeviceInfoSchema, DistanceKeySchema, EntrantSchema } from '@sivoov/shared';
 import type { CsvEntrant, DeviceInfo, DistanceKey, Entrant } from '@sivoov/shared';
+import { courseRaceOf } from './courseRace';
 import { entrantFromRow } from './rows';
 import { COUNTS_AS_FINISH } from './dashboardQueries';
 
@@ -168,8 +169,12 @@ export const runnerDb = (d1: D1Database) => ({
   },
 
   /** The race's distances, longest first: those a runner can be put on. */
+  /** The distances a runner of this race can be entered on: a demo course only on the race's demo. */
   async distanceKeys(raceId: string): Promise<DistanceKey[]> {
-    const { results } = await d1.prepare('SELECT distance_key FROM courses WHERE race_id = ? ORDER BY distance_m DESC').bind(raceId).all<{ distance_key: string }>();
+    const { results } = await d1
+      .prepare(`SELECT distance_key FROM courses WHERE race_id = ${courseRaceOf('?1')} AND (demo = 0 OR (SELECT demo_of FROM races WHERE id = ?1) IS NOT NULL) ORDER BY distance_m DESC`)
+      .bind(raceId)
+      .all<{ distance_key: string }>();
     return results.flatMap((r) => {
       const key = DistanceKeySchema.safeParse(r.distance_key);
       return key.success ? [key.data] : [];

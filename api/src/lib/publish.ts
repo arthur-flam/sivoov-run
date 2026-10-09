@@ -34,7 +34,7 @@ const sourcesOf = async (built: BuiltScript): Promise<Source[]> => {
     built.lines.flatMap((line) =>
       voicingsOf(line, voice).map(async (v) => ({
         line,
-        ...(v.takeId ? { take: v.takeId } : {}),
+        ...(v.take ? { take: v.take } : {}),
         key: await sourceKey(built, line, v),
         fileKey: v.fileKey,
         format: v.audio?.format ?? voice,
@@ -63,7 +63,8 @@ const secondsOf = (body: ArrayBuffer, format: AudioUploadFormat): number | undef
  */
 export const publishScript = async (deps: { db: Db; scripts: ScriptDb; files: R2Bucket }, script: AudioScript, now: Date = new Date()): Promise<PublishOutcome> => {
   const built = buildScript(script);
-  const toFix = built.lines.filter((l) => lineIssues(l).length > 0).map((l) => ({ id: l.id, title: l.title }));
+  // A take's problem names the take, as a missing take's sound does.
+  const toFix = built.lines.flatMap((l) => [...new Set(lineIssues(l).map((i) => i.take))].map((take) => ({ id: l.id, title: take ? takeTitle(l.title || l.id, take) : l.title })));
   if (toFix.length > 0) return { ok: false, reason: 'fix', missing: toFix };
   // Heads first (no bodies held open), then the copies a few at a time: a Worker may keep only
   // six connections open, and a pack has dozens of files.

@@ -1,10 +1,10 @@
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import type { AudioPlayer } from 'expo-audio';
 import type { AudioEvent } from '@sivoov/shared';
-import { advance, emptyQueue, enqueue } from './queue';
+import { advance, emptyQueue, enqueue } from '@sivoov/shared';
 import { ambiance as sharedAmbiance } from './under';
 import type { Ambiance } from './under';
-import type { Queue, QueueItem } from './queue';
+import type { Queue, QueueItem } from '@sivoov/shared';
 
 /** Background playback that ducks the runner's music instead of stopping it (AUDIO.md). */
 export const configureAudioSession = (): Promise<void> =>

@@ -11,6 +11,7 @@ export * from './audioTriggers';
 export * from './runReading';
 export * from './rhythm';
 export * from './takes';
+export * from './audioQueue';
 export * from './audioScript';
 export * from './audioLength';
 export * from './ceremonyChecks';

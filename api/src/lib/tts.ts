@@ -102,7 +102,7 @@ export const renderText = async (
   deps: TtsDeps,
   voice: ScriptVoice,
   text: string,
-  opts: { prefix?: RenderPrefix; locale?: 'fr' | 'en' } = {},
+  opts: { prefix?: RenderPrefix; locale?: 'fr' | 'en'; cachedOnly?: boolean } = {},
 ): Promise<TtsOutcome> => {
   const format = voiceFormat(voice);
   const hash = await ttsHash(voice, text);
@@ -113,6 +113,8 @@ export const renderText = async (
     const sha256 = known ?? (await sha256HexBytes(await (await deps.files.get(key))!.arrayBuffer()));
     return { ok: true, rendered: { hash, key, bytes: head.size, sha256, cached: true, format } };
   }
+  // The provider said « too many » already in this request: what is cached still goes, nothing new is asked.
+  if (opts.cachedOnly) return { ok: false, status: 429, detail: 'rate limited' };
   const fetched = isGeminiVoice(voice) ? await fromGemini(deps, voice, text) : await fromElevenLabs(deps, voice, text, opts.locale);
   if (!fetched.ok) return fetched;
   if (fetched.body.byteLength === 0) return { ok: false, status: 502, detail: 'empty audio' };

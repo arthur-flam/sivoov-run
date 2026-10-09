@@ -1,24 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import {
-  CLIENT_HEADER,
-  CodeRequestSchema,
-  CodeVerifySchema,
-  CourseGeometrySchema,
-  courseMoments,
-  EntrantPublicSchema,
-  LiveVoiceRequestSchema,
-  LocaleSchema,
-  RunSchema,
-  RunStartSchema,
-  RunTraceSchema,
-  isRanked,
-  baseMapUrl,
-  fitView,
-  officialStatus,
-  parseClientHeader,
-  staticMapUrl,
-} from '@sivoov/shared';
+import { CLIENT_HEADER, CodeRequestSchema, CodeVerifySchema, CourseGeometrySchema, EntrantPublicSchema, LiveVoiceRequestSchema, LocaleSchema, RunSchema, RunStartSchema, RunTraceSchema, baseMapUrl, courseMoments, coursesShown, fitView, isRanked, officialStatus, parseClientHeader, staticMapUrl } from '@sivoov/shared';
 import type { AppEnv } from '../env';
 import { db } from '../db/queries';
 import { requireEntrant } from '../lib/auth';
@@ -51,7 +33,7 @@ api.get('/races/:slug', async (c) => {
   const q = db(c.env.DB);
   const race = await q.raceBySlug(c.req.param('slug'));
   if (!race) return c.json({ error: 'not_found' }, 404);
-  return c.json({ race, courses: await q.coursesForRace(race.id) });
+  return c.json({ race, courses: coursesShown(race, await q.coursesForRace(race.id)) });
 });
 
 /** Course geometry from R2, or 404 when the organizer has not sent the GPX yet (the app then shows its own fallback). */

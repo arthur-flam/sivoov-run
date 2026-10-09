@@ -8,14 +8,15 @@
  *   npm run produce -w api -- 10km-champs-elysees-2027 --runs                # and the full runs
  *   npm run produce -w api -- 10km-champs-elysees-2027 local|preview|production [--publish] [--course 5k]
  *
- * With a target, the files go to that R2 as the organizer's own sounds (`studio-uploads/`), the
- * draft in D1 points each line and take at them (`audio`, `under`), the reels go to
- * `demo/<courseId>/`, and `--publish` publishes with the Worker's own code (lib/publish.ts) on
- * the target's bindings (../bindings.ts). Every render's origin is written to `origins.json`.
+ * With a target, the files go to that R2 as the organizer's own sounds (`studio-uploads/`) and the
+ * draft in D1 points each line and take at them (`audio`, `under`); the draft it replaces is kept in
+ * `out/<course>/draft-before-<target>.json`. `--publish` then publishes with the Worker's own code
+ * (lib/publish.ts) on the target's bindings (../bindings.ts) and puts the reel up for the race page.
+ * Every render's origin is written to `out/<course>/origins.json`.
  * Needs ffmpeg, GEMINI_API_KEY and CLOUDFLARE_ACCOUNT_ID (the repo's .env), and Wrangler logged in.
  */
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   AudioScriptSchema,
@@ -23,28 +24,30 @@ import {
   SAMPLE_RUNNER,
   buildScript,
   ceremonySequence,
-  fileOf,
   fillTemplate,
   hearRun,
   manifestFor,
   spokenValues,
   stripAudioTags,
+  takeOf,
   voiceOfLine,
   voicingsOf,
 } from '@sivoov/shared';
-import type { AudioEvent, AudioScript, Heard, RunPlan, ScriptLine, ScriptVoice, UploadedAudio } from '@sivoov/shared';
-import { champsElyseesScripts } from '../../src/seed/champsElysees';
+import type { AudioEvent, AudioPack, AudioScript, BuiltScript, Heard, RunPlan, ScriptLine, ScriptVoice, UploadedAudio } from '@sivoov/shared';
+import { champsElyseesCourses, champsElyseesScripts } from '../../src/seed/champsElysees';
 import { bindingsFor } from '../bindings';
 import type { Target } from '../bindings';
 import { db } from '../../src/db/queries';
 import { scriptDb } from '../../src/db/scriptQueries';
 import { mapLimit } from '../../src/lib/mapLimit';
 import { publishScript } from '../../src/lib/publish';
-import { CACHE, source, voice, voiceEnvFromDotenv } from './assets';
+import { reelKey } from '../../src/lib/reel';
+import { CACHE, source, voice, voiceEnvFromDotenv, voiceOrigin } from './assets';
 import { countAlongOf, shoutsOf } from './crowd';
 import { durationOf, render } from './mix';
+import type { Cut } from './mix';
 import { placedOf, playOut, reelOf, runCut, timelineMd } from './run';
-import type { Placed, Played, Sounding } from './run';
+import type { Placed, Sounding } from './run';
 import { recipesFor, spoken } from './sounds';
 import { SOURCES } from './sources';
 
@@ -55,177 +58,181 @@ const onlyCourse = rest.includes('--course') ? rest[rest.indexOf('--course') + 1
 if (raceId !== '10km-champs-elysees-2027') throw new Error('usage: produce.ts 10km-champs-elysees-2027 [local|preview|production] [--publish] [--runs] [--course 5k|10k]');
 
 const env = voiceEnvFromDotenv();
-const scripts = champsElyseesScripts.filter((s) => !onlyCourse || s.courseId.endsWith(`-${onlyCourse}`));
-
-/* ---------- where every sound comes from ---------- */
-
-type Origin =
-  | { kind: 'voice'; file: string; provider: 'gemini'; model: string; voice: string; direction: string; scene?: string; text: string; at: string }
-  | { kind: 'mix'; file: string; sources: string[] };
-const origins: Origin[] = [];
+/** A voice saying `text`, rendered once and cached (assets.ts keeps where each take came from). */
+const say = (v: Pick<ScriptVoice, 'id' | 'name' | 'model' | 'direction' | 'scene'>, text: string): Promise<string> => voice(env, v, text, v.direction ?? '', v.scene);
 const sha = (path: string) => createHash('sha256').update(readFileSync(path)).digest('hex');
 
-/** A voice saying `text`, rendered once (cached by everything that shapes it) and recorded. */
-const say = async (v: Pick<ScriptVoice, 'id' | 'name' | 'model' | 'direction' | 'scene'>, text: string): Promise<string> => {
-  const file = await voice(env, { ...v, name: v.name }, text, v.direction ?? '', v.scene);
-  if (!origins.some((o) => o.file === file)) origins.push({ kind: 'voice', file, provider: 'gemini', model: v.model, voice: v.id, direction: v.direction ?? '', ...(v.scene ? { scene: v.scene } : {}), text, at: new Date().toISOString() });
-  return file;
-};
-
-const mixTo = (cut: Parameters<typeof render>[0], out: string): string => {
-  render(cut, out);
-  origins.push({ kind: 'mix', file: out, sources: [...new Set(cut.layers.map((l) => l.path))] });
-  return out;
-};
-
-/* ---------- the sample runner the renders speak to ---------- */
-
-/** Camille Martin, bib 1247, from Lyon: the studio's sample runner. */
+/** Camille Martin, bib 1247, from Lyon: the studio's sample runner, whom every render speaks to. */
 const SAMPLE = { ...SAMPLE_RUNNER, distanceKey: '10k' as const };
 /** What the AI might write for Camille (the Worker writes it per runner, with the real weather). */
-const WORD = 'Neuf degrés et un ciel gris à Lyon, huit sur les Champs-Élysées : le temps idéal. Chez vous, la route reste ouverte, gardez un œil dessus. Coureurs… à vos marques.';
-/** The runs a listener checks (PRODUCTION.md): 4:30, 5:30 with a stop and a walk, 7:00. */
+const WORD = 'Neuf degrés et un ciel gris à Lyon, huit sur les Champs-Élysées : le temps idéal. Là où vous courez, la route reste ouverte : gardez un œil dessus. Coureurs… à vos marques.';
+/** The runs a listener checks (PRODUCTION.md): 4:30, 5:30 with a stop and a walk, 7:00; the reel is the 5:30 one. */
 const runPlans = (targetM: number): { name: string; plan: RunPlan }[] => [
   { name: '4-30', plan: { paceSecPerKm: 270 } },
   { name: '5-30', plan: { paceSecPerKm: 330, stops: [{ atM: targetM * 0.42, seconds: 45 }], walks: [{ atM: targetM * 0.8, seconds: 60 }] } },
   { name: '7-00', plan: { paceSecPerKm: 420 } },
 ];
-
 const COUNT = ['Dix !', 'Neuf !', 'Huit !', 'Sept !', 'Six !', 'Cinq !', 'Quatre !', 'Trois !', 'Deux !', 'Un !'];
 
-/* ---------- one course ---------- */
+/* ---------- the lines ---------- */
 
-const produceCourse = async (script: AudioScript) => {
-  const OUT = join(CACHE, 'out', script.courseId);
-  mkdirSync(OUT, { recursive: true });
-  const built = buildScript(script);
-  const lineOf = (id: string) => built.lines.find((l) => l.id === id)!;
+/**
+ * Every line's and take's own file, and each line's ambiance: pack file key -> path, with the
+ * sources each mix was made of. The countdown is made of its ten numbers (`kit.numbers`), not of
+ * its text.
+ */
+const mixLines = async (built: BuiltScript, out: string) => {
   const countdown = built.lines.find((l) => l.trigger.kind === 'cue' && l.trigger.at === 'countdown')!;
-  const kit = {
-    src: source,
-    shouts: await shoutsOf(say),
-    countAlong: await countAlongOf(say),
-    numbers: await Promise.all(COUNT.map((n) => say(voiceOfLine(built, countdown), n))),
-  };
+  const kit = { src: source, shouts: await shoutsOf(say), countAlong: await countAlongOf(say), numbers: await Promise.all(COUNT.map((n) => say(voiceOfLine(built, countdown), n))) };
   const recipes = await recipesFor(kit);
-  console.log(`${script.courseId}: ${built.lines.length} lines`);
-  // Every voice first, four at a time (the mixes below then find them cached).
-  const toSay = built.lines.flatMap((line) => (line.id === countdown.id ? [] : voicingsOf(line).filter((v) => !v.audio).map((v) => ({ line, text: v.text }))));
-  await mapLimit(toSay, 4, ({ line, text }) => say(voiceOfLine(built, line), text));
+  const toMix = built.lines.flatMap((line) => voicingsOf(line, 'mp3').filter((v) => !v.audio).map((v) => ({ line, v })));
+  const voices = await mapLimit(toMix, 4, ({ line, v }) => (line === countdown ? Promise.resolve('') : say(voiceOfLine(built, line), v.text)));
+  const mixes: { key: string; cut: Cut }[] = [
+    ...(await Promise.all(toMix.map(async ({ line, v }, i) => ({ key: v.fileKey, cut: await (recipes[line.id]?.bed ?? (async (p: string) => spoken(p)))(voices[i]!) })))),
+    ...(await Promise.all(built.lines.flatMap((line) => (recipes[line.id]?.under ? [recipes[line.id]!.under!().then((cut) => ({ key: `${line.key}-under.mp3`, cut }))] : [])))),
+  ];
+  return Object.fromEntries(
+    mixes.map(({ key, cut }) => {
+      render(cut, join(out, key));
+      return [key, { path: join(out, key), sources: [...new Set(cut.layers.map((l) => l.path))] }];
+    }),
+  );
+};
 
-  /** Every line's and take's own file, and each line's ambiance: file key in the pack -> path. */
-  const files: Record<string, string> = {};
-  for (const line of built.lines) {
-    const recipe = recipes[line.id] ?? {};
-    for (const v of voicingsOf(line, 'mp3')) {
-      if (v.audio) continue;
-      const voicePath = line.id === countdown.id ? '' : await say(voiceOfLine(built, line), v.text);
-      files[v.fileKey] = mixTo(recipe.bed ? await recipe.bed(voicePath) : spoken(voicePath), join(OUT, v.fileKey));
-    }
-    if (recipe.under) files[`${line.key}-under.mp3`] = mixTo(await recipe.under(), join(OUT, `${line.key}-under.mp3`));
-  }
-  console.log(`  ${Object.keys(files).length} files`);
-
-  /* The draft as the studio will hold it: each line and take pointing at its produced file. */
+/** The draft as the studio will hold it, each line and take pointing at its produced file, and the pack the app would get. */
+const draftOf = (script: AudioScript, built: BuiltScript, files: Record<string, string>): { draft: AudioScript; pack: AudioPack } => {
   const upload = (key: string, name: string): UploadedAudio => ({ kind: 'upload', hash: sha(files[key]!), format: 'mp3', bytes: statSync(files[key]!).size, name });
   const withSounds = (line: ScriptLine): ScriptLine => {
     const [own, ...takes] = voicingsOf(line, 'mp3');
+    const under = `${line.key}-under.mp3`;
     return {
       ...line,
       ...(files[own!.fileKey] ? { audio: upload(own!.fileKey, `${line.key}.mp3 (produit)`) } : {}),
-      ...(files[`${line.key}-under.mp3`] ? { under: upload(`${line.key}-under.mp3`, `${line.key}-ambiance.mp3 (produit)`) } : {}),
+      ...(files[under] ? { under: upload(under, `${line.key}-ambiance.mp3 (produit)`) } : {}),
       ...(line.takes ? { takes: line.takes.map((t, i) => (files[takes[i]!.fileKey] ? { ...t, audio: upload(takes[i]!.fileKey, `${line.key}~${t.id}.mp3 (produit)`) } : t)) } : {}),
     };
   };
-  const draft: AudioScript = AudioScriptSchema.parse({ ...script, lines: built.lines.map(withSounds) });
-  /** The pack the app would get, with the files' real lengths: what the engine plays by. */
+  const draft = AudioScriptSchema.parse({ ...script, lines: built.lines.map(withSounds) });
   const pack = manifestFor(
     buildScript(draft),
     Object.entries(files).map(([key, path]) => ({ key, bytes: statSync(path).size, sha256: sha(path), seconds: durationOf(path) })),
   );
-  const fileFor = (key: string | undefined) => (key ? files[key] : undefined);
+  return { draft, pack };
+};
 
-  /** What the app plays for a line: the runner's own version (said to Camille), else the pack's file. */
-  const soundingOf = async (h: Pick<Heard, 'take' | 'facts'>, event: AudioEvent): Promise<Sounding | null> => {
-    const line = lineOf(event.id);
-    const voicing = voicingsOf(line).find((v) => v.takeId === h.take)!;
+/* ---------- the runs ---------- */
+
+/** What the app plays for a line: the runner's own version (said to Camille), else the pack's file. */
+const soundingFor =
+  (built: BuiltScript, files: Record<string, string>) =>
+  async (h: Pick<Heard, 'take' | 'facts'>, event: AudioEvent): Promise<Sounding | null> => {
+    const line = built.lines.find((l) => l.id === event.id)!;
+    const voicing = voicingsOf(line).find((v) => v.take === h.take)!;
     const personal = voicing.personal;
     const words = personal?.kind === 'template' ? fillTemplate(personal.template, spokenValues(SAMPLE, h.facts)) : personal?.kind === 'ai' ? WORD : null;
-    const file = words ? await say(voiceOfLine(built, line), words) : fileFor(fileOf(event, h.take));
+    const inPack = (key: string | undefined) => (key ? files[key] : undefined);
+    const file = words ? await say(voiceOfLine(built, line), words) : inPack(takeOf(event, h.take)?.key);
     if (!file) return null;
-    return { file, ...(fileFor(event.under) ? { under: fileFor(event.under) } : {}), words: stripAudioTags(words ?? voicing.text), title: line.title };
+    const under = inPack(event.under);
+    return { file, ...(under ? { under } : {}), words: stripAudioTags(words ?? voicing.text), title: line.title };
   };
 
-  /** The start ceremony, back to back, the gun at 0. */
-  const ceremony = async (): Promise<Placed[]> => {
-    const lines = ceremonySequence(pack)!.lines;
-    const sounded = await Promise.all(lines.map(async (e) => ({ event: e, sounding: (await soundingOf({ facts: {} }, e))! })));
-    const gun = sounded.findIndex((s) => s.event.trigger.kind === 'cue' && s.event.trigger.at === 'gun');
-    const before = sounded.slice(0, gun).reduce((t, s) => t + durationOf(s.sounding.file), 0);
-    return sounded.reduce<Placed[]>((acc, s) => {
-      const at = acc.length === 0 ? -before : acc[acc.length - 1]!.at + durationOf(acc[acc.length - 1]!.sounding.file);
-      return [...acc, { at, event: s.event, sounding: s.sounding, km: 0, filler: false }];
-    }, []);
-  };
+/** The start ceremony, back to back, the gun exactly at 0. */
+const ceremonyOf = async (pack: AudioPack, sounding: ReturnType<typeof soundingFor>): Promise<Placed[]> => {
+  const lines = ceremonySequence(pack)!.lines;
+  const sounded = await Promise.all(lines.map(async (event) => ({ event, sounding: (await sounding({ facts: {} }, event))! })));
+  const gun = sounded.findIndex((s) => s.event.trigger.kind === 'cue' && s.event.trigger.at === 'gun');
+  const lengths = sounded.map((s) => durationOf(s.sounding.file));
+  const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+  return sounded.map((s, i) => ({ at: i < gun ? -sum(lengths.slice(i, gun)) : sum(lengths.slice(gun, i)), event: s.event, sounding: s.sounding, km: 0, filler: false }));
+};
 
-  const opening = await ceremony();
+/* ---------- one course ---------- */
+
+const produceCourse = async (script: AudioScript, targetM: number) => {
+  const out = join(CACHE, 'out', script.courseId);
+  mkdirSync(out, { recursive: true });
+  const built = buildScript(script);
+  console.log(`${script.courseId}: ${built.lines.length} lines`);
+  const mixed = await mixLines(built, out);
+  const files = Object.fromEntries(Object.entries(mixed).map(([key, m]) => [key, m.path]));
+  console.log(`  ${Object.keys(files).length} files`);
+  const { draft, pack } = draftOf(script, built, files);
+
+  const sounding = soundingFor(built, files);
+  const opening = await ceremonyOf(pack, sounding);
   const t0 = 1 - opening[0]!.at;
   const playlist = await source('playlist');
-  const runs = flag('runs') ? runPlans(built.courseId.endsWith('-5k') ? 5000 : 10_000) : runPlans(10_000).filter((r) => r.name === '5-30');
-  let reelPlaced: Placed[] = [];
-  for (const { name, plan } of runs) {
-    const targetM = built.courseId.endsWith('-5k') ? 5000 : 10_000;
-    const heard = hearRun(pack, targetM, plan);
-    const placed = [...opening, ...(await placedOf(pack, heard, soundingOf))];
-    if (name === '5-30') reelPlaced = placed;
-    if (!flag('runs')) continue;
+  const placedFor = async (plan: RunPlan) => [...opening, ...(await placedOf(pack, hearRun(pack, targetM, plan), sounding))];
+  const plans = runPlans(targetM);
+  const mixRun = (placed: Placed[], file: string, musicFrom: number) => {
     const played = playOut(placed);
-    const file = join(OUT, `run-${name}.mp3`);
-    render(runCut(played, { t0, playlist, music: join(OUT, `run-${name}-music.wav`), musicFrom: 0 }), file);
-    writeFileSync(join(OUT, `run-${name}.md`), timelineMd(`${script.courseId} at ${name.replace('-', ':')}/km${plan.stops ? ', a stop and a walk' : ''}`, played, t0, 0));
-    console.log(`  run ${name}: ${(durationOf(file) / 60).toFixed(1)} min -> ${file}`);
+    const music = file.replace(/\.mp3$/, '-music.flac');
+    render(runCut(played, { t0, playlist, music, musicFrom }), file);
+    rmSync(music, { force: true });
+    return played;
+  };
+
+  if (flag('runs')) {
+    for (const { name, plan } of plans) {
+      const file = join(out, `run-${name}.mp3`);
+      const played = mixRun(await placedFor(plan), file, 0);
+      writeFileSync(join(out, `run-${name}.md`), timelineMd(`${script.courseId} at ${name.replace('-', ':')}/km${plan.stops ? ', a stop and a walk' : ''}`, played, t0, 0));
+      console.log(`  run ${name}: ${(durationOf(file) / 60).toFixed(1)} min -> ${file}`);
+    }
   }
 
-  /* The reel: the 5:30 run condensed, with its chapters. */
-  const reelPlayed: Played[] = playOut(reelOf(reelPlaced));
-  const reelFile = join(OUT, 'reel.mp3');
-  render(runCut(reelPlayed, { t0, playlist, music: join(OUT, 'reel-music.wav'), musicFrom: 14 }), reelFile);
-  const mark = (id: string) => (id === countdown.id ? 'countdown' : id.endsWith('.gun') ? 'gun' : id === 'ceremony.line' ? 'finish' : undefined);
+  // The reel: the 5:30 run condensed, with its chapters.
+  const reelFile = join(out, 'reel.mp3');
+  const reelPlayed = mixRun(reelOf(await placedFor(plans[1]!.plan)), reelFile, 14);
+  const mark = (e: AudioEvent) => (e.trigger.kind === 'cue' && e.trigger.at !== 'armed' ? e.trigger.at : e.id === 'ceremony.line' ? 'finish' : undefined);
   const reel = DemoReelSchema.parse({
     courseId: script.courseId,
     duration: Math.round(durationOf(reelFile) * 10) / 10,
     paceSecPerKm: 330,
-    chapters: reelPlayed.map((p) => ({ t: Math.round((t0 + p.at) * 10) / 10, title: p.placed.sounding.title, km: Math.round(p.placed.km * 100) / 100, caption: p.placed.sounding.words, ...(mark(p.placed.event.id) ? { mark: mark(p.placed.event.id) } : {}) })),
+    chapters: reelPlayed.map((p) => ({ t: Math.round((t0 + p.at) * 10) / 10, title: p.placed.sounding.title, km: Math.round(p.placed.km * 100) / 100, caption: p.placed.sounding.words, ...(mark(p.placed.event) ? { mark: mark(p.placed.event) } : {}) })),
   });
-  writeFileSync(join(OUT, 'reel.json'), JSON.stringify(reel, null, 2));
+  writeFileSync(join(out, 'reel.json'), JSON.stringify(reel, null, 2));
   console.log(`  reel: ${durationOf(reelFile).toFixed(0)} s, ${reel.chapters.length} chapters -> ${reelFile}`);
-  writeFileSync(join(OUT, 'origins.json'), JSON.stringify({ sources: SOURCES, renders: origins }, null, 2));
-  return { draft, files, reelFile };
+
+  const voices = [...new Set(Object.values(mixed).flatMap((m) => m.sources))].flatMap((path) => {
+    const origin = voiceOrigin(path);
+    return origin ? [{ file: path, ...origin }] : [];
+  });
+  writeFileSync(join(out, 'origins.json'), JSON.stringify({ sources: SOURCES, voices, mixes: mixed }, null, 2));
+  return { draft, files, reelFile, out };
 };
 
 /* ---------- into the studio ---------- */
 
 const produced = [];
-for (const script of scripts) produced.push({ script, ...(await produceCourse(script)) });
+for (const script of champsElyseesScripts.filter((s) => !onlyCourse || s.courseId.endsWith(`-${onlyCourse}`))) {
+  const course = champsElyseesCourses.find((c) => c.id === script.courseId)!;
+  produced.push({ script, ...(await produceCourse(script, course.distanceM)) });
+}
 
 if (target) {
   const { env: bindings, dispose } = await bindingsFor(target);
-  const scriptsDb = scriptDb(bindings.DB);
+  const scripts = scriptDb(bindings.DB);
   try {
-    for (const { script, draft, files, reelFile } of produced) {
-      const row = await scriptsDb.draft(script.courseId);
+    for (const { script, draft, files, reelFile, out } of produced) {
+      const row = await scripts.draft(script.courseId);
       if (!row) throw new Error(`${script.courseId} has no draft on ${target}: seed it first (npm run seed -w api -- ${target} ${raceId})`);
+      writeFileSync(join(out, `draft-before-${target}.json`), JSON.stringify(row.script, null, 2));
       for (const path of Object.values(files)) await bindings.FILES.put(`studio-uploads/${sha(path)}.mp3`, readFileSync(path), { httpMetadata: { contentType: 'audio/mpeg' } });
-      // The row's version is the next publish's; the draft takes it over, published mark and all.
+      // The row's version is the next publish's: the draft keeps it.
       const saved = { ...draft, version: row.version };
-      await scriptsDb.saveDraft(saved);
-      await bindings.FILES.put(`demo/${script.courseId}/reel.mp3`, readFileSync(reelFile), { httpMetadata: { contentType: 'audio/mpeg' } });
-      await bindings.FILES.put(`demo/${script.courseId}/reel.json`, readFileSync(reelFile.replace(/\.mp3$/, '.json')), { httpMetadata: { contentType: 'application/json' } });
-      console.log(`${script.courseId}: draft v${row.version} and reel -> ${target}`);
-      if (flag('publish')) {
-        const outcome = await publishScript({ db: db(bindings.DB), scripts: scriptsDb, files: bindings.FILES }, saved);
-        console.log(`${script.courseId}: publish on ${target}: ${JSON.stringify(outcome)}`);
+      await scripts.saveDraft(saved);
+      console.log(`${script.courseId}: draft v${row.version} -> ${target} (the one before: ${join(out, `draft-before-${target}.json`)})`);
+      if (!flag('publish')) continue;
+      const outcome = await publishScript({ db: db(bindings.DB), scripts, files: bindings.FILES }, saved);
+      console.log(`${script.courseId}: publish on ${target}: ${JSON.stringify(outcome)}`);
+      if (!outcome.ok) {
+        process.exitCode = 1;
+        continue;
       }
+      await bindings.FILES.put(reelKey(script.courseId, 'mp3'), readFileSync(reelFile), { httpMetadata: { contentType: 'audio/mpeg' } });
+      await bindings.FILES.put(reelKey(script.courseId, 'json'), readFileSync(reelFile.replace(/\.mp3$/, '.json')), { httpMetadata: { contentType: 'application/json' } });
     }
   } finally {
     await dispose();

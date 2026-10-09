@@ -91,12 +91,12 @@ const split = line({
   personal: name('Kilomètre {km}. {temps}.'),
   takes: [
     take('round', 'Un kilomètre de plus… et ça se présente bien.', 'Kilomètre {km}. À ce rythme… {objectif}, c’est jouable.', 'round'),
-    take('round-wink', 'Un de plus. Je dis ça, je dis rien…', 'Kilomètre {km}, {temps}. {objectif}… je dis ça, je dis rien.', 'round'),
+    take('round-wink', 'Un de plus… et le chrono rond se rapproche. Je dis ça, je dis rien.', 'Kilomètre {km}, {temps}. {objectif}… je dis ça, je dis rien.', 'round'),
     take('steady', 'Un kilomètre de plus… et le rythme est là.', 'Kilomètre {km}. {temps}… pile sur votre rythme du départ. C’est exactement ça.', 'steady'),
-    take('steady-clock', 'Un de plus. Régulier.', 'Kilomètre {km}, {temps}. Réglé comme une horloge.', 'steady'),
+    take('steady-clock', 'Un de plus. Même rythme.', 'Kilomètre {km}, {temps}. Votre rythme ne bouge pas… une horloge.', 'steady'),
     take('faster', 'Un kilomètre de plus. Ça vous va bien.', 'Kilomètre {km} en {temps_km}… plus vite qu’au départ. Ça vous va bien.', 'faster'),
     take('faster-callback', 'Un de plus. Vous avez trouvé quelque chose.', 'Ce kilomètre-là : {temps_km}. Au départ, vous étiez à {allure_depart}. Vous avez trouvé quelque chose.', 'faster'),
-    take('slower', 'Un de plus. Le plus beau est devant.', 'Kilomètre {km}. {temps}. Gardez ce que vous avez… le plus beau est devant.', 'slower'),
+    take('slower', 'Un de plus. Respirez… le plus beau est devant.', 'Kilomètre {km}. {temps}. Respirez… le plus beau est devant.', 'slower'),
     take('slower-together', 'Un de plus. On fait le prochain ensemble.', 'Kilomètre {km}… {temps}. Relâchez les épaules : on fait le prochain ensemble.', 'slower'),
     take('plain', 'Un kilomètre de plus. Tout va bien.', '{temps} au kilomètre {km}. Tout va bien.'),
   ],
@@ -115,7 +115,7 @@ const martine = line({
     take('foulee', 'Oh, quelle foulée !', 'Oh là là, {prenom}, quelle foulée !'),
     take('pourtoi', 'C’est pour vous, tout ça !', 'Allez {prenom}, c’est pour toi tout ça !'),
     take('tempo', 'Allez, c’est le bon tempo !', 'Allez {prenom}, t’es dans le bon tempo !'),
-    take('tacourse', 'Vas-y, c’est votre course !', 'Vas-y {prenom}, c’est ta course !'),
+    take('tacourse', 'Allez, c’est votre course !', 'Vas-y {prenom}, c’est ta course !'),
     take('ycroit', 'Allez, on y croit !', 'Allez {prenom}, on y croit !'),
     take('reparti', 'Et c’est reparti ! Allez !', 'Et c’est reparti, {prenom} ! Allez !', 'restart'),
   ],
@@ -148,7 +148,7 @@ const companion = line({
   takes: [
     take('epaules', 'Relâchez les épaules… voilà.'),
     take('pas', 'Écoutez vos pas. Ils sont réguliers… c’est bon signe.'),
-    take('paris', 'Regardez autour de vous… c’est Paris. Et ce matin, il est à vous.'),
+    take('allure', 'Vingt mille coureurs cette semaine… et quelque part, en ce moment, il y en a un qui court pile à votre allure.'),
     take('respirez', 'Respirez… longuement.'),
     take('bien', 'Bien. Très bien, même.'),
     take('bras', 'Les bras souples. Le regard loin devant.'),
@@ -187,7 +187,7 @@ const theChamps = (from: number, uTurn: string, uTurnPersonal: string): ScriptLi
     line({
       id: 'course.hush', title: 'Juste avant l’Arc', category: 'course', mix: 'duck', priority: 6,
       trigger: m(6790), key: 'course-hush', voice: CLOSE,
-      text: 'Écoutez… Cent mètres.',
+      text: 'Écoutez… Dans cent mètres, le demi-tour.',
     }),
     line({
       id: 'course.arc', title: 'Demi-tour sous l’Arc', category: 'ceremony', mix: 'interrupt', priority: 8,
@@ -204,24 +204,25 @@ const theChamps = (from: number, uTurn: string, uTurnPersonal: string): ScriptLi
     line({
       id: 'course.montaigne', title: 'Avenue Montaigne', category: 'course', mix: 'duck', priority: 6,
       trigger: m(7950), key: 'course-montaigne',
-      text: 'Avenue Montaigne, la plus chic de Paris. Les vitrines vous regardent… tenez-vous droit.',
-      personal: name('Avenue Montaigne, la plus chic de Paris. Les vitrines vous regardent, {prenom}… tenez-vous droit.'),
+      text: 'Avenue Montaigne, la plus chic de Paris. Les vitrines vous regardent… la tête haute.',
+      personal: name('Avenue Montaigne, la plus chic de Paris. Les vitrines vous regardent, {prenom}… la tête haute.'),
     }),
     line({
-      id: 'course.alma', title: 'La Seine', category: 'course', mix: 'duck', priority: 6,
-      trigger: m(8600), key: 'course-alma',
-      text: 'La Seine. Et de l’autre côté de l’eau… la tour Eiffel. Retenez-la : en décembre, c’est à ses pieds que se court la dernière étape du circuit. Dans quatre cents mètres… le dernier kilomètre.',
+      // The Tower is straight ahead down Montaigne, behind the runner once along the Seine.
+      id: 'course.alma', title: 'La tour Eiffel', category: 'course', mix: 'duck', priority: 6,
+      trigger: m(8500), key: 'course-alma',
+      text: 'La tour Eiffel, droit devant, de l’autre côté de la Seine… Au bout, à gauche, le long de l’eau. Dans cinq cents mètres… le dernier kilomètre.',
     }),
     line({
       id: 'course.golden', title: 'Le Golden km', category: 'ceremony', mix: 'interrupt', priority: 8,
       trigger: m(8990), key: 'course-golden', voice: HYPE,
-      text: 'Le Golden kilomètre ! Le dernier, chronométré à part. Un pont, une ligne droite… et la ligne. Tout ce qui vous reste… c’est maintenant.',
+      text: 'Le Golden kilomètre ! Le dernier. Tout droit le long de la Seine, un pont doré, un virage… et la ligne. C’est maintenant.',
     }),
     line({
       id: 'course.bridge', title: 'Pont Alexandre-III', category: 'course', mix: 'duck', priority: 7,
       trigger: m(9450), key: 'course-bridge', voice: HYPE,
-      text: 'Le pont Alexandre-III, ses statues dorées, le Grand Palais… et tout ce monde-là, il est là pour vous.',
-      personal: name('Le pont Alexandre-III, ses statues dorées, le Grand Palais… et tout ce monde-là, {prenom}, il est là pour vous.'),
+      text: 'Le pont Alexandre-Trois, ses statues dorées… et tout ce monde, c’est pour vous qu’il crie.',
+      personal: name('Le pont Alexandre-Trois, ses statues dorées… et tout ce monde, {prenom}, c’est pour vous qu’il crie.'),
     }),
     line({
       id: 'crowd.last', title: 'Martine, sur le quai', category: 'personal', mix: 'duck', priority: 5,
@@ -273,7 +274,7 @@ export const champsElysees2027Script: AudioScriptInput = {
       personal: {
         kind: 'ai',
         prompt:
-          'Une phrase sur le temps qu’il fait ce matin chez le coureur (sa ville) et sur les Champs-Élysées. Puis : chez lui la route reste ouverte, qu’il garde un œil dessus. Finissez exactement par « Coureurs… à vos marques. » Trois phrases courtes au plus, sans son prénom (il vient d’être dit).',
+          'Une phrase sur le temps qu’il fait aujourd’hui là où court le coureur (sa ville) et sur les Champs-Élysées. Puis : là où il court, la route reste ouverte, gardez un œil dessus. Finissez exactement par « Coureurs… à vos marques. » Trois phrases courtes au plus, sans son prénom (il vient d’être dit).',
       },
     }),
     countdown,
@@ -282,12 +283,12 @@ export const champsElysees2027Script: AudioScriptInput = {
       id: 'course.go', title: 'Vous y êtes', category: 'course', mix: 'duck', priority: 7,
       trigger: at(80), key: 'course-go',
       text: 'Vous y êtes. Droit devant, l’Obélisque : regardez-le bien. Vous le reverrez quand il restera trois cents mètres.',
-      personal: name('{prenom}… vous y êtes. Droit devant, l’Obélisque : regardez-le bien. Vous le reverrez quand il restera trois cents mètres.'),
+      personal: name('Vous y êtes, {prenom}. Droit devant, l’Obélisque : regardez-le bien. Vous le reverrez quand il restera trois cents mètres.'),
     }),
     line({
       id: 'course.madeleine', title: 'La Madeleine, Malesherbes', category: 'course', mix: 'duck', priority: 6,
       trigger: at(650), key: 'course-madeleine',
-      text: 'La Madeleine… et maintenant le boulevard Malesherbes : un long faux plat, tout droit jusqu’au parc. Trouvez votre rythme. Le public s’occupe de vous… on se retrouve au parc Monceau.',
+      text: 'La Madeleine… et maintenant, le boulevard Malesherbes : un long faux plat, tout droit. Trouvez votre rythme… on se retrouve au parc Monceau.',
     }),
     line({
       id: 'course.monceau', title: 'Parc Monceau', category: 'course', mix: 'duck', priority: 6,
@@ -298,18 +299,18 @@ export const champsElysees2027Script: AudioScriptInput = {
     line({
       id: 'course.lisbonne', title: 'Rue de Lisbonne', category: 'coaching', mix: 'duck', priority: 5,
       trigger: at(3300), key: 'course-lisbonne',
-      text: 'Rue de Lisbonne : le point le plus haut de la boucle. Tout ce qui vient… descend. Laissez rouler les jambes.',
+      text: 'Rue de Lisbonne : le point le plus haut de la boucle. D’ici à Saint-Augustin, ça redescend… laissez rouler les jambes.',
     }),
     line({
       id: 'course.record', title: 'Le record', category: 'course', mix: 'duck', priority: 5,
       trigger: at(3850), key: 'course-record',
-      text: 'Le record de ce parcours : vingt-huit minutes trente-quatre. À cette vitesse-là, on ne voit rien. Ni le parc, ni l’Arc, ni la Seine. Vous, vous allez tout voir… et dans deux kilomètres, ça commence.',
+      text: 'Le record de ce parcours : vingt-huit minutes trente-quatre. À cette vitesse-là, on ne voit rien… ni l’Arc, ni la Seine. Vous, vous allez tout voir. Et dans deux kilomètres, ça commence.',
     }),
     line({
       id: 'course.half', title: 'La moitié', category: 'personal', mix: 'duck', priority: 7,
       trigger: at(5300), key: 'course-half',
-      text: 'Cinq kilomètres derrière vous. Le premier tour est fait… et maintenant, les Champs.',
-      personal: name('Cinq kilomètres derrière vous, {prenom}. Votre meilleur : {meilleur_km}. Le premier tour est fait… et maintenant, les Champs.'),
+      text: 'La moitié est faite… et maintenant, les Champs.',
+      personal: name('{prenom}… votre meilleur jusqu’ici : {meilleur_km}. La moitié est faite… et maintenant, les Champs.'),
     }),
     line({
       id: 'course.approach', title: 'Vers le Rond-Point', category: 'course', mix: 'duck', priority: 6,
@@ -364,13 +365,13 @@ export const champsElysees5kScript: AudioScriptInput = {
     line({
       id: 'course.go', title: 'Vous y êtes', category: 'course', mix: 'duck', priority: 7,
       trigger: at(60), key: 'course-go-5k',
-      text: 'Vous y êtes. Ce premier kilomètre, c’est l’approche : on se garde pour les Champs.',
-      personal: name('{prenom}… vous y êtes. Ce premier kilomètre, c’est l’approche : on se garde pour les Champs.'),
+      text: 'Vous y êtes. Tout de suite à gauche… et dans neuf cents mètres, les Champs-Élysées.',
+      personal: name('Vous y êtes, {prenom}. Tout de suite à gauche… et dans neuf cents mètres, les Champs-Élysées.'),
     }),
     line({
       id: 'course.faubourg', title: 'Le faubourg Saint-Honoré', category: 'course', mix: 'duck', priority: 6,
       trigger: at(200), key: 'course-faubourg',
-      text: 'Le faubourg Saint-Honoré. La rue se resserre, la pierre de chaque côté… Dans sept cents mètres, à droite… les Champs-Élysées.',
+      text: 'Le faubourg Saint-Honoré. La rue se resserre, la pierre de chaque côté… installez votre rythme.',
     }),
     line({
       id: 'course.approach', title: 'Vers le Rond-Point', category: 'course', mix: 'duck', priority: 6,

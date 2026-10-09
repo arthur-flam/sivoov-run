@@ -29,3 +29,6 @@ docs/shots/
 
 # sound production (api/tools/produce): downloaded sources, renders, mixes
 .produce/
+
+# a tool's temporary Wrangler config (api/tools/bindings.ts)
+api/.wrangler-*.tmp.json

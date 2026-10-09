@@ -34,7 +34,8 @@ export const countAlongOf = async (say: Say): Promise<string[][]> => {
   const voices = SHOUTERS.slice(0, 5);
   const direction = 'Un spectateur dans la foule du départ qui compte à rebours avec le speaker, à pleine voix.';
   const said = await mapLimit(numbers.flatMap((n) => voices.map((id) => ({ id, n }))), 4, ({ id, n }) =>
-    say({ id, name: id, model: MODEL, direction, scene: 'Dans la foule du village de départ.' }, n),
+    // A single shouted number is the hardest thing to ask the lighter model: the main one says it.
+    say({ id, name: id, model: GEMINI_TTS_MODEL, direction, scene: 'Dans la foule du village de départ.' }, n),
   );
   return numbers.map((_, i) => said.slice(i * voices.length, (i + 1) * voices.length));
 };

@@ -230,7 +230,7 @@ describe('recording and publishing the takes', () => {
     // How each take is made stays private: the defs, never the pack.
     expect(JSON.stringify(pack)).not.toContain('{prenom}');
     const defs = PersonalDefsSchema.parse(await (await env.FILES.get(`personal-defs/${COURSE}/${version}.json`))!.json());
-    expect(defs.lines.map((d) => [d.eventId, d.takeId, d.phase, d.voice?.id])).toEqual([
+    expect(defs.lines.map((d) => [d.eventId, d.take, d.phase, d.voice?.id])).toEqual([
       ['crowd.cheers', 'a', 'prepare', 'Fenrir'],
       ['personal.split', 'b', 'live', undefined],
     ]);

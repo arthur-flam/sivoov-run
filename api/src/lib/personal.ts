@@ -88,7 +88,7 @@ const readWritten = async (files: R2Bucket, key: string): Promise<Written> => {
 };
 
 /** Where a def's runner version is kept, in the answer and in what the AI wrote: `event` or `event/take`. */
-const keyOf = (def: Pick<PersonalDef, 'eventId' | 'takeId'>): string => personalKey(def.eventId, def.takeId);
+const keyOf = (def: Pick<PersonalDef, 'eventId' | 'take'>): string => personalKey(def.eventId, def.take);
 
 /** The sentence one prepare line (or take) becomes for this runner, or null: the offline version plays. */
 const prepareText = async (deps: PersonalDeps, defs: PersonalDefs, def: PersonalDef, ctx: PersonalContext, written: Written, now: Date): Promise<string | null> => {
@@ -127,12 +127,17 @@ export const personalVoices = async (deps: PersonalDeps, ctx: PersonalContext, v
     await deps.files.put(key, JSON.stringify(next), { httpMetadata: { contentType: 'application/json' } });
   }
   const tts = deps.tts;
-  const rendered = await mapLimit(
-    texts.filter((t): t is { def: PersonalDef; text: string } => t.text !== null),
-    RENDERS_AT_ONCE,
+  // Gemini allows our key ten renders a minute a model: past the first refusal only what is cached
+  // is sent, so the answer comes back in time and the app asks again later for the rest. The
+  // lines' own versions first (the welcome, the names on the course), then their takes.
+  const limited = { hit: false };
+  const wanted = texts.filter((t): t is { def: PersonalDef; text: string } => t.text !== null).sort((a, b) => Number(Boolean(a.def.take)) - Number(Boolean(b.def.take)));
+  const rendered = await mapLimit(wanted, RENDERS_AT_ONCE, async ({ def, text }) => {
     // The line's own voice keeps its register and scene (a regular in the crowd, the speaker on the PA).
-    async ({ def, text }) => ({ def, text, outcome: await renderText(tts, withLineVoice(defs.voice, def.voice), text, { prefix: VOICES_PREFIX, locale: defs.locale }) }),
-  );
+    const outcome = await renderText(tts, withLineVoice(defs.voice, def.voice), text, { prefix: VOICES_PREFIX, locale: defs.locale, cachedOnly: limited.hit });
+    if (!outcome.ok && outcome.status === 429) limited.hit = true;
+    return { def, text, outcome };
+  });
   const said = rendered.flatMap(({ def, text, outcome }) => (outcome.ok ? [{ def, text, rendered: outcome.rendered }] : []));
   const files = Object.fromEntries(said.map(({ def, rendered: r }) => [keyOf(def), { url: voiceUrl(deps.baseUrl, r.hash, r.format), bytes: r.bytes, sha256: r.sha256 }]));
   const captions = Object.fromEntries(said.map(({ def, text }) => [keyOf(def), stripAudioTags(text)]));
@@ -159,7 +164,7 @@ export const liveVoice = async (
 ): Promise<LiveOutcome> => {
   if (!deps.tts) return { ok: false, status: 503, detail: 'voice unavailable' };
   const defs = await loadDefs(deps.files, line.courseId, line.version);
-  const def = defs?.lines.find((d) => d.eventId === line.eventId && d.takeId === line.take && d.phase === 'live');
+  const def = defs?.lines.find((d) => d.eventId === line.eventId && d.take === line.take && d.phase === 'live');
   if (!defs || !def || def.personal.kind !== 'template') return { ok: false, status: 404, detail: 'no such live line' };
   const text = fillTemplate(def.personal.template, spokenValues(ctx.runner, { ...facts, finish: facts.finish ?? def.finish }));
   if (text === null) return { ok: false, status: 422, detail: 'a value is missing' };

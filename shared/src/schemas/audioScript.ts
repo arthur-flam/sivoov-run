@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { AudioCategorySchema, AudioTriggerSchema, MixModeSchema } from './audio';
+import { AudioCategorySchema, AudioTriggerSchema, MixModeSchema, TakeWhenSchema } from './audio';
 
 /** The voice that reads the script. One voice per script (AUDIO.md), chosen in the studio. */
 export const ScriptVoiceSchema = z.object({
@@ -51,6 +51,27 @@ export const PersonalLineSchema = z.discriminatedUnion('kind', [
 export type PersonalLine = z.infer<typeof PersonalLineSchema>;
 
 /**
+ * Another way of saying a line (a pool: the tenth cheer must not sound like the first). Like the
+ * line itself: the words everyone hears or the organizer's file, maybe a personal version, and
+ * maybe a condition read from the run (`when`). Its file in the pack is `<key>~<id>.<ext>`.
+ */
+export const ScriptTakeSchema = z.object({
+  id: z.string().regex(/^[a-z0-9-]{1,40}$/),
+  text: z.string(),
+  audio: UploadedAudioSchema.optional(),
+  personal: PersonalLineSchema.optional(),
+  when: TakeWhenSchema.optional(),
+});
+export type ScriptTake = z.infer<typeof ScriptTakeSchema>;
+
+/**
+ * Who says a line when it is not the script's voice: a regular in the crowd shouting the
+ * runner's name. Same model as the script's voice; a Gemini voice name and its direction.
+ */
+export const LineVoiceSchema = z.object({ id: z.string().min(1), direction: z.string().max(1000) });
+export type LineVoice = z.infer<typeof LineVoiceSchema>;
+
+/**
  * One line of the script: an AudioEvent plus the text the voice reads. This is the
  * authoring shape, edited in the organizer studio and rendered by the TTS; the app never
  * sees it (the pack it downloads carries titles and file keys only).
@@ -78,6 +99,10 @@ export const ScriptLineSchema = z.object({
   personal: PersonalLineSchema.optional(),
   /** The organizer's ambiance under this line (AudioEvent.under): it starts with the line and outlasts it. */
   under: UploadedAudioSchema.optional(),
+  /** Other ways of saying it; the line's own words are one more take, with no condition. */
+  takes: z.array(ScriptTakeSchema).optional(),
+  /** Said by someone else than the script's voice (a regular in the crowd). */
+  voice: LineVoiceSchema.optional(),
 });
 export type ScriptLine = z.infer<typeof ScriptLineSchema>;
 export type ScriptLineInput = z.input<typeof ScriptLineSchema>;
@@ -101,6 +126,8 @@ export const AudioScriptSchema = z.object({
   locale: z.enum(['fr', 'en']).default('fr'),
   voice: ScriptVoiceSchema,
   lines: z.array(ScriptLineSchema),
+  /** The longest the race stays quiet while the runner runs, seconds; the rhythm director fills past it (150 when absent). */
+  maxGapS: z.number().int().min(30).max(900).optional(),
   /** Written by publishing only; the studio's saves keep whatever is stored. */
   published: PublishedMarkSchema.optional(),
 });
@@ -113,6 +140,10 @@ export type AudioScriptInput = z.input<typeof AudioScriptSchema>;
  */
 export const PersonalDefSchema = z.object({
   eventId: z.string().min(1),
+  /** One of the line's takes; absent: the line's own personal version. */
+  takeId: z.string().min(1).optional(),
+  /** The line's own voice (LineVoiceSchema), when it is not the script's. */
+  voice: LineVoiceSchema.optional(),
   title: z.string(),
   /** When it plays, in the studio's words ("Au km 21,1"): context for the AI. */
   when: z.string().default(''),

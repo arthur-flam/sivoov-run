@@ -33,6 +33,12 @@ export const AudioTriggerSchema = z.discriminatedUnion('kind', [
     afterMeters: z.number().nonnegative().default(1000),
   }),
   z.object({ kind: z.literal('elapsed'), seconds: z.number().nonnegative() }),
+  /**
+   * No place of its own: the rhythm director (domain/rhythm.ts) plays it when the race has been
+   * quiet too long, a crowd shouting the runner's name, a word from the speaker. Apps that
+   * predate it cannot read a pack that has one.
+   */
+  z.object({ kind: z.literal('filler') }),
 ]);
 export type AudioTrigger = z.infer<typeof AudioTriggerSchema>;
 
@@ -57,6 +63,30 @@ export type AudioCategory = z.infer<typeof AudioCategorySchema>;
  */
 export const VoiceLevelSchema = z.enum(['all', 'course', 'essential']);
 export type VoiceLevel = z.infer<typeof VoiceLevelSchema>;
+
+/**
+ * When a take fits the run, read from the run and never asked (domain/runReading.ts):
+ * - `steady` / `faster` / `slower`: the last kilometre against the runner's own pace over km 1-2;
+ * - `round`: a round finish time (whole five minutes) is within reach, or just held;
+ * - `restart`: the runner is moving again after 20 s or more stopped or walking.
+ */
+export const TakeWhenSchema = z.enum(['steady', 'faster', 'slower', 'round', 'restart']);
+export type TakeWhen = z.infer<typeof TakeWhenSchema>;
+
+/**
+ * Another way of saying a line: its own file, words and condition. The engine picks the take
+ * the runner has heard least in this run, a take written for this moment of the run first
+ * (`pickTake`). Apps that predate takes play the line's own file.
+ */
+export const PackTakeSchema = z.object({
+  id: z.string().min(1),
+  /** File key in the pack: the take's offline sound. */
+  key: z.string().min(1),
+  caption: z.string().optional(),
+  when: TakeWhenSchema.optional(),
+  personal: z.object({ phase: z.enum(['prepare', 'live']) }).optional(),
+});
+export type PackTake = z.infer<typeof PackTakeSchema>;
 
 export const AudioEventSchema = z.object({
   id: z.string().min(1),
@@ -85,6 +115,8 @@ export const AudioEventSchema = z.object({
    * another line brings its own ambiance or the run stops. Apps that predate it ignore it.
    */
   under: z.string().min(1).optional(),
+  /** Other ways of saying it (PackTakeSchema); the line's own file is the take with no id. */
+  takes: z.array(PackTakeSchema).optional(),
 });
 export type AudioEvent = z.infer<typeof AudioEventSchema>;
 
@@ -92,6 +124,8 @@ export const AudioFileSchema = z.object({
   url: z.string().min(1),
   bytes: z.number().int().nonnegative(),
   sha256: z.string().min(1),
+  /** How long it plays, when publishing could read it: the rhythm director counts silences with it. */
+  seconds: z.number().nonnegative().optional(),
 });
 export type AudioFile = z.infer<typeof AudioFileSchema>;
 
@@ -101,15 +135,20 @@ export const AudioPackSchema = z.object({
   locale: z.enum(['fr', 'en']).default('fr'),
   events: z.array(AudioEventSchema),
   files: z.record(z.string(), AudioFileSchema),
+  /** The longest the race stays quiet while the runner runs, seconds (the rhythm director's; 150 when absent). */
+  maxGapS: z.number().int().min(30).max(900).optional(),
 });
 export type AudioPack = z.infer<typeof AudioPackSchema>;
 
-/** A runner's own versions of the personal lines of one pack: event id -> file. */
+/** Where a runner's own version of a line, or of one of its takes, is kept: `event` or `event/take`. */
+export const personalKey = (eventId: string, takeId?: string): string => (takeId ? `${eventId}/${takeId}` : eventId);
+
+/** A runner's own versions of the personal lines of one pack: `personalKey` -> file. */
 export const PersonalVoicesSchema = z.object({
   courseId: z.string().min(1),
   version: z.number().int().positive(),
   files: z.record(z.string(), AudioFileSchema),
-  /** What each of those files says (event id -> words), for the run screen's captions. */
+  /** What each of those files says (`personalKey` -> words), for the run screen's captions. */
   captions: z.record(z.string(), z.string()).default({}),
 });
 export type PersonalVoices = z.infer<typeof PersonalVoicesSchema>;
@@ -125,6 +164,12 @@ export const LiveFactsSchema = z.object({
   lastKmS: z.number().min(30).max(7200).optional(),
   paceSecPerKm: z.number().min(60).max(3600).optional(),
   projectedS: z.number().min(0).max(172_800).optional(),
+  /** The round finish time within reach (`{objectif}`), and the runner's own pace over km 1-2 (`{allure_depart}`). */
+  targetS: z.number().min(0).max(172_800).optional(),
+  refPaceS: z.number().min(60).max(3600).optional(),
+  /** Their fastest kilometre so far, which one and how long (`{meilleur_km}`). */
+  bestKm: z.number().int().min(1).max(250).optional(),
+  bestKmS: z.number().min(30).max(7200).optional(),
   finish: z.boolean().optional(),
 });
 export type LiveFacts = z.infer<typeof LiveFactsSchema>;
@@ -133,6 +178,8 @@ export const LiveVoiceRequestSchema = z.object({
   courseId: z.string().min(1),
   version: z.number().int().positive(),
   eventId: z.string().min(1),
+  /** The take the engine chose; absent: the line's own. */
+  take: z.string().min(1).optional(),
   facts: LiveFactsSchema,
 });
 export type LiveVoiceRequest = z.infer<typeof LiveVoiceRequestSchema>;

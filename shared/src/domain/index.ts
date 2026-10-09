@@ -8,6 +8,8 @@ export * from './finish';
 export * from './color';
 export * from './simulate';
 export * from './audioTriggers';
+export * from './runReading';
+export * from './rhythm';
 export * from './audioScript';
 export * from './audioLength';
 export * from './ceremonyChecks';

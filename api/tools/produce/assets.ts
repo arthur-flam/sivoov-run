@@ -39,6 +39,26 @@ export const source = async (id: SourceId): Promise<string> => {
 
 export type VoiceEnv = { geminiKey: string; gateway: string };
 
+/** A variable from the environment, else from the repo's `.env`. */
+export const envVar = (() => {
+  const file = join(API_DIR, '../.env');
+  const dotenv = Object.fromEntries(
+    (existsSync(file) ? readFileSync(file, 'utf8') : '')
+      .split('\n')
+      .map((l) => l.match(/^([A-Z_]+)=(.*)$/))
+      .filter((m): m is RegExpMatchArray => m !== null)
+      .map((m) => [m[1]!, m[2]!.replace(/^["']|["']$/g, '')]),
+  );
+  return (k: string): string => process.env[k] ?? dotenv[k] ?? '';
+})();
+
+/** Gemini through the AI Gateway, as the Worker calls it. */
+export const voiceEnvFromDotenv = (): VoiceEnv => {
+  const env = { geminiKey: envVar('GEMINI_API_KEY'), gateway: `https://gateway.ai.cloudflare.com/v1/${envVar('CLOUDFLARE_ACCOUNT_ID')}/sivoov` };
+  if (!env.geminiKey || !envVar('CLOUDFLARE_ACCOUNT_ID')) throw new Error('GEMINI_API_KEY and CLOUDFLARE_ACCOUNT_ID are needed (the repo .env)');
+  return env;
+};
+
 const norm = (s: string): string[] =>
   s
     .toLowerCase()

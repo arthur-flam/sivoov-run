@@ -16,6 +16,7 @@ export type EstimatedFiring = {
 };
 
 const PACE_LABEL: Record<Locale, string> = { fr: 'selon l’allure', en: 'pace-based' };
+const FILLER_LABEL: Record<Locale, string> = { fr: 'silences', en: 'in silences' };
 // Short: it fills the studio's position column, where "0,2 km" sits for the others.
 const CUE_LABEL: Record<Locale, string> = { fr: 'avant', en: 'before' };
 
@@ -59,6 +60,8 @@ export const estimateFirings = (
         return [one(id, 'elapsed', clamp(metersAtSeconds(trigger.seconds, paceSecPerKm), distanceM))];
       case 'pace':
         return [one(id, 'pace', null)];
+      case 'filler':
+        return [{ ...one(id, 'filler', null), label: FILLER_LABEL[locale] }];
       case 'split': {
         const count = Math.floor(distanceM / trigger.everyMeters);
         return Array.from({ length: Math.max(0, count) }, (_, i) => {

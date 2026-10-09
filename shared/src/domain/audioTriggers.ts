@@ -32,6 +32,9 @@ const keyFor = (event: AudioEvent, state: TriggerState): string | null => {
     case 'cue':
       // Played before the clock starts, by the ceremony (see ceremonySequence), never by the run.
       return null;
+    case 'filler':
+      // Placed by the rhythm director (rhythm.ts), never by a trigger.
+      return null;
     case 'start':
       return state.phase !== 'idle' ? event.id : null;
     case 'finish':

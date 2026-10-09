@@ -1,6 +1,7 @@
 import type { LiveFacts } from '../schemas/audio';
 import type { DistanceKey } from '../schemas/race';
 import type { RunState } from './tracker';
+import { readRun } from './runReading';
 import { frenchNumber, spokenBib, spokenClock, spokenDuration, spokenPace } from './spokenFr';
 
 /**
@@ -34,6 +35,9 @@ export const PLACEHOLDERS: Placeholder[] = [
   { key: 'temps_km', aliases: ['splitTime'], phase: 'live', label: 'Temps du dernier km', hint: '« cinq minutes vingt-huit ».' },
   { key: 'allure', aliases: ['pace'], phase: 'live', label: 'Allure moyenne', hint: '« cinq minutes trente au kilomètre ».' },
   { key: 'arrivee_prevue', aliases: ['projectedTime'], phase: 'live', label: 'Arrivée prévue', hint: 'Son temps final à cette allure : « trois heures quarante-huit ».' },
+  { key: 'objectif', aliases: [], phase: 'live', label: 'Temps rond à portée', hint: 'Le temps rond tout proche de son arrivée prévue : « cinquante minutes ». Sans temps rond à portée, la version hors ligne.' },
+  { key: 'allure_depart', aliases: [], phase: 'live', label: 'Allure du départ', hint: 'Son allure sur les deux premiers km : « cinq minutes dix ».' },
+  { key: 'meilleur_km', aliases: [], phase: 'live', label: 'Meilleur km', hint: 'Son kilomètre le plus rapide : « le kilomètre quatre, en quatre minutes cinquante ».' },
 ];
 
 const PLACEHOLDER = /\{\s*([A-Za-z_][\w]*)\s*\}/g;
@@ -72,6 +76,9 @@ export const spokenValues = (runner: RunnerFacts, live: LiveFacts = {}): Record<
   temps_km: maybe(live.lastKmS, spokenClock),
   allure: maybe(live.paceSecPerKm, spokenPace),
   arrivee_prevue: maybe(live.projectedS, spokenClock),
+  objectif: maybe(live.targetS, spokenClock),
+  allure_depart: maybe(live.refPaceS, spokenClock),
+  meilleur_km: live.bestKm === undefined || live.bestKmS === undefined ? null : `le kilomètre ${frenchNumber(live.bestKm)}, en ${spokenClock(live.bestKmS)}`,
 });
 
 /**
@@ -90,17 +97,23 @@ const within = (n: number | null | undefined, min: number, max: number): number 
 
 /**
  * What the run knows right now, for a live line: kilometres done, time, the last kilometre,
- * the average pace, the finish time at that pace, and whether this is the finish. A value out
- * of any plausible range (a GPS glitch) is left out: the line then plays its offline version.
+ * the average pace, the finish time at that pace, the round time within reach, the opening
+ * pace, the best kilometre, and whether this is the finish. A value out of any plausible range
+ * (a GPS glitch) is left out: the line then plays its offline version.
  */
 export const liveFactsFor = (state: Pick<RunState, 'phase' | 'distanceM' | 'targetM' | 'elapsedMs' | 'splits' | 'avgPaceSecPerKm'>): LiveFacts => {
   const elapsedS = state.elapsedMs / 1000;
+  const reading = readRun(state);
   const facts: LiveFacts = {
     km: within(Math.floor(state.distanceM / 1000), 0, 250),
     elapsedS: within(elapsedS, 0, 172_800),
     lastKmS: within((state.splits[state.splits.length - 1]?.splitMs ?? NaN) / 1000, 30, 7200),
     paceSecPerKm: within(state.avgPaceSecPerKm, 60, 3600),
     projectedS: state.phase === 'running' && state.distanceM >= 1000 ? within((elapsedS * state.targetM) / state.distanceM, 0, 172_800) : undefined,
+    targetS: within(reading.targetS, 0, 172_800),
+    refPaceS: within(reading.refPaceS, 60, 3600),
+    bestKm: reading.best ? within(reading.best.km, 1, 250) : undefined,
+    bestKmS: reading.best ? within(reading.best.seconds, 30, 7200) : undefined,
     finish: state.phase === 'finished' ? true : undefined,
   };
   return Object.fromEntries(Object.entries(facts).filter(([, v]) => v !== undefined)) as LiveFacts;

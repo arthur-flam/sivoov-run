@@ -14,6 +14,7 @@ import {
   publishedContent,
   renderableLines,
   sniffAudioFormat,
+  spokenTexts,
   ttsCacheInput,
   upgradeLine,
   voiceCacheInput,
@@ -239,5 +240,73 @@ describe('sniffAudioFormat', () => {
     expect(sniffAudioFormat(bytes([0xff, 0xf1, 0x50, 0x80]))).toBeNull();
     expect(sniffAudioFormat(bytes('<html><body>'))).toBeNull();
     expect(sniffAudioFormat(new Uint8Array([0x49, 0x44]))).toBeNull();
+  });
+});
+
+describe('a line with takes', () => {
+  const cheers = line({
+    id: 'crowd.cheers',
+    title: 'La foule',
+    category: 'personal',
+    trigger: { kind: 'filler' },
+    key: 'crowd-cheers',
+    text: 'Allez !',
+    voice: { id: 'Fenrir', direction: 'Un supporter au bord de la route.' },
+    takes: [
+      { id: 'a', text: 'Allez, allez !', personal: { kind: 'template', template: 'Allez {prenom} !' } },
+      { id: 'b', text: 'Ça monte, continuez !', when: 'restart' },
+      { id: 'c', text: 'Kilomètre de plus.', personal: { kind: 'template', template: 'Kilomètre {km}, {prenom} !' } },
+    ],
+  });
+
+  it('lists every take in the pack with its own file, words, condition and when its personal version is made', () => {
+    const event = eventFor(AudioScriptSchema.parse(script([cheers])).lines[0]!, 'wav');
+    expect(event.trigger).toEqual({ kind: 'filler' });
+    expect(event.source).toEqual({ kind: 'file', key: 'crowd-cheers.wav' });
+    expect(event.takes).toEqual([
+      { id: 'a', key: 'crowd-cheers~a.wav', caption: 'Allez, allez !', personal: { phase: 'prepare' } },
+      { id: 'b', key: 'crowd-cheers~b.wav', caption: 'Ça monte, continuez !', when: 'restart' },
+      { id: 'c', key: 'crowd-cheers~c.wav', caption: 'Kilomètre de plus.', personal: { phase: 'live' } },
+    ]);
+  });
+
+  it('checks each take like a line, and says which take', () => {
+    const parsed = AudioScriptSchema.parse(script([{ ...cheers, takes: [{ id: 'a', text: '' }, { id: 'b', text: 'Bravo {prenom}' }] }])).lines[0]!;
+    expect(lineIssues(parsed)).toEqual([
+      { code: 'no_text', take: 'a' },
+      { code: 'placeholder_in_text', names: ['prenom'], take: 'b' },
+    ]);
+  });
+
+  it('gives the Worker each personal take, with the line’s own voice', () => {
+    const defs = personalDefsFor(buildScript(script([cheers])));
+    expect(defs.lines.map((d) => [d.eventId, d.takeId, d.phase, d.voice?.id, d.fallback])).toEqual([
+      ['crowd.cheers', 'a', 'prepare', 'Fenrir', 'Allez, allez !'],
+      ['crowd.cheers', 'c', 'live', 'Fenrir', 'Kilomètre de plus.'],
+    ]);
+  });
+
+  it('has every take read by the line’s voice before publishing, and finds two takes that would share a file', () => {
+    const texts = spokenTexts(AudioScriptSchema.parse(script([cheers, line()])));
+    expect(texts.map((t) => [t.line.id, t.takeId ?? null, t.voice.id])).toEqual([
+      ['crowd.cheers', null, 'Fenrir'],
+      ['crowd.cheers', 'a', 'Fenrir'],
+      ['crowd.cheers', 'b', 'Fenrir'],
+      ['crowd.cheers', 'c', 'Fenrir'],
+      ['course.planches', null, 'JBFqnCBsd6RMkjVDRZzb'],
+    ]);
+    const clash = AudioScriptSchema.parse(script([cheers, line({ id: 'other', key: 'crowd-cheers~a' })])).lines;
+    expect(duplicateFileKeys(clash)).toEqual(['crowd-cheers~a.mp3']);
+  });
+
+  it('refuses two takes of a line with the same id', () => {
+    expect(() => buildScript(script([{ ...cheers, takes: [{ id: 'a', text: 'Un' }, { id: 'a', text: 'Deux' }] }]))).toThrow(/take/);
+  });
+
+  it('carries the course’s quiet limit and each file’s length into the manifest', () => {
+    const built = buildScript({ ...script([line()]), maxGapS: 120 });
+    const pack = manifestFor(built, [{ key: 'landmark-planches.mp3', bytes: 10, sha256: 'ab', seconds: 2.5 }]);
+    expect(pack.maxGapS).toBe(120);
+    expect(pack.files['landmark-planches.mp3']?.seconds).toBe(2.5);
   });
 });

@@ -83,6 +83,7 @@ export const triggerFromEditor = (when: EditorWhen): AudioTrigger | null => {
     }
     case 'start':
     case 'finish':
+    case 'filler':
       return { kind: when.kind };
     case 'distance': {
       const meters = metersFromKm(when.km);
@@ -150,6 +151,8 @@ export const whenInWords = (trigger: AudioTrigger): string => {
       if (trigger.slowerThan !== undefined) return 'Si le coureur ralentit';
       if (trigger.fasterThan !== undefined) return 'Si le coureur va trop vite';
       return 'Selon l’allure';
+    case 'filler':
+      return 'Dans les silences';
   }
 };
 
@@ -170,6 +173,7 @@ export const momentOf = (trigger: AudioTrigger, distanceM: number): Moment => {
       return 'finish';
     case 'split':
     case 'pace':
+    case 'filler':
       return 'always';
     case 'distance':
       return trigger.meters <= 0 ? 'start' : trigger.meters >= distanceM ? 'finish' : 'course';

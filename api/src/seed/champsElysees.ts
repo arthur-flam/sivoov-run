@@ -1,6 +1,6 @@
-import { AudioScriptSchema, CourseSchema, DISTANCE_METERS, EntrantSchema, OrganizerSchema, PhotoMomentSchema, RaceSchema, champsElysees10kLandmarks } from '@sivoov/shared';
+import { AudioScriptSchema, CourseSchema, DISTANCE_METERS, EntrantSchema, OrganizerSchema, PhotoMomentSchema, RaceSchema, champsElysees10kLandmarks, champsElysees5kLandmarks, demoRaceFor } from '@sivoov/shared';
 import type { AudioScript, Course, Entrant, Organizer, PhotoMoment, Race } from '@sivoov/shared';
-import { champsElysees2027Script } from './champsElyseesScript';
+import { champsElysees2027Script, champsElysees5kScript } from './champsElyseesScript';
 
 /**
  * The 10 km des Champs-Élysées, 5th edition (Sunday 7 February 2027, stage 1 of the Paris
@@ -60,7 +60,30 @@ export const champsElyseesCourses: Course[] = [
     geometryKey: 'courses/10km-champs-elysees-2027-10k.json',
     landmarks: champsElysees10kLandmarks,
   }),
+  // The 5 km demo: the 10 km's second half, run on the race's demo only (PRODUCTION.md).
+  CourseSchema.parse({
+    id: '10km-champs-elysees-2027-5k',
+    raceId: champsElyseesRace.id,
+    distanceKey: '5k',
+    distanceM: DISTANCE_METERS['5k'],
+    geometryKey: 'courses/10km-champs-elysees-2027-5k.json',
+    landmarks: champsElysees5kLandmarks,
+    demo: true,
+  }),
 ];
+
+/**
+ * The race's demo (`demo_of`): always open, it plays the real race's courses and sound, the 5 km
+ * demo included. Where a race director, the owner and testers run before race week.
+ */
+export const champsElyseesDemo: Race = demoRaceFor(champsElyseesRace, null, `${champsElyseesRace.id}-demo`, new Date('2026-10-09T00:00:00Z'));
+
+/** The owner on the demo, everywhere (production included): the 10 km and the 5 km. Testers on local and preview. */
+export const champsElyseesDemoEntrants: Entrant[] = [
+  { bib: '7001', email: 'arthur.flam@gmail.com', firstName: 'Arthur', lastName: 'Flam', distanceKey: '10k' as const },
+  { bib: '7002', email: 'arthur.flam@gmail.com', firstName: 'Arthur', lastName: 'Flam', distanceKey: '5k' as const },
+  { bib: '7003', email: 'lea@example.com', firstName: 'Léa', lastName: 'Martin', distanceKey: '5k' as const },
+].map((e) => EntrantSchema.parse({ ...e, id: `${champsElyseesDemo.id}-${e.bib}`, raceId: champsElyseesDemo.id, source: 'manual' }));
 
 /** Test entrants for local and preview (bibs 2001-2003). Production gets the organizer's list. */
 export const champsElyseesTestEntrants: Entrant[] = [
@@ -79,7 +102,7 @@ export const champsElyseesOrganizers: Organizer[] = (
   ] as const
 ).map(([email, role]) => OrganizerSchema.parse({ id: `${champsElyseesRace.id}-org-${email.split('@')[0]}`, raceId: champsElyseesRace.id, email, role }));
 
-export const champsElyseesScripts: AudioScript[] = [AudioScriptSchema.parse(champsElysees2027Script)];
+export const champsElyseesScripts: AudioScript[] = [AudioScriptSchema.parse(champsElysees2027Script), AudioScriptSchema.parse(champsElysees5kScript)];
 
 /** Photo moments to start from, on local and preview (see `deauvillePhotoMoments`). */
 export const champsElyseesPhotoMoments: PhotoMoment[] = [

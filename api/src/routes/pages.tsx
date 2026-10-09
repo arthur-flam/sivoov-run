@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
-import { CodeRequestSchema, CodeVerifySchema, buildTrack, t, translator } from '@sivoov/shared';
+import { CodeRequestSchema, CodeVerifySchema, buildTrack, coursesShown, t, translator } from '@sivoov/shared';
 import type { Course, CourseTrack } from '@sivoov/shared';
 import type { AppEnv } from '../env';
 import { db } from '../db/queries';
@@ -45,7 +45,7 @@ pages.get('/', async (c) => {
   const races = await q.races();
   const cards = await Promise.all(
     races.map(async (race) => {
-      const courses = await q.coursesForRace(race.id);
+      const courses = coursesShown(race, await q.coursesForRace(race.id));
       const mapUrl = mapUrlFor(c.env, courses[0], '?w=720&h=480');
       return { race, courses, mapUrl, track: mapUrl ? null : await trackFor(c.env, courses[0]) };
     }),
@@ -76,7 +76,7 @@ pages.get('/:slug', async (c) => {
   const q = db(c.env.DB);
   const race = await q.raceBySlug(c.req.param('slug'));
   if (!race) return c.notFound();
-  const courses = await q.coursesForRace(race.id);
+  const courses = coursesShown(race, await q.coursesForRace(race.id));
   const mapUrl = mapUrlFor(c.env, courses[0]);
   const [track, reel] = await Promise.all([trackFor(c.env, courses[0]), courses[0] ? loadReel(c.env.FILES, courses[0].id) : null]);
   const base = new URL(c.req.url).origin;

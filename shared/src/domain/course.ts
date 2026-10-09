@@ -59,6 +59,12 @@ export const positionAtDistance = (track: CourseTrack, m: number): TrackPosition
   return { point: interpolate(a, b, t), bearing: bearingDeg(a, b), segmentIndex: i, trackM };
 };
 
+/** The course from `trackM` along it to its end: a shorter course cut from a longer one (the 5 km demo from the 10 km). */
+export const trackFrom = (track: CourseTrack, trackM: number): LatLng[] => {
+  const at = positionAtDistance(track, trackM);
+  return [at.point, ...track.points.slice(at.segmentIndex + 1)];
+};
+
 /**
  * The runner covers the official distance (e.g. 42195 m) while the GPX may measure slightly
  * more or less. Progress on the virtual course is proportional: finish line at the finish.

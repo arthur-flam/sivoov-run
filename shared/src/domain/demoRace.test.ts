@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RaceSchema } from '../schemas/race';
-import { REVIEW_EMAIL, canHaveDemo, demoRaceFor, demoSlugFor, demoSpeedFor, reviewEntrantFor } from './demoRace';
+import { REVIEW_EMAIL, canHaveDemo, coursesShown, demoRaceFor, demoSlugFor, demoSpeedFor, reviewEntrantFor } from './demoRace';
 import { windowPhase } from './raceWindow';
 
 const source = RaceSchema.parse({
@@ -53,5 +53,13 @@ describe('the demo run', () => {
     expect(demoSpeedFor(10_000)).toBe(5);
     expect(demoSpeedFor(42_195)).toBe(21.1);
     expect(demoSpeedFor(1_500)).toBe(1);
+  });
+});
+
+describe('coursesShown', () => {
+  const courses = [{ id: '10k' }, { id: '5k', demo: true }];
+  it('keeps a demo course off the real race’s pages and on its demo’s', () => {
+    expect(coursesShown({}, courses).map((c) => c.id)).toEqual(['10k']);
+    expect(coursesShown({ demoOf: 'champs' }, courses).map((c) => c.id)).toEqual(['10k', '5k']);
   });
 });

@@ -54,10 +54,10 @@ export const db = (d1: D1Database) => ({
   async upsertCourse(course: Course): Promise<void> {
     await d1
       .prepare(
-        `INSERT INTO courses (id, race_id, distance_key, distance_m, geometry_key, landmarks) VALUES (?, ?, ?, ?, ?, ?)
+        `INSERT INTO courses (id, race_id, distance_key, distance_m, geometry_key, landmarks, demo) VALUES (?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET distance_m=excluded.distance_m, geometry_key=excluded.geometry_key, landmarks=excluded.landmarks`,
       )
-      .bind(course.id, course.raceId, course.distanceKey, course.distanceM, course.geometryKey ?? null, JSON.stringify(course.landmarks))
+      .bind(course.id, course.raceId, course.distanceKey, course.distanceM, course.geometryKey ?? null, JSON.stringify(course.landmarks), course.demo ? 1 : 0)
       .run();
   },
 

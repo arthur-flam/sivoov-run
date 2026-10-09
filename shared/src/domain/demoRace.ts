@@ -1,6 +1,7 @@
 import { RaceSchema } from '../schemas/race';
 import type { DistanceKey, Race } from '../schemas/race';
 import type { Entrant } from '../schemas/entrant';
+import type { Course } from '../schemas/course';
 
 /**
  * A demo race: what an organizer's testers and App Review run. It copies the real race's name,
@@ -14,6 +15,9 @@ export const DEMO_OPEN_DAYS = 730;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const demoSlugFor = (source: Pick<Race, 'slug'>): string => `${source.slug}-demo`;
+
+/** The courses a race's public pages show: a demo course only on the demo race. */
+export const coursesShown = <C extends Pick<Course, 'demo'>>(race: Pick<Race, 'demoOf'>, courses: C[]): C[] => (race.demoOf ? courses : courses.filter((c) => !c.demo));
 
 /** A demo of a demo would borrow courses from a race that has none of its own. */
 export const canHaveDemo = (race: Pick<Race, 'demoOf'>): boolean => !race.demoOf;

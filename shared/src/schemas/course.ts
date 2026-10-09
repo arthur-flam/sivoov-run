@@ -26,6 +26,11 @@ export const CourseSchema = z.object({
   /** R2 key of the geometry JSON (CourseGeometry). */
   geometryKey: z.string().optional(),
   landmarks: z.array(LandmarkSchema).default([]),
+  /**
+   * A course only the race's demo runs (the 5 km demo of a 10 km, for a race director's lunch
+   * break): never listed on the real race's pages, played by its demo race (`demo_of`).
+   */
+  demo: z.boolean().optional(),
 });
 export type Course = z.infer<typeof CourseSchema>;
 

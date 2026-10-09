@@ -62,13 +62,14 @@ export const CourseRowSchema = z.object({
   distance_m: z.number(),
   geometry_key: z.string().nullable(),
   landmarks: json(z.array(LandmarkSchema)),
+  demo: z.number().optional(),
 });
 
 export const courseFromRow = (row: unknown): Course => {
   const r = CourseRowSchema.parse(row);
   return CourseSchema.parse({
     id: r.id, raceId: r.race_id, distanceKey: r.distance_key, distanceM: r.distance_m,
-    geometryKey: r.geometry_key ?? undefined, landmarks: r.landmarks,
+    geometryKey: r.geometry_key ?? undefined, landmarks: r.landmarks, ...(r.demo ? { demo: true } : {}),
   });
 };
 

@@ -11,12 +11,31 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { champsElysees10kGeometry, deauvilleMarathonGeometry } from '@sivoov/shared';
+import { champsElysees10kGeometry, champsElysees5kGeometry, deauvilleMarathonGeometry } from '@sivoov/shared';
 import type { AudioScript, Course, CourseGeometry, Entrant, Organizer, PhotoMoment, Race } from '@sivoov/shared';
-import { champsElyseesCourses, champsElyseesOrganizers, champsElyseesPhotoMoments, champsElyseesRace, champsElyseesScripts, champsElyseesTestEntrants } from '../src/seed/champsElysees';
+import {
+  champsElyseesCourses,
+  champsElyseesDemo,
+  champsElyseesDemoEntrants,
+  champsElyseesOrganizers,
+  champsElyseesPhotoMoments,
+  champsElyseesRace,
+  champsElyseesScripts,
+  champsElyseesTestEntrants,
+} from '../src/seed/champsElysees';
 import { deauvilleCourses, deauvilleOrganizers, deauvillePhotoMoments, deauvilleRace, deauvilleScripts, deauvilleTestEntrants } from '../src/seed/deauville';
 
-type Seed = { race: Race; courses: Course[]; entrants: Entrant[]; organizers: Organizer[]; scripts: AudioScript[]; moments: PhotoMoment[]; geometries: { key: string; geometry: CourseGeometry }[] };
+type Seed = {
+  race: Race;
+  courses: Course[];
+  entrants: Entrant[];
+  organizers: Organizer[];
+  scripts: AudioScript[];
+  moments: PhotoMoment[];
+  geometries: { key: string; geometry: CourseGeometry }[];
+  /** The race's demo (`demo_of`) and its runners: the owner's entries go to production too. */
+  demo?: { race: Race; entrants: Entrant[] };
+};
 
 const SEEDS: Seed[] = [
   {
@@ -25,7 +44,11 @@ const SEEDS: Seed[] = [
   },
   {
     race: champsElyseesRace, courses: champsElyseesCourses, entrants: champsElyseesTestEntrants, organizers: champsElyseesOrganizers, scripts: champsElyseesScripts, moments: champsElyseesPhotoMoments,
-    geometries: [{ key: champsElyseesCourses[0]!.geometryKey!, geometry: champsElysees10kGeometry }],
+    geometries: [
+      { key: champsElyseesCourses[0]!.geometryKey!, geometry: champsElysees10kGeometry },
+      { key: champsElyseesCourses[1]!.geometryKey!, geometry: champsElysees5kGeometry },
+    ],
+    demo: { race: champsElyseesDemo, entrants: champsElyseesDemoEntrants },
   },
 ];
 
@@ -36,20 +59,31 @@ const seeds = SEEDS.filter((s) => !only || s.race.id === only);
 if (seeds.length === 0) throw new Error(`no seed for ${only}; known: ${SEEDS.map((s) => s.race.id).join(', ')}`);
 
 const q = (v: string | number | null) => (v === null ? 'NULL' : typeof v === 'number' ? String(v) : `'${v.replaceAll("'", "''")}'`);
-const sqlFor = ({ race: r, courses, entrants, organizers, scripts, moments }: Seed) => [
+/** An entrant, upserted by bib; `raceSql` when its race is found by a query (a demo made in the admin has its own id). */
+const entrantSql = (e: Entrant, raceSql: string = q(e.raceId)) => `INSERT INTO entrants (id, race_id, bib, email, first_name, last_name, distance_key, source)
+   VALUES (${q(e.id)}, ${raceSql}, ${[e.bib, e.email, e.firstName, e.lastName, e.distanceKey, e.source].map(q).join(', ')})
+   ON CONFLICT(race_id, bib) DO UPDATE SET email=excluded.email, first_name=excluded.first_name, last_name=excluded.last_name, distance_key=excluded.distance_key;`;
+const isTest = (email: string) => email.endsWith('@example.com');
+
+const sqlFor = ({ race: r, courses, entrants, organizers, scripts, moments, demo }: Seed) => [
   `INSERT INTO races (id, slug, name, city, country, date_start, date_end, window_start, window_end, timezone, organizer_url, theme, status)
    VALUES (${[r.id, r.slug, r.name, r.city, r.country, r.dateStart, r.dateEnd, r.windowStart, r.windowEnd, r.timezone, r.organizerUrl ?? null, JSON.stringify(r.theme), r.status].map(q).join(', ')})
    ON CONFLICT(id) DO NOTHING;`,
   ...courses.map(
-    (c) => `INSERT INTO courses (id, race_id, distance_key, distance_m, geometry_key, landmarks)
-   VALUES (${[c.id, c.raceId, c.distanceKey, c.distanceM, c.geometryKey ?? null, JSON.stringify(c.landmarks)].map(q).join(', ')})
+    (c) => `INSERT INTO courses (id, race_id, distance_key, distance_m, geometry_key, landmarks, demo)
+   VALUES (${[c.id, c.raceId, c.distanceKey, c.distanceM, c.geometryKey ?? null, JSON.stringify(c.landmarks), c.demo ? 1 : 0].map(q).join(', ')})
    ON CONFLICT(id) DO NOTHING;`,
   ),
-  ...(target === 'production' ? [] : entrants).map(
-    (e) => `INSERT INTO entrants (id, race_id, bib, email, first_name, last_name, distance_key, source)
-   VALUES (${[e.id, e.raceId, e.bib, e.email, e.firstName, e.lastName, e.distanceKey, e.source].map(q).join(', ')})
-   ON CONFLICT(race_id, bib) DO UPDATE SET email=excluded.email, first_name=excluded.first_name, last_name=excluded.last_name, distance_key=excluded.distance_key;`,
-  ),
+  // The demo race, unless the race has one already (made in the admin, under any id or address).
+  ...(demo
+    ? [
+        `INSERT INTO races (id, slug, name, city, country, date_start, date_end, window_start, window_end, timezone, organizer_url, theme, status, demo_of)
+   SELECT ${[demo.race.id, demo.race.slug, demo.race.name, demo.race.city, demo.race.country, demo.race.dateStart, demo.race.dateEnd, demo.race.windowStart, demo.race.windowEnd, demo.race.timezone, demo.race.organizerUrl ?? null, JSON.stringify(demo.race.theme), demo.race.status, r.id].map(q).join(', ')}
+   WHERE NOT EXISTS (SELECT 1 FROM races WHERE demo_of = ${q(r.id)} OR slug = ${q(demo.race.slug)});`,
+        ...demo.entrants.filter((e) => target !== 'production' || !isTest(e.email)).map((e) => entrantSql(e, `(SELECT id FROM races WHERE demo_of = ${q(r.id)} ORDER BY created_at LIMIT 1)`)),
+      ]
+    : []),
+  ...(target === 'production' ? [] : entrants).map((e) => entrantSql(e)),
   // The studio draft: version = (latest published pack) + 1, and never over an existing draft.
   ...scripts.map(
     (script) => `INSERT INTO audio_scripts (course_id, locale, version, script, updated_at)

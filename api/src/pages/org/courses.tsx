@@ -147,7 +147,7 @@ export const OrgCoursesPage = ({ race, access, cards, done, error, form, landmar
                 <Card
                   id={card.course.id}
                   title={distanceName(card.course.distanceKey)}
-                  sub={`${km(card.course.distanceM, 3)} officiels`}
+                  sub={card.course.demo ? `${km(card.course.distanceM, 3)} officiels · démo : courue sur la démo de la course, jamais affichée ici` : `${km(card.course.distanceM, 3)} officiels`}
                   actions={ready ? <Badge tone="good">Prêt</Badge> : <Badge tone="warn">À terminer</Badge>}
                 >
                   <Checklist items={items} />

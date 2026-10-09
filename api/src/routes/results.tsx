@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { getCookie } from 'hono/cookie';
 import type { Context } from 'hono';
 import type { Course, Locale, Race } from '@sivoov/shared';
-import { distanceLabel, formatOfficialTime, translator } from '@sivoov/shared';
+import { coursesShown, distanceLabel, formatOfficialTime, translator } from '@sivoov/shared';
 import type { AppEnv } from '../env';
 import { db } from '../db/queries';
 import { photoQueries } from '../db/photoQueries';
@@ -55,7 +55,7 @@ results.get('/:slug/results', async (c) => {
   const q = db(c.env.DB);
   const race = await q.raceBySlug(c.req.param('slug'));
   if (!race) return c.notFound();
-  const courses = await q.coursesForRace(race.id);
+  const courses = coursesShown(race, await q.coursesForRace(race.id));
   const course = courses.find((x) => x.distanceKey === c.req.query('distance')) ?? courses[0];
   if (!course) return c.notFound();
   const rows = await q.resultsForCourse(race.id, course.id);
@@ -175,7 +175,7 @@ results.get('/:slug/card', async (c) => {
   const locale = localeOf(c);
   const q = db(c.env.DB);
   const race = await q.raceBySlug(c.req.param('slug'));
-  const courses = race ? await q.coursesForRace(race.id) : [];
+  const courses = race ? coursesShown(race, await q.coursesForRace(race.id)) : [];
   const track = race ? await trackFor(c.env, courses[0]) : null;
   if (!race || !track) return c.notFound();
   const subtitle = raceSubtitle(race, courses.map((x) => x.distanceKey), locale);
@@ -187,7 +187,7 @@ results.get('/:slug/og.png', async (c) => {
   const q = db(c.env.DB);
   const race = await q.raceBySlug(c.req.param('slug'));
   if (!race) return c.notFound();
-  const course = (await q.coursesForRace(race.id))[0];
+  const course = coursesShown(race, await q.coursesForRace(race.id))[0];
   const body = course?.geometryKey ? await cardPng(cardDeps(c.env), raceCardId(race, locale), 'og', `${origin(c)}/${race.slug}/card?format=og&lang=${locale}`) : null;
   return body ? png(body, 86_400) : mapOr404(c, course);
 });

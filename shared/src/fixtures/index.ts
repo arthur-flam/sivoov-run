@@ -2,6 +2,7 @@ import { champsElysees10kPairs } from './champs-elysees-10k';
 import { deauvilleMarathonPairs } from './deauville-marathon';
 import { CourseGeometrySchema } from '../schemas/course';
 import type { Landmark } from '../schemas/course';
+import { buildTrack, trackFrom, trackMetersForRun } from '../domain/course';
 
 /** The real 2024 Deauville marathon trace (GPStraces export), used by tests, seeds and the simulator. */
 export const deauvilleMarathonGeometry = CourseGeometrySchema.parse({
@@ -47,4 +48,23 @@ export const champsElysees10kLandmarks: Landmark[] = [
   { id: 'golden', name: 'Le Golden km', meters: 9000, description: 'Le dernier kilomètre, chronométré à part.' },
   { id: 'alexandre-iii', name: 'Pont Alexandre-III', meters: 9450, description: 'Les Renommées dorées, le Grand Palais au-dessus.' },
   { id: 'arrivee', name: 'Arrivée, bas des Champs-Élysées', meters: 10000, description: 'La ligne, là où tout a commencé.' },
+];
+
+/**
+ * The 5 km demo of the Champs-Élysées: the 10 km's second half, from its official 5th km on
+ * boulevard Haussmann to the same line. What a race director tries in a lunch break: the climb of
+ * the Champs, the U-turn under the Arc, Montaigne, the Seine, the Golden km (PRODUCTION.md).
+ */
+const CHAMPS_5K_FROM_M = 5000;
+const champs10kTrack = buildTrack(champsElysees10kGeometry.points);
+
+export const champsElysees5kGeometry = CourseGeometrySchema.parse({
+  courseId: '10km-champs-elysees-2027-5k',
+  points: trackFrom(champs10kTrack, trackMetersForRun(champs10kTrack, 10_000, CHAMPS_5K_FROM_M)),
+});
+
+/** Its places: the 10 km's, 5 km earlier, and a start of its own on boulevard Haussmann. */
+export const champsElysees5kLandmarks: Landmark[] = [
+  { id: 'depart', name: 'Départ, boulevard Haussmann', meters: 0, description: 'Le haut du boulevard, puis le faubourg Saint-Honoré et l’avenue Franklin-Roosevelt.' },
+  ...champsElysees10kLandmarks.filter((l) => l.meters >= 5950).map((l) => ({ ...l, meters: l.meters - CHAMPS_5K_FROM_M })),
 ];

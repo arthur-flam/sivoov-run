@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { AudioEvent, VoiceLevel } from '@sivoov/shared';
-import { audibleAt } from '@sivoov/shared';
+import { audibleAt, personalKey } from '@sivoov/shared';
+import { takeOf } from './pack';
 
 /**
  * One line of the race as the runner can read it back: what fired, when, what it says and
@@ -26,8 +27,12 @@ export type SaidLine = {
   at: number;
 };
 
-/** The words of a line: the runner's own version when it has one, else what the pack says it says. */
-export const captionFor = (event: AudioEvent, own: Record<string, string>): string | null => own[event.id] ?? event.caption ?? null;
+/**
+ * The words of a line, or of the take of it said (`take`): the runner's own version when it has
+ * one (by `personalKey`), else what the pack says it says.
+ */
+export const captionFor = (event: AudioEvent, own: Record<string, string>, take?: string): string | null =>
+  own[personalKey(event.id, take)] ?? takeOf(event, take)?.caption ?? null;
 
 /** How a fired line sounds at the runner's level, given the sound it would play. */
 export const soundOf = (level: VoiceLevel, event: AudioEvent, uri: string | null): SaidLine['sound'] => (!audibleAt(level, event) ? 'silenced' : uri ? 'heard' : 'silent');

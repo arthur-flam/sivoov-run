@@ -90,7 +90,7 @@ export const liveFile = async (url: string, ms: number): Promise<string> => {
 /** What a cold start needs to play the race with no network: the manifest and the runner's own lines. */
 const SavedPackSchema = z.object({
   pack: AudioPackSchema,
-  /** Event id -> the runner's own version of that line, in `voices/<course>/<version>/`. */
+  /** `personalKey` (`event` or `event/take`) -> the runner's own version of it, in `voices/<course>/<version>/` under `name` (never the key: it may hold a '/'). */
   voices: z.record(z.string(), z.object({ name: z.string(), bytes: z.number() })),
   captions: z.record(z.string(), z.string()),
   personalFor: z.object({ version: z.number(), here: z.boolean(), at: z.number() }).nullable(),

@@ -1,7 +1,8 @@
 import { create } from 'zustand';
+import { fileOf, personalKey } from '@sivoov/shared';
 import type { AudioEvent, AudioPack, Course } from '@sivoov/shared';
 import { ApiError, api } from '@/api';
-import { packV0 } from './pack';
+import { packV0, takeOf } from './pack';
 import { download, onDisk, packDir, savedPack, voicesDir } from './packDisk';
 import type { SavedPack, Wanted } from './packDisk';
 
@@ -25,12 +26,13 @@ type PackStore = {
   uris: Record<string, string>;
   /**
    * The runner's own versions of the pack's personal lines said before the start (their name,
-   * what the AI wrote for them): event id -> playable uri. Absent lines play their offline file.
+   * what the AI wrote for them), and of their takes: `personalKey` (`event` or `event/take`) ->
+   * playable uri. Absent lines play their offline file.
    */
   personal: Record<string, string>;
-  /** The same lines as saved on the phone (event id -> file name and size), kept with the manifest. */
+  /** The same lines as saved on the phone (`personalKey` -> file name and size), kept with the manifest. */
   voices: SavedPack['voices'];
-  /** What each of the runner's own lines says (event id -> words), for the run screen's captions. */
+  /** What each of the runner's own lines says (`personalKey` -> words), for the run screen's captions. */
   captions: Record<string, string>;
   /** The pack version and whether a position went with it, so a later call only refetches what can improve. */
   personalFor: { version: number; here: boolean; at: number } | null;
@@ -44,8 +46,11 @@ type PackStore = {
   /** Fetches and downloads the runner's own lines for the loaded pack. Never throws, never blocks a run. */
   loadPersonal: (token: string, here?: { lat: number; lng: number }) => Promise<void>;
   uriFor: (key: string) => string | null;
-  /** What to play for an event before the start or when it has no live version: the runner's own, else the pack's file. */
-  soundFor: (event: AudioEvent) => string | null;
+  /**
+   * What to play for an event, or for one of its takes (`take`), before the start or when it has
+   * no live version: the runner's own, else the pack's file.
+   */
+  soundFor: (event: AudioEvent, take?: string) => string | null;
 };
 
 const packFiles = (pack: AudioPack): Wanted[] => Object.entries(pack.files).map(([key, file]) => ({ key, file, name: key }));
@@ -175,16 +180,17 @@ export const usePackStore = create<PackStore>((set, get) => {
 
     async loadPersonal(token, here) {
       const { pack, personalFor } = get();
-      if (!pack || !pack.events.some((e) => e.personal?.phase === 'prepare')) return;
+      if (!pack || !pack.events.some((e) => e.personal?.phase === 'prepare' || e.takes?.some((t) => t.personal?.phase === 'prepare'))) return;
       const fresh = personalFor && personalFor.version === pack.version && Date.now() - personalFor.at < PERSONAL_FRESH_MS;
       if (fresh && (personalFor.here || !here)) return;
       const answer = await api.myVoices(token, here).catch(() => null);
       if (!answer || answer.version !== pack.version || get().pack?.version !== pack.version) return;
-      const wanted = Object.entries(answer.files).map(([eventId, f]) => ({ key: eventId, file: f, name: `${f.sha256.slice(0, 32)}.${f.url.endsWith('.wav') ? 'wav' : 'mp3'}` }));
+      // Saved by what the file is, never by its key: `event/take` is not a file name.
+      const wanted = Object.entries(answer.files).map(([key, f]) => ({ key, file: f, name: `${f.sha256.slice(0, 32)}.${f.url.endsWith('.wav') ? 'wav' : 'mp3'}` }));
       const uris = await download(voicesDir(pack.courseId, pack.version), wanted).catch(() => ({}) as Record<string, string>);
       if (get().pack?.version !== pack.version) return;
       const got = wanted.filter((w) => w.key in uris);
-      const captions = Object.fromEntries(Object.entries(answer.captions).filter(([eventId]) => eventId in uris));
+      const captions = Object.fromEntries(Object.entries(answer.captions).filter(([key]) => key in uris));
       set({
         personal: { ...get().personal, ...uris },
         voices: { ...get().voices, ...Object.fromEntries(got.map((w) => [w.key, { name: w.name, bytes: w.file.bytes }])) },
@@ -198,9 +204,10 @@ export const usePackStore = create<PackStore>((set, get) => {
       return get().uris[key] ?? null;
     },
 
-    soundFor(event) {
-      const own = event.personal?.phase === 'prepare' ? get().personal[event.id] : undefined;
-      return own ?? (event.source.kind === 'file' ? get().uriFor(event.source.key) : null);
+    soundFor(event, take) {
+      const own = takeOf(event, take)?.personal?.phase === 'prepare' ? get().personal[personalKey(event.id, take)] : undefined;
+      const file = fileOf(event, take);
+      return own ?? (file ? get().uriFor(file) : null);
     },
   };
 });

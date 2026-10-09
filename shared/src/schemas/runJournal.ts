@@ -16,9 +16,19 @@ export const RunJournalSchema = z.object({
   startedAt: z.number().int().nonnegative(),
   /** Epoch ms of the last write: a fix, a line fired, a resume. */
   updatedAt: z.number().int().nonnegative(),
-  /** The lines already dealt with, so a resumed run does not say them twice; `missed` ones fell due while the phone was dark. */
+  /**
+   * The lines already dealt with, so a resumed run does not say them twice; `missed` ones fell due
+   * while the phone was dark. `take`: the take said, so a resumed run keeps going round the pool.
+   */
   fired: z.array(
-    z.object({ eventId: z.string(), key: z.string(), distanceM: z.number().nonnegative(), elapsedMs: z.number().nonnegative(), missed: z.boolean().optional() }),
+    z.object({
+      eventId: z.string(),
+      key: z.string(),
+      take: z.string().optional(),
+      distanceM: z.number().nonnegative(),
+      elapsedMs: z.number().nonnegative(),
+      missed: z.boolean().optional(),
+    }),
   ),
   /** Set when the runner stopped (or the finish was reached): the upload is all that is left. */
   stoppedAt: z.number().int().nonnegative().optional(),

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { afterPause, applySample, abandon as abandonRun, bridgedGap, idleRun, nextEvents, startRun, tick } from '@sivoov/shared';
-import type { AudioEvent, AudioPack, Course, CourseTrack, Firing, LocationSample, RunJournal, RunState } from '@sivoov/shared';
+import { NO_PAUSE, afterPause, applySample, abandon as abandonRun, bridgedGap, dueLines, followPause, idleRun, nextEvents, startRun, tick } from '@sivoov/shared';
+import type { AudioEvent, AudioPack, Course, CourseTrack, Due, Firing, LocationSample, Pause, RunJournal, RunState } from '@sivoov/shared';
 import { ceremonyPlan, playCeremony } from '@/audio/ceremony';
 import type { Ceremony, CeremonyHandlers, CeremonyPlan } from '@/audio/ceremony';
 import { diag } from '@/diag';
@@ -10,11 +10,12 @@ import { newRunId } from './runId';
 import { createJournalWriter } from './runJournal';
 
 /**
- * A line the run fired. `silent`: already dealt with, the player must not say it (a resumed run's
- * lines from before the crash, and the backlog it missed). `missed`: never heard at all, so it is
- * left out of the trace's record of what the runner heard.
+ * A line the run fired. `take`: which of the line's takes it says (none: its own words). `silent`:
+ * already dealt with, the player must not say it (a resumed run's lines from before the crash,
+ * and the backlog it missed). `missed`: never heard at all, so it is left out of the trace's
+ * record of what the runner heard.
  */
-export type Fired = { eventId: string; key: string; distanceM: number; elapsedMs: number; silent?: boolean; missed?: boolean };
+export type Fired = { eventId: string; key: string; take?: string; distanceM: number; elapsedMs: number; silent?: boolean; missed?: boolean };
 
 /** A run found on the phone when the app came back, before the runner chose to carry on or to stop. */
 export type Recovered = { journal: RunJournal; samples: LocationSample[]; state: RunState };
@@ -98,6 +99,8 @@ export const useRun = create<RunStore>((set, get) => {
   const journal = createJournalWriter();
   /** Off while the app is in the background: nobody sees the clock, and the phone is spared the work. */
   let visible = true;
+  /** The runner's stops and walks (`followPause`), for a word when they run again. From scratch at every start and resume. */
+  let pause: Pause = NO_PAUSE;
 
   /** Resolves with the gun's time, or null when the ceremony failed before it (or was stopped). */
   const playPlan = (plan: CeremonyPlan, source: LocationSource, onLine: CeremonyHandlers['onLine']): Promise<number | null> => {
@@ -128,21 +131,29 @@ export const useRun = create<RunStore>((set, get) => {
   };
 
   /** `late`: the run just crossed a long silence; what fell due in it is marked missed, never said (bar the finish). */
-  const fire = (firings: Firing[], state: RunState, late: boolean) => {
-    if (firings.length === 0) return;
+  const fire = (due: Due[], state: RunState, late: boolean) => {
+    if (due.length === 0) return;
     const { fired } = get();
-    const said = late ? afterPause(firings) : firings;
-    const record = (f: Firing) => ({ eventId: f.event.id, key: f.key, distanceM: state.distanceM, elapsedMs: state.elapsedMs });
-    const missed = firings.filter((f) => !said.includes(f)).map((f) => ({ ...record(f), silent: true, missed: true }));
+    const kept = new Set<Firing>(late ? afterPause(due) : due);
+    const said = due.filter((d) => kept.has(d));
+    const record = (d: Due): Fired => ({ eventId: d.event.id, key: d.key, ...(d.take ? { take: d.take } : {}), distanceM: state.distanceM, elapsedMs: state.elapsedMs });
+    const missed = due.filter((d) => !kept.has(d)).map((d) => ({ ...record(d), silent: true, missed: true }));
     if (missed.length > 0) diag('run', `${missed.length} lines missed across a GPS gap at ${Math.round(state.distanceM)} m`);
     set({ fired: [...fired, ...missed, ...said.map(record)] });
     void journal.fired(get().fired);
   };
 
+  /**
+   * Every new state of the run: the runner's stops followed, then what is due now (shared
+   * `dueLines`): the lines placed on the course with the take each says, or one filler when the
+   * race has been quiet too long. Everything fired so far, restored lines included, is what was
+   * said: takes go round their pool from where they were.
+   */
   const onState = (state: RunState, late = false) => {
     const { pack, fired } = get();
+    pause = followPause(pause, state);
     set({ state, phase: state.phase === 'finished' ? 'finished' : 'running' });
-    if (pack) fire(nextEvents(state, pack, new Set(fired.map((f) => f.key))), state, late);
+    if (pack) fire(dueLines(state, pack, fired, pause), state, late);
     if (state.phase === 'finished') void get().stop();
   };
 
@@ -216,6 +227,7 @@ export const useRun = create<RunStore>((set, get) => {
       if (entrantId && source.kind !== 'simulation' && gun.startedAt !== null) {
         void journal.open({ version: 1, runId, entrantId, courseId: course.id, targetM: course.distanceM, startedAt: gun.startedAt, updatedAt: gun.startedAt, fired: [] });
       }
+      pause = NO_PAUSE;
       onState(gun);
       const error = await listen(source, current);
       if (error === null || !current()) return;
@@ -236,12 +248,14 @@ export const useRun = create<RunStore>((set, get) => {
       if (get().phase !== 'recovered' || !recovered) return;
       const mine = ++generation;
       const current = () => generation === mine;
-      // What fell due while the phone was dark is not said late and all at once; the finish would be.
+      // The lines placed on the course that fell due while the phone was dark are not said late and
+      // all at once; the finish would be. Never heard, they take no turn in their pool.
       const backlog = pack ? nextEvents(state, pack, new Set(fired.map((f) => f.key))).filter((f) => f.event.trigger.kind !== 'finish') : [];
       const missed = backlog.map((f) => ({ eventId: f.event.id, key: f.key, distanceM: state.distanceM, elapsedMs: state.elapsedMs, silent: true, missed: true }));
       set({ source, fired: [...fired, ...missed], recovered: null, startError: null });
       diag('run', `resumed ${recovered.runId} at ${Math.round(state.distanceM)} m, ${missed.length} lines missed`);
       void journal.adopt({ ...recovered, fired: get().fired });
+      pause = NO_PAUSE;
       onState(tick(state, source.now()));
       const error = await listen(source, current);
       if (error === null || !current()) return;
@@ -274,6 +288,7 @@ export const useRun = create<RunStore>((set, get) => {
       timer = null;
       ceremony?.stop();
       ceremony = null;
+      pause = NO_PAUSE;
       void get().source?.stop().catch(() => undefined);
       const { course } = get();
       set({ state: idleRun(course?.distanceM ?? 0), phase: 'idle', runId: newRunId(), samples: [], fired: [], source: null, cue: null, recovered: null });

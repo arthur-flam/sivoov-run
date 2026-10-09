@@ -3,38 +3,44 @@ import { useRun } from '@/stores/run';
 import { usePrefs } from '@/stores/prefs';
 import { useSession } from '@/stores/session';
 import { liveSound, resetLiveLines } from './live';
+import { takeOf } from './pack';
 import { usePackStore } from './packStore';
 import { configureAudioSession, createEventPlayer } from './player';
 import type { EventPlayer } from './player';
 import { captionFor, soundOf, useSaid } from './said';
 import type { SaidLine } from './said';
 
-/** A fired record as the run store writes it; `silent`: a backlog already handled before a crash, neither played nor listed. */
-type FiredRecord = { eventId: string; key: string; distanceM: number; elapsedMs: number; silent?: boolean };
+/**
+ * A fired record as the run store writes it; `take`: which of the line's takes it says;
+ * `silent`: a backlog already handled before a crash, neither played nor listed.
+ */
+type FiredRecord = { eventId: string; key: string; take?: string; distanceM: number; elapsedMs: number; silent?: boolean };
 
 const silent = (record: FiredRecord): boolean => record.silent === true;
 
 /**
  * Plays one fired record and writes it to the list the screen reads (`useSaid`): its words, and
  * whether it was heard. The runner's voice level (« moins de voix ») skips a line's sound, never
- * its place in the list. The sound is the runner's own version of a personal line when there is
- * one (downloaded before the start, or said live), the pack's file otherwise; events with no
- * file at all are read, not heard.
+ * its place in the list. The sound is the take the engine chose, or the line's own words: the
+ * runner's own version of it when there is one (downloaded before the start, or said live), the
+ * pack's file otherwise; events with no file at all are read, not heard.
  */
 const playRecord = (player: EventPlayer, pack: AudioPack, state: RunState, record: FiredRecord): void => {
   const event = pack.events.find((e) => e.id === record.eventId);
   if (!event) return;
   const store = usePackStore.getState();
-  const offline = store.soundFor(event);
+  const { take } = record;
+  const offline = store.soundFor(event, take);
   const under = event.under ? (store.uriFor(event.under) ?? undefined) : undefined;
   const sound = soundOf(usePrefs.getState().voice, event, offline);
-  useSaid.getState().add({ key: record.key, event, text: captionFor(event, store.captions), distanceM: record.distanceM, elapsedMs: record.elapsedMs, sound, uri: offline, at: Date.now() });
+  const text = captionFor(event, store.captions, take);
+  useSaid.getState().add({ key: record.key, event, text, distanceM: record.distanceM, elapsedMs: record.elapsedMs, sound, uri: offline, at: Date.now() });
   if (sound === 'silenced') return;
-  if (event.personal?.phase !== 'live') {
+  if (takeOf(event, take)?.personal?.phase !== 'live') {
     if (offline) player.play(event, offline, under);
     return;
   }
-  void liveSound(pack, event, state, useSession.getState().token).then((live) => {
+  void liveSound(pack, event, state, useSession.getState().token, take).then((live) => {
     const uri = live?.url ?? offline;
     if (!uri || useRun.getState().pack !== pack || stoppedByRunner(useRun.getState().state)) return;
     if (live) useSaid.getState().update(record.key, { uri, sound: 'heard', ...(live.caption ? { text: live.caption } : {}) });

@@ -16,6 +16,15 @@ describe('the words of a line', () => {
     expect(captionFor(call, {})).toBe('Coureurs, sur la ligne.');
     expect(captionFor(event(), {})).toBeNull();
   });
+
+  it('are the take’s when the engine chose one: the runner’s own by line and take, else the take’s caption', () => {
+    const cheers = event({ id: 'cheers', caption: 'Allez !', takes: [{ id: 'a', key: 'cheers~a.mp3', caption: 'Allez, on y va !' }, { id: 'b', key: 'cheers~b.mp3' }] });
+    expect(captionFor(cheers, { 'cheers/a': 'Allez Léa !' }, 'a')).toBe('Allez Léa !');
+    expect(captionFor(cheers, {}, 'a')).toBe('Allez, on y va !');
+    // A take with no words of its own (a file) says nothing on screen, not the line's words.
+    expect(captionFor(cheers, {}, 'b')).toBeNull();
+    expect(captionFor(cheers, { 'cheers/a': 'Allez Léa !' })).toBe('Allez !');
+  });
 });
 
 describe('how a fired line sounds', () => {

@@ -1,5 +1,5 @@
 import { AudioPackSchema } from '@sivoov/shared';
-import type { AudioPack, Course } from '@sivoov/shared';
+import type { AudioEvent, AudioPack, Course } from '@sivoov/shared';
 
 /**
  * Pack version 1 ("v0" content): the event list a course gets before its produced audio exists. Ceremony at the
@@ -31,3 +31,10 @@ export const packV0 = (course: Course): AudioPack =>
     ],
     files: {},
   });
+
+/**
+ * A line as the engine chose to say it: one of its takes (`take`), or its own words. Its words
+ * and its personal version, as the pack lists them; undefined for a take the pack does not have.
+ */
+export const takeOf = (event: AudioEvent, take?: string): Pick<AudioEvent, 'caption' | 'personal'> | undefined =>
+  take ? event.takes?.find((t) => t.id === take) : event;

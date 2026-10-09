@@ -54,3 +54,11 @@ describe('Gemini voices', () => {
     expect(geminiAudioOf(null)).toBeNull();
   });
 });
+
+describe('a voice with its own scene', () => {
+  it('is directed there unless the line says otherwise', () => {
+    const text = (b: Record<string, unknown>) => JSON.stringify(b);
+    expect(text(geminiTtsBody({ id: 'Sadachbia', direction: 'Le speaker.', scene: 'Sur la sono du départ.' }, 'Partez !'))).toContain('THE SCENE: Sur la sono du départ.');
+    expect(text(geminiTtsBody({ id: 'Sadachbia', direction: 'Le speaker.', scene: 'Sur la sono du départ.' }, 'Partez !', 'Au bord de la route.'))).toContain('THE SCENE: Au bord de la route.');
+  });
+});

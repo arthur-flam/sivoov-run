@@ -18,6 +18,7 @@ import {
   ttsCacheInput,
   upgradeLine,
   voiceCacheInput,
+  withLineVoice,
 } from './audioScript';
 
 const line = (over: Partial<ScriptLineInput> = {}): ScriptLineInput => ({
@@ -308,5 +309,16 @@ describe('a line with takes', () => {
     const pack = manifestFor(built, [{ key: 'landmark-planches.mp3', bytes: 10, sha256: 'ab', seconds: 2.5 }]);
     expect(pack.maxGapS).toBe(120);
     expect(pack.files['landmark-planches.mp3']?.seconds).toBe(2.5);
+  });
+});
+
+describe('withLineVoice', () => {
+  it('lets a line be said by another voice or in another register, and keys its renders apart', () => {
+    const speaker = { id: 'Sadachbia', name: 'Le speaker', model: 'gemini-3.8-flash-tts', direction: 'Le speaker, dans l’oreille.' };
+    const onPa = withLineVoice(speaker, { id: 'Sadachbia', direction: 'Le speaker, sur la sono.', scene: 'Sur la sono du départ.' });
+    expect(onPa).toEqual({ ...speaker, direction: 'Le speaker, sur la sono.', scene: 'Sur la sono du départ.' });
+    expect(withLineVoice(speaker, { id: 'Puck', direction: 'Un supporter.' }).name).toBe('Puck');
+    expect(withLineVoice(speaker)).toBe(speaker);
+    expect(voiceCacheInput(onPa, 'Partez !')).not.toBe(voiceCacheInput({ ...onPa, scene: undefined }, 'Partez !'));
   });
 });

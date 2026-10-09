@@ -12,6 +12,8 @@ export const ScriptVoiceSchema = z.object({
   stability: z.number().min(0).max(1).optional(),
   /** A Gemini voice's direction: who is speaking and how, played and never read (domain/geminiVoice.ts). */
   direction: z.string().max(1000).optional(),
+  /** A Gemini voice's scene: where the speaker is (on the PA, in the runner's ear). Absent: in the runner's ears. */
+  scene: z.string().max(300).optional(),
 });
 export type ScriptVoice = z.infer<typeof ScriptVoiceSchema>;
 
@@ -65,10 +67,11 @@ export const ScriptTakeSchema = z.object({
 export type ScriptTake = z.infer<typeof ScriptTakeSchema>;
 
 /**
- * Who says a line when it is not the script's voice: a regular in the crowd shouting the
- * runner's name. Same model as the script's voice; a Gemini voice name and its direction.
+ * Who says a line, when not the script's voice as directed for the whole script: a regular in
+ * the crowd shouting the runner's name, or the same speaker on the PA rather than in the ear.
+ * Same model as the script's voice; a Gemini voice name, its direction and maybe its scene.
  */
-export const LineVoiceSchema = z.object({ id: z.string().min(1), direction: z.string().max(1000) });
+export const LineVoiceSchema = z.object({ id: z.string().min(1), direction: z.string().max(1000), scene: z.string().max(300).optional() });
 export type LineVoice = z.infer<typeof LineVoiceSchema>;
 
 /**

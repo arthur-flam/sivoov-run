@@ -1,7 +1,7 @@
 import { AudioEventSchema, AudioPackSchema } from '../schemas/audio';
 import type { AudioEvent, AudioPack } from '../schemas/audio';
 import { AudioScriptSchema, PersonalDefsSchema } from '../schemas/audioScript';
-import type { AudioScript, AudioScriptInput, AudioUploadFormat, PersonalDefs, ScriptLine, ScriptTake, ScriptVoice } from '../schemas/audioScript';
+import type { AudioScript, AudioScriptInput, AudioUploadFormat, LineVoice, PersonalDefs, ScriptLine, ScriptTake, ScriptVoice } from '../schemas/audioScript';
 import { whenInWords } from './audioEditor';
 import { stripAudioTags, supportsAudioTags, textForVoice } from './audioTags';
 import { isGeminiVoice, voiceFormat } from './geminiVoice';
@@ -26,9 +26,12 @@ export const voicingsOf = (line: ScriptLine, voice: AudioUploadFormat = 'mp3'): 
   ...(line.takes ?? []).map((t) => ({ takeId: t.id, text: t.text, audio: t.audio, personal: t.personal, fileKey: takeFileKey(line, t, voice) })),
 ];
 
-/** The voice that says a line: its own (a regular in the crowd) on the script's model, else the script's. */
-export const voiceOfLine = (script: Pick<AudioScript, 'voice'>, line: Pick<ScriptLine, 'voice'>): ScriptVoice =>
-  line.voice ? { ...script.voice, id: line.voice.id, name: line.voice.id, direction: line.voice.direction } : script.voice;
+/** The script's voice as one line asks for it (another voice, another register), on the script's model. */
+export const withLineVoice = (voice: ScriptVoice, line?: LineVoice): ScriptVoice =>
+  line ? { ...voice, id: line.id, name: line.id === voice.id ? voice.name : line.id, direction: line.direction, ...(line.scene ? { scene: line.scene } : {}) } : voice;
+
+/** The voice that says a line: its own (a regular in the crowd, the speaker on the PA), else the script's. */
+export const voiceOfLine = (script: Pick<AudioScript, 'voice'>, line: Pick<ScriptLine, 'voice'>): ScriptVoice => withLineVoice(script.voice, line.voice);
 
 /** The file of a line's ambiance in the pack, beside the line's own: `<key>-under.<format>`. */
 export const underFileKey = (line: Pick<ScriptLine, 'key' | 'under'>): string | null => (line.under ? `${line.key}-under.${line.under.format}` : null);
@@ -206,7 +209,7 @@ export const ttsCacheInput = (text: string, voiceId: string, model: string): str
 export const voiceCacheInput = (voice: ScriptVoice, text: string): string =>
   `${ttsCacheInput(textForVoice(voice, text), voice.id, voice.model)}${voice.stability === undefined ? '' : `|s${voice.stability}`}${
     isGeminiVoice(voice) && voice.direction ? `|d${voice.direction}` : ''
-  }`;
+  }${isGeminiVoice(voice) && voice.scene ? `|w${voice.scene}` : ''}`;
 
 /**
  * The ElevenLabs text-to-speech body for a line, the same from the Worker and the CLI. v3 gets

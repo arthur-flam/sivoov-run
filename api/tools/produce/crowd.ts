@@ -5,7 +5,7 @@
  * scattered over a stretch of time and set back in the mix, over a wordless roar.
  * Deterministic: the same seed places the same shouts, so a mix can be made again.
  */
-import { GEMINI_TTS_FALLBACK, GEMINI_TTS_MODEL } from '@sivoov/shared';
+import { GEMINI_TTS_MODEL } from '@sivoov/shared';
 import { mapLimit } from '../../src/lib/mapLimit';
 import type { Layer } from './mix';
 import { durationOf } from './mix';
@@ -15,8 +15,6 @@ const SHOUTERS = ['Puck', 'Fenrir', 'Orus', 'Algenib', 'Kore', 'Laomedeia', 'Gac
 const SHOUTS = ['Allez ! Allez ! Allez !', 'Allez les coureurs !', 'Bravo ! Bravo !', 'Allez, allez, allez, allez !', 'Courage !', 'Vas-y ! Vas-y !'];
 const DIRECTION = 'Un spectateur dans la foule, au bord de la route, qui crie de toutes ses forces pour encourager les coureurs qui passent. Spontané, joyeux.';
 const SCENE = 'Au bord de la route, dans la foule, au passage des coureurs.';
-/** The crowd is texture: the lighter model, whose quota is its own (10 requests a minute a model on our key), leaves the speaker's to the speaker. */
-const MODEL = GEMINI_TTS_FALLBACK[GEMINI_TTS_MODEL]!;
 
 export type Say = (voice: { id: string; name: string; model: string; direction: string; scene: string }, text: string) => Promise<string>;
 
@@ -25,7 +23,7 @@ export const shoutsOf = (say: Say): Promise<string[]> =>
   mapLimit(
     SHOUTERS.flatMap((id) => SHOUTS.map((text) => ({ id, text }))),
     4,
-    ({ id, text }) => say({ id, name: id, model: MODEL, direction: DIRECTION, scene: SCENE }, text),
+    ({ id, text }) => say({ id, name: id, model: GEMINI_TTS_MODEL, direction: DIRECTION, scene: SCENE }, text),
   );
 
 /** The crowd counting the last three along with the speaker: five voices on each number. */
@@ -34,7 +32,6 @@ export const countAlongOf = async (say: Say): Promise<string[][]> => {
   const voices = SHOUTERS.slice(0, 5);
   const direction = 'Un spectateur dans la foule du départ qui compte à rebours avec le speaker, à pleine voix.';
   const said = await mapLimit(numbers.flatMap((n) => voices.map((id) => ({ id, n }))), 4, ({ id, n }) =>
-    // A single shouted number is the hardest thing to ask the lighter model: the main one says it.
     say({ id, name: id, model: GEMINI_TTS_MODEL, direction, scene: 'Dans la foule du village de départ.' }, n),
   );
   return numbers.map((_, i) => said.slice(i * voices.length, (i + 1) * voices.length));

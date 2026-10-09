@@ -752,9 +752,13 @@
     draft's « vous êtes venu » was wrong for half the runners.
 - 2026-10-09 (the production session, branch `claude/api-credits-10k-strategy-ssyque`):
   - **Gemini TTS is 10 requests a minute per model on our key**, billing on or not
-    (`GenerateRequestsPerMinutePerProjectPerModel`, limit 10; the 429 says how long to wait). The
-    lite model has its own 10. A runner's pre-flight now asks for ~20 name renders: one runner at
-    a time is fine, a race week is not. Raise the quota (Owner actions) before real entries.
+    (`GenerateRequestsPerMinutePerProjectPerModel`, limit 10; the 429 says how long to wait), and
+    the lite model (`gemini-3.8-flash-lite-tts`, the Worker's fallback) only **100 a day**
+    (`GenerateRequestsPerDayPerProjectPerModel`): putting the production tool's crowd on it spent
+    the day in one run. A runner's pre-flight now asks for ~20 name renders: one runner at a time
+    is fine, a race week is not. Raise the quota (Owner actions) before real entries. `curl` to the
+    TTS endpoint answered 404 with an empty body where node's fetch got the real answer: test
+    Gemini from node.
   - **Production's D1 was five migrations behind** (0001-0006 applied, 0007-0011 not): the
     Worker there predates demo races, languages and photos. `promote-production` applies them
     before deploying. Check `SELECT name FROM d1_migrations` before assuming production's schema.

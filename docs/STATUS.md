@@ -8,6 +8,44 @@ Milestones: PRD.md section 8 (M1 26 Sep, M2 10 Oct, M3 17 Oct, M4 31 Oct, freeze
 
 ## Where we are
 
+### The Champs-Élysées produced: a 10 km rewritten, a 5 km demo, a new audio engine (2026-10-09, same branch)
+The brief below, carried out in one laptop session (PRODUCTION.md's kickoff, without the owner's
+ears: every listening decision is provisional and listed under Owner actions).
+- **Casting** (`npm run casting -w api`): nine Gemini voices × two directions, a blind page for
+  the owner. A Gemini listener on the blind codes put **Sadachbia directed « vétéran »** first
+  (heard as about fifty, the most sports energy): the voice stays, the direction changes.
+- **The script** (`api/src/seed/champsElyseesScript.ts`, rundown in CHAMPS_ELYSEES.md): one
+  speaker in registers (PA, ear, close, calm, finish: a line's own `voice` with its scene), two
+  regulars in the crowd (Martine, Gacrux; the club, Puck); the name 14 times placed in the 10 km
+  plus the crowd's; places described where they are seen (directions, the Obélisque, the Eiffel
+  Tower checked against the GPX's bearings); the Obélisque planted at 80 m, paid off at 9.7 km;
+  every km read against the runner's own opening pace; the countdown ~25 s after Start (~15 s
+  on the 5 km), the crowd counting the last three along; no gender agreement anywhere (tested).
+- **The 5 km demo**: the 10 km's second half (`champsElysees5kGeometry`, cut at the official
+  5th km on boulevard Haussmann), a course marked `demo` (migration 0011) that only the race's
+  demo shows; the seed adds the demo race `10km-champs-elysees-2027-demo` if the race has none,
+  and the owner's entries on it everywhere (bib 7001 the 10 km, 7002 the 5 km).
+- **The engine** (AUDIO.md, "Takes, conditions and the rhythm director"): takes (pools, no
+  repeat, conditions read from the run: steady / faster / slower, a round time in reach, a
+  restart after a stop), filler lines and a rhythm director (never quiet past `maxGapS`: 150 s
+  on the 10 km, 120 s on the 5 km; never within 40 s of a placed line), name cheers rendered per
+  runner and cached per first name, new live placeholders `{objectif}`, `{allure_depart}`,
+  `{meilleur_km}`, a km call kept quiet right after a big moment, the pack's file lengths, and a
+  lenient pack reader in the app (an event it cannot read is left out, never the whole pack).
+  Wired through publishing, the studio (takes shown with their condition tags, kept on save),
+  the runner's own lines (`event/take`) and the app's run store and player.
+- **Sound** (`api/tools/produce/`): a French crowd made of Gemini voices (the archive's French
+  crowd was three people indoors, its other "crowds" a room and a theatre), the stadium roars
+  only as a low layer, a heartbeat before the Arc; the tool writes through the target's own
+  bindings and publishes with the Worker's own code; whole runs at 4:30, 5:30 (a stop and a walk)
+  and 7:00 through the app's engine, tracker and queue, each with a timeline of its silences;
+  every render's origin in `origins.json`.
+- **Reviewed** by four subagents (engine simplicity, the app's run, the Worker and data, the tool
+  and the script); their findings are fixed in `aa63aef` and `521af82` (what was left: Known gaps).
+- **Checked**: typecheck, lint, tests (shared 476, api 261 + 56, app 166), the density check on
+  both courses at 4:00-8:00/km with a stop and a walk on the real tracker; preview: migration
+  0011, the Worker, the seed, the real race listing only its 10 km and its demo both.
+
 ### The production brief (2026-10-09, branch `claude/api-credits-10k-strategy-ssyque`)
 The owner ran the 10K draft and listened: too many long silences, trivia instead of
 description, too little of the runner in it, archive sounds that did not fit. Decisions and the
@@ -608,6 +646,17 @@ Anchored to PRD milestones (M2 10 Oct, M3 17 Oct, M4 31 Oct).
 
 ## Owner actions
 
+- **Listen to the Champs-Élysées** (`api/.produce/out/10km-champs-elysees-2027-{10k,5k}/`):
+  `run-5-30.mp3` first with its timeline `run-5-30.md` (a stop at 42 %, a walk at 80 %), then
+  `reel.mp3`; then the casting page `api/.produce/out/casting/index.html` (blind; `key.json`).
+  Listen for: the voice's age and energy, the regulars' « Allez Camille ! », the crowd made of
+  voices, the rhythm (no long silences, not too many cheers), the U-turn and the finish. Your
+  notes go in the next session; the voice is one constant in the script.
+- **Gemini TTS quota**: our key allows 10 requests a minute per model, and the lite model (the
+  Worker's fallback on a 429) 100 a day. A runner's pre-flight now asks for ~20 name renders,
+  cached per first name: fine for a demo, not for a race week. Ask Google for a higher quota (AI
+  Studio → the project → rate limits) before real entrants.
+
 - **Share cards and race photos** (this branch): a new EAS build for the photo picker
   (`expo-image-picker`), then run migration `0009_photos.sql` before the
   Worker (`npx wrangler d1 migrations apply sivoov-run --remote --env preview`, then without
@@ -755,6 +804,20 @@ repeated here (see ARCHITECTURE.md, AUDIO.md, WORKFLOW.md).
   showed the S23's reported speed reads 8-16 % low (MEMORY.md).
 
 ## Known gaps
+
+- **From the 2026-10-09 reviews, left**: the voice renders have no atomic spend cap (the daily
+  live quota is read-then-write; parallel `/me/voices` calls for a new name render twice); an
+  organizer's M4A file has no length in the pack (the director counts it as 0 s); the real race's
+  admin dashboard and runs filter list the demo's 5 km as a 0-runner row; `api/tools/audio`
+  (`npm run audio:build`) ignores takes; `tools/produce/assets.ts`'s `voice()` deserves a loop
+  instead of its four recursive re-entries; the tracker's crossing times move with the screen's
+  clock ticks (a split or the finish can be dated up to a step late with the screen on).
+- **Not done from PRODUCTION.md**: the leitmotif (one Lyria theme through the race); the sound
+  library and its listening page (SOUND_LIBRARY.md: `origins.json` stands in); the pitch reel's
+  5-minute cap is not enforced; no real outdoor run of either course yet; the owner's scores.
+- **Older app bundles** cannot read a pack with a filler line (the Champs packs): they show the
+  pack as failed and say the run by captions until their JS updates (the next launch after the
+  OTA). The new JS reads packs leniently, so this cannot happen again.
 
 - Run recovery, the swipe-away service, the saver pace and the offline cold start are tested in
   the store and on the web target only. On Android: does the JS survive a swipe (the run goes on

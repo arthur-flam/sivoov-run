@@ -139,13 +139,13 @@ export const voice = async (env: VoiceEnv, v0: ScriptVoice, text: string, direct
     });
   // The preview TTS models allow a few requests a minute: wait and try again on 429.
   let res = await call();
-  if (res.status === 429 && v.model === v0.model && fallback) {
-    const why = await res.clone().text();
-    if (why.includes('PerDay')) {
-      console.log(`  voice: ${v0.model} is spent for today, going on with ${fallback} (the same voice)`);
-      spent.add(v0.model);
-      return voice(env, v0, text, direction, scene, take);
-    }
+  // A day's quota spent (the lite model allows our key 100 renders a day): the lighter sibling if
+  // there is one, else stop now rather than wait out the minute-by-minute retries below.
+  if (res.status === 429 && (await res.clone().text()).includes('PerDay')) {
+    if (v.model !== v0.model || !fallback) throw new Error(`voice: ${v.model}'s quota for today is spent ("${text}")`);
+    console.log(`  voice: ${v0.model} is spent for today, going on with ${fallback} (the same voice)`);
+    spent.add(v0.model);
+    return voice(env, v0, text, direction, scene, take);
   }
   for (let attempt = 1; res.status === 429 && attempt <= 10; attempt += 1) {
     console.log(`  voice: rate limited, waiting ${15 * attempt} s`);

@@ -1,10 +1,21 @@
 # Status
 
-Updated: 2026-09-29. Race week: 14-15 November 2026 (Marathon International de Deauville).
+Updated: 2026-10-09. Race week: 14-15 November 2026 (Marathon International de Deauville).
 Second race: 10 km des Champs-Élysées, 7 February 2027 (docs/CHAMPS_ELYSEES.md).
+**Content target (owner, 2026-10-09): the Paris 10K and a 5K demo, ready to pitch around
+January 2027; Deauville is no longer a content target.** Brief: docs/PRODUCTION.md.
 Milestones: PRD.md section 8 (M1 26 Sep, M2 10 Oct, M3 17 Oct, M4 31 Oct, freeze 7 Nov).
 
 ## Where we are
+
+### The production brief (2026-10-09, branch `claude/api-credits-10k-strategy-ssyque`)
+The owner ran the 10K draft and listened: too many long silences, trivia instead of
+description, too little of the runner in it, archive sounds that did not fit. Decisions and the
+plan are in `docs/PRODUCTION.md` (rhythm, narrative devices, the engine's pools, run-read
+conditions, rhythm director and name cheers, full-run renders, the 10K and 5K plans, a kickoff
+prompt for a long laptop session) and `docs/SOUND_LIBRARY.md` (every sound kept with its origin
+and human scores, a listening page). Gemini is the voice provider (billing enabled). No
+questions to the runner. Docs only: nothing built yet.
 
 Live: https://run.sivoov.app/deauville-2026 (production), https://preview.run.sivoov.app
 (preview). Test sign-in and roles: docs/ACCESS.md. M1 is done. The first real run happened

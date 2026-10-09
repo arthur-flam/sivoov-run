@@ -733,3 +733,13 @@
     applies locally): the shots' organizer scene sends a fresh address each pass.
   - A proof-of-failure habit that paid: revert only the fixed file (`git show <sha>~1:path >
     path`) and rerun the new test; `git stash` also stashes the new test.
+- 2026-10-09: the owner's verdict after running the 10K draft, worth knowing before writing
+  any script:
+  - ~4 minutes of voice in 50 minutes, all on landmarks, felt like long silences;
+  - landmark + trivia + pun (Garnerin, Dior, the Obelisk) read as gratuitous; runners want what
+    is here and now, what comes next, and their own run;
+  - the BBC archive crowds often did not fit, and nothing recorded which ones failed;
+  - ElevenLabs' limit on concurrent renders blocks per-runner packs below a large plan; Gemini
+    (billing now on) is the provider;
+  - Anthropic API credits are not needed for content: writing and critique happen in Claude Code
+    sessions; only in-product calls (the Worker's personal lines) use the API.

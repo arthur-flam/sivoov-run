@@ -20,6 +20,10 @@ Depending on the task:
   the App Store / Play sizes. Read for any UI work, and use it instead of hand-rolling
   a Playwright screenshot.
 - `docs/AUDIO.md` - audio event model and content pipeline. Read for any audio work.
+- `docs/PRODUCTION.md` - the production brief: rhythm, narrative, what the engine needs, the
+  Paris 10K and the 5K demo. Read for any script, voice or sound work.
+- `docs/SOUND_LIBRARY.md` - every generated, archived or recorded sound, its origin and human
+  scores. Read before making or picking a sound.
 - `docs/DEVICE.md` - testing on a real Android phone over USB. Read for anything native,
   background location, background audio or the upload queue.
 - `docs/HARVEST.md` - modules to port from the previous repo (`arthur-flam/sivoov`).

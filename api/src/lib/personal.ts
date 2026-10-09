@@ -1,4 +1,4 @@
-import { PersonalDefsSchema, fillTemplate, spokenValues, stripAudioTags, supportsAudioTags, voiceFormat } from '@sivoov/shared';
+import { PersonalDefsSchema, fillTemplate, personalKey, spokenValues, stripAudioTags, supportsAudioTags, voiceFormat, withLineVoice } from '@sivoov/shared';
 import type { AudioUploadFormat, Course, LiveFacts, PersonalDef, PersonalDefs, PersonalVoices, Race, RunnerFacts } from '@sivoov/shared';
 import { distanceName } from '../pages/org/format';
 import { maxCharsFor, writePersonalLine } from './llm';
@@ -87,18 +87,29 @@ const readWritten = async (files: R2Bucket, key: string): Promise<Written> => {
   return object ? ((await object.json().catch(() => ({}))) as Written) : {};
 };
 
-/** The sentence one prepare line becomes for this runner, or null: the offline version plays. */
+/** Where a def's runner version is kept, in the answer and in what the AI wrote: `event` or `event/take`. */
+const keyOf = (def: Pick<PersonalDef, 'eventId' | 'takeId'>): string => personalKey(def.eventId, def.takeId);
+
+/** The sentence one prepare line (or take) becomes for this runner, or null: the offline version plays. */
 const prepareText = async (deps: PersonalDeps, defs: PersonalDefs, def: PersonalDef, ctx: PersonalContext, written: Written, now: Date): Promise<string | null> => {
   if (def.personal.kind === 'template') return fillTemplate(def.personal.template, spokenValues(ctx.runner));
-  const kept = written[def.eventId];
+  const kept = written[keyOf(def)];
   if (kept && now.getTime() - Date.parse(kept.at) < WRITTEN_FRESH_MS && (kept.here || ctx.weather.runner === null)) return kept.text;
   if (!deps.llm) return null;
   return (await writePersonalLine(deps.llm, briefFor(def, ctx, supportsAudioTags(defs.voice.model))))?.text ?? null;
 };
 
 /**
- * The runner's own versions of every `prepare` line of this pack version, rendered and ready
- * to download. Lines that cannot be said to this runner are simply absent.
+ * A pack may hold a pool of name cheers per runner (« Allez {prenom} ! » a dozen ways): four
+ * renders at a time. Each is cached by what is said and who says it, never by runner, so every
+ * Camille shares the same cheers and only a new first name costs anything.
+ */
+const RENDERS_AT_ONCE = 4;
+
+/**
+ * The runner's own versions of every `prepare` line of this pack version, and of every take of
+ * one, rendered and ready to download, keyed by `personalKey`. Lines that cannot be said to this
+ * runner are simply absent.
  */
 export const personalVoices = async (deps: PersonalDeps, ctx: PersonalContext, version: number, now: Date = new Date()): Promise<PersonalVoices> => {
   const empty = { courseId: ctx.course.id, version, files: {}, captions: {} };
@@ -109,21 +120,22 @@ export const personalVoices = async (deps: PersonalDeps, ctx: PersonalContext, v
   const key = writtenKey(ctx.course.id, version, ctx.entrantId);
   const written = await readWritten(deps.files, key);
   const texts = await mapLimit(prepare, 2, async (def) => ({ def, text: await prepareText(deps, defs, def, ctx, written, now) }));
-  const freshAi = texts.filter((t) => t.def.personal.kind === 'ai' && t.text !== null && written[t.def.eventId]?.text !== t.text);
+  const freshAi = texts.filter((t) => t.def.personal.kind === 'ai' && t.text !== null && written[keyOf(t.def)]?.text !== t.text);
   if (freshAi.length > 0) {
     const here = ctx.weather.runner !== null;
-    const next = { ...written, ...Object.fromEntries(freshAi.map((t) => [t.def.eventId, { text: t.text!, at: now.toISOString(), here }])) };
+    const next = { ...written, ...Object.fromEntries(freshAi.map((t) => [keyOf(t.def), { text: t.text!, at: now.toISOString(), here }])) };
     await deps.files.put(key, JSON.stringify(next), { httpMetadata: { contentType: 'application/json' } });
   }
   const tts = deps.tts;
   const rendered = await mapLimit(
     texts.filter((t): t is { def: PersonalDef; text: string } => t.text !== null),
-    2,
-    async ({ def, text }) => ({ def, text, outcome: await renderText(tts, defs.voice, text, { prefix: VOICES_PREFIX, locale: defs.locale }) }),
+    RENDERS_AT_ONCE,
+    // The line's own voice keeps its register and scene (a regular in the crowd, the speaker on the PA).
+    async ({ def, text }) => ({ def, text, outcome: await renderText(tts, withLineVoice(defs.voice, def.voice), text, { prefix: VOICES_PREFIX, locale: defs.locale }) }),
   );
   const said = rendered.flatMap(({ def, text, outcome }) => (outcome.ok ? [{ def, text, rendered: outcome.rendered }] : []));
-  const files = Object.fromEntries(said.map(({ def, rendered: r }) => [def.eventId, { url: voiceUrl(deps.baseUrl, r.hash, r.format), bytes: r.bytes, sha256: r.sha256 }]));
-  const captions = Object.fromEntries(said.map(({ def, text }) => [def.eventId, stripAudioTags(text)]));
+  const files = Object.fromEntries(said.map(({ def, rendered: r }) => [keyOf(def), { url: voiceUrl(deps.baseUrl, r.hash, r.format), bytes: r.bytes, sha256: r.sha256 }]));
+  const captions = Object.fromEntries(said.map(({ def, text }) => [keyOf(def), stripAudioTags(text)]));
   return { ...empty, files, captions };
 };
 
@@ -134,25 +146,33 @@ const quotaKey = (entrantId: string, now: Date) => `voice-quota/${now.toISOStrin
 export type LiveOutcome = { ok: true; url: string; bytes: number; caption: string } | { ok: false; status: 404 | 422 | 429 | 502 | 503; detail: string };
 
 /**
- * One `live` line for this runner at this moment of their run. 422 when a value it needs is
- * missing (the app plays the offline version), 429 past the daily allowance.
+ * One `live` line for this runner at this moment of their run: the line's own personal version,
+ * or the take the engine chose (`take`). 422 when a value it needs is missing (the app plays the
+ * offline version), 429 past the daily allowance.
  */
-export const liveVoice = async (deps: PersonalDeps, ctx: Pick<PersonalContext, 'entrantId' | 'runner'>, courseId: string, version: number, eventId: string, facts: LiveFacts, now: Date = new Date()): Promise<LiveOutcome> => {
+export const liveVoice = async (
+  deps: PersonalDeps,
+  ctx: Pick<PersonalContext, 'entrantId' | 'runner'>,
+  line: { courseId: string; version: number; eventId: string; take?: string },
+  facts: LiveFacts,
+  now: Date = new Date(),
+): Promise<LiveOutcome> => {
   if (!deps.tts) return { ok: false, status: 503, detail: 'voice unavailable' };
-  const defs = await loadDefs(deps.files, courseId, version);
-  const def = defs?.lines.find((d) => d.eventId === eventId && d.phase === 'live');
+  const defs = await loadDefs(deps.files, line.courseId, line.version);
+  const def = defs?.lines.find((d) => d.eventId === line.eventId && d.takeId === line.take && d.phase === 'live');
   if (!defs || !def || def.personal.kind !== 'template') return { ok: false, status: 404, detail: 'no such live line' };
   const text = fillTemplate(def.personal.template, spokenValues(ctx.runner, { ...facts, finish: facts.finish ?? def.finish }));
   if (text === null) return { ok: false, status: 422, detail: 'a value is missing' };
-  const hash = await ttsHash(defs.voice, text);
-  const format = voiceFormat(defs.voice);
-  const cached = await deps.files.head(renderKey(defs.voice, hash, VOICES_PREFIX));
+  const voice = withLineVoice(defs.voice, def.voice);
+  const hash = await ttsHash(voice, text);
+  const format = voiceFormat(voice);
+  const cached = await deps.files.head(renderKey(voice, hash, VOICES_PREFIX));
   const caption = stripAudioTags(text);
   if (cached) return { ok: true, url: voiceUrl(deps.baseUrl, hash, format), bytes: cached.size, caption };
   const qKey = quotaKey(ctx.entrantId, now);
   const used = ((await (await deps.files.get(qKey))?.json().catch(() => null)) as { n?: number } | null)?.n ?? 0;
   if (used >= LIVE_DAILY_LIMIT) return { ok: false, status: 429, detail: 'daily allowance used' };
-  const outcome = await renderText(deps.tts, defs.voice, text, { prefix: VOICES_PREFIX, locale: defs.locale });
+  const outcome = await renderText(deps.tts, voice, text, { prefix: VOICES_PREFIX, locale: defs.locale });
   if (!outcome.ok) return { ok: false, status: 502, detail: `tts ${outcome.status}` };
   await deps.files.put(qKey, JSON.stringify({ n: used + 1 }), { httpMetadata: { contentType: 'application/json' } });
   return { ok: true, url: voiceUrl(deps.baseUrl, outcome.rendered.hash, format), bytes: outcome.rendered.bytes, caption };

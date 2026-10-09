@@ -10,8 +10,10 @@ import {
   estimateFirings,
   fillTemplate,
   formatKm,
+  spokenTexts,
   spokenValues,
   supportsAudioTags,
+  voiceOfLine,
   whenInWords,
 } from '@sivoov/shared';
 import type { AudioScript, ScriptLine } from '@sivoov/shared';
@@ -26,6 +28,7 @@ import { publishScript, refusalText } from '../lib/publish';
 import { DEFAULT_PACE_SEC_PER_KM, distanceForClick, estimatesFor, loadStudioContext, paceFromQuery } from '../lib/studio';
 import type { StudioContext } from '../lib/studio';
 import { TTS_PREFIX, canRender, renderLine, ttsDepsFor, ttsKey } from '../lib/tts';
+import { mapLimit } from '../lib/mapLimit';
 import { maySpendCredit } from '../lib/testCode';
 import { UPLOAD_PREFIX, missingUploads, storeUpload } from '../lib/uploads';
 import { HOUSE_VOICES, MODEL_CHOICES, STABILITY_CHOICES, accountVoices, voiceSample, voiceSummary } from '../lib/voices';
@@ -103,7 +106,12 @@ orgScript.put(`${PATH}/script`, ...edit, async (c) => {
   return saveAndAnswer(c, ctx, parsed.data);
 });
 
-/** One line to MP3. Cached in R2 by the text hash, so a second call is free. */
+/**
+ * One line's voice: its words and every take read by the voice (`spokenTexts`), each by the
+ * line's own voice when it has one. Cached in R2 by what is said and who says it (the key
+ * publishing looks for), so a second call is free. The answer's file is the line's own words'
+ * (the first take's when the line plays a file).
+ */
 orgScript.post(`${PATH}/script/render`, ...edit, async (c) => {
   if (!maySpendCredit(c.env, c.get('admin').email)) {
     return c.json({ error: 'test_account', detail: 'Un compte de test ne peut pas enregistrer la voix ici. Connectez-vous avec votre adresse.' }, 403);
@@ -117,11 +125,14 @@ orgScript.post(`${PATH}/script/render`, ...edit, async (c) => {
   if (!parsed.success) return c.json({ error: 'invalid', detail: 'Annonce manquante.' }, 400);
   const line = ctx.script.lines.find((l) => l.id === parsed.data.lineId);
   if (!line) return c.json({ error: 'not_found', detail: 'Cette annonce n’existe plus. Rechargez la page.' }, 404);
-  if (line.audio) return c.json({ error: 'uses_file', detail: 'Cette annonce utilise votre fichier audio. Revenez à la voix pour l’enregistrer.' }, 409);
-  if (line.text.trim().length === 0) return c.json({ error: 'no_text', detail: line.personal ? 'Écrivez d’abord la version hors ligne.' : 'Écrivez d’abord le texte lu.' }, 400);
-  const outcome = await renderLine(tts, ctx.script.voice, line.text, ctx.script.locale);
-  if (!outcome.ok) return c.json({ error: 'tts_failed', detail: `La voix n’a pas pu être enregistrée (${outcome.status}). Réessayez dans un instant.` }, 502);
-  return c.json({ ...outcome.rendered, ...(await answer(c, ctx, ctx.script)) });
+  if (!line.audio && line.text.trim().length === 0) return c.json({ error: 'no_text', detail: line.personal ? 'Écrivez d’abord la version hors ligne.' : 'Écrivez d’abord le texte lu.' }, 400);
+  const spoken = spokenTexts(ctx.script).filter((s) => s.line.id === line.id);
+  if (spoken.length === 0) return c.json({ error: 'uses_file', detail: 'Cette annonce utilise votre fichier audio. Revenez à la voix pour l’enregistrer.' }, 409);
+  const outcomes = await mapLimit(spoken, 2, (s) => renderLine(tts, s.voice, s.text, ctx.script.locale));
+  const failed = outcomes.find((o) => !o.ok);
+  if (failed && !failed.ok) return c.json({ error: 'tts_failed', detail: `La voix n’a pas pu être enregistrée (${failed.status}). Réessayez dans un instant.` }, 502);
+  const first = outcomes[0]!;
+  return c.json({ ...(first.ok ? first.rendered : {}), ...(await answer(c, ctx, ctx.script)) });
 });
 
 /**
@@ -284,7 +295,7 @@ orgScript.post(`${PATH}/script/sample`, ...edit, async (c) => {
   const note = writer ? WRITER_NOTE[writer] : null;
   const tts = ttsDepsFor(c.env);
   if (!canRender(tts, ctx.script.voice) || !maySpendCredit(c.env, c.get('admin').email)) return c.json({ text, writer, note, audioPath: null });
-  const outcome = await renderLine(tts, ctx.script.voice, text, ctx.script.locale);
+  const outcome = await renderLine(tts, voiceOfLine(ctx.script, line), text, ctx.script.locale);
   return c.json({ text, writer, note, audioPath: outcome.ok ? `/audio/${outcome.rendered.hash}` : null });
 });
 

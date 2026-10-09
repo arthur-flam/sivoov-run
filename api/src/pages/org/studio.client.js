@@ -122,7 +122,7 @@
         ? { trigger: { kind: 'cue', at: value(card, 'when.cueAt'), order: Number(order) } }
         : { error: 'Indiquez l’ordre dans la cérémonie, par exemple 1.' };
     }
-    if (kind === 'start' || kind === 'finish') return { trigger: { kind: kind } };
+    if (kind === 'start' || kind === 'finish' || kind === 'filler') return { trigger: { kind: kind } };
     if (kind === 'distance') {
       const meters = metersFromKm(value(card, 'when.km'));
       return meters === null ? { error: 'Indiquez le kilomètre, par exemple 5,2.' } : { trigger: { kind: 'distance', meters: meters } };
@@ -187,16 +187,25 @@
       key: value(card, 'key') || (previous ? previous.key : data.courseId + '-' + id.replace(/\W+/g, '-')),
       text: value(card, 'text'),
     };
-    // The ambiance under a line is not edited here yet: it rides along untouched.
-    const under = previous && previous.under ? { under: previous.under } : {};
-    return { line: Object.assign({}, line, own.personal ? { personal: own.personal } : {}, file ? { audio: file } : {}, under) };
+    return { line: Object.assign({}, line, own.personal ? { personal: own.personal } : {}, file ? { audio: file } : {}, untouched(card, previous)) };
   }
 
-  /** The whole script from the page, or null when a field needs fixing first. */
+  /**
+   * What a line carries that this page does not edit (its ambiance, its takes, its own voice):
+   * kept as stored, or as the line it was copied from, so an autosave never drops them.
+   */
+  function untouched(card, previous) {
+    const from = previous || scriptLine(card.getAttribute('data-copy-of') || '');
+    if (!from) return {};
+    return Object.fromEntries(['under', 'takes', 'voice'].filter((name) => from[name]).map((name) => [name, from[name]]));
+  }
+
+  /** The whole script from the page, or null when a field needs fixing first. The course's quiet limit rides along. */
   function scriptFrom(voice) {
     const built = cards().map(lineFrom);
     if (built.some((b) => b.error)) return null;
-    return { voice: voice || data.script.voice, lines: built.map((b) => b.line) };
+    const kept = data.script.maxGapS ? { maxGapS: data.script.maxGapS } : {};
+    return Object.assign({ voice: voice || data.script.voice, lines: built.map((b) => b.line) }, kept);
   }
 
   /* ---------- talking to the Worker, one write at a time ---------- */
@@ -354,9 +363,16 @@
       render.disabled = !data.ttsReady || !status || status.rendered || status.issues.some((i) => i.code === 'no_text');
       render.textContent = status && status.rendered ? 'Voix enregistrée' : 'Enregistrer la voix';
     }
+    // A take's play button shows once its voice is recorded.
+    qa('[data-role="take-play"]', card).forEach((button) => {
+      const take = takeOf(status, button.getAttribute('data-take'));
+      button.hidden = !(take && take.audioPath);
+    });
     showMode(card);
     measure(card);
   }
+
+  const takeOf = (status, takeId) => ((status && status.takes) || []).find((t) => t.id === takeId) || null;
 
   function measure(card) {
     const n = words(value(card, 'text')).length;
@@ -701,6 +717,16 @@
     return (canEdit ? flush() : Promise.resolve()).then(() => play(id));
   }
 
+  /** One of a line's takes, as its recorded voice says it (the button only shows once it is recorded). */
+  function listenTake(id, takeId) {
+    const take = takeOf(statusOf(id), takeId);
+    if (!take || !take.audioPath) return;
+    listenRun += 1;
+    screen(null);
+    say('Lecture : ' + (titleOf(id) || 'annonce') + ' · ' + take.name);
+    playPath(take.audioPath, take.text);
+  }
+
   function listenAll() {
     listenRun += 1;
     screen(null);
@@ -744,7 +770,9 @@
 
   /* ---------- the voice, files, suggestions, publishing ---------- */
 
-  const toRecord = () => (data.lines || []).filter((l) => l.issues.length === 0 && l.source !== 'upload' && !l.rendered);
+  /** Lines the voice still has to read: their words, or a take's (a line that plays a file may have takes the voice reads). */
+  const toRecord = () =>
+    (data.lines || []).filter((l) => l.issues.length === 0 && !l.rendered && (l.source !== 'upload' || (l.takes || []).some((t) => t.voiced && !t.rendered)));
 
   function render(id) {
     return flush().then(() =>
@@ -1149,6 +1177,8 @@
     if (!source) return;
     const copyId = freshId();
     const card = cloneAs(source, copyId);
+    // Its takes, ambiance and voice come with it (`untouched`): the copy shows them already.
+    card.setAttribute('data-copy-of', id);
     setField(card, 'title', value(source, 'title') + ' (copie)');
     setField(card, 'key', value(source, 'key') + '-' + copyId.split('.')[1]);
     source.parentNode.insertBefore(card, source.nextSibling);
@@ -1185,6 +1215,7 @@
   const ACTIONS = [
     'toggle',
     'listen',
+    'take-play',
     'listen-all',
     'render',
     'duplicate',
@@ -1213,6 +1244,7 @@
     const id = card ? card.getAttribute('data-line') : null;
     if (role === 'toggle' && id) return void (selected === id ? unselect() : select(id, { fromList: true }));
     if (role === 'listen' && id) return void listen(id);
+    if (role === 'take-play' && id) return void listenTake(id, target.getAttribute('data-take'));
     if (role === 'listen-all') return void listenAll();
     if (role === 'ceremony-play') return void playCeremony();
     if (!canEdit) {

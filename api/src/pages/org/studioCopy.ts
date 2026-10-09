@@ -1,5 +1,5 @@
 import { COUNTDOWN_SECONDS } from '@sivoov/shared';
-import type { AudioCategory, AudioTrigger, CeremonyIssue, LineIssue, Moment, PlaceholderPhase } from '@sivoov/shared';
+import type { AudioCategory, AudioTrigger, CeremonyIssue, LineIssue, Moment, PlaceholderPhase, TakeWhen } from '@sivoov/shared';
 import { plural } from './format';
 import type { Tone } from './ui';
 
@@ -12,7 +12,7 @@ import type { Tone } from './ui';
 export const MOMENT_COPY: Record<Moment, { title: string; hint: string; add: string }> = {
   start: { title: 'Au départ', hint: 'Quand le coureur lance sa course, avant le premier mètre.', add: 'Ajouter au départ' },
   course: { title: 'Sur le parcours', hint: 'Dans l’ordre où le coureur les entend.', add: 'Ajouter sur le parcours' },
-  always: { title: 'Pendant toute la course', hint: 'Celles qui reviennent : chaque kilomètre, les conseils d’allure.', add: 'Ajouter une annonce qui revient' },
+  always: { title: 'Pendant toute la course', hint: 'Celles qui reviennent : chaque kilomètre, les conseils d’allure, celles qui remplissent les silences.', add: 'Ajouter une annonce qui revient' },
   finish: { title: 'À l’arrivée', hint: 'Quand le coureur franchit la ligne.', add: 'Ajouter à l’arrivée' },
 };
 
@@ -23,6 +23,7 @@ export const WHEN_OPTIONS: { key: AudioTrigger['kind']; label: string }[] = [
   { key: 'elapsed', label: 'Après un temps de course' },
   { key: 'split', label: 'Tous les N kilomètres' },
   { key: 'pace', label: 'Selon l’allure du coureur' },
+  { key: 'filler', label: 'Dans les silences de la course' },
   { key: 'finish', label: 'À l’arrivée' },
 ];
 
@@ -79,6 +80,37 @@ export const issueText = (issue: LineIssue, personal: boolean): string => {
       return `${names} n’est connu que pendant la course : pas avant le départ.`;
   }
 };
+
+/** A line's takes, as the studio names them: « Variante b ». */
+export const takeName = (takeId: string): string => `Variante ${takeId}`;
+
+/** A take in a list of lines (a refused publish): « La foule (variante b) ». */
+export const takeTitle = (title: string, takeId: string): string => `${title} (variante ${takeId})`;
+
+/** A take's issue, under its line: « Variante b : Écrivez le texte lu. » */
+export const takeIssueText = (issue: LineIssue & { take: string }, personal: boolean): string => `${takeName(issue.take)} : ${issueText(issue, personal)}`;
+
+/** When a take fits the run (`TakeWhen`), read from the run, never asked: the tag under it. */
+export const TAKE_WHEN_COPY: Record<TakeWhen, string> = {
+  steady: 'allure tenue',
+  faster: 'plus rapide qu’au départ',
+  slower: 'plus lent qu’au départ',
+  round: 'temps rond à portée',
+  restart: 'après un arrêt',
+};
+
+/** A line's takes, shown under it (they are written outside the studio, by the production tool). */
+export const TAKES_COPY = {
+  title: 'Variantes',
+  hint: 'D’autres façons de dire cette annonce. À chaque fois, le coureur entend celle qu’il n’a pas encore entendue, celle écrite pour ce moment de sa course d’abord.',
+  personal: 'Personnalisée',
+  ai: 'Personnalisée, écrite par l’IA',
+  file: 'Votre fichier',
+  listen: 'Écouter',
+} as const;
+
+/** A line said by someone else than the course's voice (a regular in the crowd): « Voix : Fenrir ». */
+export const lineVoiceText = (voiceId: string): string => `Voix : ${voiceId}`;
 
 /** What the start ceremony's checks say under the countdown line (they warn, publishing goes ahead). */
 export const ceremonyIssueText = (issue: CeremonyIssue): string => {

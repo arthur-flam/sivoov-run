@@ -13,13 +13,31 @@ import {
   positionForRun,
   publishedContent,
   runMetersForTrack,
+  stripAudioTags,
+  voiceOfLine,
+  voicingsOf,
   whenInWords,
 } from '@sivoov/shared';
-import type { AudioScript, CeremonyIssue, Course, CourseGeometry, CourseTrack, CueMoment, EstimatedFiring, LatLng, LineIssue, Moment, PlaceholderPhase, ScriptLine } from '@sivoov/shared';
+import type {
+  AudioScript,
+  CeremonyIssue,
+  Course,
+  CourseGeometry,
+  CourseTrack,
+  CueMoment,
+  EstimatedFiring,
+  LatLng,
+  LineIssue,
+  Moment,
+  PlaceholderPhase,
+  ScriptLine,
+  ScriptTake,
+  Voicing,
+} from '@sivoov/shared';
 import type { Bindings } from '../env';
 import { scriptDb } from '../db/scriptQueries';
 import type { PackSummary } from '../db/scriptQueries';
-import { ceremonyIssueText, issueText, lineStatusView, publishView, summaryText } from '../pages/org/studioCopy';
+import { TAKES_COPY, TAKE_WHEN_COPY, ceremonyIssueText, issueText, lineStatusView, lineVoiceText, publishView, summaryText, takeIssueText, takeName } from '../pages/org/studioCopy';
 import type { AudioSummary, LineSource } from '../pages/org/studioCopy';
 import type { Tone } from '../pages/org/ui';
 import { checkCeremony } from './ceremonyChecks';
@@ -67,10 +85,32 @@ export const kmTicks = (track: CourseTrack, officialM: number): Tick[] =>
   });
 
 /**
+ * One of a line's takes, as the studio shows it under the line (display only: takes are written
+ * by the production tool): its words (or its file), its condition in the organizer's words, its
+ * personal version, and its sound once recorded (`audioPath`, as for a line).
+ */
+export type TakeStatus = {
+  id: string;
+  /** « Variante b ». */
+  name: string;
+  /** What everyone hears: its words without voice tags, or « Votre fichier : cloche.mp3 ». */
+  text: string;
+  /** Its condition read from the run (« après un arrêt »), or null for a take said any time. */
+  when: string | null;
+  /** « Personnalisée » and its sentence (or the AI's instructions), when it has a personal version. */
+  personal: { label: string; text: string } | null;
+  /** Read by the voice (no file of its own): « Enregistrer la voix » records it with the line. */
+  voiced: boolean;
+  rendered: boolean;
+  audioPath: string | null;
+};
+
+/**
  * Per line: where its sound comes from, whether that sound is ready for the current text, what
  * still stops it from going out, when it plays in plain words and under which moment the
  * studio lists it. `audioPath` is where "Écouter" fetches it, relative to the course's studio
  * URL; null means the browser reads the text. A personal line's sound is its offline version.
+ * A line with takes is ready once every take is, and lists them (`takes`).
  */
 export type LineStatus = {
   id: string;
@@ -81,7 +121,7 @@ export type LineStatus = {
   cue: { at: CueMoment; order: number } | null;
   /** Voice: the TTS cache hash of the current text. Upload: the file's sha256. */
   hash: string;
-  /** The sound is ready: the voice rendered for this exact text, or the uploaded file stored. */
+  /** The sound is ready: the voice rendered for this exact text (and every take's), or the uploaded file stored. */
   rendered: boolean;
   bytes: number;
   issues: LineIssue[];
@@ -94,36 +134,81 @@ export type LineStatus = {
   audioPath: string | null;
   label: string;
   tone: Tone;
+  /** « Voix : Fenrir » when someone else than the course's voice says the line. */
+  voice: string | null;
+  takes: TakeStatus[];
 };
 
 const sourceOf = (line: ScriptLine): LineSource => (line.audio ? 'upload' : line.personal ? 'personal' : 'voice');
 
+type Sound = { hash: string; ready: boolean; bytes: number; audioPath: string | null };
+
+/** Where one way of saying the line is heard: its upload, or the line's voice reading its words (none to read: not ready). */
+const soundOf = async (files: R2Bucket, script: AudioScript, line: ScriptLine, v: Voicing): Promise<Sound> => {
+  if (v.audio) {
+    const head = await files.head(uploadKey(v.audio));
+    return { hash: v.audio.hash, ready: head !== null, bytes: v.audio.bytes, audioPath: head ? `/uploads/${v.audio.hash}.${v.audio.format}` : null };
+  }
+  const voice = voiceOfLine(script, line);
+  const hash = await ttsHash(voice, v.text);
+  const head = v.text.trim().length === 0 ? null : await files.head(renderKey(voice, hash));
+  return { hash, ready: head !== null, bytes: head?.size ?? 0, audioPath: head ? `/audio/${hash}` : null };
+};
+
+const takePersonal = ({ personal }: ScriptTake): TakeStatus['personal'] =>
+  !personal ? null : personal.kind === 'template' ? { label: TAKES_COPY.personal, text: personal.template } : { label: TAKES_COPY.ai, text: personal.prompt };
+
+const takeStatus = async (files: R2Bucket, script: AudioScript, line: ScriptLine, take: ScriptTake, v: Voicing): Promise<TakeStatus> => {
+  const sound = await soundOf(files, script, line, v);
+  return {
+    id: take.id,
+    name: takeName(take.id),
+    text: take.audio ? `${TAKES_COPY.file} : ${take.audio.name || 'son importé'}` : stripAudioTags(take.text),
+    when: take.when ? TAKE_WHEN_COPY[take.when] : null,
+    personal: takePersonal(take),
+    voiced: !take.audio,
+    rendered: sound.ready,
+    audioPath: sound.audioPath,
+  };
+};
+
+/** An issue in the organizer's words; a take's names the take (« Variante b : … »). */
+const problemOf = (line: ScriptLine, issue: LineIssue): string => {
+  const take = issue.take;
+  if (!take) return issueText(issue, Boolean(line.personal));
+  return takeIssueText({ ...issue, take }, Boolean(line.takes?.find((t) => t.id === take)?.personal));
+};
+
 const lineStatus = async (files: R2Bucket, script: AudioScript, line: ScriptLine, officialM: number): Promise<LineStatus> => {
   const source = sourceOf(line);
   const issues = lineIssues(line);
-  const toWrite = issues.some((i) => i.code === 'no_text');
-  const toFix = issues.some((i) => i.code !== 'no_text');
+  const toWrite = issues.some((i) => i.code === 'no_text' && !i.take);
+  const toFix = issues.some((i) => i.code !== 'no_text' || i.take);
   const phase = personalPhase(line);
-  const common = {
+  const [own, ...others] = voicingsOf(line);
+  const [sound, takes] = await Promise.all([
+    soundOf(files, script, line, own!),
+    Promise.all((line.takes ?? []).map((t, i) => takeStatus(files, script, line, t, others[i]!))),
+  ]);
+  const ready = sound.ready && takes.every((t) => t.rendered);
+  return {
     id: line.id,
     source,
     personal: line.personal && phase ? { kind: line.personal.kind, phase } : null,
     cue: line.trigger.kind === 'cue' ? { at: line.trigger.at, order: line.trigger.order } : null,
+    hash: sound.hash,
+    rendered: ready,
+    bytes: sound.bytes,
     issues,
     ceremony: [],
-    problems: issues.map((i) => issueText(i, source === 'personal')),
+    problems: issues.map((i) => problemOf(line, i)),
     when: whenInWords(line.trigger),
     moment: momentOf(line.trigger, officialM),
+    audioPath: sound.audioPath,
+    ...lineStatusView(source, { ready, toWrite, toFix }),
+    voice: line.voice ? lineVoiceText(voiceOfLine(script, line).name) : null,
+    takes,
   };
-  if (line.audio) {
-    const head = await files.head(uploadKey(line.audio));
-    const view = lineStatusView(source, { ready: head !== null, toWrite: false, toFix });
-    return { ...common, ...view, hash: line.audio.hash, rendered: head !== null, bytes: line.audio.bytes, audioPath: head ? `/uploads/${line.audio.hash}.${line.audio.format}` : null };
-  }
-  const hash = await ttsHash(script.voice, line.text);
-  const head = toWrite ? null : await files.head(renderKey(script.voice, hash));
-  const view = lineStatusView(source, { ready: head !== null, toWrite, toFix });
-  return { ...common, ...view, hash, rendered: head !== null, bytes: head?.size ?? 0, audioPath: head ? `/audio/${hash}` : null };
 };
 
 export const lineStatuses = async (files: R2Bucket, script: AudioScript, officialM: number): Promise<LineStatus[]> => {

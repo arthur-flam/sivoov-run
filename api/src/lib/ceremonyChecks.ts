@@ -1,11 +1,18 @@
-import { audioSeconds, ceremonyIssues } from '@sivoov/shared';
-import type { AudioScript, CeremonyIssue, ScriptLine } from '@sivoov/shared';
+import { audioSeconds, ceremonyIssues, voiceOfLine } from '@sivoov/shared';
+import type { AudioScript, CeremonyIssue, ScriptLine, Voicing } from '@sivoov/shared';
 import { renderKey, ttsHash } from './tts';
 import { uploadKey } from './uploads';
 
-/** Where a line's sound waits before publishing: the organizer's upload, or the voice cache for its text. */
-export const sourceKey = async (script: Pick<AudioScript, 'voice'>, line: ScriptLine): Promise<string> =>
-  line.audio ? uploadKey(line.audio) : renderKey(script.voice, await ttsHash(script.voice, line.text));
+/**
+ * Where a line's sound waits before publishing, or one of its takes' (`voicing`, the line's own
+ * words by default): the organizer's upload, or the render of its words by the line's voice, under
+ * the key the studio's render stored it (`ttsHash` of that voice and those words).
+ */
+export const sourceKey = async (script: Pick<AudioScript, 'voice'>, line: ScriptLine, voicing: Pick<Voicing, 'text' | 'audio'> = line): Promise<string> => {
+  if (voicing.audio) return uploadKey(voicing.audio);
+  const voice = voiceOfLine(script, line);
+  return renderKey(voice, await ttsHash(voice, voicing.text));
+};
 
 /** Enough of a file to read its length (a WAV header, an MP3's first frame past a modest ID3 tag). */
 const HEAD_BYTES = 64 * 1024;

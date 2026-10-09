@@ -76,6 +76,8 @@ const blankStatus = (): LineStatus => ({
   audioPath: null,
   label: 'Texte à écrire',
   tone: 'warn',
+  voice: null,
+  takes: [],
 });
 
 /** How the runner hears these announcements, in four sentences, above the list. */
@@ -142,7 +144,7 @@ export const OrgStudioPage = ({ race, course, data, photoMoments = [] }: Props) 
   const lineById = (id: string) => script.lines.find((l) => l.id === id);
   const categoryOf = (id: string) => lineById(id)?.category ?? 'course';
   const base = `/org/${race.slug}/courses/${course.id}`;
-  const toRecord = lines.filter((l) => l.issues.length === 0 && l.source !== 'upload' && !l.rendered).length;
+  const toRecord = lines.filter((l) => l.issues.length === 0 && !l.rendered && (l.source !== 'upload' || l.takes.some((t) => t.voiced && !t.rendered))).length;
   const tags = supportsAudioTags(script.voice.model);
   return (
     <>

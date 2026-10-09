@@ -202,8 +202,8 @@ api.post('/me/voices/live', async (c) => {
   const entrant = c.get('entrant')!;
   const course = await db(c.env.DB).courseFor(entrant.raceId, entrant.distanceKey);
   if (!course || course.id !== parsed.data.courseId) return c.json({ error: 'not_found' }, 404);
-  const { version, eventId, facts } = parsed.data;
-  const outcome = await liveVoice(personalDeps(c.env), { entrantId: entrant.id, runner: runnerFacts(entrant) }, course.id, version, eventId, facts);
+  const { version, eventId, take, facts } = parsed.data;
+  const outcome = await liveVoice(personalDeps(c.env), { entrantId: entrant.id, runner: runnerFacts(entrant) }, { courseId: course.id, version, eventId, ...(take ? { take } : {}) }, facts);
   if (!outcome.ok) return c.json({ error: outcome.detail }, outcome.status);
   return c.json({ url: outcome.url, bytes: outcome.bytes, caption: outcome.caption }, 200, { 'Cache-Control': 'private, no-store' });
 });

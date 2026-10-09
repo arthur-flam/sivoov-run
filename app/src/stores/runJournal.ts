@@ -66,7 +66,9 @@ export const createJournalWriter = (files: Files = journalFiles, now: () => numb
       if (now() - flushedAt >= flushEveryMs) void flush();
     },
     fired(records: readonly FiredRecord[]): Promise<void> {
-      return saveMeta({ fired: records.map(({ eventId, key, distanceM, elapsedMs, missed }) => ({ eventId, key, distanceM, elapsedMs, ...(missed ? { missed } : {}) })) });
+      return saveMeta({
+        fired: records.map(({ eventId, key, take, distanceM, elapsedMs, missed }) => ({ eventId, key, ...(take ? { take } : {}), distanceM, elapsedMs, ...(missed ? { missed } : {}) })),
+      });
     },
     /** The runner stopped or the finish was reached: what is left is the upload. */
     async stop(at: number): Promise<void> {

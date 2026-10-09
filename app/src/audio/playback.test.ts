@@ -15,20 +15,35 @@ vi.mock('expo-audio', () => ({
 }));
 vi.mock('@/stores/session', () => ({ useSession: { getState: () => ({ token: null }) } }));
 vi.mock('@/stores/prefs', () => ({ usePrefs: { getState: () => ({ voice: 'all' }) } }));
-vi.mock('./live', () => ({ liveSound: async () => null, resetLiveLines: () => undefined }));
+/** What the live lines were asked for: the event and the take, the server never answers (offline). */
+const liveAsked = vi.hoisted(() => [] as { eventId: string; take?: string }[]);
+vi.mock('./live', () => ({
+  liveSound: async (_pack: unknown, event: AudioEvent, _state: unknown, _token: unknown, take?: string) => {
+    liveAsked.push({ eventId: event.id, ...(take ? { take } : {}) });
+    return null;
+  },
+  resetLiveLines: () => undefined,
+}));
 // The run journals itself to disk; nothing here needs it.
 vi.mock('@/stores/journalFiles', () => ({
   journalFiles: { open: async () => undefined, writeMeta: async () => undefined, append: async () => undefined, readMeta: async () => null, read: async () => null, clear: async () => undefined },
 }));
-vi.mock('./packStore', () => ({
-  usePackStore: {
-    getState: () => ({
-      captions: {},
-      uriFor: () => null,
-      soundFor: (event: AudioEvent) => (event.source.kind === 'file' ? `file://${event.source.key}` : null),
-    }),
-  },
-}));
+/** Every file of the pack is on the phone: a line's, or the take's the run chose. */
+vi.mock('./packStore', async () => {
+  const { fileOf } = await import('@sivoov/shared');
+  return {
+    usePackStore: {
+      getState: () => ({
+        captions: {},
+        uriFor: () => null,
+        soundFor: (event: AudioEvent, take?: string) => {
+          const key = fileOf(event, take);
+          return key ? `file://${key}` : null;
+        },
+      }),
+    },
+  };
+});
 
 const { idleRun, startRun } = await import('@sivoov/shared');
 const { useRun } = await import('@/stores/run');
@@ -37,8 +52,24 @@ const { bindPlayback, releasePlayback, screenMounted, screenUnmounted } = await 
 
 /** Each line cuts the one before: the fake files never end, a queued line would never start. */
 const place = (id: string, meters: number) => ({ id, trigger: { kind: 'distance', meters }, source: { kind: 'file', key: `${id}.mp3` }, mix: 'interrupt', priority: 5, category: 'course' });
-const pack = AudioPackSchema.parse({ courseId: 'c', version: 2, events: [place('planches', 200), place('casino', 1500), place('port', 3000)], files: {} });
-const fired = (eventId: string, extra: { silent?: boolean } = {}) => ({ eventId, key: eventId, distanceM: 0, elapsedMs: 0, ...extra });
+/** A pool of cheers between the places, and a split with a take said live. */
+const pool = (id: string, takes: Record<string, unknown>[]) => ({ ...place(id, 0), trigger: { kind: 'filler' }, category: 'personal', takes });
+const pack = AudioPackSchema.parse({
+  courseId: 'c',
+  version: 2,
+  events: [
+    place('planches', 200),
+    place('casino', 1500),
+    place('port', 3000),
+    pool('cheers', [
+      { id: 'a', key: 'cheers~a.mp3', caption: 'Allez, on y va !' },
+      { id: 'b', key: 'cheers~b.mp3', caption: 'Ça repart !' },
+    ]),
+    pool('split', [{ id: 'b', key: 'split~b.mp3', caption: 'Et un de plus.', personal: { phase: 'live' } }]),
+  ],
+  files: {},
+});
+const fired = (eventId: string, extra: { silent?: boolean; take?: string; key?: string } = {}) => ({ eventId, key: eventId, distanceM: 0, elapsedMs: 0, ...extra });
 const fire = (...records: ReturnType<typeof fired>[]) => useRun.setState({ fired: [...useRun.getState().fired, ...records] });
 const listed = () => useSaid.getState().lines.map((l) => l.key);
 
@@ -60,6 +91,27 @@ describe('the run’s voice', () => {
     fire(fired('planches'));
     expect(played).toEqual(['file://planches.mp3']);
     expect(listed()).toEqual(['planches']);
+  });
+
+  it('says the take the run chose, from its own file, with its own words', () => {
+    bindPlayback();
+    fire(fired('cheers', { key: 'cheers#1' }), fired('cheers', { key: 'cheers#2', take: 'b' }));
+    expect(played).toEqual(['file://cheers.mp3', 'file://cheers~b.mp3']);
+    expect(useSaid.getState().lines.map((l) => [l.key, l.text])).toEqual([
+      ['cheers#1', null],
+      ['cheers#2', 'Ça repart !'],
+    ]);
+  });
+
+  it('asks for a take said live by its id, and plays its offline file without a network', async () => {
+    liveAsked.length = 0;
+    bindPlayback();
+    fire(fired('split', { key: 'split#1', take: 'b' }));
+    await vi.waitFor(() => expect(played).toEqual(['file://split~b.mp3']));
+    expect(liveAsked).toEqual([{ eventId: 'split', take: 'b' }]);
+    // The line's own words are not a live line: nothing to ask.
+    fire(fired('split', { key: 'split#2' }));
+    expect(liveAsked).toHaveLength(1);
   });
 
   it('neither says nor lists the backlog marked silent after a crash, and says what comes next', () => {

@@ -158,6 +158,15 @@ export const studioStyles = `
 .ev-sample, .ev-suggest { display: grid; gap: 4px; padding: 10px 12px; margin-bottom: 10px; border-radius: var(--radius); background: var(--bg); border: 1px solid var(--border); font-size: 14px; }
 .ev-sample-h { font-size: 12px; color: var(--muted); }
 .ev-sample q { font-style: italic; }
+.ev-takes { display: grid; gap: 6px; margin-bottom: 12px; }
+.ev-takes ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.ev-take { display: grid; gap: 2px; padding: 8px 10px; border-radius: var(--radius); background: var(--bg); border: 1px solid var(--border); font-size: 14px; }
+.ev-take-h { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; }
+.ev-take-h .pill.personal { color: var(--cat-personal); }
+.ev-take-h .ev-play { width: 28px; height: 28px; margin-left: auto; }
+.ev-take-h .ev-play svg { width: 11px; height: 11px; }
+.ev-take q { font-style: italic; }
+.ev-take-personal { font-size: 13px; color: var(--cat-personal); }
 .ev-issues { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 4px; }
 .ev-issues li { font-size: 13px; color: var(--bad); padding-left: 14px; position: relative; }
 .ev-issues li::before { content: '!'; position: absolute; left: 2px; font-weight: 700; }

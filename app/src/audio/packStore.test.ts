@@ -331,6 +331,49 @@ describe('the runner’s own lines', () => {
     expect(myVoices.mock.calls).toEqual([['token', undefined], ['token', { lat: 49.44, lng: 1.1 }]]);
   });
 
+  it('come down for a take too, kept by line and take, and play when the engine chose that take', async () => {
+    const take = 'https://run.test/api/packs/m/2/cheers~b.mp3';
+    sizes.set(take, 5_000);
+    sizes.set('https://run.test/api/voices/cheer.mp3', 4_000);
+    const cheersPack = AudioPackSchema.parse({
+      ...published,
+      events: [
+        ...published.events,
+        {
+          id: 'cheers',
+          trigger: { kind: 'filler' },
+          source: { kind: 'file', key: 'intro.mp3' },
+          category: 'personal',
+          takes: [
+            { id: 'a', key: 'gun.mp3', caption: 'Allez, on y va !', personal: { phase: 'prepare' } },
+            { id: 'b', key: 'cheers~b.mp3', caption: 'Ça repart !' },
+          ],
+        },
+      ],
+      files: { ...published.files, 'cheers~b.mp3': { url: take, bytes: 5_000, sha256: 'x' } },
+    });
+    const cheers = cheersPack.events.find((e) => e.id === 'cheers')!;
+    pack.mockResolvedValue(cheersPack);
+    myVoices.mockResolvedValue({
+      courseId: course.id,
+      version: 2,
+      files: { 'cheers/a': { url: 'https://run.test/api/voices/cheer.mp3', bytes: 4_000, sha256: 'c'.repeat(64) } },
+      captions: { 'cheers/a': 'Allez Léa !' },
+    });
+    await usePackStore.getState().load(course);
+    await usePackStore.getState().loadPersonal('token');
+    // Saved under what the file is: `cheers/a` is no file name.
+    expect(usePackStore.getState().soundFor(cheers, 'a')).toBe(`file://document/voices/${course.id}/2/${'c'.repeat(32)}.mp3`);
+    expect(usePackStore.getState().soundFor(cheers, 'b')).toBe(`file://document/packs/${course.id}/2/cheers~b.mp3`);
+    expect(usePackStore.getState().soundFor(cheers)).toBe(`file://document/packs/${course.id}/2/intro.mp3`);
+    expect(usePackStore.getState().captions).toEqual({ 'cheers/a': 'Allez Léa !' });
+    // And a cold start finds them again.
+    coldStart();
+    pack.mockRejectedValue(new Error('timeout'));
+    await usePackStore.getState().load(course);
+    expect(usePackStore.getState().soundFor(cheers, 'a')).toBe(`file://document/voices/${course.id}/2/${'c'.repeat(32)}.mp3`);
+  });
+
   it('are not asked for when the pack has none', async () => {
     pack.mockResolvedValue(published);
     await usePackStore.getState().load(course);

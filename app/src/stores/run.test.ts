@@ -455,3 +455,93 @@ describe('a run that survives the app', () => {
     expect(useRun.getState().state.elapsedMs).toBeGreaterThanOrEqual(frozen + 60_000);
   });
 });
+
+describe('the race between its places', () => {
+  const T0 = Date.UTC(2026, 10, 14, 8, 0, 0);
+  const takes = 'abcdefgh'.split('');
+  /** Every file four seconds long: a split each km and, for the silences in between, the crowd's pool of cheers; quiet a minute at most. */
+  const quietPack = (): AudioPack =>
+    AudioPackSchema.parse({
+      courseId: 'c',
+      version: 3,
+      maxGapS: 60,
+      events: [
+        { id: 'ceremony.start', trigger: { kind: 'start' }, source: { kind: 'file', key: 'start.mp3' }, category: 'ceremony', priority: 10 },
+        { id: 'personal.split', trigger: { kind: 'split', everyMeters: 1000 }, source: { kind: 'file', key: 'split.mp3' }, category: 'personal', priority: 4, once: false },
+        { id: 'crowd', trigger: { kind: 'filler' }, source: { kind: 'file', key: 'crowd.mp3' }, category: 'personal', priority: 3, takes: takes.map((id) => ({ id, key: `crowd~${id}.mp3` })) },
+        { id: 'ceremony.finish', trigger: { kind: 'finish' }, source: { kind: 'file', key: 'finish.mp3' }, category: 'ceremony', priority: 10 },
+      ],
+      files: Object.fromEntries(
+        ['start', 'split', 'crowd', 'finish', ...takes.map((t) => `crowd~${t}`)].map((name) => [`${name}.mp3`, { url: `${name}.mp3`, bytes: 1, sha256: 'x', seconds: 4 }]),
+      ),
+    });
+  const crowd = () => useRun.getState().fired.filter((f) => f.eventId === 'crowd');
+
+  beforeEach(() => {
+    vi.useFakeTimers({ now: T0 });
+    disk.meta = null;
+    disk.samples = '';
+    useRun.getState().prepare(course, track, quietPack());
+  });
+  afterEach(() => {
+    useRun.getState().reset();
+    vi.useRealTimers();
+  });
+
+  /** 5:00/km from the gun, one fix a second, fed from `after` (a time on the clock) up to `minutes` into the race. */
+  const feed = (send: (sample: LocationSample) => void, gun: number, minutes: number, after = gun) =>
+    simulateRun({ track, targetM: 5500, pace: constantPace(300), startTime: gun + 500, noiseM: 3, seed: 7 })
+      .filter((s) => s.timestamp > after && s.timestamp <= gun + minutes * 60_000)
+      .forEach((sample) => {
+        vi.setSystemTime(sample.timestamp);
+        send(sample);
+      });
+
+  const start = async () => {
+    const { source, feed: send } = scriptedSource();
+    await Promise.all([useRun.getState().start(source, { countdownSeconds: 1, entrantId: 'e1' }), vi.advanceTimersByTimeAsync(1100)]);
+    return { send, gun: useRun.getState().state.startedAt! };
+  };
+
+  it('fills a quiet kilometre with the crowd, never quiet past the course’s limit, a different cheer each time', async () => {
+    const { send, gun } = await start();
+    feed(send, gun, 9);
+    const fired = useRun.getState().fired;
+    expect(crowd().length).toBeGreaterThan(takes.length + 1);
+    // The line's own words, then each take in turn: nothing said twice before the pool has gone round.
+    expect(crowd().map((f) => f.take).slice(0, takes.length + 1)).toEqual([undefined, ...takes]);
+    // From the end of one sound to the start of the next, never more than a minute.
+    const gaps = fired.slice(1).map((f, i) => (f.elapsedMs - (fired[i]!.elapsedMs + 4000)) / 1000);
+    expect(Math.max(...gaps)).toBeLessThanOrEqual(61);
+  });
+
+  it('keeps the take each line said on disk, and a run brought back goes on round the pool', async () => {
+    const { send, gun } = await start();
+    feed(send, gun, 4);
+    await vi.advanceTimersByTimeAsync(0);
+    const before = crowd().map((f) => f.take);
+    expect(before.length).toBeGreaterThanOrEqual(2);
+    const kept = RunJournalSchema.parse(JSON.parse(disk.meta!)).fired.filter((f) => f.eventId === 'crowd');
+    expect(kept.map((f) => f.take)).toEqual(before);
+
+    // The app dies; the runner opens it again a few seconds later and carries on.
+    vi.setSystemTime(Date.now() + 15_000);
+    useRun.getState().reset();
+    useRun.getState().prepare(course, track, quietPack());
+    const found = RunJournalSchema.parse(JSON.parse(disk.meta!));
+    const samples = parseJournalSamples(disk.samples);
+    const recovery = recoveryFor(found, samples, Date.now());
+    expect(recovery.kind).toBe('resume');
+    useRun.getState().restore({ journal: found, samples, state: recovery.state });
+    const { source, feed: resend } = scriptedSource();
+    await useRun.getState().resume(source);
+    feed(resend, gun, 9, Date.now());
+    const after = crowd()
+      .filter((f) => !f.silent)
+      .map((f) => f.take);
+    expect(after.length).toBeGreaterThanOrEqual(2);
+    // What was not heard before the crash comes first: nothing is said twice while the pool lasts.
+    const unheard = [undefined, ...takes].filter((t) => !before.includes(t));
+    expect(after.slice(0, unheard.length)).toEqual(unheard.slice(0, after.length));
+  });
+});

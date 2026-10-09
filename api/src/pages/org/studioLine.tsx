@@ -1,8 +1,9 @@
 import { AUDIO_TAGS, CUE_WORDS, CueMomentSchema, PLACEHOLDERS, editorFromTrigger, speechSeconds, stripAudioTags } from '@sivoov/shared';
 import type { ScriptLine } from '@sivoov/shared';
-import type { LineStatus } from '../../lib/studio';
+import type { LineStatus, TakeStatus } from '../../lib/studio';
 import {
   ADVANCED_HINTS,
+  TAKES_COPY,
   AI_PROMPT_PLACEHOLDER,
   CATEGORY_OPTIONS,
   FALLBACK_HINT,
@@ -62,6 +63,36 @@ const TAG_GROUPS = [
     items: [...AUDIO_TAGS.map((t) => ({ insert: `[${t.tag}] `, label: t.label, hint: `[${t.tag}] : la voix joue la suite ainsi` })), { insert: '… ', label: 'Pause', hint: 'Les points de suspension marquent un temps.' }],
   },
 ];
+
+/**
+ * A line's takes, under it, as they are (no editor: the production tool writes them): the
+ * words, the condition as a tag, the personal sentence, and a play button once recorded (the
+ * client shows it when a render lands).
+ */
+const Takes = ({ takes }: { takes: TakeStatus[] }) =>
+  takes.length === 0 ? null : (
+    <div class="ev-takes" data-role="takes">
+      <span class="ev-sample-h">
+        <b>{TAKES_COPY.title}</b> · {TAKES_COPY.hint}
+      </span>
+      <ul>
+        {takes.map((t) => (
+          <li class="ev-take" data-take={t.id}>
+            <div class="ev-take-h">
+              <b>{t.name}</b>
+              {t.when ? <span class="pill">{t.when}</span> : null}
+              {t.personal ? <span class="pill personal">{t.personal.label}</span> : null}
+              <button type="button" class="ev-play" data-role="take-play" data-take={t.id} aria-label={`${TAKES_COPY.listen} : ${t.name}`} title={TAKES_COPY.listen} hidden={!t.audioPath}>
+                <Icon name="play" />
+              </button>
+            </div>
+            {t.voiced ? <q>{t.text}</q> : <span>{t.text}</span>}
+            {t.personal ? <span class="ev-take-personal">{t.personal.text}</span> : null}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 
 /** Shown only for the modes listed (space-separated): the client toggles them when the mode changes. */
 const forModes = (modes: string, mode: SoundMode): string => (modes.split(' ').includes(mode) ? '' : 'hide');
@@ -241,6 +272,11 @@ export const StudioLine = ({ line, status, canEdit, ttsReady, aiReady, tags }: P
             Ambiance : <b>{line.under.name || 'son importé'}</b>. Elle commence avec l’annonce et continue sous les suivantes.
           </p>
         ) : null}
+        {status.voice ? (
+          <p class="hint" data-role="line-voice">
+            {status.voice}
+          </p>
+        ) : null}
 
         <div data-sound="voice personal" class={forModes('voice personal', mode)}>
           <Field
@@ -257,6 +293,8 @@ export const StudioLine = ({ line, status, canEdit, ttsReady, aiReady, tags }: P
             {textMeasure(stripAudioTags(line.text).length, speechSeconds(line.text))}
           </p>
         </div>
+
+        <Takes takes={status.takes} />
 
         <ul class="ev-issues" data-role="issues">
           {status.problems.map((problem) => (

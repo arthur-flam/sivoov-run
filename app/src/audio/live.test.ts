@@ -80,6 +80,24 @@ describe('a live line', () => {
     expect(liveVoice).toHaveBeenCalledWith('token', { ...pack, eventId: 'personal.split', facts: { km: 10, elapsedS: 3300, paceSecPerKm: 329, projectedS: 13897 } });
   });
 
+  it('asks for the take the engine chose by its id, when that take is said live', async () => {
+    liveVoice.mockResolvedValue(voice);
+    const pool = AudioEventSchema.parse({
+      ...split,
+      personal: undefined,
+      takes: [
+        { id: 'b', key: 'split~b.mp3', personal: { phase: 'live' } },
+        { id: 'c', key: 'split~c.mp3', personal: { phase: 'prepare' } },
+      ],
+    });
+    expect(await liveSound(pack, pool, atKm10, 'token', 'b')).toMatchObject({ url: 'file://cache/live/f00.mp3' });
+    expect(liveVoice).toHaveBeenCalledWith('token', expect.objectContaining({ eventId: 'personal.split', take: 'b' }));
+    // The line's own words and a take made before the start are not live lines.
+    expect(await liveSound(pack, pool, atKm10, 'token')).toBeNull();
+    expect(await liveSound(pack, pool, atKm10, 'token', 'c')).toBeNull();
+    expect(liveVoice).toHaveBeenCalledTimes(1);
+  });
+
   it('streams it on the web, which keeps no files', async () => {
     platform.OS = 'web';
     liveVoice.mockResolvedValue(voice);

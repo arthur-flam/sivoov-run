@@ -743,3 +743,10 @@
     (billing now on) is the provider;
   - Anthropic API credits are not needed for content: writing and critique happen in Claude Code
     sessions; only in-product calls (the Worker's personal lines) use the API.
+- 2026-10-09 (later): the owner on the draft's sound, for casting and writing:
+  - the countdown and the gun were the highlight; the ceremony before them was too slow;
+  - Gemini Sadachbia sounded Parisian but too young and not sporty: cast an older, sports-radio
+    voice if Gemini has one (PRODUCTION.md, « Casting »);
+  - one voice, the runner's name often, personal and fun;
+  - we never ask the runner's gender, so lines must not agree with it (« prêt », « venu »): the
+    draft's « vous êtes venu » was wrong for half the runners.

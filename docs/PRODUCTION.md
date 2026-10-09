@@ -26,6 +26,15 @@ real and listened to it. Read with `AUDIO.md` (the contract: events, packs, ambi
 - **Claude work runs on the subscription**, in Claude Code sessions. Writing, structure and
   critique happen in the session; Gemini renders the voice and can listen to it back. No
   Anthropic API pipeline is needed for content.
+- **One voice.** The speaker, in two registers (PA and close in the ear), not two people.
+- **The runner's name, often.** The speaker and the crowd both use it, all the way.
+- **Keep the countdown and the gun.** They were the highlight of the draft. But the start was a
+  little slow: get to the countdown faster (below).
+- **Recast the voice if Gemini has better.** Sadachbia sounded like a Parisian, but too young and
+  not sporty enough. We want an older voice that sounds like a sports commentator
+  (« Casting », below). If nothing beats it, keep Sadachbia.
+- **Content first.** The next session takes its best shot at a complete 5K and 10K to listen to,
+  then the engine and the library catch up. The tone must be personal, fun and an experience.
 
 ## What was wrong with the 10K draft
 
@@ -39,6 +48,72 @@ one teaches:
 | Not descriptive enough | The lines name places but do not put the runner there | Describe what you would see, hear and feel on that spot: width, cobbles, the Arc growing, the crowd getting thicker |
 | Not personal enough | Name at the start, a split template, name and time at the finish | The crowd knows your name all the way; the speaker reads your run (your pace, how it changes, your projected time) |
 | Sounds that did not fit | 1960s-1980s BBC crowds under a 2027 Paris race; generic, thin | Every sound goes through the library and is scored by a listener before it ships (`SOUND_LIBRARY.md`) |
+
+## The tone, on one page
+
+Everything in this file distilled to what a writer keeps in mind for every line. The sections
+after it explain why.
+
+**The speaker.** A race speaker in his fifties, who has called this race for years and still loves
+it. Warm, quick, a smile in the voice. He enjoys the race *with* the runner. He knows Paris and
+running, and he never lectures about either. On the PA he is big and public. In the ear he is
+close and quiet, like a friend running alongside. He is never a tour guide, a coach reading a
+manual, or an advert.
+
+1. **The name is the hook.** Use it often: about 15 times in a 10K, 8-10 in a 5K. Vary who says
+   it (the speaker, the crowd, a regular in the crowd) and how (called out, said quietly, roared).
+   Never the same way twice in a row.
+2. **Here and now.** What the runner would see, hear and feel on this spot at this moment. No
+   dates, no "did you know", no history lesson. A fact stays only if it changes how the runner
+   feels or runs right now.
+3. **Always say what comes next.** Every line looks ahead ("dans quatre cents mètres…"), and every
+   silence is announced.
+4. **Fun comes from character, not wordplay.** A wink, a shared joke, the speaker's own pleasure.
+   No puns as punchlines.
+5. **Read the run, never judge it.** Their pace, their best kilometre, their projected finish:
+   yes. "Vous ralentissez": never.
+6. **One job per line.** Orient, prepare, push, cheer, celebrate. Most lines run 3-12 s; only
+   the start, the Arc and the finish get more.
+7. **It builds.** Each act is bigger than the one before. The finish is the peak, and the 60 s
+   after the line are part of the show.
+8. **Plant early, pay off late.** At least one promise made in the first kilometre comes back in
+   the last.
+9. **Spoken French.** Short sentences, breaths (`…`), numbers in words. Read every line aloud
+   before rendering it.
+10. **No gender agreement about the runner.** We don't ask, so we don't know: no « prêt / prête »,
+    « venu / venue », « fatigué ». Write « Vous y êtes », « En place », « C'est votre course ».
+    The draft got this wrong (« la raison pour laquelle vous êtes venu »).
+11. **When in doubt, cut.** Every line interrupts the runner's own music. It has to be worth it.
+
+**Before and after** (the draft, then the direction; examples, not final lines):
+
+| The draft | The direction |
+|---|---|
+| « C'est ici qu'en 1797, André-Jacques Garnerin a sauté d'un ballon avec le tout premier parachute. » | « Parc Monceau. Écoutez… les oiseaux, le gravier. Le seul calme de la course, Camille. Profitez-en : au bout, il y a les Champs. » |
+| « Au numéro trente, un matin de février 1947, Christian Dior présentait le New Look. » | « Avenue Montaigne, la plus chic de Paris. Les vitrines vous regardent, Camille… Tenez-vous droit. » |
+| « Kilomètre six. Vingt-neuf minutes quarante. » | « Kilomètre six. Vingt-neuf quarante… pile sur votre rythme du départ. C'est exactement ça. » |
+| « Neuf cents mètres de pavés pour aller le chercher. Petits pas… et laissez la foule vous porter. » | (close) « Petits pas. Les bras. L'Arc ne bouge pas, Camille : c'est vous qui avancez. » |
+
+## Casting the voice
+
+Do this before writing many lines: the voice changes how the lines should be written.
+- **Brief:** a French race speaker in his fifties, deep and warm, with the energy of a radio
+  sports commentator. Native Parisian French. He has to work on the PA (big, smiling) and in the
+  ear (low, close).
+- **Candidates:** the Gemini TTS prebuilt voices. Check the current list on Google's docs
+  rather than trusting memory. Shortlist six to eight that the docs describe as deep, mature,
+  firm, gravelly or knowledgeable, plus Sadachbia as the reference.
+- **Direction counts as much as the voice:** the director's notes (`geminiPrompt`) can make a
+  voice older and more sporty. Try each candidate with two directions.
+- **The test:** the same three lines for every candidate:
+  - the PA welcome with a name;
+  - a close coaching line on the climb;
+  - the finish call with name and time.
+
+  Render them, file them in the library (or a dated folder until it exists), and let the owner
+  listen blind (names hidden) and score.
+- **Names:** check how the winner says a dozen first names (French, Arabic, English, Asian,
+  hyphenated). A mangled name is worse than no name, and those renders are the riskiest.
 
 ## The craft: produce it like a show
 
@@ -176,10 +251,50 @@ Rewrite from the rundown, not from the draft:
    crowds go unless a listener scores them 4+ in context.
 5. Full-run renders at three paces; the owner's notes; repeat 2-5.
 
+### A starting beat sheet (a proposal to beat, not to follow)
+
+Distances on the official GPX. Times are for 5:00/km. P = a pool of takes; ★ = the runner's
+name.
+
+| Where | Beat | Job |
+|---|---|---|
+| Start pressed | The village first (DJ, crowd), then on the PA: ★ welcome to the Champs. Wherever they are, 20,000 run with them | Cold open, ≤ 15 s |
+| | Their town and weather in one sentence, roads open where they are (the safety line, folded in) | Personal, ≤ 10 s |
+| | « Coureurs… à vos marques. » The countdown, the crowd counting along on the last three. Horn, « Partez ! », the drop | The highlight. Countdown starts ≤ 35 s after Start |
+| 100 m | ★ « Vous y êtes. » Let the fast ones go | Release |
+| 250 m | Concorde: the cobbles underfoot, the Obelisk. **Plant:** « Vous le reverrez quand il restera trois cents mètres. » | Place + promise |
+| 650 m | Madeleine, then Malesherbes: a long false flat, find your rhythm. « On se retrouve au parc. » | Orient + announced silence |
+| each km | Split, read against their opening pace (P by condition: steady, faster, slower, round number in reach) | Their race |
+| between | Crowd regulars shout ★, short affirmations from the speaker (P) | Fillers, the rhythm director's |
+| 2.1 km | Monceau: the world leads (birds, gravel). The only calm of the race | Breath |
+| 3.3 km | Rue de Lisbonne: the top of the loop, let the legs roll | Coach |
+| ~4 km | The one story, on the flat: about this race and its runners, never a museum | Distraction |
+| 5 km | « Previously on »: their start, their best km, where they stand. « Et maintenant… les Champs. » | Act break |
+| ~5.6 km | « Dans quatre cents mètres, à droite… et vous verrez l'Arc. » | Anticipation |
+| 5.95 km | The climb: drums, cobbles, crowd. ★ from the crowd | Act II peak builds |
+| ~6.4 km | Close voice: short body cues, ★ | Push |
+| ~6.8 km | Near silence: breath, the drums far away | The break before the drop |
+| 6.9 km | The U-turn: the roar, the music flips. « Tout redescend. Les Champs sont à vous, ★ ! » | Midpoint reversal |
+| 7.95 km | Montaigne: a wink | Fun |
+| 8.6 km | The Seine, the Eiffel Tower across the water: the circuit's last stage, their third medal | Future |
+| 9.0 km | Golden km: the build starts, count down in pictures (« un pont, puis la ligne ») | Act III |
+| 9.45 km | Pont Alexandre-III: gold statues, ★ from the crowd | Push |
+| ~9.7 km | **Payoff:** « Je vous l'avais dit… l'Obélisque. Trois cents mètres. » (check on the GPX that it is in view) | Promise kept |
+| Finish | Horn, roar, ★ and their time on the PA | The peak |
+| +20 s | Close again: what they just did, the medal (the first of three), see you at the Trocadéro | The end |
+
+### The ceremony, faster
+
+The countdown and the gun were the best part of the draft; the wait before them was too long
+(welcome, safety, call and speaker's word in a row, plus the village). Merge the welcome and the
+call into one line with the name, fold the safety into the weather line, and start the
+countdown within ~35 s of pressing Start in the 10K and ~20 s in the 5K.
+
 ## The 5K demo
 
 What a race director tries first. It is the trailer: denser, every signature moment, nothing
-slow.
+slow. It starts on the same countdown and gun as the 10K, cut short: village, ★ and the
+promise of the course in one line, then « Coureurs… à vos marques. »
 - **Recommended course: the last 5 km of the 10K** (km 5 → 10 on the official GPX):
   - the climb of the Champs, the Arc's U-turn, Montaigne, the Seine, the Golden km, the line;
   - it shares every sound and most lines with the 10K;
@@ -187,7 +302,7 @@ slow.
 
   Check the cut on the GPX; if the start point is dull to describe, start the story at the
   ceremony and let the first kilometre be the approach.
-- Its own short ceremony (~45 s, not 2 min), its own finish, the same leitmotif.
+- Its own finish and the same leitmotif. The countdown starts ~20 s after Start.
 - It works at 25-40 minutes. Density is higher than in the 10K.
 - A demo race (`demo_of`), with its own course row for the 5K.
 
@@ -205,17 +320,22 @@ slow.
 
 Paste this into a fresh Claude Code session (laptop, Gemini key in the environment):
 
-> Read CLAUDE.md, then docs/PRODUCTION.md and docs/SOUND_LIBRARY.md: they are the brief. We are
-> producing the Paris 10K (Champs-Élysées course) and a 5K demo to the definition of done in
-> PRODUCTION.md. Work in this order, one validated slice per commit:
-> (1) the sound library and its listening page (SOUND_LIBRARY.md), so everything after it is
-> kept and scored;
-> (2) the engine: pools, run-read conditions, the rhythm director, name cheers prepared before
-> the start, with tests in shared/ and the density check;
-> (3) full-run renders at a given pace in `npm run produce`;
-> (4) the 10K: course bible, rundown with the intensity curve, then lines. Show me the rundown
-> before writing lines;
-> (5) the 5K demo.
-> Render voices with Gemini. Never ship a sound no person has scored. When you need my ears, say
-> exactly which files to listen to and what to listen for, then wait. Keep STATUS.md and
-> MEMORY.md current.
+> Read CLAUDE.md, then docs/PRODUCTION.md (start with "The tone, on one page") and
+> docs/SOUND_LIBRARY.md: they are the brief. We are producing the Paris 10K (Champs-Élysées
+> course) and a 5K demo that sound like an experience: personal, fun, with rhythm, one voice and
+> the runner's name all the way. Take your best shot. I want to listen to a complete run soon,
+> then improve it. Work in this order, one validated slice per commit:
+> (1) Casting: render the three test lines with the shortlisted Gemini voices and two directions
+> each, and give me a blind listening list.
+> (2) The 5K: the rundown from the beat sheet (show it to me before writing lines), then the
+> lines in the chosen voice, then a full-run render at 5:30/km with the name "Camille" (extend
+> `npm run produce` for it). Record every render's origin from the start (a manifest until the
+> library exists).
+> (3) My notes on the 5K, a second pass.
+> (4) The 10K the same way, reusing the 5K's second half.
+> (5) The engine, so the app plays what the renders promise: pools, conditions read from the
+> run, the rhythm director, name cheers prepared before the start, with tests in shared/ and the
+> density check.
+> (6) The sound library and its listening page.
+> Render voices with Gemini. When you need my ears, say exactly which files to listen to and what
+> to listen for, then wait. Keep STATUS.md and MEMORY.md current.

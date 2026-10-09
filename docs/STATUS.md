@@ -16,6 +16,10 @@ conditions, rhythm director and name cheers, full-run renders, the 10K and 5K pl
 prompt for a long laptop session) and `docs/SOUND_LIBRARY.md` (every sound kept with its origin
 and human scores, a listening page). Gemini is the voice provider (billing enabled). No
 questions to the runner. Docs only: nothing built yet.
+Second round with the owner: one voice (recast older and sportier if Gemini allows), the name
+often, the countdown kept and reached faster, content first. PRODUCTION.md now opens with the
+tone on one page, a casting test, a starting beat sheet, and a kickoff prompt in that order.
+Notebook of ideas (artifact): https://claude.ai/artifact/5DA98GBSKiqDnWJX9hX7e6
 
 Live: https://run.sivoov.app/deauville-2026 (production), https://preview.run.sivoov.app
 (preview). Test sign-in and roles: docs/ACCESS.md. M1 is done. The first real run happened

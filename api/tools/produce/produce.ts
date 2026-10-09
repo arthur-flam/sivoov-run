@@ -1,220 +1,229 @@
 /**
- * Produces a race's sound: every line's file and ambiance (./champsElysees.ts), mixed with
- * ffmpeg from the voice (Gemini, through the AI Gateway), crowds, the city and music composed
- * for the race, plus a demo reel (the whole race in about four minutes, with chapters) for the
- * race page and for listening without running.
+ * Produces a race's sound, for each of its courses: every line and every take as a file (the
+ * voice in its register, mixed with ffmpeg over crowds, the city and music composed for the
+ * race; ./sounds.ts), the ambiances under them, a demo reel, and with `--runs` whole runs as a
+ * runner would hear them at three paces (./run.ts), with their timelines.
  *
- *   npm run produce -w api -- 10km-champs-elysees-2027                      # mix only, into api/.produce/out/
- *   npm run produce -w api -- 10km-champs-elysees-2027 local|preview|production [--publish]
+ *   npm run produce -w api -- 10km-champs-elysees-2027                       # mix only, into api/.produce/out/<course>/
+ *   npm run produce -w api -- 10km-champs-elysees-2027 --runs                # and the full runs
+ *   npm run produce -w api -- 10km-champs-elysees-2027 local|preview|production [--publish] [--course 5k]
  *
- * With a target, the files go to R2 as the organizer's own sounds (`studio-uploads/`), the
- * draft in D1 points each line at them (`audio`, `under`), the reel goes to `demo/<courseId>/`,
- * and `--publish` asks that Worker to publish (local and preview, with the test organizer; on
- * production, press « Publier » in the studio). Needs ffmpeg, GEMINI_API_KEY and
- * CLOUDFLARE_ACCOUNT_ID (the repo's .env).
+ * With a target, the files go to that R2 as the organizer's own sounds (`studio-uploads/`), the
+ * draft in D1 points each line and take at them (`audio`, `under`), the reels go to
+ * `demo/<courseId>/`, and `--publish` publishes with the Worker's own code (lib/publish.ts) on
+ * the target's bindings (../bindings.ts). Every render's origin is written to `origins.json`.
+ * Needs ffmpeg, GEMINI_API_KEY and CLOUDFLARE_ACCOUNT_ID (the repo's .env), and Wrangler logged in.
  */
-import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { AudioScriptSchema, DemoReelSchema, UploadedAudioSchema, fillTemplate, spokenValues } from '@sivoov/shared';
-import type { AudioScript, UploadedAudio } from '@sivoov/shared';
+import {
+  AudioScriptSchema,
+  DemoReelSchema,
+  SAMPLE_RUNNER,
+  buildScript,
+  ceremonySequence,
+  fileOf,
+  fillTemplate,
+  hearRun,
+  manifestFor,
+  spokenValues,
+  stripAudioTags,
+  voiceOfLine,
+  voicingsOf,
+} from '@sivoov/shared';
+import type { AudioEvent, AudioScript, Heard, RunPlan, ScriptLine, ScriptVoice, UploadedAudio } from '@sivoov/shared';
 import { champsElyseesScripts } from '../../src/seed/champsElysees';
-import { API_DIR, CACHE, source, voice } from './assets';
-import { MOODS, produceChampsElysees } from './champsElysees';
-import type { Mood } from './champsElysees';
+import { bindingsFor } from '../bindings';
+import type { Target } from '../bindings';
+import { db } from '../../src/db/queries';
+import { scriptDb } from '../../src/db/scriptQueries';
+import { publishScript } from '../../src/lib/publish';
+import { CACHE, source, voice, voiceEnvFromDotenv } from './assets';
+import { countAlongOf, shoutsOf } from './crowd';
 import { durationOf, render } from './mix';
-import type { Cut, Layer } from './mix';
+import { placedOf, playOut, reelOf, runCut, timelineMd } from './run';
+import type { Placed, Played, Sounding } from './run';
+import { recipesFor, spoken } from './sounds';
+import { SOURCES } from './sources';
 
-const [raceId, target, ...flags] = process.argv.slice(2);
-if (raceId !== '10km-champs-elysees-2027') throw new Error('usage: produce.ts 10km-champs-elysees-2027 [local|preview|production] [--publish]');
-if (target && !['local', 'preview', 'production'].includes(target)) throw new Error(`unknown target ${target}`);
-const publish = flags.includes('--publish');
+const [raceId, ...rest] = process.argv.slice(2);
+const target = rest.find((a) => ['local', 'preview', 'production'].includes(a)) as Target | undefined;
+const flag = (name: string) => rest.includes(`--${name}`);
+const onlyCourse = rest[rest.indexOf('--course') + 1];
+if (raceId !== '10km-champs-elysees-2027') throw new Error('usage: produce.ts 10km-champs-elysees-2027 [local|preview|production] [--publish] [--runs] [--course 5k|10k]');
 
-const dotenv = Object.fromEntries(
-  (existsSync(join(API_DIR, '../.env')) ? readFileSync(join(API_DIR, '../.env'), 'utf8') : '')
-    .split('\n')
-    .map((l) => l.match(/^([A-Z_]+)=(.*)$/))
-    .filter((m): m is RegExpMatchArray => m !== null)
-    .map((m) => [m[1]!, m[2]!.replace(/^["']|["']$/g, '')]),
-);
-const env = (k: string) => process.env[k] ?? dotenv[k] ?? '';
-const voiceEnv = { geminiKey: env('GEMINI_API_KEY'), gateway: `https://gateway.ai.cloudflare.com/v1/${env('CLOUDFLARE_ACCOUNT_ID')}/sivoov` };
-if (!voiceEnv.geminiKey || !env('CLOUDFLARE_ACCOUNT_ID')) throw new Error('GEMINI_API_KEY and CLOUDFLARE_ACCOUNT_ID are needed');
+const env = voiceEnvFromDotenv();
+const scripts = champsElyseesScripts.filter((s) => !onlyCourse || s.courseId.endsWith(`-${onlyCourse}`));
 
-const script = champsElyseesScripts[0]!;
-const direction = script.voice.direction ?? '';
-const OUT = join(CACHE, 'out', script.courseId);
-mkdirSync(OUT, { recursive: true });
+/* ---------- where every sound comes from ---------- */
 
-/**
- * The speaker in a mood. In the runner's ears (`ear`) the prompt is exactly the Worker's for a
- * personal line, so the produced lines and the runner's own ones sound like one voice.
- */
-const say = (text: string, mood: Mood, take = 1) =>
-  mood === 'ear' ? voice(voiceEnv, script.voice, text, direction, undefined, take) : voice(voiceEnv, script.voice, text, `${direction} ${MOODS[mood].style}`, MOODS[mood].scene, take);
-/** What the Worker would say to a runner: the script's own direction, no mood. */
-const sayPersonal = (text: string) => voice(voiceEnv, script.voice, text, direction);
-
-console.log(`producing ${script.courseId}: ${script.lines.length} lines`);
-const productions = await produceChampsElysees(script.lines, { src: source, say });
-
+type Origin =
+  | { kind: 'voice'; file: string; provider: 'gemini'; model: string; voice: string; direction: string; scene?: string; text: string; at: string }
+  | { kind: 'mix'; file: string; sources: string[] };
+const origins: Origin[] = [];
 const sha = (path: string) => createHash('sha256').update(readFileSync(path)).digest('hex');
-const mixed = Object.fromEntries(
-  Object.entries(productions).map(([id, p]) => {
-    const key = script.lines.find((l) => l.id === id)!.key;
-    const files = { file: p.file && join(OUT, `${key}.mp3`), under: p.under && join(OUT, `${key}-under.mp3`) };
-    if (p.file) render(p.file, files.file!);
-    if (p.under) render(p.under, files.under!);
-    console.log(`  ${id}: ${[files.file, files.under].filter(Boolean).map((f) => `${f!.split('/').pop()} ${durationOf(f!).toFixed(1)} s`).join(', ')}`);
-    return [id, files];
-  }),
-) as Record<string, { file?: string; under?: string }>;
 
-/* ---------- the demo reel ---------- */
-
-/** Camille Martin, bib 1247, from Lyon: the studio's sample runner, running 47:12. */
-const SAMPLE = { firstName: 'Camille', lastName: 'Martin', bib: '1247', city: 'Lyon', distanceKey: '10k' as const };
-const personal = async (id: string, live: Parameters<typeof spokenValues>[1] = {}) => {
-  const l = script.lines.find((x) => x.id === id)!;
-  const text = l.personal?.kind === 'template' ? fillTemplate(l.personal.template, spokenValues(SAMPLE, live)) : null;
-  return sayPersonal(text ?? l.text);
+/** A voice saying `text`, rendered once (cached by everything that shapes it) and recorded. */
+const say = async (v: Pick<ScriptVoice, 'id' | 'name' | 'model' | 'direction' | 'scene'>, text: string): Promise<string> => {
+  const file = await voice(env, { ...v, name: v.name }, text, v.direction ?? '', v.scene);
+  if (!origins.some((o) => o.file === file)) origins.push({ kind: 'voice', file, provider: 'gemini', model: v.model, voice: v.id, direction: v.direction ?? '', ...(v.scene ? { scene: v.scene } : {}), text, at: new Date().toISOString() });
+  return file;
 };
-/** What the AI might write for Camille (the Worker writes it per runner with the real weather). */
-const WORD =
-  'Camille, bonjour ! Neuf degrés et un ciel gris à Lyon, huit sur les Champs-Élysées : le temps idéal pour courir. Coureurs… à vos marques.';
 
-type Chapter = { title: string; km: number; caption: string; mark?: 'countdown' | 'gun' | 'finish' };
-type Step = { file?: string; under?: string; hold?: number; gap?: number; chapter?: Chapter };
-const cap = (id: string) => script.lines.find((l) => l.id === id)!;
-const at = (id: string, km: number, caption?: string, mark?: Chapter['mark']): Chapter => ({ title: cap(id).title, km, caption: caption ?? cap(id).text, ...(mark ? { mark } : {}) });
+const mixTo = (cut: Parameters<typeof render>[0], out: string): string => {
+  render(cut, out);
+  origins.push({ kind: 'mix', file: out, sources: [...new Set(cut.layers.map((l) => l.path))] });
+  return out;
+};
 
-const steps: Step[] = [
-  { under: mixed['ceremony.welcome']!.under, hold: 2.5, chapter: { title: 'Le village de départ', km: 0, caption: 'La foule, la musique du village, le speaker sur la sono.' } },
-  { file: mixed['ceremony.welcome']!.file, chapter: at('ceremony.welcome', 0) },
-  { file: mixed['ceremony.safety']!.file, chapter: at('ceremony.safety', 0) },
-  { file: await personal('ceremony.call'), chapter: at('ceremony.call', 0, 'Dossard mille deux cent quarante-sept… Camille Martin ! Bienvenue sur les Champs-Élysées. On vous attend dans le sas !') },
-  { file: await sayPersonal(WORD), chapter: at('ceremony.word', 0, WORD) },
-  { file: mixed['ceremony.countdown']!.file, under: mixed['ceremony.countdown']!.under, gap: 0, chapter: at('ceremony.countdown', 0, undefined, 'countdown') },
-  { file: mixed['ceremony.gun']!.file, under: mixed['ceremony.gun']!.under, hold: 14, chapter: at('ceremony.gun', 0, 'Partez ! Le chrono part au coup de corne.', 'gun') },
-  { under: 'stop', hold: 1.2 },
-  { file: mixed['course.concorde']!.file, gap: 2, chapter: at('course.concorde', 0.3) },
-  { file: await personal('personal.split', { km: 1, elapsedS: 298 }), gap: 2, chapter: { title: 'Kilomètre 1', km: 1, caption: 'Kilomètre un. Quatre minutes cinquante-huit.' } },
-  { file: mixed['course.monceau']!.file, gap: 2, chapter: at('course.monceau', 2.1) },
-  { file: mixed['course.half']!.file, gap: 0.3, chapter: at('course.half', 5) },
-  { file: await personal('personal.split', { km: 5, elapsedS: 1432 }), gap: 2, chapter: { title: 'Kilomètre 5', km: 5, caption: 'Kilomètre cinq. Vingt-trois minutes cinquante-deux.' } },
-  { file: mixed['course.rond-point']!.file, under: mixed['course.rond-point']!.under, hold: 12, chapter: at('course.rond-point', 5.95) },
-  { file: mixed['course.arc']!.file, under: mixed['course.arc']!.under, hold: 16, chapter: at('course.arc', 6.9) },
-  { under: 'stop', hold: 1.5 },
-  { file: mixed['course.alma']!.file, gap: 2, chapter: at('course.alma', 8.6) },
-  { file: mixed['course.golden']!.file, under: mixed['course.golden']!.under, hold: 14, chapter: at('course.golden', 9) },
-  { file: mixed['course.final']!.file, under: mixed['course.final']!.under, hold: 3, chapter: at('course.final', 9.8) },
-  { file: mixed['ceremony.line']!.file, gap: 0.2, chapter: at('ceremony.line', 10, undefined, 'finish') },
-  {
-    file: await personal('ceremony.finish', { elapsedS: 2832, finish: true }),
-    under: mixed['ceremony.finish']!.under,
-    hold: 30,
-    chapter: at('ceremony.finish', 10, 'Camille Martin ! Quarante-sept minutes et douze secondes ! Vous avez bouclé le 10 km des Champs-Élysées !'),
-  },
+/* ---------- the sample runner the renders speak to ---------- */
+
+/** Camille Martin, bib 1247, from Lyon: the studio's sample runner. */
+const SAMPLE = { ...SAMPLE_RUNNER, distanceKey: '10k' as const };
+/** What the AI might write for Camille (the Worker writes it per runner, with the real weather). */
+const WORD = 'Neuf degrés et un ciel gris à Lyon, huit sur les Champs-Élysées : le temps idéal. Chez vous, la route reste ouverte, gardez un œil dessus. Coureurs… à vos marques.';
+/** The runs a listener checks (PRODUCTION.md): 4:30, 5:30 with a stop and a walk, 7:00. */
+const runPlans = (targetM: number): { name: string; plan: RunPlan }[] => [
+  { name: '4-30', plan: { paceSecPerKm: 270 } },
+  { name: '5-30', plan: { paceSecPerKm: 330, stops: [{ atM: targetM * 0.42, seconds: 45 }], walks: [{ atM: targetM * 0.8, seconds: 60 }] } },
+  { name: '7-00', plan: { paceSecPerKm: 420 } },
 ];
 
-const FADE = 0.8;
-const reelLayers: Layer[] = [];
-const chapters: (Chapter & { t: number })[] = [];
-let t = 0;
-let open: { path: string; at: number } | null = null;
-const closeUnder = (now: number) => {
-  if (!open) return;
-  const dur = Math.min(durationOf(open.path), now - open.at + FADE);
-  reelLayers.push({ path: open.path, at: open.at, dur, fadeOut: Math.min(FADE, dur) });
-  open = null;
-};
-steps.forEach((step) => {
-  if (step.chapter) chapters.push({ t: Math.round(t * 10) / 10, ...step.chapter });
-  if (step.under) {
-    closeUnder(t);
-    if (step.under !== 'stop') open = { path: step.under, at: t };
-  }
-  if (step.file) {
-    reelLayers.push({ path: step.file, at: t });
-    t += durationOf(step.file) + (step.gap ?? 0.4);
-  }
-  t += step.hold ?? 0;
-});
-closeUnder(t);
+const COUNT = ['Dix !', 'Neuf !', 'Huit !', 'Sept !', 'Six !', 'Cinq !', 'Quatre !', 'Trois !', 'Deux !', 'Un !'];
 
-/**
- * Between the moments a runner hears their own music, ducked while the race speaks. The reel
- * plays a stand-in playlist the same way, from the end of the gun's ambiance to the finish, so
- * the demo sounds like a run and not like a string of cues with silence between them.
- */
-const busy = reelLayers.map((l) => [l.at ?? 0, (l.at ?? 0) + (l.dur ?? durationOf(l.path))] as const);
-const gunChapter = chapters.find((c) => c.mark === 'gun')!.t;
-const finishChapter = chapters.find((c) => c.mark === 'finish')!.t;
-const musicFrom = gunChapter + 15;
-const ducked = busy
-  .filter(([a, b]) => b > musicFrom && a < finishChapter)
-  .map(([a, b]) => `clip((t-${(a - musicFrom - 0.8).toFixed(2)})/0.8,0,1)*clip((${(b - musicFrom + 1.8).toFixed(2)}-t)/1.5,0,1)`)
-  .reduce((acc, term) => `max(${acc},${term})`, '0');
-const playlist = await source('playlist');
-const playlistPath = join(OUT, 'reel-playlist.wav');
-execFileSync('ffmpeg', ['-y', '-v', 'error', '-i', playlist, '-ss', '20', '-t', String(finishChapter - musicFrom + 1), '-af', `volume='1-0.65*${ducked}':eval=frame,afade=t=in:d=2,afade=t=out:st=${(finishChapter - musicFrom - 0.5).toFixed(2)}:d=1.5`, playlistPath]);
-reelLayers.push({ path: playlistPath, at: musicFrom, gain: -9 });
-const reel: Cut = { layers: reelLayers, length: t + 1, lufs: -16 };
-const reelPath = join(OUT, 'reel.mp3');
-render(reel, reelPath);
-writeFileSync(join(OUT, 'reel.json'), JSON.stringify(DemoReelSchema.parse({ courseId: script.courseId, duration: Math.round(durationOf(reelPath) * 10) / 10, paceSecPerKm: 283.2, chapters }), null, 2));
-console.log(`reel: ${durationOf(reelPath).toFixed(1)} s, ${chapters.length} chapters -> ${reelPath}`);
+/* ---------- one course ---------- */
+
+const produceCourse = async (script: AudioScript) => {
+  const OUT = join(CACHE, 'out', script.courseId);
+  mkdirSync(OUT, { recursive: true });
+  const built = buildScript(script);
+  const lineOf = (id: string) => built.lines.find((l) => l.id === id)!;
+  const countdown = built.lines.find((l) => l.trigger.kind === 'cue' && l.trigger.at === 'countdown')!;
+  const kit = {
+    src: source,
+    shouts: await shoutsOf(say),
+    countAlong: await countAlongOf(say),
+    numbers: await Promise.all(COUNT.map((n) => say(voiceOfLine(built, countdown), n))),
+  };
+  const recipes = await recipesFor(kit);
+  console.log(`${script.courseId}: ${built.lines.length} lines`);
+
+  /** Every line's and take's own file, and each line's ambiance: file key in the pack -> path. */
+  const files: Record<string, string> = {};
+  for (const line of built.lines) {
+    const recipe = recipes[line.id] ?? {};
+    for (const v of voicingsOf(line, 'mp3')) {
+      if (v.audio) continue;
+      const voicePath = line.id === countdown.id ? '' : await say(voiceOfLine(built, line), v.text);
+      files[v.fileKey] = mixTo(recipe.bed ? await recipe.bed(voicePath) : spoken(voicePath), join(OUT, v.fileKey));
+    }
+    if (recipe.under) files[`${line.key}-under.mp3`] = mixTo(await recipe.under(), join(OUT, `${line.key}-under.mp3`));
+  }
+  console.log(`  ${Object.keys(files).length} files`);
+
+  /* The draft as the studio will hold it: each line and take pointing at its produced file. */
+  const upload = (key: string, name: string): UploadedAudio => ({ kind: 'upload', hash: sha(files[key]!), format: 'mp3', bytes: statSync(files[key]!).size, name });
+  const withSounds = (line: ScriptLine): ScriptLine => {
+    const [own, ...takes] = voicingsOf(line, 'mp3');
+    return {
+      ...line,
+      ...(files[own!.fileKey] ? { audio: upload(own!.fileKey, `${line.key}.mp3 (produit)`) } : {}),
+      ...(files[`${line.key}-under.mp3`] ? { under: upload(`${line.key}-under.mp3`, `${line.key}-ambiance.mp3 (produit)`) } : {}),
+      ...(line.takes ? { takes: line.takes.map((t, i) => (files[takes[i]!.fileKey] ? { ...t, audio: upload(takes[i]!.fileKey, `${line.key}~${t.id}.mp3 (produit)`) } : t)) } : {}),
+    };
+  };
+  const draft: AudioScript = AudioScriptSchema.parse({ ...script, lines: built.lines.map(withSounds) });
+  /** The pack the app would get, with the files' real lengths: what the engine plays by. */
+  const pack = manifestFor(
+    buildScript(draft),
+    Object.entries(files).map(([key, path]) => ({ key, bytes: statSync(path).size, sha256: sha(path), seconds: durationOf(path) })),
+  );
+  const fileFor = (key: string | undefined) => (key ? files[key] : undefined);
+
+  /** What the app plays for a line: the runner's own version (said to Camille), else the pack's file. */
+  const soundingOf = async (h: Pick<Heard, 'take' | 'facts'>, event: AudioEvent): Promise<Sounding | null> => {
+    const line = lineOf(event.id);
+    const voicing = voicingsOf(line).find((v) => v.takeId === h.take)!;
+    const personal = voicing.personal;
+    const words = personal?.kind === 'template' ? fillTemplate(personal.template, spokenValues(SAMPLE, h.facts)) : personal?.kind === 'ai' ? WORD : null;
+    const file = words ? await say(voiceOfLine(built, line), words) : fileFor(fileOf(event, h.take));
+    if (!file) return null;
+    return { file, ...(fileFor(event.under) ? { under: fileFor(event.under) } : {}), words: stripAudioTags(words ?? voicing.text), title: line.title };
+  };
+
+  /** The start ceremony, back to back, the gun at 0. */
+  const ceremony = async (): Promise<Placed[]> => {
+    const lines = ceremonySequence(pack)!.lines;
+    const sounded = await Promise.all(lines.map(async (e) => ({ event: e, sounding: (await soundingOf({ facts: {} }, e))! })));
+    const gun = sounded.findIndex((s) => s.event.trigger.kind === 'cue' && s.event.trigger.at === 'gun');
+    const before = sounded.slice(0, gun).reduce((t, s) => t + durationOf(s.sounding.file), 0);
+    return sounded.reduce<Placed[]>((acc, s) => {
+      const at = acc.length === 0 ? -before : acc[acc.length - 1]!.at + durationOf(acc[acc.length - 1]!.sounding.file);
+      return [...acc, { at, event: s.event, sounding: s.sounding, km: 0, filler: false }];
+    }, []);
+  };
+
+  const opening = await ceremony();
+  const t0 = 1 - opening[0]!.at;
+  const playlist = await source('playlist');
+  const runs = flag('runs') ? runPlans(built.courseId.endsWith('-5k') ? 5000 : 10_000) : runPlans(10_000).filter((r) => r.name === '5-30');
+  let reelPlaced: Placed[] = [];
+  for (const { name, plan } of runs) {
+    const targetM = built.courseId.endsWith('-5k') ? 5000 : 10_000;
+    const heard = hearRun(pack, targetM, plan);
+    const placed = [...opening, ...(await placedOf(pack, heard, soundingOf))];
+    if (name === '5-30') reelPlaced = placed;
+    if (!flag('runs')) continue;
+    const played = playOut(placed);
+    const file = join(OUT, `run-${name}.mp3`);
+    render(runCut(played, { t0, playlist, music: join(OUT, `run-${name}-music.wav`), musicFrom: 0 }), file);
+    writeFileSync(join(OUT, `run-${name}.md`), timelineMd(`${script.courseId} at ${name.replace('-', ':')}/km${plan.stops ? ', a stop and a walk' : ''}`, played, t0, 0));
+    console.log(`  run ${name}: ${(durationOf(file) / 60).toFixed(1)} min -> ${file}`);
+  }
+
+  /* The reel: the 5:30 run condensed, with its chapters. */
+  const reelPlayed: Played[] = playOut(reelOf(reelPlaced));
+  const reelFile = join(OUT, 'reel.mp3');
+  render(runCut(reelPlayed, { t0, playlist, music: join(OUT, 'reel-music.wav'), musicFrom: 14 }), reelFile);
+  const mark = (id: string) => (id === countdown.id ? 'countdown' : id.endsWith('.gun') ? 'gun' : id === 'ceremony.line' ? 'finish' : undefined);
+  const reel = DemoReelSchema.parse({
+    courseId: script.courseId,
+    duration: Math.round(durationOf(reelFile) * 10) / 10,
+    paceSecPerKm: 330,
+    chapters: reelPlayed.map((p) => ({ t: Math.round((t0 + p.at) * 10) / 10, title: p.placed.sounding.title, km: Math.round(p.placed.km * 100) / 100, caption: p.placed.sounding.words, ...(mark(p.placed.event.id) ? { mark: mark(p.placed.event.id) } : {}) })),
+  });
+  writeFileSync(join(OUT, 'reel.json'), JSON.stringify(reel, null, 2));
+  console.log(`  reel: ${durationOf(reelFile).toFixed(0)} s, ${reel.chapters.length} chapters -> ${reelFile}`);
+  writeFileSync(join(OUT, 'origins.json'), JSON.stringify({ sources: SOURCES, renders: origins }, null, 2));
+  return { draft, files, reelFile };
+};
 
 /* ---------- into the studio ---------- */
 
+const produced = [];
+for (const script of scripts) produced.push({ script, ...(await produceCourse(script)) });
+
 if (target) {
-  const bucket = target === 'preview' ? 'sivoov-run-files-preview' : 'sivoov-run-files';
-  const dbName = target === 'preview' ? 'sivoov-run-preview' : 'sivoov-run';
-  const where = target === 'local' ? ['--local', '--env', 'local'] : target === 'preview' ? ['--remote', '--env', 'preview'] : ['--remote'];
-  const wrangler = (args: string[]) => execFileSync('npx', ['wrangler', ...args], { cwd: API_DIR, stdio: ['ignore', 'ignore', 'inherit'] });
-  const put = (key: string, path: string, type: string) => wrangler(['r2', 'object', 'put', `${bucket}/${key}`, '--file', path, '--content-type', type, ...where]);
-
-  const upload = (path: string, name: string): UploadedAudio => {
-    const hash = sha(path);
-    put(`studio-uploads/${hash}.mp3`, path, 'audio/mpeg');
-    return UploadedAudioSchema.parse({ kind: 'upload', hash, format: 'mp3', bytes: statSync(path).size, name });
-  };
-  const lines = script.lines.map((l) => {
-    const m = mixed[l.id];
-    return {
-      ...l,
-      ...(m?.file ? { audio: upload(m.file, `${l.key}.mp3 (produit)`) } : {}),
-      ...(m?.under ? { under: upload(m.under, `${l.key}-ambiance.mp3 (produit)`) } : {}),
-    };
-  });
-  const draft: AudioScript = AudioScriptSchema.parse({ ...script, lines });
-  const q = (v: string) => `'${v.replaceAll("'", "''")}'`;
-  const sqlFile = join(OUT, 'draft.sql');
-  writeFileSync(
-    sqlFile,
-    `UPDATE audio_scripts SET script = ${q(JSON.stringify(draft))}, updated_at = ${q(new Date().toISOString())} WHERE course_id = ${q(script.courseId)} AND locale = ${q(script.locale)};`,
-  );
-  wrangler(['d1', 'execute', dbName, ...where, '--file', sqlFile]);
-  put(`demo/${script.courseId}/reel.mp3`, reelPath, 'audio/mpeg');
-  put(`demo/${script.courseId}/reel.json`, join(OUT, 'reel.json'), 'application/json');
-  console.log(`draft and reel -> ${target}`);
-
-  if (publish) {
-    if (target === 'production') {
-      console.log('production: open /org/10km-champs-elysees-2027/courses and press « Publier » (no test organizer there).');
-    } else {
-      const base = target === 'local' ? 'http://localhost:8788' : 'https://preview.run.sivoov.app';
-      const signin = await fetch(`${base}/org/signin`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ step: 'code', email: 'orga@example.com', code: '000000' }).toString(),
-        redirect: 'manual',
-      });
-      const cookie = signin.headers.get('set-cookie')?.split(';')[0];
-      if (!cookie) throw new Error(`sign-in failed on ${base} (${signin.status})`);
-      const res = await fetch(`${base}/org/${raceId}/courses/${script.courseId}/script/publish`, { method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: '{}' });
-      console.log(`publish on ${target}: ${res.status} ${(await res.text()).slice(0, 300)}`);
+  const { env: bindings, dispose } = await bindingsFor(target);
+  const scriptsDb = scriptDb(bindings.DB);
+  try {
+    for (const { script, draft, files, reelFile } of produced) {
+      const row = await scriptsDb.draft(script.courseId);
+      if (!row) throw new Error(`${script.courseId} has no draft on ${target}: seed it first (npm run seed -w api -- ${target} ${raceId})`);
+      for (const path of Object.values(files)) await bindings.FILES.put(`studio-uploads/${sha(path)}.mp3`, readFileSync(path), { httpMetadata: { contentType: 'audio/mpeg' } });
+      // The row's version is the next publish's; the draft takes it over, published mark and all.
+      const saved = { ...draft, version: row.version };
+      await scriptsDb.saveDraft(saved);
+      await bindings.FILES.put(`demo/${script.courseId}/reel.mp3`, readFileSync(reelFile), { httpMetadata: { contentType: 'audio/mpeg' } });
+      await bindings.FILES.put(`demo/${script.courseId}/reel.json`, readFileSync(reelFile.replace(/\.mp3$/, '.json')), { httpMetadata: { contentType: 'application/json' } });
+      console.log(`${script.courseId}: draft v${row.version} and reel -> ${target}`);
+      if (flag('publish')) {
+        const outcome = await publishScript({ db: db(bindings.DB), scripts: scriptsDb, files: bindings.FILES }, saved);
+        console.log(`${script.courseId}: publish on ${target}: ${JSON.stringify(outcome)}`);
+      }
     }
+  } finally {
+    await dispose();
   }
 }

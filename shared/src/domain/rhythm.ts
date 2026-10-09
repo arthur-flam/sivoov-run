@@ -1,4 +1,5 @@
-import type { AudioEvent, AudioPack } from '../schemas/audio';
+import type { AudioEvent, AudioPack, LiveFacts } from '../schemas/audio';
+import { liveFactsFor } from './placeholders';
 import { ceremonySequence, lineLeadM, nextEvents } from './audioTriggers';
 import type { Firing } from './audioTriggers';
 import { NO_PAUSE, followPause, isSlow, pickTake, readRun } from './runReading';
@@ -134,8 +135,8 @@ export type RunPlan = {
   walks?: { atM: number; seconds: number; paceSecPerKm?: number }[];
 };
 
-/** One line said in a simulated run: when (from the gun), where, what, and how long it sounds. */
-export type Heard = Said & { distanceM: number; file?: string; seconds: number; under?: string };
+/** One line said in a simulated run: when (from the gun), where, what, how long it sounds, and what the run knew (a live line's numbers). */
+export type Heard = Said & { distanceM: number; file?: string; seconds: number; under?: string; facts: LiveFacts };
 
 /** A walker's pace when the plan does not say: 11:00/km. */
 const WALK_PACE_S = 660;
@@ -197,6 +198,7 @@ export const hearRun = (pack: Pick<AudioPack, 'events' | 'files' | 'maxGapS'>, t
         ...(file ? { file } : {}),
         seconds: secondsOf(pack, file),
         ...(d.event.under ? { under: d.event.under } : {}),
+        facts: liveFactsFor(state),
       });
     });
   }

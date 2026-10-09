@@ -109,6 +109,9 @@ export const saysItsWords = (text: string, heard: string): boolean => {
 /** Models whose daily quota ran out in this run: their fallback is used from then on. */
 const spent = new Set<string>();
 
+/** Gemini allows no more renders today (100 a day a model on our key): what is cached still plays. */
+export class QuotaSpent extends Error {}
+
 export const voice = async (env: VoiceEnv, v0: ScriptVoice, text: string, direction: string, scene?: string, take = 1): Promise<string> => {
   const fallback = GEMINI_TTS_FALLBACK[v0.model];
   const keyOf = (model: string) => sha(JSON.stringify([model, v0.id, direction, scene ?? '', text, take])).slice(0, 32);
@@ -119,6 +122,9 @@ export const voice = async (env: VoiceEnv, v0: ScriptVoice, text: string, direct
   const key = keyOf(v.model);
   const trimmed = join(VOICES_DIR, `${key}.wav`);
   const checked = join(VOICES_DIR, `${key}.heard.txt`);
+  // A take already refused (too long, or saying something else) is not paid for twice.
+  const refused = join(VOICES_DIR, `${key}.refused`);
+  if (existsSync(refused) && take < 6) return voice(env, v0, text, direction, scene, take + 1);
   if (existsSync(trimmed)) {
     if (existsSync(checked)) return trimmed;
     // A take kept before takes were heard: hear it now.
@@ -142,7 +148,7 @@ export const voice = async (env: VoiceEnv, v0: ScriptVoice, text: string, direct
   // A day's quota spent (the lite model allows our key 100 renders a day): the lighter sibling if
   // there is one, else stop now rather than wait out the minute-by-minute retries below.
   if (res.status === 429 && (await res.clone().text()).includes('PerDay')) {
-    if (v.model !== v0.model || !fallback) throw new Error(`voice: ${v.model}'s quota for today is spent ("${text}")`);
+    if (v.model !== v0.model || !fallback) throw new QuotaSpent(`voice: ${v.model}'s quota for today is spent ("${text}")`);
     console.log(`  voice: ${v0.model} is spent for today, going on with ${fallback} (the same voice)`);
     spent.add(v0.model);
     return voice(env, v0, text, direction, scene, take);
@@ -161,12 +167,14 @@ export const voice = async (env: VoiceEnv, v0: ScriptVoice, text: string, direct
   if (!plausibleSeconds(text, seconds)) {
     if (take >= 6) throw new Error(`voice: every take of "${text}" is too long (${seconds.toFixed(1)} s)`);
     console.log(`  voice: take ${take} of "${text.slice(0, 40)}" lasts ${seconds.toFixed(1)} s, again`);
+    writeFileSync(refused, `${seconds.toFixed(1)} s`);
     return voice(env, v0, text, direction, scene, take + 1);
   }
   const heard = await transcribe(env, Buffer.from(wav));
   if (heard !== null && !saysItsWords(text, heard)) {
     if (take >= 6) throw new Error(`voice: every take of "${text}" says something else ("${heard}")`);
     console.log(`  voice: take ${take} of "${text.slice(0, 40)}" says "${heard.slice(0, 80)}", again`);
+    writeFileSync(refused, heard);
     return voice(env, v0, text, direction, scene, take + 1);
   }
   const raw = join(VOICES_DIR, `${key}.raw.wav`);

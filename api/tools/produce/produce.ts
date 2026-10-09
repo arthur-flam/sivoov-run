@@ -42,7 +42,7 @@ import { scriptDb } from '../../src/db/scriptQueries';
 import { mapLimit } from '../../src/lib/mapLimit';
 import { publishScript } from '../../src/lib/publish';
 import { reelKey } from '../../src/lib/reel';
-import { CACHE, source, voice, voiceEnvFromDotenv, voiceOrigin } from './assets';
+import { CACHE, QuotaSpent, source, voice, voiceEnvFromDotenv, voiceOrigin } from './assets';
 import { countAlongOf, shoutsOf } from './crowd';
 import { durationOf, render } from './mix';
 import type { Cut } from './mix';
@@ -131,10 +131,13 @@ const soundingFor =
     const personal = voicing.personal;
     const words = personal?.kind === 'template' ? fillTemplate(personal.template, spokenValues(SAMPLE, h.facts)) : personal?.kind === 'ai' ? WORD : null;
     const inPack = (key: string | undefined) => (key ? files[key] : undefined);
-    const file = words ? await say(voiceOfLine(built, line), words) : inPack(takeOf(event, h.take)?.key);
+    const offline = inPack(takeOf(event, h.take)?.key);
+    // No quota left today for Camille's own version: the offline one, as the app would play it.
+    const own = words ? await say(voiceOfLine(built, line), words).catch((e: unknown) => (e instanceof QuotaSpent ? null : Promise.reject(e))) : null;
+    const file = own ?? offline;
     if (!file) return null;
     const under = inPack(event.under);
-    return { file, ...(under ? { under } : {}), words: stripAudioTags(words ?? voicing.text), title: line.title };
+    return { file, ...(under ? { under } : {}), words: stripAudioTags(own && words ? words : voicing.text), title: line.title };
   };
 
 /** The start ceremony, back to back, the gun exactly at 0. */

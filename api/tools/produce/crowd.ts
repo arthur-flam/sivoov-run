@@ -7,6 +7,7 @@
  */
 import { GEMINI_TTS_MODEL } from '@sivoov/shared';
 import { mapLimit } from '../../src/lib/mapLimit';
+import { QuotaSpent } from './assets';
 import type { Layer } from './mix';
 import { durationOf } from './mix';
 
@@ -18,13 +19,18 @@ const SCENE = 'Au bord de la route, dans la foule, au passage des coureurs.';
 
 export type Say = (voice: { id: string; name: string; model: string; direction: string; scene: string }, text: string) => Promise<string>;
 
+/** A render the day's quota no longer allows is left out: the crowd is made of the others. */
+const orNothing = (render: Promise<string>): Promise<string | null> => render.catch((e: unknown) => (e instanceof QuotaSpent ? null : Promise.reject(e)));
+
 /** Every voice shouting every encouragement, rendered once and cached. */
-export const shoutsOf = (say: Say): Promise<string[]> =>
-  mapLimit(
-    SHOUTERS.flatMap((id) => SHOUTS.map((text) => ({ id, text }))),
-    4,
-    ({ id, text }) => say({ id, name: id, model: GEMINI_TTS_MODEL, direction: DIRECTION, scene: SCENE }, text),
-  );
+export const shoutsOf = async (say: Say): Promise<string[]> =>
+  (
+    await mapLimit(
+      SHOUTERS.flatMap((id) => SHOUTS.map((text) => ({ id, text }))),
+      4,
+      ({ id, text }) => orNothing(say({ id, name: id, model: GEMINI_TTS_MODEL, direction: DIRECTION, scene: SCENE }, text)),
+    )
+  ).filter((path): path is string => path !== null);
 
 /** The crowd counting the last three along with the speaker: five voices on each number. */
 export const countAlongOf = async (say: Say): Promise<string[][]> => {
@@ -32,9 +38,9 @@ export const countAlongOf = async (say: Say): Promise<string[][]> => {
   const voices = SHOUTERS.slice(0, 5);
   const direction = 'Un spectateur dans la foule du départ qui compte à rebours avec le speaker, à pleine voix.';
   const said = await mapLimit(numbers.flatMap((n) => voices.map((id) => ({ id, n }))), 4, ({ id, n }) =>
-    say({ id, name: id, model: GEMINI_TTS_MODEL, direction, scene: 'Dans la foule du village de départ.' }, n),
+    orNothing(say({ id, name: id, model: GEMINI_TTS_MODEL, direction, scene: 'Dans la foule du village de départ.' }, n)),
   );
-  return numbers.map((_, i) => said.slice(i * voices.length, (i + 1) * voices.length));
+  return numbers.map((_, i) => said.slice(i * voices.length, (i + 1) * voices.length).filter((path): path is string => path !== null));
 };
 
 /** A small deterministic generator: the same seed, the same crowd. */

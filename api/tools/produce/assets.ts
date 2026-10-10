@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { GEMINI_TTS_FALLBACK, frenchNumber, geminiAudioOf, geminiTtsBody, geminiWav, plausibleSeconds, wavSeconds } from '@sivoov/shared';
+import { frenchNumber, geminiAudioOf, geminiTtsBody, geminiWav, plausibleSeconds, wavSeconds } from '@sivoov/shared';
 import type { ScriptVoice } from '@sivoov/shared';
 import { SOURCES } from './sources';
 import type { SourceId } from './sources';
@@ -106,25 +106,31 @@ export const saysItsWords = (text: string, heard: string): boolean => {
   return words.length > 0 && extra / words.length <= 0.2;
 };
 
-/** Models whose daily quota ran out in this run: their fallback is used from then on. */
+/** Models whose daily quota ran out in this run: nothing more is asked of them. */
 const spent = new Set<string>();
 
 /** Gemini allows no more renders today (100 a day a model on our key): what is cached still plays. */
 export class QuotaSpent extends Error {}
 
-export const voice = async (env: VoiceEnv, v0: ScriptVoice, text: string, direction: string, scene?: string, take = 1): Promise<string> => {
-  const fallback = GEMINI_TTS_FALLBACK[v0.model];
-  const keyOf = (model: string) => sha(JSON.stringify([model, v0.id, direction, scene ?? '', text, take])).slice(0, 32);
-  // A take already made by the main model is kept even once its quota is spent.
-  const kept = existsSync(join(VOICES_DIR, `${keyOf(v0.model)}.wav`));
-  const v = !kept && spent.has(v0.model) && fallback ? { ...v0, model: fallback } : v0;
+/** How long a per-minute 429 asks to wait, in seconds (`"retryDelay": "37s"`). */
+const retryDelayS = (body: string): number | null => {
+  const s = body.match(/"retryDelay":\s*"(\d+)/)?.[1];
+  return s ? Number(s) : null;
+};
+
+/**
+ * A take of `text` in the voice's own model, never the lighter one the Worker falls back on: what
+ * this tool makes is heard by every runner, and the lite model reads its notes aloud on short
+ * lines (six 27 s takes of « Kilomètre sept… », a 22 s « Trois ! »). A spent day waits for the next.
+ */
+export const voice = async (env: VoiceEnv, v: ScriptVoice, text: string, direction: string, scene?: string, take = 1): Promise<string> => {
+  const key = sha(JSON.stringify([v.model, v.id, direction, scene ?? '', text, take])).slice(0, 32);
   mkdirSync(VOICES_DIR, { recursive: true });
-  const key = keyOf(v.model);
   const trimmed = join(VOICES_DIR, `${key}.wav`);
   const checked = join(VOICES_DIR, `${key}.heard.txt`);
   // A take already refused (too long, or saying something else) is not paid for twice.
   const refused = join(VOICES_DIR, `${key}.refused`);
-  if (existsSync(refused) && take < 6) return voice(env, v0, text, direction, scene, take + 1);
+  if (existsSync(refused) && take < 6) return voice(env, v, text, direction, scene, take + 1);
   if (existsSync(trimmed)) {
     if (existsSync(checked)) return trimmed;
     // A take kept before takes were heard: hear it now.
@@ -134,8 +140,10 @@ export const voice = async (env: VoiceEnv, v0: ScriptVoice, text: string, direct
       return trimmed;
     }
     console.log(`  voice: kept take ${take} of "${text.slice(0, 40)}" says "${heard.slice(0, 80)}", again`);
-    return voice(env, v0, text, direction, scene, take + 1);
+    return voice(env, v, text, direction, scene, take + 1);
   }
+  const spentToday = () => new QuotaSpent(`voice: ${v.model}'s quota for today is spent ("${text}")`);
+  if (spent.has(v.model)) throw spentToday();
   const call = () =>
     fetch(`${env.gateway}/google-ai-studio/v1beta/models/${v.model}:generateContent`, {
       method: 'POST',
@@ -143,20 +151,20 @@ export const voice = async (env: VoiceEnv, v0: ScriptVoice, text: string, direct
       headers: { 'x-goog-api-key': env.geminiKey, 'Content-Type': 'application/json', 'User-Agent': 'sivoov-produce/1', 'cf-aig-skip-cache': 'true' },
       body: JSON.stringify(geminiTtsBody({ id: v.id, direction }, text, scene)),
     });
-  // The preview TTS models allow a few requests a minute: wait and try again on 429.
+  const perDay = async (r: Response) => r.status === 429 && (await r.clone().text()).includes('PerDay');
+  // The TTS models allow our key ten requests a minute: wait as long as the 429 says, plus a few
+  // random seconds so that the renders running side by side do not all ask again at once (a
+  // refused request seems to count against the minute too, and in step they never got through).
   let res = await call();
-  // A day's quota spent (the lite model allows our key 100 renders a day): the lighter sibling if
-  // there is one, else stop now rather than wait out the minute-by-minute retries below.
-  if (res.status === 429 && (await res.clone().text()).includes('PerDay')) {
-    if (v.model !== v0.model || !fallback) throw new QuotaSpent(`voice: ${v.model}'s quota for today is spent ("${text}")`);
-    console.log(`  voice: ${v0.model} is spent for today, going on with ${fallback} (the same voice)`);
-    spent.add(v0.model);
-    return voice(env, v0, text, direction, scene, take);
-  }
-  for (let attempt = 1; res.status === 429 && attempt <= 10; attempt += 1) {
-    console.log(`  voice: rate limited, waiting ${15 * attempt} s`);
-    await new Promise((r) => setTimeout(r, 15_000 * attempt));
+  for (let attempt = 1; res.status === 429 && !(await perDay(res)) && attempt <= 10; attempt += 1) {
+    const wait = (retryDelayS(await res.clone().text()) ?? 15 * attempt) + Math.round(Math.random() * 20);
+    console.log(`  voice: rate limited, waiting ${wait} s`);
+    await new Promise((r) => setTimeout(r, wait * 1000));
     res = await call();
+  }
+  if (await perDay(res)) {
+    spent.add(v.model);
+    throw spentToday();
   }
   if (!res.ok) throw new Error(`voice ${res.status}: ${(await res.text()).slice(0, 200)} (${text})`);
   const audio = geminiAudioOf(await res.json());
@@ -168,20 +176,19 @@ export const voice = async (env: VoiceEnv, v0: ScriptVoice, text: string, direct
     if (take >= 6) throw new Error(`voice: every take of "${text}" is too long (${seconds.toFixed(1)} s)`);
     console.log(`  voice: take ${take} of "${text.slice(0, 40)}" lasts ${seconds.toFixed(1)} s, again`);
     writeFileSync(refused, `${seconds.toFixed(1)} s`);
-    return voice(env, v0, text, direction, scene, take + 1);
+    return voice(env, v, text, direction, scene, take + 1);
   }
   const heard = await transcribe(env, Buffer.from(wav));
   if (heard !== null && !saysItsWords(text, heard)) {
     if (take >= 6) throw new Error(`voice: every take of "${text}" says something else ("${heard}")`);
     console.log(`  voice: take ${take} of "${text.slice(0, 40)}" says "${heard.slice(0, 80)}", again`);
     writeFileSync(refused, heard);
-    return voice(env, v0, text, direction, scene, take + 1);
+    return voice(env, v, text, direction, scene, take + 1);
   }
   const raw = join(VOICES_DIR, `${key}.raw.wav`);
   writeFileSync(raw, wav);
   writeFileSync(checked, heard ?? '');
-  // Where this take came from, beside it: the model that really said it (the lighter one once the
-  // main one's day is spent), and when.
+  // Where this take came from, beside it: the model, the voice, the words, and when.
   writeFileSync(join(VOICES_DIR, `${key}.json`), JSON.stringify({ provider: 'gemini', model: v.model, voice: v.id, direction, scene: scene ?? null, text, take, at: new Date().toISOString() }));
   const edge = 'silenceremove=start_periods=1:start_threshold=-50dB:start_silence=0.05';
   execFileSync('ffmpeg', ['-y', '-v', 'error', '-i', raw, '-af', `${edge},areverse,${edge},areverse`, trimmed]);

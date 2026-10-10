@@ -83,10 +83,13 @@ const COUNT = ['Dix !', 'Neuf !', 'Huit !', 'Sept !', 'Six !', 'Cinq !', 'Quatre
  */
 const mixLines = async (built: BuiltScript, out: string) => {
   const countdown = built.lines.find((l) => l.trigger.kind === 'cue' && l.trigger.at === 'countdown')!;
-  const kit = { src: source, shouts: await shoutsOf(say), countAlong: await countAlongOf(say), numbers: await Promise.all(COUNT.map((n) => say(voiceOfLine(built, countdown), n))) };
-  const recipes = await recipesFor(kit);
+  // The words first, then the countdown's numbers, then the crowd (it makes do with what it has):
+  // with a hundred renders a day, what is rendered first is what matters most.
   const toMix = built.lines.flatMap((line) => voicingsOf(line, 'mp3').filter((v) => !v.audio).map((v) => ({ line, v })));
   const voices = await mapLimit(toMix, 4, ({ line, v }) => (line === countdown ? Promise.resolve('') : say(voiceOfLine(built, line), v.text)));
+  const numbers = await mapLimit(COUNT, 4, (n) => say(voiceOfLine(built, countdown), n));
+  const kit = { src: source, numbers, shouts: await shoutsOf(say), countAlong: await countAlongOf(say) };
+  const recipes = await recipesFor(kit);
   const mixes: { key: string; cut: Cut }[] = [
     ...(await Promise.all(toMix.map(async ({ line, v }, i) => ({ key: v.fileKey, cut: await (recipes[line.id]?.bed ?? (async (p: string) => spoken(p)))(voices[i]!) })))),
     ...(await Promise.all(built.lines.flatMap((line) => (recipes[line.id]?.under ? [recipes[line.id]!.under!().then((cut) => ({ key: `${line.key}-under.mp3`, cut }))] : [])))),

@@ -756,7 +756,10 @@
     the lite model (`gemini-3.8-flash-lite-tts`, the Worker's fallback) only **100 a day**
     (`GenerateRequestsPerDayPerProjectPerModel`): putting the production tool's crowd on it spent
     the day in one run. A runner's pre-flight now asks for ~20 name renders: one runner at a time
-    is fine, a race week is not. Raise the quota (Owner actions) before real entries. `curl` to the
+    is fine, a race week is not. Raise the quota (Owner actions) before real entries. The 429's
+    `retryDelay` pointed at 00:00 UTC, yet at 00:05 UTC both models were still spent with a new
+    24 h delay and nothing of ours had rendered since: treat the "day" as unknown (maybe a rolling
+    window) and poll before a long render. `curl` to the
     TTS endpoint answered 404 with an empty body where node's fetch got the real answer: test
     Gemini from node.
   - **Production's D1 was five migrations behind** (0001-0006 applied, 0007-0011 not): the

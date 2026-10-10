@@ -652,8 +652,11 @@ Anchored to PRD milestones (M2 10 Oct, M3 17 Oct, M4 31 Oct).
   Listen for: the voice's age and energy, the regulars' « Allez Camille ! », the crowd made of
   voices, the rhythm (no long silences, not too many cheers), the U-turn and the finish. Your
   notes go in the next session; the voice is one constant in the script.
-- **Gemini TTS quota**: our key allows 10 requests a minute per model, and the lite model (the
-  Worker's fallback on a 429) 100 a day. A runner's pre-flight now asks for ~20 name renders,
+- **Gemini TTS quota**: our key allows 10 requests a minute per model and **100 a day per model**
+  (`gemini-3.8-flash-tts` and the lite one, the Worker's fallback on a 429). The Champs sound
+  needs ~110 renders for both courses and the whole runs ~100 more: it could not be rendered on
+  2026-10-09 (a day spent on attempts) nor at the next reset (still spent at 00:05 UTC, nothing of
+  ours had called it; AI Studio's usage page, ai.dev/rate-limit, would say who did). A runner's pre-flight now asks for ~20 name renders,
   cached per first name: fine for a demo, not for a race week. Ask Google for a higher quota (AI
   Studio → the project → rate limits) before real entrants.
 

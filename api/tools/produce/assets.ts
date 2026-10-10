@@ -195,8 +195,11 @@ export const voice = async (env: VoiceEnv, v: ScriptVoice, text: string, directi
   return trimmed;
 };
 
-/** Where a voice take came from (written when it was rendered), or null for a take kept from before origins were written. */
+/**
+ * Where a voice take came from (written when it was rendered), or null: a take kept from before
+ * origins were written, or not a voice take at all (a mix also holds sounds and music).
+ */
 export const voiceOrigin = (path: string): Record<string, unknown> | null => {
   const file = path.replace(/\.wav$/, '.json');
-  return existsSync(file) ? (JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>) : null;
+  return path.startsWith(VOICES_DIR) && file !== path && existsSync(file) ? (JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>) : null;
 };

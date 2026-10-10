@@ -7,6 +7,7 @@
  *   npm run produce -w api -- 10km-champs-elysees-2027                       # mix only, into api/.produce/out/<course>/
  *   npm run produce -w api -- 10km-champs-elysees-2027 --runs                # and the full runs
  *   npm run produce -w api -- 10km-champs-elysees-2027 local|preview|production [--publish] [--course 5k]
+ *   --allow-offline: when the day's renders run out, the runs and the reel say Camille's lines offline
  *
  * With a target, the files go to that R2 as the organizer's own sounds (`studio-uploads/`) and the
  * draft in D1 points each line and take at them (`audio`, `under`); the draft it replaces is kept in
@@ -135,8 +136,9 @@ const soundingFor =
     const words = personal?.kind === 'template' ? fillTemplate(personal.template, spokenValues(SAMPLE, h.facts)) : personal?.kind === 'ai' ? WORD : null;
     const inPack = (key: string | undefined) => (key ? files[key] : undefined);
     const offline = inPack(takeOf(event, h.take)?.key);
-    // No quota left today for Camille's own version: the offline one, as the app would play it.
-    const own = words ? await say(voiceOfLine(built, line), words).catch((e: unknown) => (e instanceof QuotaSpent ? null : Promise.reject(e))) : null;
+    // No quota left today for Camille's own version: with --allow-offline, the offline one, as the
+    // app would play it; else the run waits for a day with renders (a run said to nobody misleads).
+    const own = words ? await say(voiceOfLine(built, line), words).catch((e: unknown) => (e instanceof QuotaSpent && flag('allow-offline') ? null : Promise.reject(e))) : null;
     const file = own ?? offline;
     if (!file) return null;
     const under = inPack(event.under);

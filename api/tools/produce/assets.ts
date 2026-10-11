@@ -69,11 +69,24 @@ const norm = (s: string): string[] =>
     .filter((w) => w.length > 1);
 
 /**
+ * `fetch` through a flaky network: a request that never got an answer (DNS, a timeout, a closed
+ * socket: the laptop's Wi-Fi, 2026-10-10 and 11) is sent again, four times over a minute, before
+ * the run gives up. An HTTP error is an answer and is returned as is.
+ */
+const steadyFetch = (url: string, init: RequestInit, tries = 5): Promise<Response> =>
+  fetch(url, init).catch(async (e: unknown) => {
+    if (tries <= 1) throw e;
+    console.log(`  network: ${(e as { cause?: { code?: string } }).cause?.code ?? String(e)}, again in 15 s`);
+    await new Promise((r) => setTimeout(r, 15_000));
+    return steadyFetch(url, init, tries - 1);
+  });
+
+/**
  * What a take really says, heard by Gemini (a text model, through the gateway): the length
  * check misses a short scene read aloud before a long line. Null when it cannot be heard.
  */
 const transcribe = async (env: VoiceEnv, wav: Buffer): Promise<string | null> => {
-  const res = await fetch(`${env.gateway}/google-ai-studio/v1beta/models/gemini-3.8-flash:generateContent`, {
+  const res = await steadyFetch(`${env.gateway}/google-ai-studio/v1beta/models/gemini-3.8-flash:generateContent`, {
     method: 'POST',
     headers: { 'x-goog-api-key': env.geminiKey, 'Content-Type': 'application/json', 'User-Agent': 'sivoov-produce/1' },
     body: JSON.stringify({
@@ -145,7 +158,7 @@ export const voice = async (env: VoiceEnv, v: ScriptVoice, text: string, directi
   const spentToday = () => new QuotaSpent(`voice: ${v.model}'s quota for today is spent ("${text}")`);
   if (spent.has(v.model)) throw spentToday();
   const call = () =>
-    fetch(`${env.gateway}/google-ai-studio/v1beta/models/${v.model}:generateContent`, {
+    steadyFetch(`${env.gateway}/google-ai-studio/v1beta/models/${v.model}:generateContent`, {
       method: 'POST',
       // The gateway caches identical requests: a second take must not get the first one back.
       headers: { 'x-goog-api-key': env.geminiKey, 'Content-Type': 'application/json', 'User-Agent': 'sivoov-produce/1', 'cf-aig-skip-cache': 'true' },

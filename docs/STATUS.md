@@ -45,6 +45,12 @@ ears: every listening decision is provisional and listed under Owner actions).
 - **Checked**: typecheck, lint, tests (shared 476, api 261 + 56, app 166), the density check on
   both courses at 4:00-8:00/km with a stop and a walk on the real tracker; preview: migration
   0011, the Worker, the seed, the real race listing only its 10 km and its demo both.
+- **On preview** (2026-10-11): both courses rendered on the main voice model and published
+  (10 km pack v4: 32 lines, 35 takes, 81 files; 5 km v1: 27 lines, 35 takes, 75 files; every file
+  with its length), their reels up (5:52 and 4:56, Camille's name in 16 and 14 moments), the 5 km
+  shown only on the demo. Production waits, by the owner's choice (2026-10-10: preview is enough
+  for now). The produce tool now renders on the main model only (the lite one read its notes
+  aloud on short lines) and writes `out/qa/index.html`, every line and take to check by ear.
 
 ### The production brief (2026-10-09, branch `claude/api-credits-10k-strategy-ssyque`)
 The owner ran the 10K draft and listened: too many long silences, trivia instead of
@@ -596,10 +602,13 @@ the same run (read through Strava). Preview run `mujbwasn-hwxict1f`.
 
 ## Next, in order
 
-0. **Champs-Élysées: show it to the organizer.** Merge `claude/champs-elysees` (deploys
-   production), then publish the pack in production's studio, then run the 10 km on the phone
-   with the preview shell (bib 2003 on preview) and listen for the ambiances, the Gemini lines
-   (WAV) and the finish. Then the licensing and recording list in CHAMPS_ELYSEES.md.
+0. **Champs-Élysées: the owner's ear, then production.** The owner listens on preview and in
+   `api/.produce/out/qa/index.html` (Owner actions), notes go into the script; the voice may
+   change (ElevenLabs' library, or a cloned voice: the studio already takes an ElevenLabs voice id,
+   but every take is rendered again). Then production: fast-forward `main` to this branch, run
+   « promote production » (migrations 0007-0011, the Worker, the app update), `npm run seed -w api
+   -- production 10km-champs-elysees-2027`, `npm run produce -w api -- 10km-champs-elysees-2027
+   production --publish`. Then the licensing and recording list in CHAMPS_ELYSEES.md.
 
 Anchored to PRD milestones (M2 10 Oct, M3 17 Oct, M4 31 Oct).
 
@@ -646,19 +655,24 @@ Anchored to PRD milestones (M2 10 Oct, M3 17 Oct, M4 31 Oct).
 
 ## Owner actions
 
-- **Listen to the Champs-Élysées** (`api/.produce/out/10km-champs-elysees-2027-{10k,5k}/`):
-  `run-5-30.mp3` first with its timeline `run-5-30.md` (a stop at 42 %, a walk at 80 %), then
-  `reel.mp3`; then the casting page `api/.produce/out/casting/index.html` (blind; `key.json`).
-  Listen for: the voice's age and energy, the regulars' « Allez Camille ! », the crowd made of
-  voices, the rhythm (no long silences, not too many cheers), the U-turn and the finish. Your
-  notes go in the next session; the voice is one constant in the script.
+- **Listen to the Champs-Élysées**: `api/.produce/out/qa/index.html` (every line and take, what
+  the transcription heard, the reels and full runs on top), or on preview: the race page's reel,
+  the demo race in the app (bib 7001 the 10 km, 7002 the 5 km). The full runs,
+  `run-5-30.mp3` first with its timeline `run-5-30.md` (a stop at 42 %, a walk at 80 %), sit in
+  `api/.produce/out/10km-champs-elysees-2027-{10k,5k}/`. Listen for: the voice's age and energy,
+  the regulars' « Allez Camille ! », the crowd made of voices, the rhythm (no long silences, not
+  too many cheers), the U-turn and the finish. Your notes go in the next session.
 - **Gemini TTS quota**: our key allows 10 requests a minute per model and **100 a day per model**
-  (`gemini-3.8-flash-tts` and the lite one, the Worker's fallback on a 429). The Champs sound
-  needs ~110 renders for both courses and the whole runs ~100 more: it could not be rendered on
-  2026-10-09 (a day spent on attempts) nor at the next reset (still spent at 00:05 UTC, nothing of
-  ours had called it; AI Studio's usage page, ai.dev/rate-limit, would say who did). A runner's pre-flight now asks for ~20 name renders,
-  cached per first name: fine for a demo, not for a race week. Ask Google for a higher quota (AI
-  Studio → the project → rate limits) before real entrants.
+  (`gemini-3.8-flash-tts`; the lite one, the Worker's fallback, has its own 100), reset at
+  midnight Pacific (10:00 in Israel, observed 2026-10-11). A runner costs 13-44 renders (10 km:
+  31 name lines before the start, cached per first name, an AI line, ~12 live lines; 5 km: 30 and
+  ~6), so 100 runners a day need ~1,500-4,500 a day and ~100 a minute at a busy start. Money is
+  not the limit: ~0.04-0.10 USD a runner at 2027 prices (0.00045 USD a second of voice). First
+  look at the project's tier and limits in AI Studio (ai.dev/rate-limit): a forum thread
+  (2026-10-07) reports this model held at 100 a day through the API while AI Studio shows 10,000,
+  Tier 2 projects included; if that is us, it is Google's to fix. Else Tier 1 (billing linked)
+  may do, Tier 2 (100 USD spent + 3 days) is the safe one for a race week. ElevenLabs instead:
+  no daily cap, 10 renders at once on Pro (99 USD a month), ~2x the cost per runner.
 
 - **Share cards and race photos** (this branch): a new EAS build for the photo picker
   (`expo-image-picker`), then run migration `0009_photos.sql` before the
@@ -815,6 +829,12 @@ repeated here (see ARCHITECTURE.md, AUDIO.md, WORKFLOW.md).
   (`npm run audio:build`) ignores takes; `tools/produce/assets.ts`'s `voice()` deserves a loop
   instead of its four recursive re-entries; the tracker's crossing times move with the screen's
   clock ticks (a split or the finish can be dated up to a step late with the screen on).
+- **The Worker's lite fallback is cached as the main model's take** (`lib/tts.ts`): on a 429 it
+  renders with `gemini-3.8-flash-lite-tts` but stores the file under the main voice's hash, so a
+  runner's name line said by the lite model (checked only for length) stays that runner's line
+  for good. The produce tool no longer uses the lite model at all (it read its notes aloud on
+  six takes in a row of a km split). Either key the render by the model that made it, or drop
+  the fallback and let the offline version play.
 - **Not done from PRODUCTION.md**: the leitmotif (one Lyria theme through the race); the sound
   library and its listening page (SOUND_LIBRARY.md: `origins.json` stands in); the pitch reel's
   5-minute cap is not enforced; no real outdoor run of either course yet; the owner's scores.

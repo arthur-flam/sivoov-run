@@ -780,3 +780,25 @@
   - Takes keep their own file key (`<key>~<take>`), the runner's own versions `event/take`
     (`personalKey`): a key with a '/' must never become a file path on the phone (packDisk names
     files by hash).
+- 2026-10-10/11 (same branch, rendering the Champs sound on a laptop):
+  - **The Gemini TTS day resets at midnight Pacific** (10:00 in Israel): spent at 09:48, renders
+    at 11:00. The 429's `retryDelay` is not when it resets. Plan long renders for just after it.
+  - **The lite TTS model is not fit for produced content**: on a 6-word km split it read its notes
+    aloud on six takes in a row (26-28 s each), and on « Trois ! » for 22 s. The produce tool now
+    renders on the main model only and waits for the next day; the Worker still falls back to it
+    (STATUS Known gaps).
+  - Four renders retrying a per-minute 429 on the same schedule never got through for 14 minutes
+    while a single probe did: refused requests seem to count against the minute. Wait the 429's
+    own `retryDelay` plus random seconds.
+  - A day of polling was lost to the laptop's DNS (`ENOTFOUND gateway.ai.cloudflare.com` from
+    10:00 to 19:35, the network back on its own): a poller must log the error's kind, and
+    "quota spent" and "no network" look alike in a one-line summary.
+  - Costs (ai.google.dev pricing, 2026-10): `gemini-3.8-flash-tts` audio is 9 USD per 1M tokens in
+    2026, 18 from 2027-01-01, at 25 tokens a second: 0.00045 USD a second of voice in 2027. French
+    reads at ~14 characters a second. A runner is 0.04-0.10 USD (10 km), 0.02-0.07 (5 km). A forum
+    thread (discuss.ai.google.dev, 2026-10-07) reports `gemini-3.8-flash-tts` held at 100 requests
+    a day through the API while AI Studio shows 10,000, Tier 2 projects included.
+  - ElevenLabs (2026-10): no daily cap; renders at once for v3 by plan: Free 2, Starter 3,
+    Creator 5, Pro 10, Scale 15 (Flash models double); 0.08 USD per 1,000 characters for v3 on
+    every plan. Voice cloning (instant: a minute or two of audio; professional: 30 min+, the
+    speaker confirms consent) needs a paid plan; Gemini has none.

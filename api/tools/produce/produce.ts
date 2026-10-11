@@ -13,7 +13,8 @@
  * draft in D1 points each line and take at them (`audio`, `under`); the draft it replaces is kept in
  * `out/<course>/draft-before-<target>.json`. `--publish` then publishes with the Worker's own code
  * (lib/publish.ts) on the target's bindings (../bindings.ts) and puts the reel up for the race page.
- * Every render's origin is written to `out/<course>/origins.json`.
+ * Every render's origin is written to `out/<course>/origins.json`, and the page to check it all by
+ * ear to `out/qa/index.html` (./qa.ts).
  * Needs ffmpeg, GEMINI_API_KEY and CLOUDFLARE_ACCOUNT_ID (the repo's .env), and Wrangler logged in.
  */
 import { createHash } from 'node:crypto';
@@ -45,6 +46,7 @@ import { publishScript } from '../../src/lib/publish';
 import { reelKey } from '../../src/lib/reel';
 import { CACHE, QuotaSpent, source, voice, voiceEnvFromDotenv, voiceOrigin } from './assets';
 import { countAlongOf, shoutsOf } from './crowd';
+import { writeQa } from './qa';
 import { durationOf, render } from './mix';
 import type { Cut } from './mix';
 import { placedOf, playOut, reelOf, runCut, timelineMd } from './run';
@@ -218,6 +220,7 @@ for (const script of champsElyseesScripts.filter((s) => !onlyCourse || s.courseI
   const course = champsElyseesCourses.find((c) => c.id === script.courseId)!;
   produced.push({ script, ...(await produceCourse(script, course.distanceM)) });
 }
+console.log(`QA page: ${writeQa(champsElyseesScripts)}`);
 
 if (target) {
   const { env: bindings, dispose } = await bindingsFor(target);

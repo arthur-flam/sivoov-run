@@ -51,6 +51,9 @@ ears: every listening decision is provisional and listed under Owner actions).
   shown only on the demo. Production waits, by the owner's choice (2026-10-10: preview is enough
   for now). The produce tool now renders on the main model only (the lite one read its notes
   aloud on short lines) and writes `out/qa/index.html`, every line and take to check by ear.
+  The six full runs followed on 2026-10-12 (the quota allows about one course's runs a day):
+  10 km at 4:30 / 5:30 (a stop, a walk) / 7:00: 41, 46 and 50 lines, longest silence 150, 146 and
+  143 s; 5 km: 29, 32 and 34 lines, longest 116, 108 and 115 s.
 
 ### The production brief (2026-10-09, branch `claude/api-credits-10k-strategy-ssyque`)
 The owner ran the 10K draft and listened: too many long silences, trivia instead of
